@@ -141,10 +141,11 @@ function render(){
     const prog=r.archived?'':`<span class="badge b-calls">ติดตาม ${Math.min(r.callCount||0,3)}/3</span>`;
     const hand=(!r.archived&&r.stage>0)?'<span class="badge" style="background:#fef9c3;color:#854d0e">🔁 มือ 2</span>':'';
     const line=(!r.archived&&r.line==='added')?'<span class="badge b-line">ไลน์ ✓</span>':'';
+    const stale=(!r.archived&&r.lastActivity)?(()=>{const d=Math.floor((Date.now()-Date.parse(r.lastActivity))/86400000);return d>=3?`<span class="badge" style="background:#fef2f2;color:#b91c1c">⏳ ค้าง ${d} วัน</span>`:'';})():'';
     return `<div class="lead ${kc}" onclick="openLead(${i})">
       <div class="top"><div class="nm">${esc(r.name)||'(ไม่มีชื่อ)'}</div>
         <a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">📞 ${esc(r.phone)}</a></div>
-      <div class="badges"><span class="badge ${st.cls}">${esc(st.txt)}</span>${prog}${hand}${line}</div>
+      <div class="badges"><span class="badge ${st.cls}">${esc(st.txt)}</span>${prog}${hand}${stale}${line}</div>
       <div class="meta">${esc(r.code)}${r.note?' · 📝 '+esc(r.note.slice(0,42)):''}</div>
     </div>`;
   }).join('');
@@ -176,6 +177,9 @@ function openLead(i){
     <div id="notebox" style="display:${r.note?'block':'none'}">
       <textarea id="note" rows="2" placeholder="โน้ต…">${esc(r.note)}</textarea>
       <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveNote()">บันทึกโน้ต</button>
+    </div>
+    <div style="margin-top:16px;border-top:1px solid #f0f2f5;padding-top:14px">
+      <button class="act" style="width:100%;background:#fff7ed;color:#9a3412;border:1px solid #fdba74" onclick="doAdvance()">${(r.stage||0)===0?('🔁 ส่งต่อให้ '+(r.sales==='W'?'K':'W')+' เลย (ไม่รอครบ 3 รอบ)'):'🗑 คัดออกถาวรเลย'}</button>
     </div>
     <div class="rm"><div class="sec">นำออก (ย้ายไปถัง กู้คืนได้)</div>
       <div class="grid"><button onclick="doArchive('unreachable')">🗑 เบอร์ติดต่อไม่ได้</button><button onclick="doArchive('bad_data')">🗑 ข้อมูลไม่ครบ/เสีย</button></div></div>`;
@@ -212,6 +216,13 @@ function toggleNote(){const n=document.getElementById('notebox');n.style.display
 async function saveNote(){ if(!CUR)return; const t=document.getElementById('note').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{note:t}}); if(j&&j.ok){toast('บันทึกโน้ตแล้ว');reload();} }
 async function doArchive(reason){ if(!CUR)return; if(!confirm('ย้ายไปถัง "นำออกแล้ว"? (กู้คืนได้)'))return; const j=await api('/api/lead/archive',{key:CUR.key,reason}); if(j&&j.ok){toast('นำออกแล้ว');closeSheet();reload();} }
 async function doRestore(){ if(!CUR)return; const j=await api('/api/lead/restore',{key:CUR.key}); if(j&&j.ok){toast('กู้คืนแล้ว');closeSheet();reload();} }
+async function doAdvance(){
+  if(!CUR)return;
+  const isTransfer=(CUR.stage||0)===0; const other=CUR.sales==='W'?'K':'W';
+  if(!confirm(isTransfer?('ส่งต่อลูกค้ารายนี้ให้ '+other+' เลยใช่ไหม? (เริ่มนับรอบใหม่)'):'คัดลูกค้ารายนี้ออกถาวรเลยใช่ไหม? (แอดมินกู้คืนได้)'))return;
+  const j=await api('/api/lead/advance',{key:CUR.key});
+  if(j&&j.ok){ if(!advToast(j.advanced)) toast('ดำเนินการแล้ว'); closeSheet(); reload(); }
+}
 async function reload(){
   const url='/api/leads'+(ME.role==='admin'&&ME.side?('?side='+ME.side):'');
   const r=await fetch(url); if(r.status===401){location.href='/login';return;} const j=await r.json();

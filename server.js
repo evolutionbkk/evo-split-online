@@ -53,6 +53,10 @@ async function boot() {
     console.log('[boot] seeded base:', s.assigned.length, 'records');
   }
   state = s;
+  // backfill receivedAt (staleness clock) for leads that predate this field
+  let bf = false;
+  for (const rec of state.assigned) { if (!rec.receivedAt) { rec.receivedAt = rec.updatedAt || new Date().toISOString(); bf = true; } }
+  if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
 }
@@ -178,7 +182,8 @@ app.get('/api/share-links', requireAuth, (req, res) => {
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
 app.get('/sales', requireLogin, (req, res) => res.sendFile(path.join(__dirname, 'sales.html')));
 
-app.get('/api/state', requireAuth, (req, res) => {
+app.get('/api/state', requireAuth, async (req, res) => {
+  await runSweep();
   res.json({
     total: state.assigned.length,
     maxRound: state.maxRound,
@@ -204,18 +209,15 @@ function leadView(r) {
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
     updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
+    lastActivity: r.updatedAt || r.receivedAt || null,
   };
 }
 // Lead recycling: after 3 calls without closing (and not an active appointment),
 // hand off to the other salesperson once; if it fails again, move to the "คัดออกถาวร" bin.
 const FOLLOW_ROUNDS = 3; // calls before advancing
-function maybeRecycle(rec) {
-  if (rec.archived) return null;
-  if (rec.reachStatus === 'closed') return null;      // won — stop
-  if (rec.reachStatus === 'appointment') return null; // still nurturing — hold
-  if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
-  const failed = rec.contact === 'unreachable' || rec.reachStatus === 'not_ready';
-  if (!failed) return null;
+const STALE_DAYS = 7;    // no-activity days before auto hand-off
+// Move a lead one stage: 1st hand -> transfer to the other side; 2nd hand -> คัดออกถาวร bin.
+function advanceStage(rec) {
   const stage = rec.stage || 0;
   if (stage === 0) {
     const from = rec.sales, to = rec.sales === 'W' ? 'K' : 'W';
@@ -223,10 +225,38 @@ function maybeRecycle(rec) {
     rec.handoffs = rec.handoffs || []; rec.handoffs.push({ from, to, at: new Date().toISOString() });
     // fresh start for the receiving salesperson (keep note + line as context)
     rec.callCount = 0; rec.calls = []; rec.contact = ''; rec.reachStatus = ''; rec.unreachableReason = ''; rec.nextAppt = '';
+    rec.receivedAt = new Date().toISOString();
     return { action: 'transferred', from, to };
   }
   rec.archived = true; rec.archiveReason = 'recycled_out'; rec.archivedAt = new Date().toISOString();
   return { action: 'recycled_out' };
+}
+// Auto rule: after 3 calls with a non-closing outcome (not an active appointment).
+function maybeRecycle(rec) {
+  if (rec.archived) return null;
+  if (rec.reachStatus === 'closed') return null;      // won — stop
+  if (rec.reachStatus === 'appointment') return null; // still nurturing — hold
+  if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
+  const failed = rec.contact === 'unreachable' || rec.reachStatus === 'not_ready';
+  if (!failed) return null;
+  return advanceStage(rec);
+}
+function lastActivityMs(rec) {
+  const la = rec.updatedAt || rec.receivedAt; if (!la) return null;
+  const t = Date.parse(la); return isNaN(t) ? null : t;
+}
+// Safety net: auto-advance leads untouched for STALE_DAYS (skip closed & future appointments).
+async function runSweep() {
+  const now = Date.now(); let changed = false;
+  for (const rec of state.assigned) {
+    if (rec.archived) continue;
+    if (rec.reachStatus === 'closed') continue;
+    if (rec.reachStatus === 'appointment' && rec.nextAppt) { const t = Date.parse(rec.nextAppt); if (!isNaN(t) && t > now) continue; }
+    const la = lastActivityMs(rec); if (la == null) continue;
+    if (now - la > STALE_DAYS * 86400000) { advanceStage(rec); changed = true; }
+  }
+  if (changed) state = await store.save(state);
+  return changed;
 }
 function leadFor(req, key) {
   const rec = state.assigned.find((r) => S.keyOf(r) === key);
@@ -238,7 +268,8 @@ function whoami(req) { return req.session.role === 'admin' ? 'admin' : req.sessi
 
 app.get('/api/me', requireLogin, (req, res) => res.json({ role: req.session.role, side: req.session.side || null, user: req.session.u }));
 
-app.get('/api/leads', requireLogin, (req, res) => {
+app.get('/api/leads', requireLogin, async (req, res) => {
+  await runSweep();
   const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : (req.query.side === 'W' ? 'W' : null));
   let list = state.assigned;
   if (side) list = list.filter((r) => r.sales === side);
@@ -294,6 +325,17 @@ app.post('/api/lead/restore', requireLogin, async (req, res) => {
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
   state = await store.save(state);
   res.json({ ok: true });
+});
+
+// Manual hand-off: force-advance one stage now (skip the 3-round wait).
+app.post('/api/lead/advance', requireLogin, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  if (rec.archived) return res.status(400).json({ error: 'already_removed' });
+  const advanced = advanceStage(rec);
+  rec.updatedBy = whoami(req);
+  state = await store.save(state);
+  res.json({ ok: true, advanced, lead: leadView(rec) });
 });
 
 // Push from browser script (auth via INGEST_KEY) OR from the logged-in admin.
@@ -502,4 +544,5 @@ app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.len
 
 boot().then(() => {
   app.listen(PORT, () => console.log('[server] listening on', PORT));
+  setInterval(() => { runSweep().catch(() => {}); }, 60 * 60 * 1000); // hourly stale sweep
 }).catch((e) => { console.error('boot failed', e); process.exit(1); });

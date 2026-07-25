@@ -37,6 +37,7 @@ function buildSeed(records) {
     rec.round = 1;
     rec.date = BASE_DATE;
     rec.exported = false; // ยังไม่เคยดาวน์โหลด/ส่งให้เซลล์
+    rec.receivedAt = new Date().toISOString();
     assigned.push(rec);
   }
   return { assigned, maxRound: 1 };
@@ -70,6 +71,7 @@ function applyNew(state, records, label) {
       rec.round = round;
       rec.date = date;
       rec.exported = false; // รายใหม่ ยังไม่เคยส่ง
+      rec.receivedAt = new Date().toISOString();
       state.assigned.push(rec);
       if (side === 'W') addW++; else addK++;
     }
