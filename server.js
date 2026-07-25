@@ -348,6 +348,7 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   if ('reachStatus' in p) rec.reachStatus = REACH_STATUS.includes(p.reachStatus) ? p.reachStatus : '';
   if ('line' in p) rec.line = ['added', 'not_added', ''].includes(p.line) ? p.line : rec.line;
   if ('nextAppt' in p) rec.nextAppt = String(p.nextAppt || '').slice(0, 40);
+  if ('name' in p) rec.name = String(p.name || '').trim().slice(0, 200);
   if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
   if ('address' in p) rec.address = String(p.address || '').slice(0, 500);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
