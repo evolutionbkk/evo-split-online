@@ -127,6 +127,7 @@ app.get('/api/state', requireAuth, (req, res) => {
     total: state.assigned.length,
     maxRound: state.maxRound,
     updatedAt: state.updatedAt,
+    newCount: state.assigned.filter((a) => !a.exported).length,
     W: S.listSide(state, 'W'),
     K: S.listSide(state, 'K'),
   });
@@ -228,6 +229,37 @@ app.get('/export/xlsx', requireAuth, (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', 'attachment; filename="customers_W_K.xlsx"');
   res.send(buf);
+});
+
+// Download ONLY names not yet exported, then mark them as sent (so they won't be handed out again).
+app.post('/export/new-xlsx', requireAuth, async (req, res) => {
+  const fresh = state.assigned.filter((a) => !a.exported);
+  if (!fresh.length) return res.status(200).json({ ok: false, empty: true, message: 'ไม่มีรายใหม่ที่ยังไม่เคยส่ง' });
+  const W = fresh.filter((a) => a.sales === 'W'), K = fresh.filter((a) => a.sales === 'K');
+  const mk = (list) => [['ลำดับ', 'รหัสสมาชิก', 'ชื่อ-นามสกุล', 'เบอร์โทรศัพท์', 'รอบที่ดึง', 'วันที่แบ่ง'],
+    ...list.map((r, i) => [i + 1, r.code, r.name, r.phone, S.roundName(r.round), r.date])];
+  const wb = XLSX.utils.book_new();
+  const wsW = XLSX.utils.aoa_to_sheet(mk(W)), wsK = XLSX.utils.aoa_to_sheet(mk(K));
+  wsW['!cols'] = wsK['!cols'] = [{ wch: 7 }, { wch: 15 }, { wch: 32 }, { wch: 16 }, { wch: 12 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, wsW, 'Sales(W)-ใหม่');
+  XLSX.utils.book_append_sheet(wb, wsK, 'Sales(K)-ใหม่');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  // mark as sent
+  fresh.forEach((a) => { a.exported = true; });
+  state = await store.save(state);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="customers_new_${fresh.length}.xlsx"`);
+  res.setHeader('X-New-Count', String(fresh.length));
+  res.setHeader('X-New-W', String(W.length));
+  res.setHeader('X-New-K', String(K.length));
+  res.send(buf);
+});
+
+// Clear all "sent" marks (so the next "download new" gives everyone again).
+app.post('/api/reset-exported', requireAuth, async (req, res) => {
+  state.assigned.forEach((a) => { a.exported = false; });
+  state = await store.save(state);
+  res.json({ ok: true, newCount: state.assigned.length });
 });
 
 app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.length }));

@@ -85,10 +85,14 @@
     </div>
   </div>
 
-  <div class="row" style="margin-bottom:14px">
-    <a class="btn b-xl" href="/export/xlsx"><button class="b-xl">⬇ ดาวน์โหลด Excel</button></a>
-    <a class="btn" href="/export/csv?side=W"><button class="b-w">⬇ CSV — Sales (W)</button></a>
-    <a class="btn" href="/export/csv?side=K"><button class="b-k">⬇ CSV — Sales (K)</button></a>
+  <div class="row" style="margin-bottom:6px">
+    <button class="b-add" id="newBtn" onclick="doExportNew()" style="font-weight:700">⬇ ดาวน์โหลดเฉพาะรายใหม่ (ที่ยังไม่เคยส่ง)</button>
+    <a class="btn b-xl" href="/export/xlsx"><button class="b-xl">⬇ ดาวน์โหลด Excel (ทั้งหมด)</button></a>
+    <a class="btn" href="/export/csv?side=W"><button class="b-w">⬇ CSV — W</button></a>
+    <a class="btn" href="/export/csv?side=K"><button class="b-k">⬇ CSV — K</button></a>
+  </div>
+  <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">
+    <span id="newinfo"></span> &nbsp;·&nbsp; <a href="#" onclick="resetExported();return false;" style="color:#b45309">ล้างสถานะ "ส่งแล้ว" (นับทุกคนเป็นรายใหม่อีกครั้ง)</a>
   </div>
 
   <div class="cols">
@@ -119,6 +123,11 @@ async function refresh(){
   document.getElementById('hk').textContent=s.K.length+' ราย';
   document.getElementById('tw').innerHTML=rowsHtml(s.W);
   document.getElementById('tk').innerHTML=rowsHtml(s.K);
+  const nc = s.newCount||0;
+  const nb=document.getElementById('newBtn');
+  nb.textContent = '⬇ ดาวน์โหลดเฉพาะรายใหม่ ('+nc+' ราย)';
+  nb.disabled = nc===0; nb.style.opacity = nc===0?0.55:1;
+  document.getElementById('newinfo').innerHTML = 'ยังไม่เคยส่ง: <b>'+nc+'</b> ราย · ส่งแล้ว: <b>'+(s.total-nc)+'</b> ราย';
 }
 async function doPaste(){
   const text=document.getElementById('paste').value; if(!text.trim()){alert('ยังไม่มีข้อมูลที่วาง');return;}
@@ -144,6 +153,26 @@ async function evoStatus(){
   try{ const r=await fetch('/api/evo-status'); if(!r.ok)return; const s=await r.json();
     document.getElementById('evostatus').textContent = s.hasToken ? ('เชื่อมกับ Evolution แล้ว · token อัปเดตล่าสุด '+fmt(s.tokenUpdatedAt)) : 'ยังไม่ได้เชื่อม — เปิดหน้า Evolution (ที่ติดตั้งสคริปต์) สักครั้งก่อน';
   }catch(e){}
+}
+async function doExportNew(){
+  const btn=document.getElementById('newBtn'); btn.disabled=true; const old=btn.textContent; btn.textContent='⏳ กำลังเตรียมไฟล์…';
+  try{
+    const r=await fetch('/export/new-xlsx',{method:'POST'});
+    const ct=r.headers.get('Content-Type')||'';
+    if(ct.includes('spreadsheet')){
+      const w=r.headers.get('X-New-W')||'?', k=r.headers.get('X-New-K')||'?', n=r.headers.get('X-New-Count')||'?';
+      const blob=await r.blob(); const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='customers_new_'+n+'.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+      document.getElementById('lastact').innerHTML='✓ ดาวน์โหลดรายใหม่ <b>'+n+'</b> ราย (W '+w+' / K '+k+') และทำเครื่องหมาย "ส่งแล้ว" เรียบร้อย';
+    } else {
+      const j=await r.json(); document.getElementById('lastact').innerHTML='ℹ '+(j.message||'ไม่มีรายใหม่');
+    }
+  }catch(e){ document.getElementById('lastact').innerHTML='⚠ ผิดพลาด: '+e; }
+  refresh();
+}
+async function resetExported(){
+  if(!confirm('ล้างสถานะ "ส่งแล้ว" ทั้งหมด? หลังจากนี้ทุกคนจะถูกนับเป็นรายใหม่ที่ยังไม่เคยส่งอีกครั้ง'))return;
+  await fetch('/api/reset-exported',{method:'POST'}); document.getElementById('lastact').textContent='ล้างสถานะส่งแล้วเรียบร้อย'; refresh();
 }
 refresh(); evoStatus(); setInterval(refresh, 30000); setInterval(evoStatus, 60000);
 </script>
