@@ -384,11 +384,12 @@ function copyLink(side){
 async function loadCrmSummary(){
   try{
     const [w,k]=await Promise.all([fetch('/api/leads?side=W').then(r=>r.json()),fetch('/api/leads?side=K').then(r=>r.json())]);
-    const sumSide=(j)=>{const a=j.active||[];const c=f=>a.filter(f).length;const arch=j.archived||[];return{total:a.length,neww:c(r=>!r.contact),un:c(r=>r.contact==='unreachable'),nr:c(r=>r.reachStatus==='not_ready'),ap:c(r=>r.reachStatus==='appointment'),cl:c(r=>r.reachStatus==='closed'),line:c(r=>r.line==='added'),hand2:c(r=>r.stage>0),arch:arch.length,recycled:arch.filter(x=>x.archiveReason==='recycled_out').length};};
+    const st=r=>r.leadStatus||'new';
+    const sumSide=(j)=>{const a=j.active||[];const c=f=>a.filter(f).length;const arch=j.archived||[];return{total:a.length,neww:c(r=>st(r)==='new'),contacting:c(r=>st(r)==='contacting'),interested:c(r=>st(r)==='interested'),followup:c(r=>st(r)==='followup'),won:c(r=>st(r)==='won'),lost:c(r=>st(r)==='lost'),hot:c(r=>r.interest==='hot'),line:c(r=>r.line==='added'),hand2:c(r=>r.stage>0),arch:arch.length,recycled:arch.filter(x=>x.archiveReason==='recycled_out').length};};
     const W=sumSide(w),K=sumSide(k);
     const box=(name,cls,s)=>`<div style="flex:1;min-width:250px;border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff;box-shadow:var(--shadow-sm)">
       <div style="font-weight:700;color:var(--${cls});margin-bottom:6px">Sales (${name}) · ${s.total} ราย</div>
-      <div style="font-size:12.5px;line-height:1.9">ยังไม่ติดต่อ <b>${s.neww}</b> · ติดต่อไม่ได้ <b>${s.un}</b> · ยังไม่พร้อม <b>${s.nr}</b> · นัดหมาย <b>${s.ap}</b> · <span style="color:#065f46">ปิดการขาย <b>${s.cl}</b></span> · แอดไลน์ <b>${s.line}</b> · <span style="color:#854d0e">รับต่อมือ2 <b>${s.hand2}</b></span></div></div>`;
+      <div style="font-size:12.5px;line-height:1.9">ใหม่ <b>${s.neww}</b> · กำลังติดต่อ <b>${s.contacting}</b> · สนใจ <b>${s.interested}</b> · นัดติดตาม <b>${s.followup}</b> · <span style="color:#065f46">ปิดการขาย <b>${s.won}</b></span> · <span style="color:#b42318">ไม่ปิด <b>${s.lost}</b></span> · <span style="color:#b91c1c">Hot <b>${s.hot}</b></span> · แอดไลน์ <b>${s.line}</b> · <span style="color:#854d0e">รับต่อมือ2 <b>${s.hand2}</b></span></div></div>`;
     document.getElementById('crmsum').innerHTML=box('W','w',W)+box('K','k',K);
     document.getElementById('crmarch').textContent='ในถังนำออก '+(W.arch+K.arch)+' ราย · คัดออกถาวร(วนครบ) '+(W.recycled+K.recycled)+' ราย (แอดมินกู้คืน/ดึงออกได้)';
   }catch(e){}

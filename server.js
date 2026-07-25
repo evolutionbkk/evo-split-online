@@ -199,13 +199,36 @@ app.get('/api/state', requireAuth, async (req, res) => {
 const UNREACH_REASONS = ['ไม่สะดวกคุย', 'ไม่รับสาย', 'ปิดเครื่อง', 'พบช่องทางอื่นที่ถูกกว่า', 'สะดวกสั่งซื้อช่องทางอื่น'];
 const REACH_STATUS = ['not_ready', 'appointment', 'closed'];
 const ARCH_REASONS = ['unreachable', 'bad_data'];
+// New CRM taxonomy (replaces the old reachStatus/contact model in the UI; legacy fields kept for back-compat)
+const LEAD_STATUS_KEYS = ['new', 'contacting', 'interested', 'followup', 'won', 'lost'];
+const CALL_RESULT_KEYS = ['no_answer', 'connected', 'hung_up', 'wrong_number'];
+const INTEREST_KEYS = ['hot', 'warm', 'cold'];
+const NEXT_ACTION_KEYS = ['callback', 'send_info', 'meeting'];
+const LOST_REASONS = ['ราคาแพง', 'ซื้อที่อื่น', 'ไม่มีงบ', 'ติดต่อไม่ได้', 'ไม่สนใจ', 'อื่นๆ'];
+// Derive a Lead Status for records that predate this field (maps the old model onto the new one).
+function recStatus(rec) {
+  if (rec.leadStatus && LEAD_STATUS_KEYS.includes(rec.leadStatus)) return rec.leadStatus;
+  if (rec.reachStatus === 'closed') return 'won';
+  if (rec.reachStatus === 'appointment') return 'followup';
+  if (rec.reachStatus === 'not_ready') return 'interested';
+  if (rec.contact === 'reached') return 'contacting';
+  if (rec.contact === 'unreachable') return 'contacting';
+  return 'new';
+}
+function lastCallOf(rec) {
+  if (rec.lastCallAt) return rec.lastCallAt;
+  const c = rec.calls || [];
+  return c.length ? (c[c.length - 1].at || '') : '';
+}
 function leadView(r) {
   return {
     key: S.keyOf(r), code: r.code, name: r.name, phone: r.phone, sales: r.sales, round: r.round, date: r.date,
     exported: !!r.exported,
-    callCount: r.callCount || 0, calls: r.calls || [],
+    callCount: r.callCount || 0, calls: r.calls || [], lastCallAt: lastCallOf(r),
     contact: r.contact || '', unreachableReason: r.unreachableReason || '',
     reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '',
+    leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
+    nextAction: r.nextAction || '', lostReason: r.lostReason || '',
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
     updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
@@ -225,20 +248,20 @@ function advanceStage(rec) {
     rec.handoffs = rec.handoffs || []; rec.handoffs.push({ from, to, at: new Date().toISOString() });
     // fresh start for the receiving salesperson (keep note + line as context)
     rec.callCount = 0; rec.calls = []; rec.contact = ''; rec.reachStatus = ''; rec.unreachableReason = ''; rec.nextAppt = '';
+    rec.leadStatus = 'new'; rec.callResult = ''; rec.interest = ''; rec.nextAction = ''; rec.lostReason = ''; rec.lastCallAt = '';
     rec.receivedAt = new Date().toISOString();
     return { action: 'transferred', from, to };
   }
   rec.archived = true; rec.archiveReason = 'recycled_out'; rec.archivedAt = new Date().toISOString();
   return { action: 'recycled_out' };
 }
-// Auto rule: after 3 calls with a non-closing outcome (not an active appointment).
+// Auto rule: after 3 calls without closing (won) and not an active follow-up.
 function maybeRecycle(rec) {
   if (rec.archived) return null;
-  if (rec.reachStatus === 'closed') return null;      // won — stop
-  if (rec.reachStatus === 'appointment') return null; // still nurturing — hold
+  const st = recStatus(rec);
+  if (st === 'won') return null;       // closed the sale — stop
+  if (st === 'followup') return null;  // has a scheduled follow-up — hold (stale sweep covers overdue ones)
   if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
-  const failed = rec.contact === 'unreachable' || rec.reachStatus === 'not_ready';
-  if (!failed) return null;
   return advanceStage(rec);
 }
 function lastActivityMs(rec) {
@@ -250,8 +273,9 @@ async function runSweep() {
   const now = Date.now(); let changed = false;
   for (const rec of state.assigned) {
     if (rec.archived) continue;
-    if (rec.reachStatus === 'closed') continue;
-    if (rec.reachStatus === 'appointment' && rec.nextAppt) { const t = Date.parse(rec.nextAppt); if (!isNaN(t) && t > now) continue; }
+    const st = recStatus(rec);
+    if (st === 'won') continue;
+    if (st === 'followup' && rec.nextAppt) { const t = Date.parse(rec.nextAppt); if (!isNaN(t) && t > now) continue; }
     const la = lastActivityMs(rec); if (la == null) continue;
     if (now - la > STALE_DAYS * 86400000) { advanceStage(rec); changed = true; }
   }
@@ -283,9 +307,11 @@ app.get('/api/leads', requireLogin, async (req, res) => {
 app.post('/api/lead/call', requireLogin, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
-  rec.calls = rec.calls || []; rec.calls.push({ at: new Date().toISOString(), by: whoami(req) });
+  const nowIso = new Date().toISOString();
+  rec.calls = rec.calls || []; rec.calls.push({ at: nowIso, by: whoami(req) });
   rec.callCount = (rec.callCount || 0) + 1;
-  rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  rec.lastCallAt = nowIso;
+  rec.updatedAt = nowIso; rec.updatedBy = whoami(req);
   const advanced = maybeRecycle(rec);
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec), advanced });
@@ -295,6 +321,13 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   const p = (req.body && req.body.patch) || {};
+  // new CRM taxonomy
+  if ('leadStatus' in p) rec.leadStatus = LEAD_STATUS_KEYS.includes(p.leadStatus) ? p.leadStatus : rec.leadStatus;
+  if ('callResult' in p) rec.callResult = (p.callResult === '' || CALL_RESULT_KEYS.includes(p.callResult)) ? p.callResult : rec.callResult;
+  if ('interest' in p) rec.interest = (p.interest === '' || INTEREST_KEYS.includes(p.interest)) ? p.interest : rec.interest;
+  if ('nextAction' in p) rec.nextAction = (p.nextAction === '' || NEXT_ACTION_KEYS.includes(p.nextAction)) ? p.nextAction : rec.nextAction;
+  if ('lostReason' in p) rec.lostReason = (p.lostReason === '' || LOST_REASONS.includes(p.lostReason)) ? p.lostReason : rec.lostReason;
+  // shared / legacy fields
   if ('contact' in p) rec.contact = ['reached', 'unreachable', ''].includes(p.contact) ? p.contact : rec.contact;
   if ('unreachableReason' in p) rec.unreachableReason = UNREACH_REASONS.includes(p.unreachableReason) ? p.unreachableReason : '';
   if ('reachStatus' in p) rec.reachStatus = REACH_STATUS.includes(p.reachStatus) ? p.reachStatus : '';
@@ -303,9 +336,9 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
-  const advanced = maybeRecycle(rec);
+  // Note: field edits do NOT auto-recycle — only real call logs (/api/lead/call) and the stale sweep do.
   state = await store.save(state);
-  res.json({ ok: true, lead: leadView(rec), advanced });
+  res.json({ ok: true, lead: leadView(rec), advanced: null });
 });
 
 app.post('/api/lead/archive', requireLogin, async (req, res) => {
