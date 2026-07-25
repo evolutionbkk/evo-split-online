@@ -13,6 +13,11 @@ const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 const INGEST_KEY = process.env.INGEST_KEY || '';
+// Per-salesperson logins (passwords set in Railway Variables; empty pass = login disabled)
+const SALES = {
+  W: { user: process.env.SALES_W_USER || 'salesW', pass: process.env.SALES_W_PASS || '' },
+  K: { user: process.env.SALES_K_USER || 'salesK', pass: process.env.SALES_K_PASS || '' },
+};
 
 if (!ADMIN_PASS) console.warn('[warn] ADMIN_PASS is not set — set it in Railway Variables before going live.');
 if (!INGEST_KEY) console.warn('[warn] INGEST_KEY is not set — the browser script cannot push data until you set one.');
@@ -56,19 +61,25 @@ async function boot() {
 function sign(val) {
   return crypto.createHmac('sha256', SESSION_SECRET).update(val).digest('base64url');
 }
-function makeToken() {
-  const payload = Buffer.from(JSON.stringify({ u: ADMIN_USER, t: Date.now() })).toString('base64url');
+function safeEq(a, b) {
+  a = String(a == null ? '' : a); b = String(b == null ? '' : b);
+  if (a.length !== b.length) return false;
+  try { return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); } catch (e) { return false; }
+}
+function makeToken(u, role, side) {
+  const payload = Buffer.from(JSON.stringify({ u, r: role, s: side || '', t: Date.now() })).toString('base64url');
   return payload + '.' + sign(payload);
 }
-function verifyToken(tok) {
-  if (!tok || tok.indexOf('.') < 0) return false;
+function readSession(req) {
+  const tok = parseCookies(req).sess;
+  if (!tok || tok.indexOf('.') < 0) return null;
   const [payload, sig] = tok.split('.');
-  if (sign(payload) !== sig) return false;
+  if (sign(payload) !== sig) return null;
   try {
     const p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    if (Date.now() - p.t > 1000 * 60 * 60 * 24 * 30) return false; // 30-day expiry
-    return true;
-  } catch (e) { return false; }
+    if (Date.now() - p.t > 1000 * 60 * 60 * 24 * 30) return null; // 30-day expiry
+    return { u: p.u, role: p.r || 'admin', side: p.s || '' }; // pre-role tokens => admin
+  } catch (e) { return null; }
 }
 function parseCookies(req) {
   const out = {};
@@ -77,11 +88,21 @@ function parseCookies(req) {
   h.split(';').forEach((c) => { const i = c.indexOf('='); if (i > 0) out[c.slice(0, i).trim()] = decodeURIComponent(c.slice(i + 1).trim()); });
   return out;
 }
-function isAuthed(req) { return verifyToken(parseCookies(req).sess); }
+function isAuthed(req) { return !!readSession(req); }
+function apiPath(req) { return req.path.startsWith('/api/') || req.path.startsWith('/export/'); }
+// requireAuth = ADMIN ONLY (name kept so existing admin routes stay admin-only)
 function requireAuth(req, res, next) {
-  if (isAuthed(req)) return next();
-  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'unauthorized' });
-  return res.redirect('/login');
+  const s = readSession(req);
+  if (!s) return apiPath(req) ? res.status(401).json({ error: 'unauthorized' }) : res.redirect('/login');
+  req.session = s;
+  if (s.role !== 'admin') return apiPath(req) ? res.status(403).json({ error: 'forbidden' }) : res.redirect('/sales');
+  next();
+}
+// requireLogin = any logged-in user (admin or salesperson)
+function requireLogin(req, res, next) {
+  const s = readSession(req);
+  if (!s) return apiPath(req) ? res.status(401).json({ error: 'unauthorized' }) : res.redirect('/login');
+  req.session = s; next();
 }
 
 const app = express();
@@ -107,12 +128,13 @@ app.get('/login', (req, res) => {
 });
 app.post('/login', (req, res) => {
   const { username, password } = req.body || {};
-  const okUser = crypto.timingSafeEqual(Buffer.from(String(username || '')), Buffer.from(ADMIN_USER)) ;
-  const okPass = ADMIN_PASS && String(password || '').length === ADMIN_PASS.length &&
-    crypto.timingSafeEqual(Buffer.from(String(password || '')), Buffer.from(ADMIN_PASS));
-  if (okUser && okPass) {
-    res.setHeader('Set-Cookie', `sess=${makeToken()}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax; Secure`);
-    return res.redirect('/');
+  let role = null, side = '', user = null;
+  if (ADMIN_PASS && safeEq(username, ADMIN_USER) && safeEq(password, ADMIN_PASS)) { role = 'admin'; user = ADMIN_USER; }
+  else if (SALES.W.pass && safeEq(username, SALES.W.user) && safeEq(password, SALES.W.pass)) { role = 'sales'; side = 'W'; user = SALES.W.user; }
+  else if (SALES.K.pass && safeEq(username, SALES.K.user) && safeEq(password, SALES.K.pass)) { role = 'sales'; side = 'K'; user = SALES.K.user; }
+  if (role) {
+    res.setHeader('Set-Cookie', `sess=${makeToken(user, role, side)}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax; Secure`);
+    return res.redirect(role === 'admin' ? '/' : '/sales');
   }
   res.status(401).sendFile(path.join(__dirname, 'login.html'));
 });
@@ -154,22 +176,106 @@ app.get('/api/share-links', requireAuth, (req, res) => {
 
 // ---------- app ----------
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
+app.get('/sales', requireLogin, (req, res) => res.sendFile(path.join(__dirname, 'sales.html')));
 
 app.get('/api/state', requireAuth, (req, res) => {
   res.json({
     total: state.assigned.length,
     maxRound: state.maxRound,
     updatedAt: state.updatedAt,
-    newCount: state.assigned.filter((a) => !a.exported).length,
+    newCount: state.assigned.filter((a) => !a.exported && !a.archived).length,
     W: S.listSide(state, 'W'),
     K: S.listSide(state, 'K'),
+    archivedCount: state.assigned.filter((a) => a.archived).length,
   });
+});
+
+// ---------- lead CRM (per-salesperson status tracking) ----------
+const UNREACH_REASONS = ['ไม่สะดวกคุย', 'ไม่รับสาย', 'ปิดเครื่อง', 'พบช่องทางอื่นที่ถูกกว่า', 'สะดวกสั่งซื้อช่องทางอื่น'];
+const REACH_STATUS = ['not_ready', 'appointment', 'closed'];
+const ARCH_REASONS = ['unreachable', 'bad_data'];
+function leadView(r) {
+  return {
+    key: S.keyOf(r), code: r.code, name: r.name, phone: r.phone, sales: r.sales, round: r.round, date: r.date,
+    exported: !!r.exported,
+    callCount: r.callCount || 0, calls: r.calls || [],
+    contact: r.contact || '', unreachableReason: r.unreachableReason || '',
+    reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '',
+    archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
+    updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
+  };
+}
+function leadFor(req, key) {
+  const rec = state.assigned.find((r) => S.keyOf(r) === key);
+  if (!rec) return null;
+  if (req.session.role === 'sales' && rec.sales !== req.session.side) return null; // scope
+  return rec;
+}
+function whoami(req) { return req.session.role === 'admin' ? 'admin' : req.session.side; }
+
+app.get('/api/me', requireLogin, (req, res) => res.json({ role: req.session.role, side: req.session.side || null, user: req.session.u }));
+
+app.get('/api/leads', requireLogin, (req, res) => {
+  const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : (req.query.side === 'W' ? 'W' : null));
+  let list = state.assigned;
+  if (side) list = list.filter((r) => r.sales === side);
+  res.json({
+    role: req.session.role, side: side || null,
+    active: list.filter((r) => !r.archived).map(leadView),
+    archived: list.filter((r) => r.archived).map(leadView),
+  });
+});
+
+app.post('/api/lead/call', requireLogin, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  rec.calls = rec.calls || []; rec.calls.push({ at: new Date().toISOString(), by: whoami(req) });
+  rec.callCount = (rec.callCount || 0) + 1;
+  rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  state = await store.save(state);
+  res.json({ ok: true, lead: leadView(rec) });
+});
+
+app.post('/api/lead/update', requireLogin, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  const p = (req.body && req.body.patch) || {};
+  if ('contact' in p) rec.contact = ['reached', 'unreachable', ''].includes(p.contact) ? p.contact : rec.contact;
+  if ('unreachableReason' in p) rec.unreachableReason = UNREACH_REASONS.includes(p.unreachableReason) ? p.unreachableReason : '';
+  if ('reachStatus' in p) rec.reachStatus = REACH_STATUS.includes(p.reachStatus) ? p.reachStatus : '';
+  if ('line' in p) rec.line = ['added', 'not_added', ''].includes(p.line) ? p.line : rec.line;
+  if ('nextAppt' in p) rec.nextAppt = String(p.nextAppt || '').slice(0, 40);
+  if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
+  if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
+  rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  state = await store.save(state);
+  res.json({ ok: true, lead: leadView(rec) });
+});
+
+app.post('/api/lead/archive', requireLogin, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  rec.archived = true;
+  rec.archiveReason = ARCH_REASONS.includes(req.body && req.body.reason) ? req.body.reason : 'bad_data';
+  rec.archivedAt = new Date().toISOString(); rec.updatedAt = rec.archivedAt; rec.updatedBy = whoami(req);
+  state = await store.save(state);
+  res.json({ ok: true });
+});
+
+app.post('/api/lead/restore', requireLogin, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  rec.archived = false; rec.archiveReason = ''; rec.archivedAt = null;
+  rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  state = await store.save(state);
+  res.json({ ok: true });
 });
 
 // Push from browser script (auth via INGEST_KEY) OR from the logged-in admin.
 app.post('/api/ingest', async (req, res) => {
   const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
-  if (!keyOk && !isAuthed(req)) return res.status(401).json({ error: 'bad key' });
+  const adminOk = (readSession(req) || {}).role === 'admin';
+  if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
   const customers = (req.body && req.body.customers) || [];
   if (!Array.isArray(customers)) return res.status(400).json({ error: 'customers must be an array' });
   const summary = S.applyNew(state, customers, req.body && req.body.label);
@@ -250,7 +356,7 @@ app.get('/export/xlsx', requireAuth, (req, res) => {
   const mk = (list) => [['ลำดับ', 'รหัสสมาชิก', 'ชื่อ-นามสกุล', 'เบอร์โทรศัพท์', 'รอบที่ดึง', 'วันที่แบ่ง'],
     ...list.map((r, i) => [i + 1, r.code, r.name, r.phone, S.roundName(r.round), r.date])];
   const all = [['ลำดับ', 'รหัสสมาชิก', 'ชื่อ-นามสกุล', 'เบอร์โทรศัพท์', 'เซลล์', 'รอบที่ดึง', 'วันที่แบ่ง'],
-    ...state.assigned.map((r, i) => [i + 1, r.code, r.name, r.phone, r.sales, S.roundName(r.round), r.date])];
+    ...state.assigned.filter((a) => !a.archived).map((r, i) => [i + 1, r.code, r.name, r.phone, r.sales, S.roundName(r.round), r.date])];
   const wb = XLSX.utils.book_new();
   const wsW = XLSX.utils.aoa_to_sheet(mk(W)), wsK = XLSX.utils.aoa_to_sheet(mk(K)), wsA = XLSX.utils.aoa_to_sheet(all);
   wsW['!cols'] = wsK['!cols'] = [{ wch: 7 }, { wch: 15 }, { wch: 32 }, { wch: 16 }, { wch: 12 }, { wch: 14 }];
@@ -266,7 +372,7 @@ app.get('/export/xlsx', requireAuth, (req, res) => {
 
 // Download ONLY names not yet exported, then mark them as sent (so they won't be handed out again).
 app.post('/export/new-xlsx', requireAuth, async (req, res) => {
-  const fresh = state.assigned.filter((a) => !a.exported);
+  const fresh = state.assigned.filter((a) => !a.exported && !a.archived);
   if (!fresh.length) return res.status(200).json({ ok: false, empty: true, message: 'ไม่มีรายใหม่ที่ยังไม่เคยส่ง' });
   const W = fresh.filter((a) => a.sales === 'W'), K = fresh.filter((a) => a.sales === 'K');
   const mk = (list) => [['ลำดับ', 'รหัสสมาชิก', 'ชื่อ-นามสกุล', 'เบอร์โทรศัพท์', 'รอบที่ดึง', 'วันที่แบ่ง'],
@@ -291,7 +397,7 @@ app.post('/export/new-xlsx', requireAuth, async (req, res) => {
 // Download ONLY the not-yet-sent names of ONE side as CSV, then mark just those as sent.
 app.post('/export/new-csv', requireAuth, async (req, res) => {
   const side = req.query.side === 'K' ? 'K' : 'W';
-  const fresh = state.assigned.filter((a) => !a.exported && a.sales === side);
+  const fresh = state.assigned.filter((a) => !a.exported && !a.archived && a.sales === side);
   if (!fresh.length) return res.status(200).json({ ok: false, empty: true, message: 'ไม่มีรายใหม่ที่ยังไม่เคยส่งของฝั่ง ' + side });
   const csv = csvFor(fresh);
   fresh.forEach((a) => { a.exported = true; });

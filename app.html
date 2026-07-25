@@ -86,6 +86,16 @@
     ข้อมูลใหม่ส่งเข้ามาอัตโนมัติจากสคริปต์ในเบราว์เซอร์ (หรือกดปุ่มด้านบน / วางเองด้านล่างก็ได้)
   </div>
 
+  <div class="panel" style="border:1px solid #e3d9ea;background:#faf7fd">
+    <h2>📊 สถานะติดตามลูกค้า (CRM)</h2>
+    <div class="desc">สรุปสถานะที่เซลล์อัปเดต · <span id="crmarch"></span></div>
+    <div id="crmsum" class="row" style="gap:14px;align-items:stretch"></div>
+    <div class="row" style="margin-top:10px">
+      <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w">👁 เปิดงานฝั่ง W</button></a>
+      <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k">👁 เปิดงานฝั่ง K</button></a>
+    </div>
+  </div>
+
   <div class="panel">
     <h2>➕ เพิ่มรายชื่อใหม่ด้วยตนเอง (ถ้าต้องการ)</h2>
     <div class="desc">คัดลอกรายชื่อจากระบบ Evolution มาวาง แล้วกดเพิ่ม — ปกติสคริปต์จะส่งให้อัตโนมัติอยู่แล้ว</div>
@@ -341,7 +351,19 @@ function copyLink(side){
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(()=>{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }); }
   else{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }
 }
-refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000);
+async function loadCrmSummary(){
+  try{
+    const [w,k]=await Promise.all([fetch('/api/leads?side=W').then(r=>r.json()),fetch('/api/leads?side=K').then(r=>r.json())]);
+    const sumSide=(j)=>{const a=j.active||[];const c=f=>a.filter(f).length;return{total:a.length,neww:c(r=>!r.contact),un:c(r=>r.contact==='unreachable'),nr:c(r=>r.reachStatus==='not_ready'),ap:c(r=>r.reachStatus==='appointment'),cl:c(r=>r.reachStatus==='closed'),line:c(r=>r.line==='added'),arch:(j.archived||[]).length};};
+    const W=sumSide(w),K=sumSide(k);
+    const box=(name,cls,s)=>`<div style="flex:1;min-width:250px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff">
+      <div style="font-weight:700;color:var(--${cls});margin-bottom:6px">Sales (${name}) · ${s.total} ราย</div>
+      <div style="font-size:12.5px;line-height:1.9">ยังไม่ติดต่อ <b>${s.neww}</b> · ติดต่อไม่ได้ <b>${s.un}</b> · ยังไม่พร้อม <b>${s.nr}</b> · นัดหมาย <b>${s.ap}</b> · <span style="color:#065f46">ปิดการขาย <b>${s.cl}</b></span> · แอดไลน์ <b>${s.line}</b> · นำออก <b>${s.arch}</b></div></div>`;
+    document.getElementById('crmsum').innerHTML=box('W','w',W)+box('K','k',K);
+    document.getElementById('crmarch').textContent='รวมในถังนำออก '+(W.arch+K.arch)+' ราย (กู้คืนได้)';
+  }catch(e){}
+}
+refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); loadCrmSummary(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadCrmSummary, 30000);
 </script>
 </body>
 </html>

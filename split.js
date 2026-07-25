@@ -19,7 +19,7 @@ function todayTH() {
 
 function nextSide(assigned) {
   let w = 0, k = 0;
-  for (const a of assigned) { if (a.sales === 'W') w++; else k++; }
+  for (const a of assigned) { if (a.archived) continue; if (a.sales === 'W') w++; else k++; }
   return w <= k ? 'W' : 'K';
 }
 
@@ -103,6 +103,9 @@ function parseRows(text) {
   return out;
 }
 
-function listSide(state, side) { return state.assigned.filter((a) => a.sales === side); }
+// active (non-archived) records for a side
+function listSide(state, side) { return state.assigned.filter((a) => a.sales === side && !a.archived); }
+// archived ("removed bin") records for a side
+function listArchived(state, side) { return state.assigned.filter((a) => a.sales === side && a.archived); }
 
-module.exports = { BASE_DATE, cleanPhone, isValid, roundName, buildSeed, applyNew, parseRows, listSide };
+module.exports = { BASE_DATE, cleanPhone, isValid, roundName, keyOf, buildSeed, applyNew, parseRows, listSide, listArchived };
