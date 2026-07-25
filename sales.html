@@ -152,8 +152,9 @@ function render(){
 }
 async function api(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>({}));}
 function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(j=>{if(!(j&&advToast(j.advanced)))toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
-function openLead(i){
-  const r=CURLIST[i];if(!r)return;CUR=JSON.parse(JSON.stringify(r));
+function openLead(i){ const r=CURLIST[i]; if(r) openLeadByKey(r.key); }
+function openLeadByKey(key){
+  const r=ACTIVE.concat(ARCHIVED).find(x=>x.key===key);if(!r)return;CUR=JSON.parse(JSON.stringify(r));
   const s=document.getElementById('sheet');
   if(r.archived){
     s.innerHTML=`<button class="closeX" onclick="closeSheet()">✕</button><h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3><div class="sub">${esc(r.code)} · ${esc(r.phone)} · Sales (${esc(r.sales)})</div>
@@ -167,7 +168,14 @@ function openLead(i){
     <h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3>
     <div class="sub">${esc(r.code)} · Sales (${esc(r.sales)}) · ติดตาม ${Math.min(r.callCount||0,3)}/3 รอบ · มือที่ ${(r.stage||0)+1}/2</div>
     <a class="dialbtn" href="tel:${esc(r.phone)}" onclick="sheetCall(event)">📞 โทรออก ${esc(r.phone)}</a>
-    <div class="sec">ผลการโทร (แตะปุ่มเดียว บันทึกทันที)</div>
+    <div class="sec">โทรออกครั้งที่ (แตะเพื่อปรับ)</div>
+    <div class="lineseg" id="callpills" style="gap:8px">
+      <button data-t="1" class="${(r.callCount||0)>=1?'on':''}" onclick="setCalls(1)">T1</button>
+      <button data-t="2" class="${(r.callCount||0)>=2?'on':''}" onclick="setCalls(2)">T2</button>
+      <button data-t="3" class="${(r.callCount||0)>=3?'on':''}" onclick="setCalls(3)">T3</button>
+      <button onclick="setCalls(0)" style="flex:0 0 auto;color:#6b7280;min-width:60px">ล้าง</button>
+    </div>
+    <div class="sec" style="margin-top:16px">ผลการโทร (แตะปุ่มเดียว บันทึกทันที)</div>
     <div class="grid">${outHtml}</div>
     <div style="font-size:11.5px;color:var(--muted);margin-top:8px">ℹ️ ครบ 3 รอบยังไม่ปิด = ส่งต่ออีกฝั่งอัตโนมัติ · ถ้ามือที่ 2 ครบ 3 รอบอีก = คัดออกถาวร (แอดมินกู้ได้)</div>
     <div id="apptbox"></div>
@@ -185,7 +193,16 @@ function openLead(i){
       <div class="grid"><button onclick="doArchive('unreachable')">🗑 เบอร์ติดต่อไม่ได้</button><button onclick="doArchive('bad_data')">🗑 ข้อมูลไม่ครบ/เสีย</button></div></div>`;
   document.getElementById('mbg').classList.add('on');
 }
-function sheetCall(ev){ if(!CUR)return; api('/api/lead/call',{key:CUR.key}).then(j=>{ if(j&&advToast(j.advanced)){closeSheet();} else toast('บันทึกการโทรแล้ว'); reload();}); }
+function sheetCall(ev){ if(!CUR)return; api('/api/lead/call',{key:CUR.key}).then(async j=>{ if(j&&advToast(j.advanced)){closeSheet();await reload();return;} toast('บันทึกการโทรแล้ว'); await reload(); openLeadByKey(CUR.key); }); }
+async function setCalls(n){
+  if(!CUR)return;
+  const j=await api('/api/lead/update',{key:CUR.key,patch:{callCount:n}});
+  if(j&&j.ok){
+    if(advToast(j.advanced)){ closeSheet(); reload(); return; }
+    toast(n===0?'ล้างจำนวนโทรแล้ว':('ปรับเป็นโทรครั้งที่ '+n));
+    await reload(); openLeadByKey(CUR.key);
+  }
+}
 function closeSheet(){document.getElementById('mbg').classList.remove('on');CUR=null;}
 async function tapOut(k){
   if(!CUR)return;
