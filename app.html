@@ -110,6 +110,29 @@
     <div id="autobk" style="font-size:12.5px;color:#6b7280;margin-top:8px"></div>
   </div>
 
+  <div class="panel" style="border:1px solid #d9d2ea;background:#f7f5fc">
+    <h2>🔗 ลิงก์สำหรับเซลล์ (อ่านอย่างเดียว)</h2>
+    <div class="desc">แชร์ลิงก์ให้เซลล์เปิดดูรายชื่อของตัวเองบนมือถือได้เลย ไม่ต้องล็อกอิน แก้ไขอะไรไม่ได้ · เก็บลิงก์เป็นความลับ (ใครมีลิงก์ก็เปิดดูได้)</div>
+    <div class="row" style="align-items:stretch">
+      <div style="flex:1;min-width:250px;border:1px solid #cfe3d6;border-radius:10px;padding:10px 12px;background:#fff">
+        <div style="font-weight:700;color:var(--w);margin-bottom:6px">Sales (W)</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="linkW" readonly style="flex:1;min-width:120px;font-size:12px" value="…">
+          <button class="b-w" onclick="copyLink('W')">คัดลอก</button>
+          <a class="btn" id="openW" href="#" target="_blank" rel="noopener"><button class="b-g">เปิด</button></a>
+        </div>
+      </div>
+      <div style="flex:1;min-width:250px;border:1px solid #f0d8bf;border-radius:10px;padding:10px 12px;background:#fff">
+        <div style="font-weight:700;color:var(--k);margin-bottom:6px">Sales (K)</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="linkK" readonly style="flex:1;min-width:120px;font-size:12px" value="…">
+          <button class="b-k" onclick="copyLink('K')">คัดลอก</button>
+          <a class="btn" id="openK" href="#" target="_blank" rel="noopener"><button class="b-g">เปิด</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="row" style="margin-bottom:6px">
     <button class="b-add" id="newBtn" onclick="doExportNew()" style="font-weight:700">⬇ ดาวน์โหลดเฉพาะรายใหม่ (ที่ยังไม่เคยส่ง)</button>
     <a class="btn b-xl" href="/export/xlsx"><button class="b-xl">⬇ ดาวน์โหลด Excel (ทั้งหมด)</button></a>
@@ -305,7 +328,20 @@ async function resetExported(){
   if(!confirm('ล้างสถานะ "ส่งแล้ว" ทั้งหมด? หลังจากนี้ทุกคนจะถูกนับเป็นรายใหม่ที่ยังไม่เคยส่งอีกครั้ง'))return;
   await fetch('/api/reset-exported',{method:'POST'}); document.getElementById('lastact').textContent='ล้างสถานะส่งแล้วเรียบร้อย'; refresh();
 }
-refresh(); evoStatus(); loadBackupsInfo(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000);
+let SHARE={W:'',K:''};
+async function loadShareLinks(){
+  try{ const r=await fetch('/api/share-links'); if(!r.ok)return; const j=await r.json(); SHARE=j;
+    document.getElementById('linkW').value=j.W; document.getElementById('openW').href=j.W;
+    document.getElementById('linkK').value=j.K; document.getElementById('openK').href=j.K;
+  }catch(e){}
+}
+function copyLink(side){
+  const v=SHARE[side]||''; if(!v)return;
+  const done=()=>{ document.getElementById('lastact').innerHTML='✓ คัดลอกลิงก์ Sales ('+side+') แล้ว — ส่งให้เซลล์ได้เลย'; };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(()=>{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }); }
+  else{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }
+}
+refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000);
 </script>
 </body>
 </html>

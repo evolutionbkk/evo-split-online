@@ -121,6 +121,37 @@ app.post('/logout', (req, res) => {
   res.redirect('/login');
 });
 
+// ---------- read-only per-salesperson share links (no login; secret token per side) ----------
+function viewToken(side) {
+  return crypto.createHmac('sha256', SESSION_SECRET).update('view:' + side).digest('hex').slice(0, 24);
+}
+function checkView(side, t) {
+  const s = side === 'K' ? 'K' : (side === 'W' ? 'W' : null);
+  return (s && t && t === viewToken(s)) ? s : null;
+}
+app.get('/view/:side', (req, res) => {
+  if (!checkView(req.params.side, req.query.t)) return res.status(403).send('ลิงก์ไม่ถูกต้องหรือถูกยกเลิกแล้ว');
+  res.sendFile(path.join(__dirname, 'view.html'));
+});
+app.get('/api/view-data', (req, res) => {
+  const side = checkView(req.query.side, req.query.t);
+  if (!side) return res.status(403).json({ error: 'forbidden' });
+  const list = S.listSide(state, side).map((r) => ({ code: r.code, name: r.name, phone: r.phone, round: r.round, date: r.date }));
+  res.json({ side, updatedAt: state.updatedAt, count: list.length, list });
+});
+app.get('/view-csv/:side', (req, res) => {
+  const side = checkView(req.params.side, req.query.t);
+  if (!side) return res.status(403).send('forbidden');
+  const list = S.listSide(state, side);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="Sales_${side}_${list.length}.csv"`);
+  res.send(csvFor(list));
+});
+app.get('/api/share-links', requireAuth, (req, res) => {
+  const base = (req.headers['x-forwarded-proto'] || req.protocol) + '://' + req.headers.host;
+  res.json({ W: base + '/view/W?t=' + viewToken('W'), K: base + '/view/K?t=' + viewToken('K') });
+});
+
 // ---------- app ----------
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
 

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>รายชื่อลูกค้า (อ่านอย่างเดียว)</title>
+<style>
+  :root{--w:#1f6f3b;--w-bg:#eaf6ee;--k:#b45309;--k-bg:#fdf2e5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Sarabun","Tahoma",system-ui,sans-serif;color:var(--ink);background:#f4f6f9;font-size:15px}
+  .wrap{max-width:760px;margin:0 auto;padding:16px 14px 50px}
+  .head{border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px}
+  .head.w{background:var(--w)}.head.k{background:var(--k)}
+  .head h1{margin:0;font-size:19px}.head .meta{font-size:12.5px;opacity:.92;margin-top:3px}
+  .bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  input[type=text]{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:14px}
+  a.csv{display:inline-block;text-decoration:none;background:#0e7490;color:#fff;border-radius:9px;padding:10px 14px;font-weight:600;font-size:13px}
+  .info{font-size:12.5px;color:var(--muted);margin:0 2px 10px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .tblwrap{max-height:76vh;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid #f0f2f5}
+  th{position:sticky;top:0;background:#fafbfc;font-weight:700;color:var(--muted);font-size:12px}
+  td.num{color:var(--muted);text-align:center;width:32px}
+  td.ph{white-space:nowrap}
+  td.ph b{color:#0e7490;cursor:pointer;border-bottom:1px dashed #9bd0dd}
+  td.rnd{color:#6b7280;font-size:11.5px;white-space:nowrap}
+  mark{background:#fff3bf;padding:0 1px;border-radius:2px}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.on{opacity:1}
+  .err{background:#fff;border:1px solid #f3c2c2;color:#b91c1c;border-radius:12px;padding:16px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head" id="head"><h1 id="title">รายชื่อลูกค้า</h1><div class="meta" id="meta">กำลังโหลด…</div></div>
+  <div id="body"></div>
+</div>
+<div class="toast" id="toast">คัดลอกเบอร์แล้ว</div>
+<script>
+const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const roundName=n=>n===1?'ตั้งต้น':('รอบ '+n);
+function fmt(ts){ if(!ts) return '–'; try{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+(d.getFullYear()+543)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return '–';} }
+function hl(s,q){ s=String(s==null?'':s); if(!q) return esc(s); const i=s.toLowerCase().indexOf(q); if(i<0) return esc(s); return esc(s.slice(0,i))+'<mark>'+esc(s.slice(i,i+q.length))+'</mark>'+esc(s.slice(i+q.length)); }
+function match(r,q){ if(!q) return true; return [r.code,r.name,r.phone].some(v=>String(v==null?'':v).toLowerCase().includes(q)); }
+const parts=location.pathname.split('/').filter(Boolean);
+const side=(parts[parts.length-1]||'').toUpperCase();
+const t=new URLSearchParams(location.search).get('t')||'';
+let ALL=[];
+let toastTimer=null;
+function copyPhone(p){
+  const done=()=>{const el=document.getElementById('toast');el.textContent='คัดลอกเบอร์ '+p+' แล้ว';el.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('on'),1500);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p).then(done).catch(()=>{});}
+  else{const ta=document.createElement('textarea');ta.value=p;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}ta.remove();done();}
+}
+function render(){
+  const q=(document.getElementById('search').value||'').trim().toLowerCase();
+  const list=ALL.filter(r=>match(r,q));
+  document.getElementById('cnt').textContent = q ? ('พบ '+list.length+' / '+ALL.length+' ราย') : ('ทั้งหมด '+ALL.length+' ราย');
+  document.getElementById('tb').innerHTML = list.map((r,i)=>`<tr><td class="num">${i+1}</td><td>${hl(r.code,q)}</td><td>${hl(r.name,q)}</td><td class="ph"><b onclick="copyPhone('${esc(r.phone)}')">${hl(r.phone,q)}</b></td><td class="rnd">${esc(roundName(r.round))}${r.date?(' · '+esc(r.date)):''}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#6b7280;padding:18px">ไม่พบรายชื่อ</td></tr>';
+}
+async function load(){
+  const head=document.getElementById('head');
+  if(side!=='W'&&side!=='K'){ document.getElementById('body').innerHTML='<div class="err">ลิงก์ไม่ถูกต้อง</div>'; return; }
+  head.classList.add(side.toLowerCase());
+  document.getElementById('title').textContent='รายชื่อลูกค้า — Sales ('+side+')';
+  try{
+    const r=await fetch('/api/view-data?side='+side+'&t='+encodeURIComponent(t));
+    if(!r.ok){ document.getElementById('meta').textContent=''; document.getElementById('body').innerHTML='<div class="err">ลิงก์ไม่ถูกต้องหรือถูกยกเลิกแล้ว — กรุณาขอลิงก์ใหม่จากแอดมิน</div>'; return; }
+    const s=await r.json(); ALL=s.list||[];
+    document.getElementById('meta').textContent='อัปเดตล่าสุด '+fmt(s.updatedAt)+' · อ่านอย่างเดียว';
+    document.getElementById('body').innerHTML =
+      '<div class="bar"><input type="text" id="search" placeholder="🔎 ค้นหา ชื่อ / รหัส / เบอร์…"><a class="csv" href="/view-csv/'+side+'?t='+encodeURIComponent(t)+'">⬇ CSV</a></div>'+
+      '<div class="info" id="cnt"></div>'+
+      '<div class="card"><div class="tblwrap"><table><thead><tr><th class="num">#</th><th>รหัสสมาชิก</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทรศัพท์</th><th>รอบที่ดึง</th></tr></thead><tbody id="tb"></tbody></table></div></div>';
+    document.getElementById('search').addEventListener('input',render);
+    render();
+  }catch(e){ document.getElementById('body').innerHTML='<div class="err">โหลดข้อมูลไม่สำเร็จ</div>'; }
+}
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
