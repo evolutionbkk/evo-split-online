@@ -1,4 +1,5 @@
 'use strict';
+// build: seed.json restored to 376 records (2026-07-25) — redeploy trigger
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
