@@ -49,6 +49,7 @@ async function boot() {
   }
   state = s;
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound);
+  try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
 }
 
 // ---------- auth helpers ----------
@@ -261,6 +262,64 @@ app.post('/api/reset-exported', requireAuth, async (req, res) => {
   state.assigned.forEach((a) => { a.exported = false; });
   state = await store.save(state);
   res.json({ ok: true, newCount: state.assigned.length });
+});
+
+// ---------- backup / restore ----------
+// Turn any loosely-shaped object (uploaded file, snapshot, or bare array) into a valid state.
+function sanitizeState(obj) {
+  const src = obj && Array.isArray(obj.assigned) ? obj.assigned : (Array.isArray(obj) ? obj : null);
+  if (!src) return null;
+  const assigned = [];
+  let maxRound = 1;
+  for (const r of src) {
+    if (!r || typeof r !== 'object') continue;
+    const round = Number(r.round) > 0 ? Number(r.round) : 1;
+    if (round > maxRound) maxRound = round;
+    assigned.push({
+      code: String(r.code == null ? '' : r.code).trim(),
+      name: String(r.name == null ? '' : r.name).trim(),
+      phone: S.cleanPhone(r.phone),
+      sales: r.sales === 'K' ? 'K' : 'W',
+      round,
+      date: r.date ? String(r.date) : '',
+      exported: !!r.exported,
+    });
+  }
+  const declared = obj && Number(obj.maxRound) > 0 ? Number(obj.maxRound) : 0;
+  return { assigned, maxRound: Math.max(declared, maxRound) };
+}
+
+// Download a full backup of the current data (a single restorable JSON file).
+app.get('/export/backup', requireAuth, (req, res) => {
+  const p = (n) => String(n).padStart(2, '0');
+  const d = new Date();
+  const stamp = d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+  const payload = { kind: 'evo-split-backup', version: 1, savedAt: new Date().toISOString(), maxRound: state.maxRound, count: state.assigned.length, assigned: state.assigned };
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="evo-backup-${stamp}.json"`);
+  res.send(JSON.stringify(payload, null, 2));
+});
+
+// Restore from an uploaded backup file (replaces the current data).
+app.post('/api/restore', requireAuth, async (req, res) => {
+  const clean = sanitizeState(req.body && (req.body.backup || req.body));
+  if (!clean || !clean.assigned.length) return res.status(400).json({ error: 'invalid_backup', message: 'ไฟล์สำรองไม่ถูกต้อง หรือไม่มีรายชื่อ' });
+  state = await store.save({ assigned: clean.assigned, maxRound: clean.maxRound });
+  res.json({ ok: true, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
+});
+
+// List automatic daily backups.
+app.get('/api/backups', requireAuth, async (req, res) => {
+  res.json({ backups: await store.listBackups() });
+});
+
+// Restore a specific automatic daily backup.
+app.post('/api/restore-backup', requireAuth, async (req, res) => {
+  const day = req.body && req.body.day ? String(req.body.day) : '';
+  const clean = sanitizeState(day ? await store.loadBackup(day) : null);
+  if (!clean || !clean.assigned.length) return res.status(400).json({ error: 'not_found', message: 'ไม่พบไฟล์สำรองของวันนั้น หรือว่างเปล่า' });
+  state = await store.save({ assigned: clean.assigned, maxRound: clean.maxRound });
+  res.json({ ok: true, day, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
 });
 
 app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.length }));

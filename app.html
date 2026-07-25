@@ -40,6 +40,19 @@
   th{position:sticky;top:0;background:#fafbfc;font-weight:700;color:var(--muted);font-size:12px}
   td.num{color:var(--muted);text-align:center;width:34px}td.rnd{color:#6b7280;font-size:11.5px}
   .note{background:var(--brand-bg);border:1px solid #d5e3f2;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#33506e;margin-bottom:16px}
+  .b-bk{background:#0e7490;color:#fff}.b-warn{background:#fff;color:#b45309;border:1px solid #f0c58a}
+  .searchbar{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  .searchbar input{min-width:260px;flex:1}
+  .searchbar .hint{font-size:12.5px;color:var(--muted)}
+  mark{background:#fff3bf;padding:0 1px;border-radius:2px}
+  .modal-bg{position:fixed;inset:0;background:rgba(17,24,39,.55);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal-bg.on{display:flex}
+  .modal{background:#fff;border-radius:14px;padding:20px 22px;max-width:440px;width:92%;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+  .modal h3{margin:0 0 8px;font-size:17px;color:var(--ink)}
+  .modal p{margin:0 0 14px;font-size:13.5px;color:#374151;line-height:1.5}
+  .modal input{width:100%;margin-bottom:14px}
+  .modal .acts{display:flex;justify-content:flex-end;gap:10px}
+  .b-danger{background:#dc2626;color:#fff}.b-danger:disabled{opacity:.45;cursor:not-allowed}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
 </style>
 </head>
@@ -85,6 +98,18 @@
     </div>
   </div>
 
+  <div class="panel" style="border:1px solid #cfe3ea;background:#f2fafd">
+    <h2>💾 สำรอง &amp; กู้คืนข้อมูล</h2>
+    <div class="desc">ดาวน์โหลดไฟล์สำรองเก็บไว้เอง หรือกู้คืนจากไฟล์ · ระบบยังสำรองอัตโนมัติทุกวันให้ด้วย</div>
+    <div class="row">
+      <a class="btn" href="/export/backup"><button class="b-bk">⬇ ดาวน์โหลดไฟล์สำรอง (ทั้งหมด)</button></a>
+      <button class="b-warn" onclick="document.getElementById('restoreFile').click()">⬆ กู้คืนจากไฟล์สำรอง…</button>
+      <input type="file" id="restoreFile" accept=".json,application/json" style="display:none" onchange="doRestoreFile(this)">
+      <span class="hint" id="bkinfo" style="font-size:12.5px;color:#6b7280"></span>
+    </div>
+    <div id="autobk" style="font-size:12.5px;color:#6b7280;margin-top:8px"></div>
+  </div>
+
   <div class="row" style="margin-bottom:6px">
     <button class="b-add" id="newBtn" onclick="doExportNew()" style="font-weight:700">⬇ ดาวน์โหลดเฉพาะรายใหม่ (ที่ยังไม่เคยส่ง)</button>
     <a class="btn b-xl" href="/export/xlsx"><button class="b-xl">⬇ ดาวน์โหลด Excel (ทั้งหมด)</button></a>
@@ -93,6 +118,11 @@
   </div>
   <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">
     <span id="newinfo"></span> &nbsp;·&nbsp; <a href="#" onclick="resetExported();return false;" style="color:#b45309">ล้างสถานะ "ส่งแล้ว" (นับทุกคนเป็นรายใหม่อีกครั้ง)</a>
+  </div>
+
+  <div class="searchbar">
+    <input type="text" id="search" placeholder="🔎 ค้นหา: รหัสสมาชิก / ชื่อ / เบอร์โทร…" oninput="renderTables()">
+    <span class="hint" id="searchinfo"></span>
   </div>
 
   <div class="cols">
@@ -107,11 +137,35 @@
   </div>
 </div>
 
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="mTitle"></h3>
+    <p id="mMsg"></p>
+    <input type="text" id="mInput" autocomplete="off" spellcheck="false">
+    <div class="acts">
+      <button class="b-g" onclick="closeModal()">ยกเลิก</button>
+      <button class="b-danger" id="mOk" disabled onclick="modalOk()">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const roundName=n=>n===1?'ตั้งต้น':('รอบ '+n);
 function fmt(ts){ if(!ts) return '–'; try{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+(d.getFullYear()+543)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return '–';} }
-function rowsHtml(list){return list.map((r,i)=>`<tr><td class="num">${i+1}</td><td>${esc(r.code)}</td><td>${esc(r.name)}</td><td>${esc(r.phone)}</td><td class="rnd">${esc(roundName(r.round))}${r.date?(' · '+esc(r.date)):''}</td></tr>`).join('');}
+let LAST={W:[],K:[]};
+function hl(s,q){ s=String(s==null?'':s); if(!q) return esc(s); const i=s.toLowerCase().indexOf(q); if(i<0) return esc(s); return esc(s.slice(0,i))+'<mark>'+esc(s.slice(i,i+q.length))+'</mark>'+esc(s.slice(i+q.length)); }
+function match(r,q){ if(!q) return true; return [r.code,r.name,r.phone].some(v=>String(v==null?'':v).toLowerCase().includes(q)); }
+function rowsHtml(list,q){return list.map((r,i)=>`<tr><td class="num">${i+1}</td><td>${hl(r.code,q)}</td><td>${hl(r.name,q)}</td><td>${hl(r.phone,q)}</td><td class="rnd">${esc(roundName(r.round))}${r.date?(' · '+esc(r.date)):''}</td></tr>`).join('');}
+function renderTables(){
+  const q=(document.getElementById('search').value||'').trim().toLowerCase();
+  const W=LAST.W.filter(r=>match(r,q)), K=LAST.K.filter(r=>match(r,q));
+  document.getElementById('tw').innerHTML=rowsHtml(W,q);
+  document.getElementById('tk').innerHTML=rowsHtml(K,q);
+  document.getElementById('hw').textContent=W.length+(q?(' / '+LAST.W.length):'')+' ราย';
+  document.getElementById('hk').textContent=K.length+(q?(' / '+LAST.K.length):'')+' ราย';
+  document.getElementById('searchinfo').textContent = q ? ('พบ '+(W.length+K.length)+' ราย (W '+W.length+' / K '+K.length+')') : '';
+}
 async function refresh(){
   const r=await fetch('/api/state'); if(r.status===401){location.href='/login';return;}
   const s=await r.json();
@@ -119,10 +173,7 @@ async function refresh(){
   document.getElementById('c-w').textContent=s.W.length;
   document.getElementById('c-k').textContent=s.K.length;
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
-  document.getElementById('hw').textContent=s.W.length+' ราย';
-  document.getElementById('hk').textContent=s.K.length+' ราย';
-  document.getElementById('tw').innerHTML=rowsHtml(s.W);
-  document.getElementById('tk').innerHTML=rowsHtml(s.K);
+  LAST={W:s.W,K:s.K}; renderTables();
   const nc = s.newCount||0;
   const nb=document.getElementById('newBtn');
   nb.textContent = '⬇ ดาวน์โหลดเฉพาะรายใหม่ ('+nc+' ราย)';
@@ -138,7 +189,61 @@ async function doPaste(){
   document.getElementById('paste').value=''; document.getElementById('label').value='';
   refresh();
 }
-async function doReset(){ if(!confirm('รีเซ็ตกลับเป็นฐานตั้งต้น 376 ราย?'))return; await fetch('/api/reset',{method:'POST'}); document.getElementById('lastact').textContent='รีเซ็ตเป็นฐานตั้งต้นแล้ว'; refresh(); }
+// ---- confirmation modal (must type a word to proceed) ----
+let _modalWord='', _modalCb=null;
+function confirmType(title,msg,word,cb){
+  _modalWord=word; _modalCb=cb;
+  document.getElementById('mTitle').textContent=title;
+  document.getElementById('mMsg').innerHTML=msg;
+  const inp=document.getElementById('mInput'); inp.value=''; inp.placeholder='พิมพ์ '+word+' เพื่อยืนยัน';
+  document.getElementById('mOk').disabled=true;
+  document.getElementById('modalBg').classList.add('on'); setTimeout(()=>inp.focus(),50);
+}
+function closeModal(){ document.getElementById('modalBg').classList.remove('on'); _modalCb=null; }
+function modalOk(){ const cb=_modalCb; closeModal(); if(cb) cb(); }
+(function(){
+  const inp=document.getElementById('mInput');
+  inp.addEventListener('input',()=>{ document.getElementById('mOk').disabled = inp.value.trim().toUpperCase()!==_modalWord.toUpperCase(); });
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!document.getElementById('mOk').disabled) modalOk(); if(e.key==='Escape') closeModal(); });
+})();
+function doReset(){
+  confirmType('รีเซ็ตเป็นฐานตั้งต้น','⚠️ การรีเซ็ตจะลบรายชื่อที่เพิ่มเข้ามาหลังฐานตั้งต้นทั้งหมด และคืนค่ากลับเป็นชุดตั้งต้น การกระทำนี้ย้อนกลับไม่ได้','RESET',async()=>{
+    await fetch('/api/reset',{method:'POST'}); document.getElementById('lastact').textContent='รีเซ็ตเป็นฐานตั้งต้นแล้ว'; refresh();
+  });
+}
+// ---- backup / restore ----
+async function loadBackupsInfo(){
+  try{ const r=await fetch('/api/backups'); if(!r.ok)return; const j=await r.json(); const b=(j.backups||[])[0];
+    document.getElementById('autobk').innerHTML = b
+      ? ('🛡️ สำรองอัตโนมัติล่าสุด: <b>'+esc(b.day)+'</b> ('+b.records+' รายชื่อ) · เก็บย้อนหลัง '+(j.backups.length)+' วัน · <a href="#" onclick="doRestoreAuto(\''+esc(b.day)+'\','+b.records+');return false;" style="color:#0e7490">กู้คืนจากสำรองอัตโนมัติล่าสุด</a>')
+      : 'ยังไม่มีสำรองอัตโนมัติ (จะสร้างให้เมื่อมีการเปลี่ยนแปลงข้อมูล)';
+  }catch(e){}
+}
+function doRestoreAuto(day,records){
+  confirmType('กู้คืนจากสำรองอัตโนมัติ','จะแทนที่ข้อมูลปัจจุบันทั้งหมดด้วยสำรองของวันที่ <b>'+esc(day)+'</b> ('+records+' รายชื่อ) ต้องการดำเนินการต่อ?','RESTORE',async()=>{
+    const r=await fetch('/api/restore-backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({day})});
+    const j=await r.json();
+    document.getElementById('lastact').innerHTML = r.ok ? ('✓ กู้คืนข้อมูลวันที่ '+esc(day)+' แล้ว — รวม <b>'+j.total+'</b> ราย (W '+j.W+' / K '+j.K+')') : ('⚠ '+(j.message||'กู้คืนไม่สำเร็จ'));
+    refresh();
+  });
+}
+function doRestoreFile(input){
+  const f=input.files&&input.files[0]; input.value='';
+  if(!f) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    let data; try{ data=JSON.parse(reader.result); }catch(e){ document.getElementById('bkinfo').textContent='⚠ ไฟล์ไม่ใช่ JSON ที่ถูกต้อง'; return; }
+    const n=(data && Array.isArray(data.assigned)) ? data.assigned.length : (Array.isArray(data)?data.length:0);
+    if(!n){ document.getElementById('bkinfo').textContent='⚠ ไฟล์นี้ไม่มีรายชื่อ'; return; }
+    confirmType('กู้คืนจากไฟล์สำรอง','จะแทนที่ข้อมูลปัจจุบันทั้งหมดด้วยไฟล์นี้ (<b>'+n+'</b> รายชื่อ) ต้องการดำเนินการต่อ?','RESTORE',async()=>{
+      const r=await fetch('/api/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backup:data})});
+      const j=await r.json();
+      document.getElementById('lastact').innerHTML = r.ok ? ('✓ กู้คืนจากไฟล์แล้ว — รวม <b>'+j.total+'</b> ราย (W '+j.W+' / K '+j.K+')') : ('⚠ '+(j.message||'กู้คืนไม่สำเร็จ'));
+      refresh();
+    });
+  };
+  reader.readAsText(f);
+}
 async function doPull(){
   const btn=document.getElementById('pullBtn'); btn.disabled=true; const old=btn.textContent; btn.textContent='⏳ กำลังดึง…';
   try{
@@ -174,7 +279,7 @@ async function resetExported(){
   if(!confirm('ล้างสถานะ "ส่งแล้ว" ทั้งหมด? หลังจากนี้ทุกคนจะถูกนับเป็นรายใหม่ที่ยังไม่เคยส่งอีกครั้ง'))return;
   await fetch('/api/reset-exported',{method:'POST'}); document.getElementById('lastact').textContent='ล้างสถานะส่งแล้วเรียบร้อย'; refresh();
 }
-refresh(); evoStatus(); setInterval(refresh, 30000); setInterval(evoStatus, 60000);
+refresh(); evoStatus(); loadBackupsInfo(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000);
 </script>
 </body>
 </html>
