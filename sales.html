@@ -44,7 +44,7 @@
   .i-hot{background:#fee2e2;color:#b91c1c}.i-warm{background:#ffedd5;color:#9a3412}.i-cold{background:#e0f2fe;color:#075985}
   .empty{text-align:center;color:var(--muted);padding:34px;background:#fff;border:1px dashed var(--line);border-radius:16px;box-shadow:var(--shadow-sm)}
   .tblwrap{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto}
-  .ltbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1300px}
+  .ltbl{width:100%;border-collapse:collapse;font-size:14px;min-width:1420px}
   .ltbl th{position:sticky;top:0;background:#f7f9fc;text-align:left;font-size:12px;font-weight:700;color:var(--muted);padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}
   .ltbl td{padding:10px 12px;border-bottom:1px solid #f0f3f8;vertical-align:middle;font-size:13px}
   .ltbl tbody tr:last-child td{border-bottom:0}
@@ -54,6 +54,7 @@
   .ltbl td.num{color:var(--muted);text-align:center;width:42px;font-size:12.5px}
   .ltbl td.nmc{font-weight:700;color:#0f172a;white-space:nowrap}
   .ltbl td.codec{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .ltbl td.codecell{font-weight:700;color:#1d4ed8;white-space:nowrap;font-size:13px}
   .ltbl td.stc{white-space:nowrap}
   .ltbl td.stc .badge{margin-right:4px}
   .ltbl td.prog{text-align:center;color:#475569;font-weight:600;white-space:nowrap}
@@ -228,7 +229,7 @@ function renderChips(){
 }
 function setFilter(f){FILTER=f;render();}
 const q=()=>(document.getElementById('search').value||'').trim().toLowerCase();
-function ms(r){const s=q();if(!s)return true;return[r.code,r.name,r.phone].some(v=>String(v==null?'':v).toLowerCase().includes(s));}
+function ms(r){const s=q();if(!s)return true;return[r.code,r.name,r.phone,r.address].some(v=>String(v==null?'':v).toLowerCase().includes(s));}
 function rank(r){const m={new:0,contacting:1,followup:2,interested:3,won:4,lost:5};const v=m[r.leadStatus||'new'];return v==null?6:v;}
 function render(){
   renderChips();
@@ -249,9 +250,9 @@ function render(){
     const cr=optLabel(CALL_RESULTS,r.callResult), na=optLabel(NEXT_ACTIONS,r.nextAction);
     return `<tr class="lrow ${kc}" onclick="openLead(${i})">
       <td class="num">${i+1}</td>
+      <td class="codecell">${esc(r.code)}</td>
       <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
       <td><a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',14)}${esc(r.phone)}</a></td>
-      <td class="codec">${esc(r.code)}</td>
       <td class="stc"><span class="badge ${sm.badge}">${ic(sm.icon,12)}${sm.label}</span>${flags.join('')}</td>
       <td>${cr?esc(cr):'<span class="dash">–</span>'}</td>
       <td class="linec">${interestCell}</td>
@@ -262,10 +263,11 @@ function render(){
       <td class="codec">${r.lastCallAt?esc(fmtShort(r.lastCallAt)):'<span class="dash">–</span>'}</td>
       <td class="prog">${r.callCount||0}</td>
       <td class="codec">${(r.saleItems&&r.saleItems.length)?esc(r.saleItems.length+' รายการ · ฿'+fmtBaht(saleTotal(r))):'<span class="dash">–</span>'}</td>
+      <td class="notec" title="${esc(r.address)}">${r.address?esc(r.address):'<span class="dash">–</span>'}</td>
       <td class="notec" title="${esc(r.note)}">${r.note?esc(r.note):''}</td>
     </tr>`;
   }).join('');
-  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>รหัส</th><th>สถานะลูกค้า</th><th>ผลการโทร</th><th>ความสนใจ</th><th>Next Action</th><th>นัดถัดไป</th><th>ผู้รับผิดชอบ</th><th>เหตุผลไม่ปิด</th><th>โทรล่าสุด</th><th>ครั้งที่ติดต่อ</th><th>สินค้า/ยอดขาย</th><th>หมายเหตุการสนทนา</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ผลการโทร</th><th>ความสนใจ</th><th>Next Action</th><th>นัดถัดไป</th><th>ผู้รับผิดชอบ</th><th>เหตุผลไม่ปิด</th><th>โทรล่าสุด</th><th>ครั้งที่ติดต่อ</th><th>สินค้า/ยอดขาย</th><th>ที่อยู่</th><th>หมายเหตุการสนทนา</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 async function api(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>({}));}
 function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(j=>{if(!(j&&advToast(j.advanced)))toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
@@ -313,6 +315,9 @@ function openLeadByKey(key){
     ${lostSection}
     <div class="sec" style="margin-top:16px">สถานะไลน์</div>
     <div class="lineseg"><button class="${r.line==='added'?'on':''}" onclick="tapLine('added')">${ic('check',16)}แอดไลน์แล้ว</button><button class="${r.line==='not_added'?'on':''}" onclick="tapLine('not_added')">ยังไม่แอดไลน์</button></div>
+    <div class="sec" style="margin-top:16px">ที่อยู่ลูกค้า (กรอกเองได้)</div>
+    <textarea id="addr" rows="2" placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์…">${esc(r.address)}</textarea>
+    <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveAddr()">บันทึกที่อยู่</button>
     <div class="sec" style="margin-top:16px">หมายเหตุการสนทนา</div>
     <textarea id="note" rows="3" placeholder="บันทึกรายละเอียดการคุย…">${esc(r.note)}</textarea>
     <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveNote()">บันทึกหมายเหตุ</button>
@@ -387,6 +392,7 @@ async function tapLine(v){
     document.querySelectorAll('.lineseg button').forEach(b=>{}); openLeadByKey(CUR.key); }
 }
 async function saveNote(){ if(!CUR)return; const t=document.getElementById('note').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{note:t}}); if(j&&j.ok){toast('บันทึกหมายเหตุแล้ว');reload();} }
+async function saveAddr(){ if(!CUR)return; const t=document.getElementById('addr').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{address:t}}); if(j&&j.ok){toast('บันทึกที่อยู่แล้ว');reload();} }
 async function doArchive(reason){ if(!CUR)return; if(!confirm('ย้ายไปถัง "นำออกแล้ว"? (กู้คืนได้)'))return; const j=await api('/api/lead/archive',{key:CUR.key,reason}); if(j&&j.ok){toast('นำออกแล้ว');closeSheet();reload();} }
 async function doRestore(){ if(!CUR)return; const j=await api('/api/lead/restore',{key:CUR.key}); if(j&&j.ok){toast('กู้คืนแล้ว');closeSheet();reload();} }
 async function doAdvance(){

@@ -240,7 +240,7 @@ function leadView(r) {
     exported: !!r.exported,
     callCount: r.callCount || 0, calls: r.calls || [], lastCallAt: lastCallOf(r),
     contact: r.contact || '', unreachableReason: r.unreachableReason || '',
-    reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '',
+    reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '', address: r.address || '',
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
@@ -349,6 +349,7 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   if ('line' in p) rec.line = ['added', 'not_added', ''].includes(p.line) ? p.line : rec.line;
   if ('nextAppt' in p) rec.nextAppt = String(p.nextAppt || '').slice(0, 40);
   if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
+  if ('address' in p) rec.address = String(p.address || '').slice(0, 500);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
   // Note: field edits do NOT auto-recycle — only real call logs (/api/lead/call) and the stale sweep do.
