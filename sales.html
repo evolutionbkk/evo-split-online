@@ -31,12 +31,13 @@
   .b-calls{background:#f5f3ff;color:#6d28d9}.b-line{background:#e7f9ee;color:#15803d}.b-arch{background:#f1f3f5;color:#6b7280}
   .meta{font-size:12px;color:var(--muted);margin-top:8px}
   .empty{text-align:center;color:var(--muted);padding:30px;background:#fff;border:1px dashed var(--line);border-radius:14px}
-  .mbg{position:fixed;inset:0;background:rgba(17,24,39,.5);display:none;align-items:flex-end;justify-content:center;z-index:40}
+  .mbg{position:fixed;inset:0;background:rgba(17,24,39,.45);display:none;justify-content:flex-end;z-index:40}
   .mbg.on{display:flex}
-  .sheet{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:640px;max-height:94vh;overflow:auto;padding:8px 16px 24px}
-  @media(min-width:640px){.mbg{align-items:center}.sheet{border-radius:18px}}
-  .grip{width:40px;height:4px;background:#e2e5ea;border-radius:3px;margin:8px auto 12px}
-  .sheet h3{margin:0 0 2px;font-size:19px}
+  .sheet{background:#fff;width:440px;max-width:100%;height:100vh;overflow:auto;padding:16px 18px 34px;box-shadow:-10px 0 34px rgba(0,0,0,.16);position:relative;animation:slideIn .2s ease}
+  @keyframes slideIn{from{transform:translateX(30px);opacity:.4}to{transform:translateX(0);opacity:1}}
+  @media(max-width:520px){.sheet{width:100%}}
+  .closeX{position:absolute;top:12px;right:14px;background:#f1f3f5;border:0;border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer;color:#374151;line-height:1;z-index:2}
+  .sheet h3{margin:0 0 2px;font-size:19px;padding-right:40px}
   .sheet .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
   .dialbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#0b6b39;color:#fff;text-decoration:none;font-weight:700;font-size:16px;border-radius:12px;padding:14px;margin-bottom:16px}
   .sec{font-size:13px;color:var(--muted);font-weight:700;margin:0 0 8px}
@@ -147,14 +148,14 @@ function openLead(i){
   const r=CURLIST[i];if(!r)return;CUR=JSON.parse(JSON.stringify(r));
   const s=document.getElementById('sheet');
   if(r.archived){
-    s.innerHTML=`<div class="grip"></div><h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3><div class="sub">${esc(r.code)} · ${esc(r.phone)} · Sales (${esc(r.sales)})</div>
+    s.innerHTML=`<button class="closeX" onclick="closeSheet()">✕</button><h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3><div class="sub">${esc(r.code)} · ${esc(r.phone)} · Sales (${esc(r.sales)})</div>
       <div class="badge b-arch" style="display:inline-block;margin-bottom:14px">อยู่ในถังนำออก (${r.archiveReason==='unreachable'?'เบอร์ติดต่อไม่ได้':'ข้อมูลเสีย'})</div>
       <button class="act b-restore" onclick="doRestore()">↩ กู้คืนกลับรายชื่อ</button>`;
     document.getElementById('mbg').classList.add('on');return;
   }
   const ck=curKey(r);
   const outHtml=OUT.map(o=>`<button class="out ${o.cls} ${ck===o.k?'sel':''}" onclick="tapOut('${o.k}')"><span class="em">${o.em}</span>${o.label}</button>`).join('');
-  s.innerHTML=`<div class="grip"></div>
+  s.innerHTML=`<button class="closeX" onclick="closeSheet()">✕</button>
     <h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3>
     <div class="sub">${esc(r.code)} · Sales (${esc(r.sales)}) · รอบ ${r.round} · โทรแล้ว ${r.callCount||0} ครั้ง</div>
     <a class="dialbtn" href="tel:${esc(r.phone)}" onclick="sheetCall(event)">📞 โทรออก ${esc(r.phone)}</a>
