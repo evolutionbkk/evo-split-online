@@ -13,9 +13,11 @@ let pool = null;
 async function init() {
   if (DATABASE_URL) {
     pg = require('pg');
+    // Railway's internal Postgres (*.railway.internal) and localhost do NOT support SSL.
+    const noSSL = /localhost|127\.0\.0\.1|\.railway\.internal/.test(DATABASE_URL);
     pool = new pg.Pool({
       connectionString: DATABASE_URL,
-      ssl: DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
+      ssl: noSSL ? false : { rejectUnauthorized: false },
     });
     await pool.query('CREATE TABLE IF NOT EXISTS app_state (id INT PRIMARY KEY, data JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT now())');
     console.log('[store] using Postgres');
