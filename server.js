@@ -205,6 +205,20 @@ const CALL_RESULT_KEYS = ['no_answer', 'connected', 'hung_up', 'wrong_number'];
 const INTEREST_KEYS = ['hot', 'warm', 'cold'];
 const NEXT_ACTION_KEYS = ['callback', 'send_info', 'meeting'];
 const LOST_REASONS = ['ราคาแพง', 'ซื้อที่อื่น', 'ไม่มีงบ', 'ติดต่อไม่ได้', 'ไม่สนใจ', 'อื่นๆ'];
+// Sale line items captured when a lead is Won: [{name, price}]
+function sanitizeSaleItems(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const it of v) {
+    if (!it || typeof it !== 'object') continue;
+    const name = String(it.name == null ? '' : it.name).trim().slice(0, 120);
+    let price = Number(it.price); if (!isFinite(price) || price < 0) price = 0;
+    if (!name && !price) continue;
+    out.push({ name, price: Math.round(price * 100) / 100 });
+    if (out.length >= 50) break;
+  }
+  return out;
+}
 // Derive a Lead Status for records that predate this field (maps the old model onto the new one).
 function recStatus(rec) {
   if (rec.leadStatus && LEAD_STATUS_KEYS.includes(rec.leadStatus)) return rec.leadStatus;
@@ -228,7 +242,7 @@ function leadView(r) {
     contact: r.contact || '', unreachableReason: r.unreachableReason || '',
     reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '',
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
-    nextAction: r.nextAction || '', lostReason: r.lostReason || '',
+    nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
     updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
@@ -248,7 +262,7 @@ function advanceStage(rec) {
     rec.handoffs = rec.handoffs || []; rec.handoffs.push({ from, to, at: new Date().toISOString() });
     // fresh start for the receiving salesperson (keep note + line as context)
     rec.callCount = 0; rec.calls = []; rec.contact = ''; rec.reachStatus = ''; rec.unreachableReason = ''; rec.nextAppt = '';
-    rec.leadStatus = 'new'; rec.callResult = ''; rec.interest = ''; rec.nextAction = ''; rec.lostReason = ''; rec.lastCallAt = '';
+    rec.leadStatus = 'new'; rec.callResult = ''; rec.interest = ''; rec.nextAction = ''; rec.lostReason = ''; rec.lastCallAt = ''; rec.saleItems = [];
     rec.receivedAt = new Date().toISOString();
     return { action: 'transferred', from, to };
   }
@@ -327,6 +341,7 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   if ('interest' in p) rec.interest = (p.interest === '' || INTEREST_KEYS.includes(p.interest)) ? p.interest : rec.interest;
   if ('nextAction' in p) rec.nextAction = (p.nextAction === '' || NEXT_ACTION_KEYS.includes(p.nextAction)) ? p.nextAction : rec.nextAction;
   if ('lostReason' in p) rec.lostReason = (p.lostReason === '' || LOST_REASONS.includes(p.lostReason)) ? p.lostReason : rec.lostReason;
+  if ('saleItems' in p) rec.saleItems = sanitizeSaleItems(p.saleItems);
   // shared / legacy fields
   if ('contact' in p) rec.contact = ['reached', 'unreachable', ''].includes(p.contact) ? p.contact : rec.contact;
   if ('unreachableReason' in p) rec.unreachableReason = UNREACH_REASONS.includes(p.unreachableReason) ? p.unreachableReason : '';
