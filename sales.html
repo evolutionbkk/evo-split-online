@@ -240,8 +240,7 @@ function cnt(f){const pool=f==='archived'?ARCHIVED:ACTIVE;return pool.filter(r=>
 const FILTER_GROUPS=[
   {icon:'inbox',label:'งานที่ต้องทำ',items:[['todo','ต้องติดตาม'],['new','ใหม่'],['followup','นัดติดตาม'],['stale','ค้างนาน']]},
   {icon:'activity',label:'สถานะลูกค้า',items:[['all','ทั้งหมด'],['contacting','กำลังติดต่อ'],['interested','สนใจ'],['won','ปิดการขาย'],['lost','ไม่ปิดการขาย'],['hand2','รับต่อมือ2'],['archived','นำออกแล้ว']]},
-  {icon:'star',label:'ความสนใจ',items:[['hot','มาก'],['warm','ปานกลาง'],['cold','ต่ำ']]},
-  {icon:'message',label:'ไลน์',items:[['line_added','แอดแล้ว'],['line_not','ยังไม่แอด']]}
+  {icon:'star',label:'ความสนใจ',items:[['hot','มาก'],['warm','ปานกลาง'],['cold','ต่ำ']]}
 ];
 function renderChips(){
   document.getElementById('chips').innerHTML=FILTER_GROUPS.map(g=>`<div class="fgroup"><div class="flabel">${ic(g.icon,14)}<span>${g.label}</span></div><div class="frow">${g.items.map(([f,l])=>`<div class="chip ${FILTER===f?'on':''}" onclick="setFilter('${f}')"><span>${l}</span><b>${cnt(f)}</b></div>`).join('')}</div></div>`).join('');
@@ -332,8 +331,6 @@ function openLeadByKey(key){
     <div class="sec" style="margin-top:16px">วันติดตามครั้งถัดไป</div>
     <div class="apptbox"><input type="datetime-local" id="fdate" value="${fval}"><div class="row2"><button class="act b-cancel" style="flex:1" onclick="clearFollowup()">ล้างวันนัด</button><button class="act b-save" style="flex:2" onclick="saveFollowup()">บันทึกวันติดตาม</button></div>${r.nextAppt?`<div style="font-size:12px;color:#075985;margin-top:8px">นัดปัจจุบัน: ${esc(fmtShort(r.nextAppt))}</div>`:''}</div>
     ${lostSection}
-    <div class="sec" style="margin-top:16px">สถานะไลน์</div>
-    <div class="lineseg"><button class="${r.line==='added'?'on':''}" onclick="tapLine('added')">${ic('check',16)}แอดไลน์แล้ว</button><button class="${r.line==='not_added'?'on':''}" onclick="tapLine('not_added')">ยังไม่แอดไลน์</button></div>
     <div class="sec" style="margin-top:16px">ที่อยู่ลูกค้า (กรอกเองได้)</div>
     <textarea id="addr" rows="2" placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์…">${esc(r.address)}</textarea>
     <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveAddr()">บันทึกที่อยู่</button>

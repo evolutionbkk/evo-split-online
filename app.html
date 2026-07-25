@@ -400,7 +400,7 @@ async function loadCrmSummary(){
     const W=sumSide(w),K=sumSide(k);
     const box=(name,cls,s)=>`<div style="flex:1;min-width:250px;border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff;box-shadow:var(--shadow-sm)">
       <div style="font-weight:700;color:var(--${cls});margin-bottom:6px">Sales (${name}) · ${s.total} ราย</div>
-      <div style="font-size:12.5px;line-height:1.9">ใหม่ <b>${s.neww}</b> · กำลังติดต่อ <b>${s.contacting}</b> · สนใจ <b>${s.interested}</b> · นัดติดตาม <b>${s.followup}</b> · <span style="color:#065f46">ปิดการขาย <b>${s.won}</b></span> · <span style="color:#b42318">ไม่ปิด <b>${s.lost}</b></span> · <span style="color:#b91c1c">สนใจมาก <b>${s.hot}</b></span> · แอดไลน์ <b>${s.line}</b> · <span style="color:#854d0e">รับต่อมือ2 <b>${s.hand2}</b></span></div>
+      <div style="font-size:12.5px;line-height:1.9">ใหม่ <b>${s.neww}</b> · กำลังติดต่อ <b>${s.contacting}</b> · สนใจ <b>${s.interested}</b> · นัดติดตาม <b>${s.followup}</b> · <span style="color:#065f46">ปิดการขาย <b>${s.won}</b></span> · <span style="color:#b42318">ไม่ปิด <b>${s.lost}</b></span> · <span style="color:#b91c1c">สนใจมาก <b>${s.hot}</b></span> · <span style="color:#854d0e">รับต่อมือ2 <b>${s.hand2}</b></span></div>
       <div style="font-size:13px;margin-top:6px;color:#065f46;font-weight:700">ยอดขายรวม ฿${baht(s.rev)}</div></div>`;
     document.getElementById('crmsum').innerHTML=box('W','w',W)+box('K','k',K);
     document.getElementById('crmarch').textContent='ในถังนำออก '+(W.arch+K.arch)+' ราย · คัดออกถาวร(วนครบ) '+(W.recycled+K.recycled)+' ราย (แอดมินกู้คืน/ดึงออกได้)';
