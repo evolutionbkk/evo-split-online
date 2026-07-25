@@ -120,6 +120,12 @@
     <span id="newinfo"></span> &nbsp;·&nbsp; <a href="#" onclick="resetExported();return false;" style="color:#b45309">ล้างสถานะ "ส่งแล้ว" (นับทุกคนเป็นรายใหม่อีกครั้ง)</a>
   </div>
 
+  <div class="row" style="margin-bottom:6px">
+    <button class="b-w" id="newCsvW" onclick="doExportNewCsv('W')">⬇ CSV รายใหม่ W (มาร์คส่งแล้ว)</button>
+    <button class="b-k" id="newCsvK" onclick="doExportNewCsv('K')">⬇ CSV รายใหม่ K (มาร์คส่งแล้ว)</button>
+  </div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:14px">ได้เฉพาะรายที่ยังไม่เคยส่งของฝั่งนั้น แล้วมาร์คว่า "ส่งแล้ว" ทันที เพื่อตัดออกกันสับสน</div>
+
   <div class="searchbar">
     <input type="text" id="search" placeholder="🔎 ค้นหา: รหัสสมาชิก / ชื่อ / เบอร์โทร…" oninput="renderTables()">
     <span class="hint" id="searchinfo"></span>
@@ -179,6 +185,10 @@ async function refresh(){
   nb.textContent = '⬇ ดาวน์โหลดเฉพาะรายใหม่ ('+nc+' ราย)';
   nb.disabled = nc===0; nb.style.opacity = nc===0?0.55:1;
   document.getElementById('newinfo').innerHTML = 'ยังไม่เคยส่ง: <b>'+nc+'</b> ราย · ส่งแล้ว: <b>'+(s.total-nc)+'</b> ราย';
+  const newW=s.W.filter(r=>!r.exported).length, newK=s.K.filter(r=>!r.exported).length;
+  const bw=document.getElementById('newCsvW'), bk=document.getElementById('newCsvK');
+  bw.textContent='⬇ CSV รายใหม่ W ('+newW+')'; bw.disabled=newW===0; bw.style.opacity=newW===0?0.55:1;
+  bk.textContent='⬇ CSV รายใหม่ K ('+newK+')'; bk.disabled=newK===0; bk.style.opacity=newK===0?0.55:1;
 }
 async function doPaste(){
   const text=document.getElementById('paste').value; if(!text.trim()){alert('ยังไม่มีข้อมูลที่วาง');return;}
@@ -269,6 +279,22 @@ async function doExportNew(){
       const blob=await r.blob(); const url=URL.createObjectURL(blob);
       const a=document.createElement('a'); a.href=url; a.download='customers_new_'+n+'.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
       document.getElementById('lastact').innerHTML='✓ ดาวน์โหลดรายใหม่ <b>'+n+'</b> ราย (W '+w+' / K '+k+') และทำเครื่องหมาย "ส่งแล้ว" เรียบร้อย';
+    } else {
+      const j=await r.json(); document.getElementById('lastact').innerHTML='ℹ '+(j.message||'ไม่มีรายใหม่');
+    }
+  }catch(e){ document.getElementById('lastact').innerHTML='⚠ ผิดพลาด: '+e; }
+  refresh();
+}
+async function doExportNewCsv(side){
+  const btn=document.getElementById(side==='K'?'newCsvK':'newCsvW'); btn.disabled=true; btn.textContent='⏳ กำลังเตรียมไฟล์…';
+  try{
+    const r=await fetch('/export/new-csv?side='+side,{method:'POST'});
+    const ct=r.headers.get('Content-Type')||'';
+    if(ct.includes('csv')){
+      const n=r.headers.get('X-New-Count')||'?';
+      const blob=await r.blob(); const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='Sales_'+side+'_new_'+n+'.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+      document.getElementById('lastact').innerHTML='✓ ดาวน์โหลด CSV รายใหม่ฝั่ง '+side+' <b>'+n+'</b> ราย และทำเครื่องหมาย "ส่งแล้ว" เรียบร้อย';
     } else {
       const j=await r.json(); document.getElementById('lastact').innerHTML='ℹ '+(j.message||'ไม่มีรายใหม่');
     }

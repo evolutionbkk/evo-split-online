@@ -257,6 +257,20 @@ app.post('/export/new-xlsx', requireAuth, async (req, res) => {
   res.send(buf);
 });
 
+// Download ONLY the not-yet-sent names of ONE side as CSV, then mark just those as sent.
+app.post('/export/new-csv', requireAuth, async (req, res) => {
+  const side = req.query.side === 'K' ? 'K' : 'W';
+  const fresh = state.assigned.filter((a) => !a.exported && a.sales === side);
+  if (!fresh.length) return res.status(200).json({ ok: false, empty: true, message: 'ไม่มีรายใหม่ที่ยังไม่เคยส่งของฝั่ง ' + side });
+  const csv = csvFor(fresh);
+  fresh.forEach((a) => { a.exported = true; });
+  state = await store.save(state);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="Sales_${side}_new_${fresh.length}.csv"`);
+  res.setHeader('X-New-Count', String(fresh.length));
+  res.send(csv);
+});
+
 // Clear all "sent" marks (so the next "download new" gives everyone again).
 app.post('/api/reset-exported', requireAuth, async (req, res) => {
   state.assigned.forEach((a) => { a.exported = false; });
