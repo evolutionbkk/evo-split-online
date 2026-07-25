@@ -59,9 +59,18 @@
   </div>
   <div class="lastact" id="lastact"></div>
 
+  <div class="panel" style="border:1px solid #cfe3d6;background:#f2faf5">
+    <h2>⟳ ดึงรายชื่อใหม่จาก Evolution</h2>
+    <div class="desc">กดปุ่มเดียว ระบบจะไปดึงรายชื่อล่าสุดจาก Evolution มากรอง+แบ่งให้อัตโนมัติ (เติมเฉพาะรายใหม่)</div>
+    <div class="row">
+      <button class="b-add" id="pullBtn" onclick="doPull()" style="font-size:15px;padding:11px 22px">⟳ ดึงรายชื่อใหม่เดี๋ยวนี้</button>
+      <span id="evostatus" style="font-size:12.5px;color:#6b7280"></span>
+    </div>
+  </div>
+
   <div class="note">
     <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก &nbsp;|&nbsp;
-    ข้อมูลใหม่ส่งเข้ามาอัตโนมัติจากสคริปต์ในเบราว์เซอร์ (หรือวาง/รีเฟรชด้านล่างก็ได้)
+    ข้อมูลใหม่ส่งเข้ามาอัตโนมัติจากสคริปต์ในเบราว์เซอร์ (หรือกดปุ่มด้านบน / วางเองด้านล่างก็ได้)
   </div>
 
   <div class="panel">
@@ -121,7 +130,22 @@ async function doPaste(){
   refresh();
 }
 async function doReset(){ if(!confirm('รีเซ็ตกลับเป็นฐานตั้งต้น 376 ราย?'))return; await fetch('/api/reset',{method:'POST'}); document.getElementById('lastact').textContent='รีเซ็ตเป็นฐานตั้งต้นแล้ว'; refresh(); }
-refresh(); setInterval(refresh, 30000);
+async function doPull(){
+  const btn=document.getElementById('pullBtn'); btn.disabled=true; const old=btn.textContent; btn.textContent='⏳ กำลังดึง…';
+  try{
+    const r=await fetch('/api/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const j=await r.json();
+    if(!r.ok){ document.getElementById('lastact').innerHTML='⚠ '+(j.message||'ดึงไม่สำเร็จ'); }
+    else{ const su=j.summary||{}; document.getElementById('lastact').innerHTML='✓ ดึงจาก Evolution '+j.pulled+' ราย → เพิ่มใหม่ <b>'+su.added+'</b> (W '+su.addW+'/K '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>'; }
+  }catch(e){ document.getElementById('lastact').innerHTML='⚠ ผิดพลาด: '+e; }
+  btn.disabled=false; btn.textContent=old; refresh(); evoStatus();
+}
+async function evoStatus(){
+  try{ const r=await fetch('/api/evo-status'); if(!r.ok)return; const s=await r.json();
+    document.getElementById('evostatus').textContent = s.hasToken ? ('เชื่อมกับ Evolution แล้ว · token อัปเดตล่าสุด '+fmt(s.tokenUpdatedAt)) : 'ยังไม่ได้เชื่อม — เปิดหน้า Evolution (ที่ติดตั้งสคริปต์) สักครั้งก่อน';
+  }catch(e){}
+}
+refresh(); evoStatus(); setInterval(refresh, 30000); setInterval(evoStatus, 60000);
 </script>
 </body>
 </html>

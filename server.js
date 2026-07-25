@@ -17,6 +17,25 @@ if (!ADMIN_PASS) console.warn('[warn] ADMIN_PASS is not set — set it in Railwa
 if (!INGEST_KEY) console.warn('[warn] INGEST_KEY is not set — the browser script cannot push data until you set one.');
 
 let state = { assigned: [], maxRound: 1, updatedAt: null };
+// relayed Evolution access (kept in memory only) so the web app can pull on demand
+let evo = { token: null, facility: 'WebStoreWarehouse', updatedAt: null };
+const EVO_API = 'https://app.evolutionecommerce.co.th:8443/api/person/getPersons/CUSTOMER/find';
+function evoBody() {
+  return {
+    filter: { FACILITY_ID: evo.facility || 'WebStoreWarehouse' },
+    paginator: { page: 1, pageSize: 100000, total: 0, pageSizes: [] },
+    sorting: { column: 'PARTY_ID', direction: 'desc' },
+    searchTerm: '', grouping: { selectedRowIds: {}, itemIds: [], selectAll: false },
+  };
+}
+function mapItems(j) {
+  return (j.items || []).map((it) => {
+    const p = it.person || {};
+    const name = [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter((x) => x && ('' + x).trim()).join(' ').trim();
+    const phone = (it.telecomNumber && it.telecomNumber.CONTACT_NUMBER) || '';
+    return { code: it.PARTY_ID, name, phone };
+  });
+}
 
 async function boot() {
   await store.init();
@@ -68,14 +87,16 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
-// ---------- CORS for the ingest endpoint (browser script pushes from the Evolution origin) ----------
-app.use('/api/ingest', (req, res, next) => {
+// ---------- CORS for endpoints the browser script posts to (from the Evolution origin) ----------
+const corsForScript = (req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-ingest-key');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
-});
+};
+app.use('/api/ingest', corsForScript);
+app.use('/api/token', corsForScript);
 
 // ---------- auth routes ----------
 app.get('/login', (req, res) => {
@@ -120,6 +141,46 @@ app.post('/api/ingest', async (req, res) => {
   const summary = S.applyNew(state, customers, req.body && req.body.label);
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
+});
+
+// Browser script relays the current Evolution access token so the web app can pull on demand.
+app.post('/api/token', (req, res) => {
+  const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
+  if (!keyOk) return res.status(401).json({ error: 'bad key' });
+  const { token, facility } = req.body || {};
+  if (token) evo.token = String(token);
+  if (facility) evo.facility = String(facility);
+  evo.updatedAt = new Date().toISOString();
+  res.json({ ok: true, hasToken: !!evo.token, tokenUpdatedAt: evo.updatedAt });
+});
+
+// Admin clicks "pull latest": the server fetches from Evolution using the relayed token.
+app.post('/api/pull', requireAuth, async (req, res) => {
+  if (!evo.token) {
+    return res.status(400).json({ error: 'no_token', message: 'ยังไม่ได้เชื่อมกับ Evolution — เปิดหน้าลูกค้าปลีก (ที่ติดตั้งสคริปต์) สักครั้งเพื่อส่ง token เข้ามา แล้วลองอีกครั้ง' });
+  }
+  try {
+    const r = await fetch(EVO_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token },
+      body: JSON.stringify(evoBody()),
+    });
+    if (r.status === 401 || r.status === 403) {
+      return res.status(400).json({ error: 'token_expired', message: 'token หมดอายุ — เปิดหน้า Evolution ใหม่ (สคริปต์จะส่ง token ใหม่ให้อัตโนมัติ) แล้วกดอีกครั้ง' });
+    }
+    const j = await r.json();
+    const customers = mapItems(j);
+    const summary = S.applyNew(state, customers, req.body && req.body.label);
+    state = await store.save(state);
+    res.json({ ok: true, summary, pulled: customers.length, total: state.assigned.length, tokenAge: evo.updatedAt });
+  } catch (e) {
+    res.status(502).json({ error: 'pull_failed', message: 'ดึงจาก Evolution ไม่สำเร็จ: ' + String(e) });
+  }
+});
+
+// tells the UI whether a pull is possible
+app.get('/api/evo-status', requireAuth, (req, res) => {
+  res.json({ hasToken: !!evo.token, tokenUpdatedAt: evo.updatedAt, facility: evo.facility });
 });
 
 // Manual paste/upload from the admin UI
