@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เข้าสู่ระบบ — แบ่งลูกค้า W/K</title>
+<style>
+  body{margin:0;font-family:"Sarabun","Tahoma",system-ui,sans-serif;background:#f4f6f9;color:#1f2937;display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 12px 34px rgba(0,0,0,.08);padding:30px 28px;width:340px}
+  h1{font-size:19px;margin:0 0 4px;color:#1f4e79}
+  p{font-size:13px;color:#6b7280;margin:0 0 20px}
+  label{font-size:13px;font-weight:600;display:block;margin-bottom:6px}
+  input{width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;padding:11px 12px;font-family:inherit;font-size:14px;margin-bottom:14px}
+  button{width:100%;background:#1f4e79;color:#fff;border:0;border-radius:10px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer}
+  .err{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:14px;display:none}
+</style>
+</head>
+<body>
+  <form class="card" method="POST" action="/login">
+    <h1>แบ่งรายชื่อลูกค้าให้เซลล์</h1>
+    <p>สำหรับแอดมิน — เข้าสู่ระบบเพื่อจัดการ Sales(W)/Sales(K)</p>
+    <div class="err" id="err">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+    <label>ชื่อผู้ใช้</label>
+    <input name="username" autocomplete="username" required>
+    <label>รหัสผ่าน</label>
+    <input name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">เข้าสู่ระบบ</button>
+  </form>
+  <script>if(location.search.indexOf('e')>=0||document.referrer.indexOf('/login')>=0){}</script>
+</body>
+</html>

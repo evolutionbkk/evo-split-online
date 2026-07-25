@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แบ่งรายชื่อลูกค้าให้เซลล์ — แอดมิน</title>
+<style>
+  :root{--w:#1f6f3b;--w-bg:#eaf6ee;--k:#b45309;--k-bg:#fdf2e5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--brand:#1f4e79;--brand-bg:#eef3f9}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Sarabun","Tahoma",system-ui,sans-serif;color:var(--ink);background:#f4f6f9;font-size:15px}
+  .wrap{max-width:1200px;margin:0 auto;padding:20px 18px 60px}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  h1{font-size:21px;margin:0;color:var(--brand)}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .top form{margin:0}
+  .lo{background:#eef1f5;border:0;border-radius:8px;padding:8px 14px;font-family:inherit;font-weight:600;cursor:pointer}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card .n{font-size:26px;font-weight:700}.card .l{font-size:12px;color:var(--muted)}
+  .card.total .n{color:var(--brand)}.card.w .n{color:var(--w)}.card.k .n{color:var(--k)}.card.upd .n{font-size:15px;padding-top:8px}
+  .lastact{font-size:12.5px;color:var(--muted);margin:8px 2px 16px;min-height:18px}
+  .lastact b{color:var(--ink)}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+  .panel h2{font-size:15px;margin:0 0 4px}.panel .desc{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+  textarea{width:100%;min-height:80px;border:1px solid var(--line);border-radius:10px;padding:10px;font-family:inherit;font-size:13px;resize:vertical}
+  input[type=text]{border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-family:inherit;font-size:13px;min-width:200px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  button{font-family:inherit;font-size:14px;border:0;border-radius:9px;padding:9px 16px;cursor:pointer;font-weight:600}
+  .b-add{background:#0f766e;color:#fff}.b-xl{background:#166534;color:#fff}.b-w{background:var(--w);color:#fff}.b-k{background:var(--k);color:#fff}.b-g{background:#eef1f5;color:var(--ink)}.b-b{background:var(--brand);color:#fff}
+  a.btn{display:inline-block;text-decoration:none}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .col{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .col.w{border-top:4px solid var(--w)}.col.k{border-top:4px solid var(--k)}
+  .col-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-weight:700}
+  .col.w .col-head{background:var(--w-bg);color:var(--w)}.col.k .col-head{background:var(--k-bg);color:var(--k)}
+  .col-head .cnt{font-size:13px}
+  .tblwrap{max-height:520px;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:7px 9px;text-align:left;border-bottom:1px solid #f0f2f5;white-space:nowrap}
+  th{position:sticky;top:0;background:#fafbfc;font-weight:700;color:var(--muted);font-size:12px}
+  td.num{color:var(--muted);text-align:center;width:34px}td.rnd{color:#6b7280;font-size:11.5px}
+  .note{background:var(--brand-bg);border:1px solid #d5e3f2;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#33506e;margin-bottom:16px}
+  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>แบ่งรายชื่อลูกค้าให้เซลล์ — Sales (W) &amp; Sales (K)</h1>
+    <form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form>
+  </div>
+  <div class="sub">ฐานข้อมูลกลางออนไลน์ · เติมเฉพาะรายใหม่ต่อคิว ของเดิมไม่เปลี่ยนเซลล์ · บันทึกรอบ/วันที่</div>
+
+  <div class="cards">
+    <div class="card total"><div class="n" id="c-all">–</div><div class="l">รวมที่แบ่งแล้ว</div></div>
+    <div class="card w"><div class="n" id="c-w">–</div><div class="l">Sales (W)</div></div>
+    <div class="card k"><div class="n" id="c-k">–</div><div class="l">Sales (K)</div></div>
+    <div class="card upd"><div class="n" id="c-upd">–</div><div class="l">อัปเดตล่าสุด</div></div>
+  </div>
+  <div class="lastact" id="lastact"></div>
+
+  <div class="note">
+    <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก &nbsp;|&nbsp;
+    ข้อมูลใหม่ส่งเข้ามาอัตโนมัติจากสคริปต์ในเบราว์เซอร์ (หรือวาง/รีเฟรชด้านล่างก็ได้)
+  </div>
+
+  <div class="panel">
+    <h2>➕ เพิ่มรายชื่อใหม่ด้วยตนเอง (ถ้าต้องการ)</h2>
+    <div class="desc">คัดลอกรายชื่อจากระบบ Evolution มาวาง แล้วกดเพิ่ม — ปกติสคริปต์จะส่งให้อัตโนมัติอยู่แล้ว</div>
+    <textarea id="paste" placeholder="วางรหัสสมาชิก / ชื่อ / เบอร์โทร (คัดลอกจากตารางได้เลย)"></textarea>
+    <div class="row">
+      <input type="text" id="label" placeholder="ชื่อรอบ/วันที่ (เว้นว่าง = วันนี้)">
+      <button class="b-add" onclick="doPaste()">➕ เพิ่มรายใหม่ต่อคิว</button>
+      <button class="b-b" onclick="refresh()">🔄 รีเฟรช</button>
+      <button class="b-g" onclick="doReset()">↺ รีเซ็ตเป็นฐานตั้งต้น</button>
+    </div>
+  </div>
+
+  <div class="row" style="margin-bottom:14px">
+    <a class="btn b-xl" href="/export/xlsx"><button class="b-xl">⬇ ดาวน์โหลด Excel</button></a>
+    <a class="btn" href="/export/csv?side=W"><button class="b-w">⬇ CSV — Sales (W)</button></a>
+    <a class="btn" href="/export/csv?side=K"><button class="b-k">⬇ CSV — Sales (K)</button></a>
+  </div>
+
+  <div class="cols">
+    <div class="col w">
+      <div class="col-head"><span>Sales (W)</span><span class="cnt" id="hw">– ราย</span></div>
+      <div class="tblwrap"><table><thead><tr><th class="num">#</th><th>รหัสสมาชิก</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทรศัพท์</th><th>รอบที่ดึง</th></tr></thead><tbody id="tw"></tbody></table></div>
+    </div>
+    <div class="col k">
+      <div class="col-head"><span>Sales (K)</span><span class="cnt" id="hk">– ราย</span></div>
+      <div class="tblwrap"><table><thead><tr><th class="num">#</th><th>รหัสสมาชิก</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทรศัพท์</th><th>รอบที่ดึง</th></tr></thead><tbody id="tk"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const roundName=n=>n===1?'ตั้งต้น':('รอบ '+n);
+function fmt(ts){ if(!ts) return '–'; try{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+(d.getFullYear()+543)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return '–';} }
+function rowsHtml(list){return list.map((r,i)=>`<tr><td class="num">${i+1}</td><td>${esc(r.code)}</td><td>${esc(r.name)}</td><td>${esc(r.phone)}</td><td class="rnd">${esc(roundName(r.round))}${r.date?(' · '+esc(r.date)):''}</td></tr>`).join('');}
+async function refresh(){
+  const r=await fetch('/api/state'); if(r.status===401){location.href='/login';return;}
+  const s=await r.json();
+  document.getElementById('c-all').textContent=s.total;
+  document.getElementById('c-w').textContent=s.W.length;
+  document.getElementById('c-k').textContent=s.K.length;
+  document.getElementById('c-upd').textContent=fmt(s.updatedAt);
+  document.getElementById('hw').textContent=s.W.length+' ราย';
+  document.getElementById('hk').textContent=s.K.length+' ราย';
+  document.getElementById('tw').innerHTML=rowsHtml(s.W);
+  document.getElementById('tk').innerHTML=rowsHtml(s.K);
+}
+async function doPaste(){
+  const text=document.getElementById('paste').value; if(!text.trim()){alert('ยังไม่มีข้อมูลที่วาง');return;}
+  const label=document.getElementById('label').value;
+  const r=await fetch('/api/paste',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,label})});
+  const j=await r.json(); const su=j.summary||{};
+  document.getElementById('lastact').innerHTML='✓ เพิ่มใหม่ <b>'+su.added+'</b> ราย (W '+su.addW+'/K '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>';
+  document.getElementById('paste').value=''; document.getElementById('label').value='';
+  refresh();
+}
+async function doReset(){ if(!confirm('รีเซ็ตกลับเป็นฐานตั้งต้น 376 ราย?'))return; await fetch('/api/reset',{method:'POST'}); document.getElementById('lastact').textContent='รีเซ็ตเป็นฐานตั้งต้นแล้ว'; refresh(); }
+refresh(); setInterval(refresh, 30000);
+</script>
+</body>
+</html>
