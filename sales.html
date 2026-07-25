@@ -91,8 +91,14 @@ let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='all',CURLIST=[],CUR=null;
 function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),1600);}
 function apptFmt(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes()+'').padStart(2,'0');}catch(e){return'';}}
 function curKey(r){if(r.contact==='unreachable'&&r.unreachableReason)return 'r:'+r.unreachableReason;if(r.reachStatus)return r.reachStatus;if(r.contact==='reached')return 'reached';return '';}
+function advToast(adv){
+  if(!adv)return false;
+  if(adv.action==='transferred'){toast('🔁 ครบ 3 รอบ — ส่งต่อให้ '+adv.to+' อัตโนมัติ');return true;}
+  if(adv.action==='recycled_out'){toast('🗑 ครบ 2 มือ — ย้ายไปถังคัดออกถาวร');return true;}
+  return false;
+}
 function statusOf(r){
-  if(r.archived)return{cls:'b-arch',txt:'นำออกแล้ว'};
+  if(r.archived){const t=r.archiveReason==='recycled_out'?'🗑 คัดออกถาวร (วนครบ)':(r.archiveReason==='unreachable'?'นำออก (เบอร์ติดต่อไม่ได้)':'นำออก (ข้อมูลเสีย)');return{cls:'b-arch',txt:t};}
   if(r.contact==='unreachable')return{cls:'b-un',txt:'✕ '+(r.unreachableReason||'ติดต่อไม่ได้')};
   if(r.reachStatus==='closed')return{cls:'b-cl',txt:'✅ ปิดการขาย'};
   if(r.reachStatus==='appointment')return{cls:'b-ap',txt:'📅 นัด '+apptFmt(r.nextAppt)};
@@ -132,18 +138,19 @@ function render(){
   const kc=ME.side==='K'?'k':'';
   box.innerHTML=list.map((r,i)=>{
     const st=statusOf(r);
-    const calls=r.callCount?`<span class="badge b-calls">โทร ${r.callCount}</span>`:'';
+    const prog=r.archived?'':`<span class="badge b-calls">ติดตาม ${Math.min(r.callCount||0,3)}/3</span>`;
+    const hand=(!r.archived&&r.stage>0)?'<span class="badge" style="background:#fef9c3;color:#854d0e">🔁 มือ 2</span>':'';
     const line=(!r.archived&&r.line==='added')?'<span class="badge b-line">ไลน์ ✓</span>':'';
     return `<div class="lead ${kc}" onclick="openLead(${i})">
       <div class="top"><div class="nm">${esc(r.name)||'(ไม่มีชื่อ)'}</div>
         <a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">📞 ${esc(r.phone)}</a></div>
-      <div class="badges"><span class="badge ${st.cls}">${esc(st.txt)}</span>${calls}${line}</div>
-      <div class="meta">${esc(r.code)} · รอบ ${r.round}${r.note?' · 📝 '+esc(r.note.slice(0,42)):''}</div>
+      <div class="badges"><span class="badge ${st.cls}">${esc(st.txt)}</span>${prog}${hand}${line}</div>
+      <div class="meta">${esc(r.code)}${r.note?' · 📝 '+esc(r.note.slice(0,42)):''}</div>
     </div>`;
   }).join('');
 }
 async function api(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>({}));}
-function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(()=>{toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
+function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(j=>{if(!(j&&advToast(j.advanced)))toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
 function openLead(i){
   const r=CURLIST[i];if(!r)return;CUR=JSON.parse(JSON.stringify(r));
   const s=document.getElementById('sheet');
@@ -157,10 +164,11 @@ function openLead(i){
   const outHtml=OUT.map(o=>`<button class="out ${o.cls} ${ck===o.k?'sel':''}" onclick="tapOut('${o.k}')"><span class="em">${o.em}</span>${o.label}</button>`).join('');
   s.innerHTML=`<button class="closeX" onclick="closeSheet()">✕</button>
     <h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3>
-    <div class="sub">${esc(r.code)} · Sales (${esc(r.sales)}) · รอบ ${r.round} · โทรแล้ว ${r.callCount||0} ครั้ง</div>
+    <div class="sub">${esc(r.code)} · Sales (${esc(r.sales)}) · ติดตาม ${Math.min(r.callCount||0,3)}/3 รอบ · มือที่ ${(r.stage||0)+1}/2</div>
     <a class="dialbtn" href="tel:${esc(r.phone)}" onclick="sheetCall(event)">📞 โทรออก ${esc(r.phone)}</a>
     <div class="sec">ผลการโทร (แตะปุ่มเดียว บันทึกทันที)</div>
     <div class="grid">${outHtml}</div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:8px">ℹ️ ครบ 3 รอบยังไม่ปิด = ส่งต่ออีกฝั่งอัตโนมัติ · ถ้ามือที่ 2 ครบ 3 รอบอีก = คัดออกถาวร (แอดมินกู้ได้)</div>
     <div id="apptbox"></div>
     <div class="sec" style="margin-top:16px">สถานะไลน์</div>
     <div class="lineseg"><button class="${r.line==='added'?'on':''}" onclick="tapLine('added')">✅ แอดไลน์แล้ว</button><button class="${r.line==='not_added'?'on':''}" onclick="tapLine('not_added')">ยังไม่แอดไลน์</button></div>
@@ -173,14 +181,14 @@ function openLead(i){
       <div class="grid"><button onclick="doArchive('unreachable')">🗑 เบอร์ติดต่อไม่ได้</button><button onclick="doArchive('bad_data')">🗑 ข้อมูลไม่ครบ/เสีย</button></div></div>`;
   document.getElementById('mbg').classList.add('on');
 }
-function sheetCall(ev){ if(!CUR)return; api('/api/lead/call',{key:CUR.key}).then(()=>{toast('บันทึกการโทรแล้ว');reload();}); }
+function sheetCall(ev){ if(!CUR)return; api('/api/lead/call',{key:CUR.key}).then(j=>{ if(j&&advToast(j.advanced)){closeSheet();} else toast('บันทึกการโทรแล้ว'); reload();}); }
 function closeSheet(){document.getElementById('mbg').classList.remove('on');CUR=null;}
 async function tapOut(k){
   if(!CUR)return;
   const o=OUT.find(x=>x.k===k);if(!o)return;
   if(k==='appointment'){ showAppt(); return; }
   const j=await api('/api/lead/update',{key:CUR.key,patch:o.patch});
-  if(j&&j.ok){ toast('บันทึกแล้ว: '+o.label); closeSheet(); reload(); }
+  if(j&&j.ok){ if(!advToast(j.advanced)) toast('บันทึกแล้ว: '+o.label); closeSheet(); reload(); }
 }
 function showAppt(){
   const box=document.getElementById('apptbox');
@@ -219,6 +227,7 @@ async function init(){
   await reload();
 }
 init();
+setInterval(()=>{ if(!document.getElementById('mbg').classList.contains('on')) reload(); }, 30000);
 </script>
 </body>
 </html>

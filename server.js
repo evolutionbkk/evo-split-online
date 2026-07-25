@@ -202,8 +202,31 @@ function leadView(r) {
     contact: r.contact || '', unreachableReason: r.unreachableReason || '',
     reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '',
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
+    stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
     updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
   };
+}
+// Lead recycling: after 3 calls without closing (and not an active appointment),
+// hand off to the other salesperson once; if it fails again, move to the "คัดออกถาวร" bin.
+const FOLLOW_ROUNDS = 3; // calls before advancing
+function maybeRecycle(rec) {
+  if (rec.archived) return null;
+  if (rec.reachStatus === 'closed') return null;      // won — stop
+  if (rec.reachStatus === 'appointment') return null; // still nurturing — hold
+  if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
+  const failed = rec.contact === 'unreachable' || rec.reachStatus === 'not_ready';
+  if (!failed) return null;
+  const stage = rec.stage || 0;
+  if (stage === 0) {
+    const from = rec.sales, to = rec.sales === 'W' ? 'K' : 'W';
+    rec.sales = to; rec.stage = 1;
+    rec.handoffs = rec.handoffs || []; rec.handoffs.push({ from, to, at: new Date().toISOString() });
+    // fresh start for the receiving salesperson (keep note + line as context)
+    rec.callCount = 0; rec.calls = []; rec.contact = ''; rec.reachStatus = ''; rec.unreachableReason = ''; rec.nextAppt = '';
+    return { action: 'transferred', from, to };
+  }
+  rec.archived = true; rec.archiveReason = 'recycled_out'; rec.archivedAt = new Date().toISOString();
+  return { action: 'recycled_out' };
 }
 function leadFor(req, key) {
   const rec = state.assigned.find((r) => S.keyOf(r) === key);
@@ -232,8 +255,9 @@ app.post('/api/lead/call', requireLogin, async (req, res) => {
   rec.calls = rec.calls || []; rec.calls.push({ at: new Date().toISOString(), by: whoami(req) });
   rec.callCount = (rec.callCount || 0) + 1;
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  const advanced = maybeRecycle(rec);
   state = await store.save(state);
-  res.json({ ok: true, lead: leadView(rec) });
+  res.json({ ok: true, lead: leadView(rec), advanced });
 });
 
 app.post('/api/lead/update', requireLogin, async (req, res) => {
@@ -248,8 +272,9 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  const advanced = maybeRecycle(rec);
   state = await store.save(state);
-  res.json({ ok: true, lead: leadView(rec) });
+  res.json({ ok: true, lead: leadView(rec), advanced });
 });
 
 app.post('/api/lead/archive', requireLogin, async (req, res) => {
