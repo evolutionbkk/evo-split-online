@@ -5,212 +5,204 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>งานของฉัน — เซลล์</title>
 <style>
-  :root{--w:#1f6f3b;--k:#b45309;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--bg:#f4f6f9}
-  *{box-sizing:border-box}
-  body{margin:0;font-family:"Sarabun","Tahoma",system-ui,sans-serif;color:var(--ink);background:var(--bg);font-size:15px}
-  .wrap{max-width:820px;margin:0 auto;padding:14px 12px 60px}
-  .head{border-radius:12px;padding:14px 16px;color:#fff;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+  :root{--w:#1f6f3b;--k:#b45309;--ink:#111827;--muted:#6b7280;--line:#e6e8ec;--bg:#f3f5f8}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:"Sarabun","Tahoma",system-ui,sans-serif;color:var(--ink);background:var(--bg);font-size:16px}
+  .wrap{max-width:760px;margin:0 auto;padding:12px 12px 90px}
+  .head{position:sticky;top:0;z-index:10;border-radius:0 0 14px 14px;padding:14px 16px;color:#fff;display:flex;justify-content:space-between;align-items:center;margin:-12px -12px 12px}
   .head.w{background:var(--w)}.head.k{background:var(--k)}
-  .head h1{margin:0;font-size:18px}.head .lo{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:8px;padding:7px 12px;font-family:inherit;font-weight:600;cursor:pointer}
-  .chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
-  .chip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .head h1{margin:0;font-size:18px}.head .lo{background:rgba(255,255,255,.22);color:#fff;border:0;border-radius:9px;padding:8px 13px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer}
+  .switch{font-size:12.5px;color:var(--muted);margin:0 2px 10px}.switch a{color:inherit;text-decoration:underline;cursor:pointer}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;-webkit-overflow-scrolling:touch}
+  .chip{flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:22px;padding:8px 14px;font-size:13.5px;cursor:pointer;white-space:nowrap;font-weight:600}
   .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .chip b{font-weight:700}
-  input[type=text],input[type=datetime-local],select,textarea{border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-family:inherit;font-size:14px;width:100%}
-  .search{margin-bottom:10px}
-  .lead{background:#fff;border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:9px;cursor:pointer}
-  .lead:active{background:#fafbfc}
-  .lead .r1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  .lead .nm{font-weight:700;font-size:15px}
-  .lead .ph{color:#0e7490;font-weight:600;white-space:nowrap}
-  .lead .r2{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
-  .badge{font-size:11.5px;padding:2px 8px;border-radius:20px;background:#eef1f5;color:#374151}
-  .badge.new{background:#eef2ff;color:#3730a3}.badge.un{background:#fef2f2;color:#b91c1c}.badge.nr{background:#fff7ed;color:#9a3412}
-  .badge.ap{background:#ecfeff;color:#0e7490}.badge.cl{background:#ecfdf5;color:#065f46;font-weight:700}
-  .badge.line{background:#e7f9ee;color:#1f6f3b}.badge.noline{background:#f3f4f6;color:#6b7280}
-  .badge.calls{background:#f5f3ff;color:#5b21b6}
-  .badge.arch{background:#f3f4f6;color:#6b7280}
-  .meta{font-size:11.5px;color:var(--muted);margin-top:5px}
-  .empty{text-align:center;color:var(--muted);padding:24px;background:#fff;border:1px dashed var(--line);border-radius:11px}
-  /* modal */
+  .chip b{opacity:.75;font-weight:700;margin-left:2px}
+  .search input{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px 14px;font-family:inherit;font-size:15px;margin-bottom:12px;background:#fff}
+  .lead{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:10px;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.03)}
+  .lead:active{background:#fbfcfd}
+  .lead .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .lead .nm{font-weight:700;font-size:16.5px;line-height:1.25}
+  .lead a.tel{display:inline-flex;align-items:center;gap:5px;background:#e6f6ee;color:#0b6b39;font-weight:700;font-size:15px;text-decoration:none;padding:7px 12px;border-radius:10px;white-space:nowrap}
+  .lead.k a.tel{background:#fdf0e3;color:#9a4a08}
+  .lead .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}
+  .badge{font-size:12px;padding:3px 9px;border-radius:20px;font-weight:600}
+  .b-new{background:#eef2ff;color:#3730a3}.b-un{background:#fef2f2;color:#b42318}.b-nr{background:#fff7ed;color:#9a3412}
+  .b-ap{background:#e0f2fe;color:#075985}.b-cl{background:#dcfce7;color:#166534}.b-reached{background:#e0f2fe;color:#075985}
+  .b-calls{background:#f5f3ff;color:#6d28d9}.b-line{background:#e7f9ee;color:#15803d}.b-arch{background:#f1f3f5;color:#6b7280}
+  .meta{font-size:12px;color:var(--muted);margin-top:8px}
+  .empty{text-align:center;color:var(--muted);padding:30px;background:#fff;border:1px dashed var(--line);border-radius:14px}
   .mbg{position:fixed;inset:0;background:rgba(17,24,39,.5);display:none;align-items:flex-end;justify-content:center;z-index:40}
   .mbg.on{display:flex}
-  .modal{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;max-height:92vh;overflow:auto;padding:16px 16px 26px}
-  @media(min-width:640px){.mbg{align-items:center}.modal{border-radius:16px}}
-  .modal h3{margin:0 0 2px;font-size:17px}.modal .sub{color:var(--muted);font-size:12.5px;margin-bottom:12px}
-  .fld{margin-bottom:13px}.fld label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px;font-weight:600}
-  .seg{display:flex;gap:8px;flex-wrap:wrap}
-  .seg button{flex:1;min-width:120px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px;font-family:inherit;font-size:13.5px;cursor:pointer;font-weight:600}
-  .seg button.sel{border-color:var(--ink);background:var(--ink);color:#fff}
-  .callrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .calldot{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:#ede9fe;color:#5b21b6}
-  button.act{font-family:inherit;font-weight:600;border:0;border-radius:9px;padding:11px 15px;cursor:pointer;font-size:14px}
-  .b-call{background:#7c3aed;color:#fff}.b-save{background:#166534;color:#fff}.b-cancel{background:#eef1f5;color:var(--ink)}
-  .b-rm{background:#fff;color:#b91c1c;border:1px solid #f0c2c2}.b-restore{background:#0e7490;color:#fff}
-  .acts{display:flex;gap:8px;margin-top:6px}.acts .b-save{flex:1}
-  .callmark{background:#e0f2fe;color:#075985;border-radius:8px;padding:3px 8px;font-size:11.5px}
-  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#111827;color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:60}
+  .sheet{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:640px;max-height:94vh;overflow:auto;padding:8px 16px 24px}
+  @media(min-width:640px){.mbg{align-items:center}.sheet{border-radius:18px}}
+  .grip{width:40px;height:4px;background:#e2e5ea;border-radius:3px;margin:8px auto 12px}
+  .sheet h3{margin:0 0 2px;font-size:19px}
+  .sheet .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .dialbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#0b6b39;color:#fff;text-decoration:none;font-weight:700;font-size:16px;border-radius:12px;padding:14px;margin-bottom:16px}
+  .sec{font-size:13px;color:var(--muted);font-weight:700;margin:0 0 8px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .out{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:13px 10px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;text-align:center}
+  .out .em{font-size:18px}
+  .out.sel{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .out.cl.sel{border-color:#16a34a;box-shadow:inset 0 0 0 1px #16a34a;background:#f0fdf4}
+  .out.ap.sel{border-color:#0284c7;box-shadow:inset 0 0 0 1px #0284c7;background:#f0f9ff}
+  .out.un.sel{border-color:#dc2626;box-shadow:inset 0 0 0 1px #dc2626;background:#fef2f2}
+  .apptbox{margin-top:10px;background:#f0f9ff;border:1px solid #cde8fa;border-radius:12px;padding:12px}
+  .apptbox input{width:100%;border:1px solid #b9dcf3;border-radius:9px;padding:11px;font-family:inherit;font-size:15px;margin-bottom:10px}
+  .row2{display:flex;gap:9px}
+  .lineseg{display:flex;gap:9px;margin:14px 0}
+  .lineseg button{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:11px;padding:12px;font-family:inherit;font-size:14.5px;font-weight:600;cursor:pointer}
+  .lineseg button.on{border-color:#15803d;background:#f0fdf4;color:#15803d}
+  .noteToggle{color:#0b6b39;font-weight:600;font-size:14px;cursor:pointer;display:inline-block;margin:2px 0 12px}
+  textarea{width:100%;border:1px solid var(--line);border-radius:11px;padding:11px;font-family:inherit;font-size:15px;resize:vertical}
+  .act{font-family:inherit;font-weight:700;border:0;border-radius:11px;padding:13px;cursor:pointer;font-size:15px}
+  .b-save{background:#166534;color:#fff}.b-cancel{background:#eef1f5;color:var(--ink)}.b-restore{background:#0e7490;color:#fff;width:100%}
+  .rm{margin-top:16px;border-top:1px solid #f0f2f5;padding-top:14px}
+  .rm .grid button{border:1px solid #f0c2c2;background:#fff;color:#b42318;border-radius:11px;padding:12px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 18px;border-radius:22px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:60;font-weight:600}
   .toast.on{opacity:1}
-  .switch{font-size:12px;color:var(--muted)}
-  .switch a{color:inherit;text-decoration:underline;cursor:pointer}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="head" id="head">
-    <h1 id="title">งานของฉัน</h1>
-    <form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form>
-  </div>
-  <div class="switch" id="switch" style="margin:-6px 2px 10px"></div>
+  <div class="head" id="head"><h1 id="title">งานของฉัน</h1><form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form></div>
+  <div class="switch" id="switch"></div>
   <div class="chips" id="chips"></div>
-  <div class="search"><input type="text" id="search" placeholder="🔎 ค้นหา ชื่อ / รหัส / เบอร์…" oninput="render()"></div>
+  <div class="search"><input type="text" id="search" placeholder="🔎 ค้นหา ชื่อ / เบอร์ / รหัส…" oninput="render()"></div>
   <div id="list"></div>
 </div>
-
-<div class="mbg" id="mbg"><div class="modal" id="modal"></div></div>
+<div class="mbg" id="mbg" onclick="if(event.target===this)closeSheet()"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const REASONS=['ไม่สะดวกคุย','ไม่รับสาย','ปิดเครื่อง','พบช่องทางอื่นที่ถูกกว่า','สะดวกสั่งซื้อช่องทางอื่น'];
-let ME={role:'',side:''}, ACTIVE=[], ARCHIVED=[], FILTER='all', CUR=null;
-const q=()=>(document.getElementById('search').value||'').trim().toLowerCase();
+const OUT=[
+  {k:'closed',label:'ปิดการขาย',em:'✅',cls:'cl',patch:{contact:'reached',reachStatus:'closed'}},
+  {k:'appointment',label:'นัดหมาย',em:'📅',cls:'ap'},
+  {k:'not_ready',label:'ยังไม่พร้อม',em:'⏳',cls:'nr',patch:{contact:'reached',reachStatus:'not_ready'}},
+  {k:'r:ไม่รับสาย',label:'ไม่รับสาย',em:'📵',cls:'un',patch:{contact:'unreachable',unreachableReason:'ไม่รับสาย',reachStatus:''}},
+  {k:'r:ปิดเครื่อง',label:'ปิดเครื่อง',em:'🔕',cls:'un',patch:{contact:'unreachable',unreachableReason:'ปิดเครื่อง',reachStatus:''}},
+  {k:'r:ไม่สะดวกคุย',label:'ไม่สะดวกคุย',em:'🙅',cls:'un',patch:{contact:'unreachable',unreachableReason:'ไม่สะดวกคุย',reachStatus:''}},
+  {k:'r:พบช่องทางอื่นที่ถูกกว่า',label:'เจอที่ถูกกว่า',em:'💸',cls:'un',patch:{contact:'unreachable',unreachableReason:'พบช่องทางอื่นที่ถูกกว่า',reachStatus:''}},
+  {k:'r:สะดวกสั่งซื้อช่องทางอื่น',label:'ซื้อช่องอื่น',em:'🛒',cls:'un',patch:{contact:'unreachable',unreachableReason:'สะดวกสั่งซื้อช่องทางอื่น',reachStatus:''}},
+];
+let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='all',CURLIST=[],CUR=null;
 function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),1600);}
-function fmt(ts){ if(!ts) return ''; try{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return '';} }
-function apptFmt(v){ if(!v) return ''; try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+(d.getFullYear()+543)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return v;} }
+function apptFmt(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes()+'').padStart(2,'0');}catch(e){return'';}}
+function curKey(r){if(r.contact==='unreachable'&&r.unreachableReason)return 'r:'+r.unreachableReason;if(r.reachStatus)return r.reachStatus;if(r.contact==='reached')return 'reached';return '';}
 function statusOf(r){
-  if(r.archived) return {cls:'arch',txt:'นำออกแล้ว'+(r.archiveReason==='unreachable'?' (ติดต่อไม่ได้)':' (ข้อมูลเสีย)')};
-  if(r.contact==='unreachable') return {cls:'un',txt:'ติดต่อไม่ได้'+(r.unreachableReason?': '+r.unreachableReason:'')};
-  if(r.reachStatus==='closed') return {cls:'cl',txt:'ปิดการขาย ✓'};
-  if(r.reachStatus==='appointment') return {cls:'ap',txt:'นัดหมาย'+(r.nextAppt?' '+apptFmt(r.nextAppt):'')};
-  if(r.reachStatus==='not_ready') return {cls:'nr',txt:'ยังไม่พร้อมสั่งซื้อ'};
-  if(r.contact==='reached') return {cls:'ap',txt:'ติดต่อได้'};
-  return {cls:'new',txt:'ยังไม่ติดต่อ'};
+  if(r.archived)return{cls:'b-arch',txt:'นำออกแล้ว'};
+  if(r.contact==='unreachable')return{cls:'b-un',txt:'✕ '+(r.unreachableReason||'ติดต่อไม่ได้')};
+  if(r.reachStatus==='closed')return{cls:'b-cl',txt:'✅ ปิดการขาย'};
+  if(r.reachStatus==='appointment')return{cls:'b-ap',txt:'📅 นัด '+apptFmt(r.nextAppt)};
+  if(r.reachStatus==='not_ready')return{cls:'b-nr',txt:'⏳ ยังไม่พร้อม'};
+  if(r.contact==='reached')return{cls:'b-reached',txt:'☎ ติดต่อได้'};
+  return{cls:'b-new',txt:'● ยังไม่ติดต่อ'};
 }
-function passFilter(r,f){
+function pass(r,f){
   switch(f){
-    case 'all': return !r.archived;
-    case 'new': return !r.archived && !r.contact;
-    case 'unreachable': return !r.archived && r.contact==='unreachable';
-    case 'not_ready': return !r.archived && r.reachStatus==='not_ready';
-    case 'appointment': return !r.archived && r.reachStatus==='appointment';
-    case 'closed': return !r.archived && r.reachStatus==='closed';
-    case 'line_added': return !r.archived && r.line==='added';
-    case 'line_not': return !r.archived && r.line==='not_added';
-    case 'archived': return r.archived;
-    default: return !r.archived;
+    case 'all':return !r.archived;
+    case 'todo':return !r.archived&&(!r.contact||r.reachStatus==='appointment');
+    case 'appointment':return !r.archived&&r.reachStatus==='appointment';
+    case 'closed':return !r.archived&&r.reachStatus==='closed';
+    case 'unreachable':return !r.archived&&r.contact==='unreachable';
+    case 'line_not':return !r.archived&&r.line!=='added';
+    case 'archived':return r.archived;
+    default:return !r.archived;
   }
 }
-function matchSearch(r){const s=q();if(!s)return true;return [r.code,r.name,r.phone].some(v=>String(v==null?'':v).toLowerCase().includes(s));}
-function count(f){const pool=f==='archived'?ARCHIVED:ACTIVE;return pool.filter(r=>passFilter(r,f)).length;}
+function cnt(f){const pool=f==='archived'?ARCHIVED:ACTIVE;return pool.filter(r=>pass(r,f)).length;}
 function renderChips(){
-  const defs=[['all','ทั้งหมด'],['new','ยังไม่ติดต่อ'],['unreachable','ติดต่อไม่ได้'],['not_ready','ยังไม่พร้อม'],['appointment','นัดหมาย'],['closed','ปิดการขาย'],['line_added','แอดไลน์แล้ว'],['line_not','ยังไม่แอดไลน์'],['archived','นำออกแล้ว']];
-  document.getElementById('chips').innerHTML=defs.map(([f,l])=>`<div class="chip ${FILTER===f?'on':''}" onclick="setFilter('${f}')">${l} <b>${count(f)}</b></div>`).join('');
+  const defs=[['todo','🔥 ต้องติดต่อ'],['all','ทั้งหมด'],['appointment','📅 นัดหมาย'],['closed','✅ ปิดการขาย'],['unreachable','✕ ติดต่อไม่ได้'],['line_not','ยังไม่แอดไลน์'],['archived','🗑 นำออกแล้ว']];
+  document.getElementById('chips').innerHTML=defs.map(([f,l])=>`<div class="chip ${FILTER===f?'on':''}" onclick="setFilter('${f}')">${l}<b>${cnt(f)}</b></div>`).join('');
 }
-function setFilter(f){FILTER=f;renderChips();render();}
+function setFilter(f){FILTER=f;render();}
+const q=()=>(document.getElementById('search').value||'').trim().toLowerCase();
+function ms(r){const s=q();if(!s)return true;return[r.code,r.name,r.phone].some(v=>String(v==null?'':v).toLowerCase().includes(s));}
+function rank(r){if(!r.contact)return 0;if(r.reachStatus==='appointment')return 1;if(r.reachStatus==='not_ready')return 2;if(r.contact==='reached')return 3;if(r.reachStatus==='closed')return 4;if(r.contact==='unreachable')return 5;return 6;}
 function render(){
   renderChips();
   const pool=FILTER==='archived'?ARCHIVED:ACTIVE;
-  const list=pool.filter(r=>passFilter(r,FILTER)&&matchSearch(r));
+  let list=pool.filter(r=>pass(r,FILTER)&&ms(r));
+  if(FILTER!=='archived')list=list.slice().sort((a,b)=>rank(a)-rank(b));
+  CURLIST=list;
   const box=document.getElementById('list');
-  if(!list.length){box.innerHTML='<div class="empty">ไม่มีรายชื่อในหมวดนี้</div>';return;}
-  box.innerHTML=list.map(r=>{
+  if(!list.length){box.innerHTML='<div class="empty">ไม่มีรายชื่อในหมวดนี้ 👍</div>';return;}
+  const kc=ME.side==='K'?'k':'';
+  box.innerHTML=list.map((r,i)=>{
     const st=statusOf(r);
-    const calls=r.callCount?`<span class="badge calls">โทรแล้ว ${r.callCount} ครั้ง</span>`:'';
-    const line=r.archived?'':(r.line==='added'?'<span class="badge line">ไลน์ ✓</span>':(r.line==='not_added'?'<span class="badge noline">ยังไม่แอดไลน์</span>':''));
-    return `<div class="lead" onclick='openLead(${JSON.stringify(r.key)})'>
-      <div class="r1"><span class="nm">${esc(r.name)||'(ไม่มีชื่อ)'}</span><span class="ph">${esc(r.phone)}</span></div>
-      <div class="r2"><span class="badge ${st.cls}">${esc(st.txt)}</span>${calls}${line}</div>
-      <div class="meta">${esc(r.code)} · รอบ ${r.round}${r.note?' · 📝 '+esc(r.note.slice(0,40)):''}${r.updatedAt?' · แก้ล่าสุด '+fmt(r.updatedAt):''}</div>
+    const calls=r.callCount?`<span class="badge b-calls">โทร ${r.callCount}</span>`:'';
+    const line=(!r.archived&&r.line==='added')?'<span class="badge b-line">ไลน์ ✓</span>':'';
+    return `<div class="lead ${kc}" onclick="openLead(${i})">
+      <div class="top"><div class="nm">${esc(r.name)||'(ไม่มีชื่อ)'}</div>
+        <a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">📞 ${esc(r.phone)}</a></div>
+      <div class="badges"><span class="badge ${st.cls}">${esc(st.txt)}</span>${calls}${line}</div>
+      <div class="meta">${esc(r.code)} · รอบ ${r.round}${r.note?' · 📝 '+esc(r.note.slice(0,42)):''}</div>
     </div>`;
   }).join('');
 }
-function findLead(key){return ACTIVE.concat(ARCHIVED).find(r=>r.key===key);}
-function openLead(key){
-  const r=findLead(key); if(!r)return; CUR=JSON.parse(JSON.stringify(r));
-  const m=document.getElementById('modal');
-  const relf=(v,cur)=>v===cur?'sel':'';
-  m.innerHTML=`
+async function api(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>({}));}
+function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(()=>{toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
+function openLead(i){
+  const r=CURLIST[i];if(!r)return;CUR=JSON.parse(JSON.stringify(r));
+  const s=document.getElementById('sheet');
+  if(r.archived){
+    s.innerHTML=`<div class="grip"></div><h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3><div class="sub">${esc(r.code)} · ${esc(r.phone)} · Sales (${esc(r.sales)})</div>
+      <div class="badge b-arch" style="display:inline-block;margin-bottom:14px">อยู่ในถังนำออก (${r.archiveReason==='unreachable'?'เบอร์ติดต่อไม่ได้':'ข้อมูลเสีย'})</div>
+      <button class="act b-restore" onclick="doRestore()">↩ กู้คืนกลับรายชื่อ</button>`;
+    document.getElementById('mbg').classList.add('on');return;
+  }
+  const ck=curKey(r);
+  const outHtml=OUT.map(o=>`<button class="out ${o.cls} ${ck===o.k?'sel':''}" onclick="tapOut('${o.k}')"><span class="em">${o.em}</span>${o.label}</button>`).join('');
+  s.innerHTML=`<div class="grip"></div>
     <h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3>
-    <div class="sub">${esc(r.code)} · <a href="tel:${esc(r.phone)}" style="color:#0e7490">${esc(r.phone)}</a> · Sales (${esc(r.sales)}) · รอบ ${r.round}</div>
-    ${r.archived?`
-      <div class="fld"><span class="badge arch">อยู่ในถังนำออก (${r.archiveReason==='unreachable'?'ติดต่อไม่ได้':'ข้อมูลเสีย'})</span></div>
-      <div class="acts"><button class="act b-cancel" onclick="closeModal()">ปิด</button><button class="act b-restore" onclick="doRestore()">↩ กู้คืนกลับรายชื่อ</button></div>
-    `:`
-    <div class="fld">
-      <label>การโทร</label>
-      <div class="callrow"><span class="calldot">${r.callCount}</span><span style="font-size:12.5px;color:#6b7280">โทรแล้ว ${r.callCount} ครั้ง${r.calls&&r.calls.length?(' (ล่าสุด '+fmt(r.calls[r.calls.length-1].at)+')'):''}</span><button class="act b-call" onclick="doCall()">＋ บันทึกโทร (T${(r.callCount||0)+1})</button></div>
+    <div class="sub">${esc(r.code)} · Sales (${esc(r.sales)}) · รอบ ${r.round} · โทรแล้ว ${r.callCount||0} ครั้ง</div>
+    <a class="dialbtn" href="tel:${esc(r.phone)}" onclick="sheetCall(event)">📞 โทรออก ${esc(r.phone)}</a>
+    <div class="sec">ผลการโทร (แตะปุ่มเดียว บันทึกทันที)</div>
+    <div class="grid">${outHtml}</div>
+    <div id="apptbox"></div>
+    <div class="sec" style="margin-top:16px">สถานะไลน์</div>
+    <div class="lineseg"><button class="${r.line==='added'?'on':''}" onclick="tapLine('added')">✅ แอดไลน์แล้ว</button><button class="${r.line==='not_added'?'on':''}" onclick="tapLine('not_added')">ยังไม่แอดไลน์</button></div>
+    <span class="noteToggle" onclick="toggleNote()">📝 ${r.note?'แก้โน้ต':'เพิ่มโน้ต'}</span>
+    <div id="notebox" style="display:${r.note?'block':'none'}">
+      <textarea id="note" rows="2" placeholder="โน้ต…">${esc(r.note)}</textarea>
+      <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveNote()">บันทึกโน้ต</button>
     </div>
-    <div class="fld">
-      <label>ผลการติดต่อ</label>
-      <div class="seg">
-        <button id="c-reached" class="${relf('reached',CUR.contact)}" onclick="setContact('reached')">☎ ติดต่อได้</button>
-        <button id="c-unreach" class="${relf('unreachable',CUR.contact)}" onclick="setContact('unreachable')">✕ ติดต่อไม่ได้</button>
-      </div>
-    </div>
-    <div id="reachBox"></div>
-    <div class="fld">
-      <label>หมายเหตุ</label>
-      <textarea id="note" rows="2" placeholder="โน้ตเพิ่มเติม…">${esc(r.note)}</textarea>
-    </div>
-    <div class="acts"><button class="act b-cancel" onclick="closeModal()">ยกเลิก</button><button class="act b-save" onclick="doSave()">💾 บันทึก</button></div>
-    <div style="margin-top:12px;border-top:1px solid #f0f2f5;padding-top:12px">
-      <label style="font-size:12.5px;color:#6b7280;font-weight:600;display:block;margin-bottom:6px">นำข้อมูลออก (ย้ายไปถังนำออก กู้คืนได้)</label>
-      <div class="seg">
-        <button class="b-rm" onclick="doArchive('unreachable')">🗑 เบอร์ติดต่อไม่ได้</button>
-        <button class="b-rm" onclick="doArchive('bad_data')">🗑 ข้อมูลไม่ครบ/เสียหาย</button>
-      </div>
-    </div>`}
-  `;
-  if(!r.archived) renderReachBox();
+    <div class="rm"><div class="sec">นำออก (ย้ายไปถัง กู้คืนได้)</div>
+      <div class="grid"><button onclick="doArchive('unreachable')">🗑 เบอร์ติดต่อไม่ได้</button><button onclick="doArchive('bad_data')">🗑 ข้อมูลไม่ครบ/เสีย</button></div></div>`;
   document.getElementById('mbg').classList.add('on');
 }
-function setContact(c){ CUR.contact = (CUR.contact===c?'':c); document.getElementById('c-reached').className=CUR.contact==='reached'?'sel':''; document.getElementById('c-unreach').className=CUR.contact==='unreachable'?'sel':''; renderReachBox(); }
-function renderReachBox(){
-  const box=document.getElementById('reachBox'); if(!box)return;
-  const sel=(v,cur)=>v===cur?'sel':'';
-  if(CUR.contact==='unreachable'){
-    box.innerHTML=`<div class="fld"><label>เหตุผลที่ติดต่อไม่ได้</label><select id="reason">${['',...REASONS].map(x=>`<option value="${esc(x)}" ${x===CUR.unreachableReason?'selected':''}>${x?esc(x):'— เลือกเหตุผล —'}</option>`).join('')}</select></div>`;
-    box.querySelector('#reason').addEventListener('change',e=>CUR.unreachableReason=e.target.value);
-  } else if(CUR.contact==='reached'){
-    box.innerHTML=`
-      <div class="fld"><label>สถานะ</label><div class="seg">
-        <button class="${sel('not_ready',CUR.reachStatus)}" onclick="setReach('not_ready')">ยังไม่พร้อมสั่งซื้อ</button>
-        <button class="${sel('appointment',CUR.reachStatus)}" onclick="setReach('appointment')">นัดหมายครั้งถัดไป</button>
-        <button class="${sel('closed',CUR.reachStatus)}" onclick="setReach('closed')">ปิดการขาย</button>
-      </div></div>
-      <div id="apptBox"></div>
-      <div class="fld"><label>สถานะไลน์</label><div class="seg">
-        <button class="${sel('added',CUR.line)}" onclick="setLine('added')">แอดไลน์แล้ว</button>
-        <button class="${sel('not_added',CUR.line)}" onclick="setLine('not_added')">ยังไม่แอดไลน์</button>
-      </div></div>`;
-    renderApptBox();
-  } else { box.innerHTML=''; }
-}
-function setReach(v){ CUR.reachStatus=(CUR.reachStatus===v?'':v); renderReachBox(); }
-function setLine(v){ CUR.line=(CUR.line===v?'':v); const b=document.getElementById('reachBox'); if(b) renderReachBox(); }
-function renderApptBox(){
-  const box=document.getElementById('apptBox'); if(!box)return;
-  if(CUR.reachStatus==='appointment'){
-    let val=''; try{ if(CUR.nextAppt){const d=new Date(CUR.nextAppt);const p=n=>String(n).padStart(2,'0');val=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());} }catch(e){}
-    box.innerHTML=`<div class="fld"><label>นัดติดต่อครั้งถัดไป</label><input type="datetime-local" id="appt" value="${val}"></div>`;
-    box.querySelector('#appt').addEventListener('change',e=>{ CUR.nextAppt = e.target.value? new Date(e.target.value).toISOString():''; });
-  } else box.innerHTML='';
-}
-function closeModal(){ document.getElementById('mbg').classList.remove('on'); CUR=null; }
-async function api(url,body){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}); if(r.status===401){location.href='/login';return null;} return r.json().catch(()=>({})); }
-async function doCall(){ if(!CUR)return; const j=await api('/api/lead/call',{key:CUR.key}); if(j&&j.ok){ toast('บันทึกการโทรแล้ว'); await reload(); openLead(CUR.key);} }
-async function doSave(){
+function sheetCall(ev){ if(!CUR)return; api('/api/lead/call',{key:CUR.key}).then(()=>{toast('บันทึกการโทรแล้ว');reload();}); }
+function closeSheet(){document.getElementById('mbg').classList.remove('on');CUR=null;}
+async function tapOut(k){
   if(!CUR)return;
-  const note=document.getElementById('note'); if(note) CUR.note=note.value;
-  const patch={contact:CUR.contact,unreachableReason:CUR.contact==='unreachable'?(CUR.unreachableReason||''):'',reachStatus:CUR.contact==='reached'?(CUR.reachStatus||''):'',line:CUR.contact==='reached'?(CUR.line||''):'',nextAppt:CUR.reachStatus==='appointment'?(CUR.nextAppt||''):'',note:CUR.note||''};
-  const j=await api('/api/lead/update',{key:CUR.key,patch}); if(j&&j.ok){ toast('บันทึกแล้ว'); closeModal(); await reload(); }
+  const o=OUT.find(x=>x.k===k);if(!o)return;
+  if(k==='appointment'){ showAppt(); return; }
+  const j=await api('/api/lead/update',{key:CUR.key,patch:o.patch});
+  if(j&&j.ok){ toast('บันทึกแล้ว: '+o.label); closeSheet(); reload(); }
 }
-async function doArchive(reason){
-  if(!CUR)return; if(!confirm('ย้ายรายชื่อนี้ไปถัง "นำออกแล้ว"? (กู้คืนได้ภายหลัง)'))return;
-  const j=await api('/api/lead/archive',{key:CUR.key,reason}); if(j&&j.ok){ toast('นำออกแล้ว'); closeModal(); await reload(); }
+function showAppt(){
+  const box=document.getElementById('apptbox');
+  let val=''; try{ const base=CUR.nextAppt?new Date(CUR.nextAppt):(()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(10,0,0,0);return d;})(); const p=n=>String(n).padStart(2,'0'); val=base.getFullYear()+'-'+p(base.getMonth()+1)+'-'+p(base.getDate())+'T'+p(base.getHours())+':'+p(base.getMinutes()); }catch(e){}
+  box.innerHTML=`<div class="apptbox"><div style="font-weight:600;margin-bottom:8px">📅 เลือกวัน-เวลานัดครั้งถัดไป</div><input type="datetime-local" id="appt" value="${val}"><div class="row2"><button class="act b-cancel" style="flex:1" onclick="document.getElementById('apptbox').innerHTML=''">ยกเลิก</button><button class="act b-save" style="flex:2" onclick="saveAppt()">ยืนยันนัดหมาย</button></div></div>`;
+  box.scrollIntoView({behavior:'smooth',block:'center'});
 }
-async function doRestore(){ if(!CUR)return; const j=await api('/api/lead/restore',{key:CUR.key}); if(j&&j.ok){ toast('กู้คืนแล้ว'); closeModal(); await reload(); } }
+async function saveAppt(){
+  if(!CUR)return; const v=document.getElementById('appt').value;
+  const iso=v?new Date(v).toISOString():'';
+  const j=await api('/api/lead/update',{key:CUR.key,patch:{contact:'reached',reachStatus:'appointment',nextAppt:iso}});
+  if(j&&j.ok){ toast('บันทึกนัดหมายแล้ว'); closeSheet(); reload(); }
+}
+async function tapLine(v){
+  if(!CUR)return; const nv=CUR.line===v?'':v; CUR.line=nv;
+  const j=await api('/api/lead/update',{key:CUR.key,patch:{line:nv}});
+  if(j&&j.ok){ toast(nv==='added'?'ทำเครื่องหมายแอดไลน์แล้ว':(nv==='not_added'?'ยังไม่แอดไลน์':'ล้างสถานะไลน์')); reload();
+    document.querySelectorAll('.lineseg button').forEach((b,i)=>b.className=((i===0&&nv==='added')||(i===1&&nv==='not_added'))?'on':''); }
+}
+function toggleNote(){const n=document.getElementById('notebox');n.style.display=n.style.display==='none'?'block':'none';}
+async function saveNote(){ if(!CUR)return; const t=document.getElementById('note').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{note:t}}); if(j&&j.ok){toast('บันทึกโน้ตแล้ว');reload();} }
+async function doArchive(reason){ if(!CUR)return; if(!confirm('ย้ายไปถัง "นำออกแล้ว"? (กู้คืนได้)'))return; const j=await api('/api/lead/archive',{key:CUR.key,reason}); if(j&&j.ok){toast('นำออกแล้ว');closeSheet();reload();} }
+async function doRestore(){ if(!CUR)return; const j=await api('/api/lead/restore',{key:CUR.key}); if(j&&j.ok){toast('กู้คืนแล้ว');closeSheet();reload();} }
 async function reload(){
   const url='/api/leads'+(ME.role==='admin'&&ME.side?('?side='+ME.side):'');
   const r=await fetch(url); if(r.status===401){location.href='/login';return;} const j=await r.json();
@@ -220,9 +212,8 @@ async function init(){
   const r=await fetch('/api/me'); if(r.status===401){location.href='/login';return;} ME=await r.json();
   let side=ME.side;
   if(ME.role==='admin'){ const u=new URLSearchParams(location.search).get('side'); side=(u==='K'?'K':'W'); ME.side=side;
-    document.getElementById('switch').innerHTML='โหมดแอดมิน · ดูฝั่ง: <a onclick="location.search=\'?side=W\'">W</a> | <a onclick="location.search=\'?side=K\'">K</a> · <a href="/">กลับหน้าแอดมิน</a>';
-  }
-  const head=document.getElementById('head'); head.classList.add((side||'W').toLowerCase());
+    document.getElementById('switch').innerHTML='โหมดแอดมิน · ดูฝั่ง: <a onclick="location.search=\'?side=W\'">W</a> | <a onclick="location.search=\'?side=K\'">K</a> · <a href="/">กลับหน้าแอดมิน</a>'; }
+  document.getElementById('head').classList.add((side||'w').toLowerCase());
   document.getElementById('title').textContent='งานของฉัน — Sales ('+(side||'?')+')';
   await reload();
 }
