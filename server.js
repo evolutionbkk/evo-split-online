@@ -234,6 +234,12 @@ function lastCallOf(rec) {
   const c = rec.calls || [];
   return c.length ? (c[c.length - 1].at || '') : '';
 }
+// Append an activity event to the lead's timeline (kept to the last 100).
+function pushHist(rec, k, v, by) {
+  rec.history = rec.history || [];
+  rec.history.push({ at: new Date().toISOString(), by: by || '', k, v: v == null ? '' : String(v).slice(0, 120) });
+  if (rec.history.length > 100) rec.history = rec.history.slice(-100);
+}
 function leadView(r) {
   return {
     key: S.keyOf(r), code: r.code, name: r.name, phone: r.phone, sales: r.sales, round: r.round, date: r.date,
@@ -243,6 +249,7 @@ function leadView(r) {
     reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '', address: r.address || '',
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
+    history: (r.history || []).slice(-40),
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
     updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
@@ -254,7 +261,7 @@ function leadView(r) {
 const FOLLOW_ROUNDS = 3; // calls before advancing
 const STALE_DAYS = 7;    // no-activity days before auto hand-off
 // Move a lead one stage: 1st hand -> transfer to the other side; 2nd hand -> คัดออกถาวร bin.
-function advanceStage(rec) {
+function advanceStage(rec, by) {
   const stage = rec.stage || 0;
   if (stage === 0) {
     const from = rec.sales, to = rec.sales === 'W' ? 'K' : 'W';
@@ -264,9 +271,11 @@ function advanceStage(rec) {
     rec.callCount = 0; rec.calls = []; rec.contact = ''; rec.reachStatus = ''; rec.unreachableReason = ''; rec.nextAppt = '';
     rec.leadStatus = 'new'; rec.callResult = ''; rec.interest = ''; rec.nextAction = ''; rec.lostReason = ''; rec.lastCallAt = ''; rec.saleItems = [];
     rec.receivedAt = new Date().toISOString();
+    pushHist(rec, 'transfer', to, by || 'ระบบ');
     return { action: 'transferred', from, to };
   }
   rec.archived = true; rec.archiveReason = 'recycled_out'; rec.archivedAt = new Date().toISOString();
+  pushHist(rec, 'recycle', '', by || 'ระบบ');
   return { action: 'recycled_out' };
 }
 // Auto rule: after 3 calls without closing (won) and not an active follow-up.
@@ -326,6 +335,7 @@ app.post('/api/lead/call', requireLogin, async (req, res) => {
   rec.callCount = (rec.callCount || 0) + 1;
   rec.lastCallAt = nowIso;
   rec.updatedAt = nowIso; rec.updatedBy = whoami(req);
+  pushHist(rec, 'call', '', whoami(req));
   const advanced = maybeRecycle(rec);
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec), advanced });
@@ -335,6 +345,9 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   const p = (req.body && req.body.patch) || {};
+  const by = whoami(req);
+  // snapshot for the activity timeline
+  const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length };
   // new CRM taxonomy
   if ('leadStatus' in p) rec.leadStatus = LEAD_STATUS_KEYS.includes(p.leadStatus) ? p.leadStatus : rec.leadStatus;
   if ('callResult' in p) rec.callResult = (p.callResult === '' || CALL_RESULT_KEYS.includes(p.callResult)) ? p.callResult : rec.callResult;
@@ -352,7 +365,19 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
   if ('address' in p) rec.address = String(p.address || '').slice(0, 500);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
-  rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  rec.updatedAt = new Date().toISOString(); rec.updatedBy = by;
+  // log each meaningful change to the timeline
+  if (recStatus(rec) !== b0.leadStatus) pushHist(rec, 'status', rec.leadStatus, by);
+  if ((rec.callResult || '') !== b0.callResult) pushHist(rec, 'result', rec.callResult, by);
+  if ((rec.interest || '') !== b0.interest) pushHist(rec, 'interest', rec.interest, by);
+  if ((rec.nextAction || '') !== b0.nextAction) pushHist(rec, 'action', rec.nextAction, by);
+  if ((rec.lostReason || '') !== b0.lostReason) pushHist(rec, 'lost', rec.lostReason, by);
+  if ((rec.nextAppt || '') !== b0.nextAppt) pushHist(rec, 'followup', rec.nextAppt, by);
+  if ((rec.note || '') !== b0.note) pushHist(rec, 'note', '', by);
+  if ((rec.name || '') !== b0.name) pushHist(rec, 'name', rec.name, by);
+  if ((rec.address || '') !== b0.address) pushHist(rec, 'address', '', by);
+  if ((rec.callCount || 0) !== b0.callCount) pushHist(rec, 'calls', rec.callCount, by);
+  if ((rec.saleItems || []).length !== b0.saleN) pushHist(rec, 'sale', (rec.saleItems || []).length, by);
   // Note: field edits do NOT auto-recycle — only real call logs (/api/lead/call) and the stale sweep do.
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec), advanced: null });
@@ -364,6 +389,7 @@ app.post('/api/lead/archive', requireLogin, async (req, res) => {
   rec.archived = true;
   rec.archiveReason = ARCH_REASONS.includes(req.body && req.body.reason) ? req.body.reason : 'bad_data';
   rec.archivedAt = new Date().toISOString(); rec.updatedAt = rec.archivedAt; rec.updatedBy = whoami(req);
+  pushHist(rec, 'archive', rec.archiveReason, whoami(req));
   state = await store.save(state);
   res.json({ ok: true });
 });
@@ -373,6 +399,7 @@ app.post('/api/lead/restore', requireLogin, async (req, res) => {
   if (!rec) return res.status(404).json({ error: 'not_found' });
   rec.archived = false; rec.archiveReason = ''; rec.archivedAt = null;
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  pushHist(rec, 'restore', '', whoami(req));
   state = await store.save(state);
   res.json({ ok: true });
 });
@@ -382,7 +409,7 @@ app.post('/api/lead/advance', requireLogin, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   if (rec.archived) return res.status(400).json({ error: 'already_removed' });
-  const advanced = advanceStage(rec);
+  const advanced = advanceStage(rec, whoami(req));
   rec.updatedBy = whoami(req);
   state = await store.save(state);
   res.json({ ok: true, advanced, lead: leadView(rec) });

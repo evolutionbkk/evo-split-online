@@ -127,6 +127,13 @@
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
   .rm{margin-top:16px;border-top:1px solid #eef2f7;padding-top:14px}
   .rm .grid button{border:1px solid #f3cccc;background:#fff;color:#b42318;border-radius:12px;padding:12px;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .tl{position:relative}
+  .tlitem{display:flex;gap:11px;padding:7px 0;position:relative}
+  .tlitem:not(:last-child)::before{content:'';position:absolute;left:13px;top:29px;bottom:-7px;width:2px;background:#e6ecf5}
+  .tlic{flex:0 0 auto;width:27px;height:27px;border-radius:50%;background:#eff5ff;color:var(--brand);display:inline-flex;align-items:center;justify-content:center;z-index:1}
+  .tlbody{flex:1;min-width:0;padding-top:2px}
+  .tltxt{font-size:13.5px;font-weight:600;color:#0f172a;line-height:1.3}
+  .tlmeta{font-size:11.5px;color:#94a3b8;margin-top:2px}
   .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:11px 18px;border-radius:22px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:60;font-weight:600}
   .toast.on{opacity:1}
 </style>
@@ -206,6 +213,35 @@ function fmtBaht(n){return (Number(n)||0).toLocaleString('en-US',{maximumFractio
 let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='all',CURLIST=[],CUR=null;
 function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),1600);}
 function fmtShort(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}
+function fmtFull(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String((d.getFullYear()+543)%100).padStart(2,'0')+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}
+function histLabel(e){
+  const v=e.v||'';
+  switch(e.k){
+    case 'call':return{ic:'phone',txt:'โทรออก'};
+    case 'status':return{ic:'activity',txt:'เปลี่ยนสถานะ → '+(optLabel(LEAD_STATUS,v)||v||'-')};
+    case 'result':return{ic:'phone',txt:'ผลการโทร: '+(optLabel(CALL_RESULTS,v)||'ล้าง')};
+    case 'interest':return{ic:'star',txt:'ความสนใจ: '+(optLabel(INTEREST,v)||'ล้าง')};
+    case 'action':return{ic:'send',txt:'ขั้นถัดไป: '+(optLabel(NEXT_ACTIONS,v)||'ล้าง')};
+    case 'followup':return{ic:'calendar',txt:v?('นัดติดตาม: '+fmtShort(v)):'ล้างวันนัด'};
+    case 'lost':return{ic:'xCircle',txt:'เหตุผลไม่ปิด: '+(v||'ล้าง')};
+    case 'note':return{ic:'pencil',txt:'อัปเดตหมายเหตุการสนทนา'};
+    case 'name':return{ic:'pencil',txt:'แก้ชื่อเป็น '+(v||'-')};
+    case 'address':return{ic:'pencil',txt:'อัปเดตที่อยู่ลูกค้า'};
+    case 'sale':return{ic:'plus',txt:'อัปเดตสินค้า/ยอดขาย ('+(v||0)+' รายการ)'};
+    case 'calls':return{ic:'phone',txt:'ปรับจำนวนโทรเป็น '+(v||0)};
+    case 'archive':return{ic:'trash',txt:'นำออก'+(v==='unreachable'?' (เบอร์ติดต่อไม่ได้)':(v==='recycled_out'?' (คัดออกถาวร)':' (ข้อมูลเสีย)'))};
+    case 'restore':return{ic:'undo',txt:'กู้คืนกลับรายชื่อ'};
+    case 'transfer':return{ic:'repeat',txt:'ส่งต่อให้ '+(v||'')};
+    case 'recycle':return{ic:'trash',txt:'คัดออกถาวร (วนครบ)'};
+    default:return{ic:'dot',txt:e.k};
+  }
+}
+function whoLabel(by){return by==='ระบบ'?'ระบบอัตโนมัติ':(by?('โดย '+by):'');}
+function buildTimeline(r){
+  const h=(r.history||[]).slice().reverse();
+  if(!h.length)return '<div style="font-size:12.5px;color:#94a3b8;padding:2px 0">ยังไม่มีประวัติการติดต่อ</div>';
+  return '<div class="tl">'+h.map(e=>{const m=histLabel(e);return `<div class="tlitem"><span class="tlic">${ic(m.ic,14)}</span><div class="tlbody"><div class="tltxt">${esc(m.txt)}</div><div class="tlmeta">${esc(fmtFull(e.at))}${e.by?(' · '+esc(whoLabel(e.by))):''}</div></div></div>`;}).join('')+'</div>';
+}
 function advToast(adv){
   if(!adv)return false;
   if(adv.action==='transferred'){toast('ครบ 3 ครั้ง — ส่งต่อให้ '+adv.to+' อัตโนมัติ');return true;}
@@ -296,7 +332,8 @@ function openLeadByKey(key){
   if(r.archived){
     s.innerHTML=`<button class="closeX" onclick="closeSheet()">${ic('x',16)}</button><h3>${esc(r.name)||'(ไม่มีชื่อ)'}</h3><div class="sub">${esc(r.code)} · ${esc(r.phone)} · Sales (${esc(r.sales)})</div>
       <div class="badge b-arch" style="margin-bottom:14px">${ic('trash',13)}อยู่ในถังนำออก (${r.archiveReason==='unreachable'?'เบอร์ติดต่อไม่ได้':(r.archiveReason==='recycled_out'?'คัดออกถาวร (วนครบ)':'ข้อมูลเสีย')})</div>
-      <button class="act b-restore" onclick="doRestore()">${ic('undo',17)}กู้คืนกลับรายชื่อ</button>`;
+      <button class="act b-restore" onclick="doRestore()">${ic('undo',17)}กู้คืนกลับรายชื่อ</button>
+      <div class="sec" style="margin-top:18px">ประวัติการติดต่อ</div>${buildTimeline(r)}`;
     document.getElementById('mbg').classList.add('on');return;
   }
   const stChips=LEAD_STATUS.map(o=>`<button class="pchip ${o.chip} ${r.leadStatus===o.k?'on':''}" onclick="setStatus('${o.k}')">${ic(o.icon,15)}${o.label}</button>`).join('');
@@ -304,7 +341,7 @@ function openLeadByKey(key){
   const inChips=INTEREST.map(o=>`<button class="pchip ${o.chip} ${r.interest===o.k?'on':''}" onclick="setField('interest','${o.k}')">${ic('star',15)}${o.label}</button>`).join('');
   const naChips=NEXT_ACTIONS.map(o=>`<button class="pchip ${r.nextAction===o.k?'on':''}" onclick="setField('nextAction','${o.k}')">${ic(o.icon,15)}${o.label}</button>`).join('');
   const lostChips=LOST_REASONS.map(x=>`<button class="pchip ${r.lostReason===x?'on':''}" onclick="setField('lostReason','${x}')">${x}</button>`).join('');
-  const lostSection=(r.leadStatus==='lost')?`<div class="sec" style="margin-top:16px">เหตุผลที่ไม่ปิดการขาย</div><div class="pchips">${lostChips}</div>`:'';
+  const lostSection=(r.leadStatus==='lost')?`<div class="sec" style="margin-top:16px">เหตุผลที่ไม่ปิดการขาย</div><div class="pchips g3">${lostChips}</div>`:'';
   const wonSection=(r.leadStatus==='won')?buildWonSection(r):'';
   let fval=''; try{const base=r.nextAppt?new Date(r.nextAppt):(()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(10,0,0,0);return d;})();const p=n=>String(n).padStart(2,'0');fval=base.getFullYear()+'-'+p(base.getMonth()+1)+'-'+p(base.getDate())+'T'+p(base.getHours())+':'+p(base.getMinutes());}catch(e){}
   s.innerHTML=`<button class="closeX" onclick="closeSheet()">${ic('x',16)}</button>
@@ -337,6 +374,8 @@ function openLeadByKey(key){
     <div class="sec" style="margin-top:16px">หมายเหตุการสนทนา</div>
     <textarea id="note" rows="3" placeholder="บันทึกรายละเอียดการคุย…">${esc(r.note)}</textarea>
     <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveNote()">บันทึกหมายเหตุ</button>
+    <div class="sec" style="margin-top:18px">ประวัติการติดต่อ</div>
+    ${buildTimeline(r)}
     <div style="margin-top:16px;border-top:1px solid #eef2f7;padding-top:14px">
       <button class="act" style="width:100%;background:#fff7ed;color:#9a3412;border:1px solid #fdba74" onclick="doAdvance()">${(r.stage||0)===0?(ic('repeat',16)+'ส่งต่อให้ '+(r.sales==='W'?'K':'W')+' เลย (ไม่รอครบ 3 รอบ)'):(ic('trash',16)+'คัดออกถาวรเลย')}</button>
     </div>
