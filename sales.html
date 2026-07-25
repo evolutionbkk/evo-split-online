@@ -47,6 +47,25 @@
   .b-calls{background:#eef2ff;color:#4338ca}.b-line{background:#e7f9ee;color:#15803d}.b-arch{background:#f1f5f9;color:#64748b}
   .meta{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);margin-top:9px}
   .empty{text-align:center;color:var(--muted);padding:34px;background:#fff;border:1px dashed var(--line);border-radius:16px;box-shadow:var(--shadow-sm)}
+  .tblwrap{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto}
+  .ltbl{width:100%;border-collapse:collapse;font-size:14px;min-width:720px}
+  .ltbl th{position:sticky;top:0;background:#f7f9fc;text-align:left;font-size:12px;font-weight:700;color:var(--muted);padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}
+  .ltbl td{padding:10px 12px;border-bottom:1px solid #f0f3f8;vertical-align:middle}
+  .ltbl tbody tr:last-child td{border-bottom:0}
+  .ltbl tbody tr:nth-child(even){background:#fbfcfe}
+  .lrow{cursor:pointer}
+  .lrow:hover td{background:#eef4ff}
+  .ltbl td.num{color:var(--muted);text-align:center;width:42px;font-size:12.5px}
+  .ltbl td.nmc{font-weight:700;color:#0f172a;white-space:nowrap}
+  .ltbl td.codec{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .ltbl td.stc{white-space:nowrap}
+  .ltbl td.stc .badge{margin-right:4px}
+  .ltbl td.prog{text-align:center;color:#475569;font-weight:600;white-space:nowrap}
+  .ltbl td.linec{text-align:center}
+  .ltbl td.notec{color:#475569;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+  .ltbl a.tel{display:inline-flex;align-items:center;gap:5px;color:#1d4ed8;font-weight:700;text-decoration:none;white-space:nowrap}
+  .lrow.k a.tel{color:#4338ca}
+  .dash{color:#cbd5e1}
   .mbg{position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(2px);display:none;justify-content:flex-end;z-index:40}
   .mbg.on{display:flex}
   .sheet{background:#fff;width:440px;max-width:100%;height:100vh;overflow:auto;padding:18px 20px 40px;box-shadow:-16px 0 44px rgba(15,23,42,.20);position:relative;animation:slideIn .22s ease}
@@ -190,19 +209,25 @@ function render(){
   const box=document.getElementById('list');
   if(!list.length){box.innerHTML='<div class="empty">ไม่มีรายชื่อในหมวดนี้</div>';return;}
   const kc=ME.side==='K'?'k':'';
-  box.innerHTML=list.map((r,i)=>{
+  const rows=list.map((r,i)=>{
     const st=statusOf(r);
-    const prog=r.archived?'':`<span class="badge b-calls">ติดตาม ${Math.min(r.callCount||0,3)}/3</span>`;
-    const hand=(!r.archived&&r.stage>0)?`<span class="badge" style="background:#fef9c3;color:#854d0e">${ic('repeat',13)}มือ 2</span>`:'';
-    const line=(!r.archived&&r.line==='added')?`<span class="badge b-line">${ic('check',13)}ไลน์</span>`:'';
-    const stale=(!r.archived&&r.lastActivity)?(()=>{const d=Math.floor((Date.now()-Date.parse(r.lastActivity))/86400000);return d>=3?`<span class="badge" style="background:#fef2f2;color:#b91c1c">${ic('clock',13)}ค้าง ${d} วัน</span>`:'';})():'';
-    return `<div class="lead ${kc}" onclick="openLead(${i})">
-      <div class="top"><div class="nm">${esc(r.name)||'(ไม่มีชื่อ)'}</div>
-        <a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',15)}${esc(r.phone)}</a></div>
-      <div class="badges"><span class="badge ${st.cls}">${ic(st.icon,13)}${esc(st.txt)}</span>${prog}${hand}${stale}${line}</div>
-      <div class="meta">${esc(r.code)}${r.note?' · '+ic('pencil',12)+' '+esc(r.note.slice(0,42)):''}</div>
-    </div>`;
+    const flags=[];
+    if(!r.archived&&r.stage>0)flags.push(`<span class="badge" style="background:#fef9c3;color:#854d0e">${ic('repeat',12)}มือ2</span>`);
+    if(!r.archived&&r.lastActivity){const d=Math.floor((Date.now()-Date.parse(r.lastActivity))/86400000);if(d>=3)flags.push(`<span class="badge" style="background:#fef2f2;color:#b91c1c">${ic('clock',12)}${d} วัน</span>`);}
+    const lineCell=(!r.archived&&r.line==='added')?`<span class="badge b-line">${ic('check',12)}</span>`:'<span class="dash">–</span>';
+    const prog=r.archived?'<span class="dash">–</span>':`${Math.min(r.callCount||0,3)}/3`;
+    return `<tr class="lrow ${kc}" onclick="openLead(${i})">
+      <td class="num">${i+1}</td>
+      <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
+      <td class="phc"><a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',14)}${esc(r.phone)}</a></td>
+      <td class="codec">${esc(r.code)}</td>
+      <td class="stc"><span class="badge ${st.cls}">${ic(st.icon,12)}${esc(st.txt)}</span>${flags.join('')}</td>
+      <td class="prog">${prog}</td>
+      <td class="linec">${lineCell}</td>
+      <td class="notec" title="${esc(r.note)}">${r.note?esc(r.note):''}</td>
+    </tr>`;
   }).join('');
+  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>รหัส</th><th>สถานะ</th><th>ติดตาม</th><th>ไลน์</th><th>โน้ต</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 async function api(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>({}));}
 function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(j=>{if(!(j&&advToast(j.advanced)))toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
