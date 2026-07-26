@@ -788,6 +788,63 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
   });
 });
 
+// OneCall call analytics for the dashboard charts: per-side totals, avg talk seconds,
+// >7s / <=7s split, plus per-day and per-hour (Thai time) series for W vs K.
+app.get('/api/admin/callstats', requireAuth, (req, res) => {
+  const now = Date.now();
+  let to = req.query.to ? Date.parse(req.query.to) : now;
+  let from = req.query.from ? Date.parse(req.query.from) : (now - 6 * 86400000);
+  if (isNaN(to)) to = now;
+  if (isNaN(from)) from = to - 6 * 86400000;
+  const TZ = 7 * 3600000;
+  const acc = { W: { calls: 0, talk: 0, over7: 0, under7: 0 }, K: { calls: 0, talk: 0, over7: 0, under7: 0 } };
+  const dayMap = {};
+  const hourMap = {};
+  for (let h = 0; h < 24; h++) hourMap[h] = { W: 0, K: 0 };
+  for (const c of (state.onecall || [])) {
+    const sd = c.side; if (sd !== 'W' && sd !== 'K') continue;
+    const t = Date.parse(c.at); if (isNaN(t)) continue;
+    if (t < from || t > to) continue;
+    const dur = Number(c.dur) || 0;
+    const A = acc[sd]; A.calls++; A.talk += dur;
+    if (dur > ONECALL_MIN_TALK) A.over7++; else A.under7++;
+    const day = S.thaiDay(c.at);
+    if (!dayMap[day]) dayMap[day] = { W: 0, K: 0 };
+    dayMap[day][sd]++;
+    const hr = new Date(t + TZ).getUTCHours();
+    hourMap[hr][sd]++;
+  }
+  // full day list across the range (so zero-call days still show)
+  const daily = [];
+  let d = Date.parse(S.thaiDay(new Date(from).toISOString()) + 'T00:00:00Z');
+  const endD = Date.parse(S.thaiDay(new Date(to).toISOString()) + 'T00:00:00Z');
+  let guard = 0;
+  while (d <= endD && guard++ < 400) {
+    const key = new Date(d).toISOString().slice(0, 10);
+    daily.push({ day: key, W: (dayMap[key] || {}).W || 0, K: (dayMap[key] || {}).K || 0 });
+    d += 86400000;
+  }
+  const hourly = [];
+  for (let h = 0; h < 24; h++) hourly.push({ hour: h, W: hourMap[h].W, K: hourMap[h].K });
+  const mk = (A) => ({
+    calls: A.calls, over7: A.over7, under7: A.under7,
+    avgSec: A.calls ? Math.round(A.talk / A.calls * 10) / 10 : 0,
+    pct: A.calls ? Math.round(A.over7 / A.calls * 100) : 0,
+  });
+  const W = mk(acc.W), K = mk(acc.K);
+  const teamCalls = W.calls + K.calls, teamOver = W.over7 + K.over7, teamTalk = acc.W.talk + acc.K.talk;
+  const team = {
+    calls: teamCalls, over7: teamOver, under7: W.under7 + K.under7,
+    avgSec: teamCalls ? Math.round(teamTalk / teamCalls * 10) / 10 : 0,
+    pct: teamCalls ? Math.round(teamOver / teamCalls * 100) : 0,
+  };
+  res.json({
+    from: new Date(from).toISOString(), to: new Date(to).toISOString(),
+    names: SALES_NAMES, hasOnecall: (state.onecall || []).length > 0,
+    minTalk: ONECALL_MIN_TALK, summary: { W, K, team }, daily, hourly,
+  });
+});
+
 app.post('/api/reset', requireAuth, async (req, res) => {
   const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'seed.json'), 'utf8'));
   state = S.buildSeed(seed);
