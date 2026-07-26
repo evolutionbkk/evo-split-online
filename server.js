@@ -126,6 +126,7 @@ const corsForScript = (req, res, next) => {
 app.use('/api/ingest', corsForScript);
 app.use('/api/token', corsForScript);
 app.use('/api/onecall/ingest', corsForScript);
+app.use('/api/onecall/token', corsForScript);
 
 // ---------- auth routes ----------
 app.get('/login', (req, res) => {
@@ -461,17 +462,13 @@ function onecallAt(ts) {
   }
   return null;
 }
-// Userscript on the OneCall page relays recordings here (auth via INGEST_KEY or admin session).
-app.post('/api/onecall/ingest', async (req, res) => {
-  const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
-  const adminOk = (readSession(req) || {}).role === 'admin';
-  if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
-  const records = (req.body && req.body.records) || [];
-  if (!Array.isArray(records)) return res.status(400).json({ error: 'records must be an array' });
+// Normalize + dedupe a batch of OneCall recordings into state.onecall (shared by the userscript
+// push endpoint and the server-side auto-pull). Does NOT save — caller persists.
+function applyOnecallRecords(records) {
   if (!Array.isArray(state.onecall)) state.onecall = [];
   const seen = new Set(state.onecall.map((r) => r.id));
   let added = 0, dup = 0, skipped = 0;
-  for (const rec of records) {
+  for (const rec of (records || [])) {
     const id = String((rec && rec.id) != null ? rec.id : '').trim();
     if (!id) { skipped++; continue; }
     if (seen.has(id)) { dup++; continue; }
@@ -485,8 +482,85 @@ app.post('/api/onecall/ingest', async (req, res) => {
   }
   if (state.onecall.length > ONECALL_MAX) state.onecall = state.onecall.slice(-ONECALL_MAX);
   state.onecallUpdatedAt = new Date().toISOString();
+  return { added, dup, skipped };
+}
+
+// Userscript on the OneCall page relays recordings here (auth via INGEST_KEY or admin session).
+app.post('/api/onecall/ingest', async (req, res) => {
+  const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
+  const adminOk = (readSession(req) || {}).role === 'admin';
+  if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
+  const records = (req.body && req.body.records) || [];
+  if (!Array.isArray(records)) return res.status(400).json({ error: 'records must be an array' });
+  const sum = applyOnecallRecords(records);
   state = await store.save(state);
-  res.json({ ok: true, added, dup, skipped, total: state.onecall.length });
+  res.json({ ok: true, added: sum.added, dup: sum.dup, skipped: sum.skipped, total: state.onecall.length });
+});
+
+// ----- server-side auto-pull: hold a relayed token, keep it alive, pull on a schedule -----
+// (so the OneCall page does NOT need to stay open — only re-opened when the token finally expires)
+const ONECALL_HOST = 'https://onecallvoicerecord.dtac.co.th';
+let onecallAuth = { token: null, updatedAt: null, alive: false, lastPullAt: null, lastAdded: 0, lastError: null };
+function onecallHeaders() { return { 'Authorization': onecallAuth.token, 'Accept': 'application/json', 'Content-Type': 'application/json' }; }
+function ocStartDate(days) {
+  const d = new Date(); d.setDate(d.getDate() - (days - 1)); d.setHours(0, 0, 0, 0);
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_000000';
+}
+async function onecallKeepalive() {
+  if (!onecallAuth.token) return false;
+  try {
+    const r = await fetch(ONECALL_HOST + '/orktrack/rest/keepalive', { headers: onecallHeaders() });
+    if (r.status === 401 || r.status === 403) { onecallAuth.alive = false; onecallAuth.lastError = 'token_expired'; return false; }
+    if (r.ok) { onecallAuth.alive = true; }
+    return r.ok;
+  } catch (e) { onecallAuth.lastError = 'keepalive_failed'; return false; }
+}
+async function onecallPull() {
+  if (!onecallAuth.token) return;
+  try {
+    const sd = ocStartDate(2);
+    let page = 1; const all = [];
+    while (page <= 80) {
+      const url = ONECALL_HOST + '/orktrack/rest/recordings?range=custom&startdate=' + sd +
+        '&sort=&page=' + page + '&pagesize=500&maxresults=-1&includetags=true&includemetadata=true&includeprograms=true';
+      const r = await fetch(url, { headers: onecallHeaders() });
+      if (r.status === 401 || r.status === 403) { onecallAuth.alive = false; onecallAuth.lastError = 'token_expired'; return; }
+      if (!r.ok) { onecallAuth.lastError = 'pull_http_' + r.status; return; }
+      const j = await r.json();
+      const objs = (j && j.objects) || [];
+      for (const o of objs) all.push({ id: o.id, timestamp: o.timestamp, duration: o.duration, localParty: o.localParty, remoteParty: o.remoteParty, direction: o.direction });
+      if (objs.length < 500 || (j && j.limitReached)) break;
+      page++;
+    }
+    const sum = applyOnecallRecords(all);
+    state = await store.save(state);
+    onecallAuth.alive = true; onecallAuth.lastPullAt = new Date().toISOString(); onecallAuth.lastAdded = sum.added; onecallAuth.lastError = null;
+    console.log('[onecall] auto-pull', all.length, 'records · added', sum.added);
+  } catch (e) { onecallAuth.lastError = 'pull_failed'; console.warn('[onecall] pull failed:', String(e)); }
+}
+// Userscript relays the current OneCall token so the server can pull unattended.
+app.post('/api/onecall/token', (req, res) => {
+  const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
+  const adminOk = (readSession(req) || {}).role === 'admin';
+  if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
+  const t = req.body && req.body.token;
+  if (!t || String(t).length < 10) return res.status(400).json({ error: 'no_token' });
+  onecallAuth.token = String(t); onecallAuth.updatedAt = new Date().toISOString(); onecallAuth.alive = true; onecallAuth.lastError = null;
+  onecallPull().catch(() => {}); // kick an immediate pull with the fresh token
+  res.json({ ok: true, updatedAt: onecallAuth.updatedAt });
+});
+app.get('/api/onecall/status', requireAuth, (req, res) => {
+  res.json({
+    hasToken: !!onecallAuth.token, tokenUpdatedAt: onecallAuth.updatedAt, alive: onecallAuth.alive,
+    lastPullAt: onecallAuth.lastPullAt, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError,
+    total: (state.onecall || []).length,
+  });
+});
+app.post('/api/onecall/pull', requireAuth, async (req, res) => {
+  if (!onecallAuth.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่มี token — เปิดหน้า OneCall (ที่ติดตั้ง userscript) สักครั้งเพื่อส่ง token เข้ามาก่อน' });
+  await onecallKeepalive(); await onecallPull();
+  res.json({ ok: true, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError, alive: onecallAuth.alive, total: (state.onecall || []).length });
 });
 
 // Admin clicks "pull latest": the server fetches from Evolution using the relayed token.
@@ -757,4 +831,6 @@ app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.len
 boot().then(() => {
   app.listen(PORT, () => console.log('[server] listening on', PORT));
   setInterval(() => { runSweep().catch(() => {}); }, 60 * 60 * 1000); // hourly stale sweep
+  setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive
+  setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
 }).catch((e) => { console.error('boot failed', e); process.exit(1); });

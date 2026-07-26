@@ -191,6 +191,10 @@
     <div class="ktoday" id="ktoday"></div>
     <div id="kpiCards" class="row" style="gap:14px;align-items:stretch;margin-top:2px"></div>
     <div id="konecall" style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-top:12px"></div>
+    <div class="row" style="margin-top:8px;align-items:center;gap:10px">
+      <button class="b-g" onclick="doOnecallPull()" id="ocpullbtn" style="padding:8px 14px"><span data-ic="refresh" data-sz="15"></span>ดึง OneCall เดี๋ยวนี้</button>
+      <span id="ocstatus" style="font-size:12px;color:#6b7280"></span>
+    </div>
     <div class="row" style="margin-top:12px">
       <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W (Hwan)</button></a>
       <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง K (Khem)</button></a>
@@ -631,8 +635,30 @@ async function impSend(){
   }catch(e){document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e;}
 }
 
+async function loadOnecallStatus(){
+  try{
+    const s=await fetch('/api/onecall/status').then(r=>r.json());
+    const el=document.getElementById('ocstatus');
+    if(!s.hasToken){ el.innerHTML=ic('info',13)+' ยังไม่มี token — เปิดหน้า OneCall (ที่ติดตั้ง userscript) สักครั้งเพื่อส่ง token'; return; }
+    const parts=[];
+    parts.push(s.alive?(ic('check',13)+' token พร้อม (server ดึงเองได้)'):(ic('alert',13)+' token หมดอายุ — เปิดหน้า OneCall อีกครั้ง'));
+    if(s.lastPullAt) parts.push('ดึงล่าสุด '+fmt(s.lastPullAt)+(s.lastAdded?(' · +'+s.lastAdded+' ใหม่'):''));
+    parts.push('สะสม '+(s.total||0)+' สาย');
+    if(s.lastError) parts.push('⚠ '+s.lastError);
+    el.innerHTML=parts.join(' · ');
+  }catch(e){}
+}
+async function doOnecallPull(){
+  const b=document.getElementById('ocpullbtn'); b.disabled=true; const old=b.innerHTML; b.innerHTML='กำลังดึง…';
+  try{
+    const r=await fetch('/api/onecall/pull',{method:'POST'}); const j=await r.json();
+    if(!r.ok){ document.getElementById('lastact').innerHTML=ic('alert',14)+(j.message||'ดึงไม่สำเร็จ'); }
+    else{ document.getElementById('lastact').innerHTML=ic('check',14)+'ดึง OneCall แล้ว · เพิ่มใหม่ '+(j.lastAdded||0)+' · รวม '+(j.total||0)+' สาย'+(j.lastError?(' · ⚠ '+j.lastError):''); }
+  }catch(e){ document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e; }
+  b.disabled=false; b.innerHTML=old; loadOnecallStatus(); loadKpi();
+}
 fillIcons();
-refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); loadKpi(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadKpi, 30000);
+refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); loadKpi(); loadOnecallStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadKpi, 30000);
 </script>
 </body>
 </html>
