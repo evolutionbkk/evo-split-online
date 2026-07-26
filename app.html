@@ -153,69 +153,6 @@
     </div>
   </div>
 
-  <div class="panel">
-    <h2><span data-ic="plus" data-sz="18"></span>เพิ่มรายชื่อใหม่ด้วยตนเอง (ถ้าต้องการ)</h2>
-    <div class="desc">คัดลอกรายชื่อจากระบบ Evolution มาวาง แล้วกดเพิ่ม — ปกติสคริปต์จะส่งให้อัตโนมัติอยู่แล้ว</div>
-    <textarea id="paste" placeholder="วางรหัสสมาชิก / ชื่อ / เบอร์โทร (คัดลอกจากตารางได้เลย)"></textarea>
-    <div class="row">
-      <input type="text" id="label" placeholder="ชื่อรอบ/วันที่ (เว้นว่าง = วันนี้)">
-      <button class="b-add" onclick="doPaste()"><span data-ic="plus" data-sz="15"></span>เพิ่มรายใหม่ต่อคิว</button>
-      <button class="b-b" onclick="refresh()"><span data-ic="refresh" data-sz="15"></span>รีเฟรช</button>
-      <button class="b-g" onclick="doReset()"><span data-ic="undo" data-sz="15"></span>รีเซ็ตเป็นฐานตั้งต้น</button>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2><span data-ic="shield" data-sz="18"></span>สำรอง &amp; กู้คืนข้อมูล</h2>
-    <div class="desc">ดาวน์โหลดไฟล์สำรองเก็บไว้เอง หรือกู้คืนจากไฟล์ · ระบบยังสำรองอัตโนมัติทุกวันให้ด้วย</div>
-    <div class="row">
-      <a class="btn" href="/export/backup"><button class="b-bk"><span data-ic="download" data-sz="15"></span>ดาวน์โหลดไฟล์สำรอง (ทั้งหมด)</button></a>
-      <button class="b-warn" onclick="document.getElementById('restoreFile').click()"><span data-ic="upload" data-sz="15"></span>กู้คืนจากไฟล์สำรอง…</button>
-      <input type="file" id="restoreFile" accept=".json,application/json" style="display:none" onchange="doRestoreFile(this)">
-      <span class="hint" id="bkinfo" style="font-size:12.5px;color:#6b7280"></span>
-    </div>
-    <div id="autobk" style="font-size:12.5px;color:#6b7280;margin-top:8px"></div>
-  </div>
-
-  <div class="panel">
-    <h2><span data-ic="link" data-sz="18"></span>ลิงก์สำหรับเซลล์ (อ่านอย่างเดียว)</h2>
-    <div class="desc">แชร์ลิงก์ให้เซลล์เปิดดูรายชื่อของตัวเองบนมือถือได้เลย ไม่ต้องล็อกอิน แก้ไขอะไรไม่ได้ · เก็บลิงก์เป็นความลับ (ใครมีลิงก์ก็เปิดดูได้)</div>
-    <div class="row" style="align-items:stretch">
-      <div style="flex:1;min-width:250px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff">
-        <div style="font-weight:700;color:var(--w);margin-bottom:6px">Sales (W)</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" id="linkW" readonly style="flex:1;min-width:120px;font-size:12px" value="…">
-          <button class="b-w" onclick="copyLink('W')">คัดลอก</button>
-          <a class="btn" id="openW" href="#" target="_blank" rel="noopener"><button class="b-g">เปิด</button></a>
-        </div>
-      </div>
-      <div style="flex:1;min-width:250px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff">
-        <div style="font-weight:700;color:var(--k);margin-bottom:6px">Sales (K)</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" id="linkK" readonly style="flex:1;min-width:120px;font-size:12px" value="…">
-          <button class="b-k" onclick="copyLink('K')">คัดลอก</button>
-          <a class="btn" id="openK" href="#" target="_blank" rel="noopener"><button class="b-g">เปิด</button></a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row" style="margin-bottom:6px">
-    <button class="b-add" id="newBtn" onclick="doExportNew()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>ดาวน์โหลดเฉพาะรายใหม่ (ที่ยังไม่เคยส่ง)</button>
-    <a class="btn b-xl" href="/export/xlsx"><button class="b-xl"><span data-ic="download" data-sz="15"></span>ดาวน์โหลด Excel (ทั้งหมด)</button></a>
-    <a class="btn" href="/export/csv?side=W"><button class="b-w"><span data-ic="download" data-sz="15"></span>CSV — W</button></a>
-    <a class="btn" href="/export/csv?side=K"><button class="b-k"><span data-ic="download" data-sz="15"></span>CSV — K</button></a>
-  </div>
-  <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">
-    <span id="newinfo"></span> &nbsp;·&nbsp; <a href="#" onclick="resetExported();return false;" style="color:#b45309">ล้างสถานะ "ส่งแล้ว" (นับทุกคนเป็นรายใหม่อีกครั้ง)</a>
-  </div>
-
-  <div class="row" style="margin-bottom:6px">
-    <button class="b-w" id="newCsvW" onclick="doExportNewCsv('W')"><span data-ic="download" data-sz="15"></span>CSV รายใหม่ W (มาร์คส่งแล้ว)</button>
-    <button class="b-k" id="newCsvK" onclick="doExportNewCsv('K')"><span data-ic="download" data-sz="15"></span>CSV รายใหม่ K (มาร์คส่งแล้ว)</button>
-  </div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:14px">ได้เฉพาะรายที่ยังไม่เคยส่งของฝั่งนั้น แล้วมาร์คว่า "ส่งแล้ว" ทันที เพื่อตัดออกกันสับสน</div>
-
   <div class="searchbar">
     <span data-ic="search" data-sz="18" style="color:#94a3b8"></span>
     <input type="text" id="search" placeholder="ค้นหา: รหัสสมาชิก / ชื่อ / เบอร์โทร…" oninput="renderTables()">
@@ -292,15 +229,6 @@ async function refresh(){
   document.getElementById('c-k').textContent=s.K.length;
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
   LAST={W:s.W,K:s.K}; renderTables();
-  const nc = s.newCount||0;
-  const nb=document.getElementById('newBtn');
-  nb.innerHTML = ic('download',15)+'ดาวน์โหลดเฉพาะรายใหม่ ('+nc+' ราย)';
-  nb.disabled = nc===0; nb.style.opacity = nc===0?0.55:1;
-  document.getElementById('newinfo').innerHTML = 'ยังไม่เคยส่ง: <b>'+nc+'</b> ราย · ส่งแล้ว: <b>'+(s.total-nc)+'</b> ราย';
-  const newW=s.W.filter(r=>!r.exported).length, newK=s.K.filter(r=>!r.exported).length;
-  const bw=document.getElementById('newCsvW'), bk=document.getElementById('newCsvK');
-  bw.innerHTML=ic('download',15)+'CSV รายใหม่ W ('+newW+')'; bw.disabled=newW===0; bw.style.opacity=newW===0?0.55:1;
-  bk.innerHTML=ic('download',15)+'CSV รายใหม่ K ('+newK+')'; bk.disabled=newK===0; bk.style.opacity=newK===0?0.55:1;
 }
 async function doPaste(){
   const text=document.getElementById('paste').value; if(!text.trim()){alert('ยังไม่มีข้อมูลที่วาง');return;}
@@ -623,7 +551,7 @@ async function loadPulls(){
   }catch(e){}
 }
 fillIcons();
-refresh(); loadBackupsInfo(); loadShareLinks(); loadKpi(); loadOnecallStatus(); loadPulls(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadKpi, 30000);
+refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000);
 </script>
 </body>
 </html>
