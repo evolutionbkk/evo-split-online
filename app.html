@@ -432,11 +432,13 @@ function copyLink(side){
 }
 // ===== Dashboard KPI (ภาพรวมทีม Telesales) =====
 let KR={mode:'today'},KPI_ONECALL=false,KPI_TARGETS={evo:50,manual:5};
-function targetBar(label,val,target,color){
+// val = โทรแล้ว (unique leads, drives the bar vs target) · talk = คุยจริง >7 วิ (per-call)
+function targetBar(label,val,target,color,talk){
   const pct=target>0?Math.min(100,Math.round(val/target*100)):0;
   const done=val>=target&&target>0;
+  const talkTxt=(talk!=null)?(' · <span style="color:#166534">คุย <b>'+talk+'</b></span>'):'';
   return `<div style="margin-bottom:7px">
-    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#334155">${label}</span><span style="font-weight:700;color:${done?'#166534':'#334155'}">${val} / ${target}${done?' ✓':''}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#334155">${label}</span><span style="color:#334155">โทรแล้ว <b style="color:${done?'#166534':'#0f172a'}">${val}</b>/${target}${done?' ✓':''}${talkTxt}</span></div>
     <div class="kbar"><span style="width:${pct}%;background:${done?'linear-gradient(90deg,#16a34a,#22c55e)':color}"></span></div>
   </div>`;
 }
@@ -472,10 +474,11 @@ function personCard(side,name,a){
     <div class="kmetric"><span>Lead ค้าง / เกินกำหนด</span><span class="v" style="color:#b45309">${a.pending}</span></div>
     <div class="kmetric"><span>สายที่โทร (${lbl})</span><span class="v">${a.callsRange}</span></div>
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
-      <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">✓ สายคุยจริง &gt;7 วิ · เป้าวันนี้</div>
-      ${targetBar('Evolution', a.talk7EvoToday, KPI_TARGETS.evo, '#2563eb')}
-      ${targetBar('ไลลา + follow-up', a.talk7ManualToday, KPI_TARGETS.manual, '#7c3aed')}
-      <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Evolution <b>${a.talk7EvoRange}</b> · ไลลา <b>${a.talk7ManualRange}</b>${a.talk7OtherRange?(' · อื่นๆ '+a.talk7OtherRange):''}</div>
+      <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
+      ${targetBar('Evolution', a.calledEvoToday, KPI_TARGETS.evo, '#2563eb', a.talk7EvoToday)}
+      ${targetBar('ไลลา + follow-up', a.calledManualToday, KPI_TARGETS.manual, '#7c3aed', a.talk7ManualToday)}
+      <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): โทรแล้ว Evolution <b>${a.calledEvoRange}</b> ราย (คุย ${a.talk7EvoRange}) · ไลลา <b>${a.calledManualRange}</b> ราย (คุย ${a.talk7ManualRange})</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">“โทรแล้ว” = จำนวนลูกค้าที่โทรถึง (นับต่อราย) · “คุย” = สายที่คุยเกิน 7 วิ (นับต่อสาย)</div>
     </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>

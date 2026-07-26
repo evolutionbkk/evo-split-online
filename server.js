@@ -265,9 +265,11 @@ function pushHist(rec, k, v, by) {
   rec.history.push({ at: new Date().toISOString(), by: by || '', k, v: v == null ? '' : String(v).slice(0, 120) });
   if (rec.history.length > 100) rec.history = rec.history.slice(-100);
 }
-function leadView(r) {
+function leadView(r, ocMap) {
+  const oc = ocMap ? ocMap.get(r.sales + '|' + digitsOnly(r.phone)) : null;
   return {
     key: S.keyOf(r), code: r.code, name: r.name, phone: r.phone, sales: r.sales, round: r.round, date: r.date,
+    realCalls: oc ? oc.calls : 0, realTalkCalls: oc ? oc.talk : 0, realLastCallAt: oc ? oc.lastAt : null,
     exported: !!r.exported,
     callCount: r.callCount || 0, calls: r.calls || [], lastCallAt: lastCallOf(r),
     contact: r.contact || '', unreachableReason: r.unreachableReason || '',
@@ -347,10 +349,11 @@ app.get('/api/leads', requireCrm, async (req, res) => {
   const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : (req.query.side === 'W' ? 'W' : null));
   let list = state.assigned;
   if (side) list = list.filter((r) => r.sales === side);
+  const ocMap = onecallStatsMap();
   res.json({
     role: req.session.role, side: side || null,
-    active: list.filter((r) => !r.archived).map(leadView),
-    archived: list.filter((r) => r.archived).map(leadView),
+    active: list.filter((r) => !r.archived).map((r) => leadView(r, ocMap)),
+    archived: list.filter((r) => r.archived).map((r) => leadView(r, ocMap)),
   });
 });
 
@@ -479,6 +482,18 @@ function digitsOnly(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
 function normLine(p) { let d = digitsOnly(p); if (d.length === 10 && d[0] === '0') d = '66' + d.slice(1); return d; }
 function onecallSide(localParty) { return ONECALL_LINES[normLine(localParty)] || null; }
 function normPhoneTH(p) { let d = digitsOnly(p); if (d.startsWith('66')) d = '0' + d.slice(2); return d; }
+// Aggregate OneCall calls per (side|phone): total calls + talks(>7s) + last call time.
+// Used to auto-mark leads as "called" and to compute per-lead KPI coverage.
+function onecallStatsMap() {
+  const m = new Map();
+  for (const c of (state.onecall || [])) {
+    const key = c.side + '|' + digitsOnly(c.phone);
+    let s = m.get(key); if (!s) { s = { calls: 0, talk: 0, lastAt: null }; m.set(key, s); }
+    s.calls++; if ((c.dur || 0) > ONECALL_MIN_TALK) s.talk++;
+    if (!s.lastAt || String(c.at) > s.lastAt) s.lastAt = c.at;
+  }
+  return m;
+}
 function onecallAt(ts) {
   if (typeof ts === 'number') return new Date(ts < 1e12 ? ts * 1000 : ts).toISOString();
   if (ts) {
@@ -675,6 +690,7 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     callsToday: 0, wonToday: 0, rev: 0, talk7Range: 0, talk7Today: 0,
     talk7EvoRange: 0, talk7ManualRange: 0, talk7OtherRange: 0,
     talk7EvoToday: 0, talk7ManualToday: 0, talk7OtherToday: 0,
+    calledEvoRange: 0, calledManualRange: 0, calledEvoToday: 0, calledManualToday: 0,
     archived: 0, recycled: 0,
   });
   const sides = { W: blank(), K: blank() };
@@ -708,19 +724,33 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     if (lostThis) A.lostRange++;
     if (r.receivedAt) { const t = Date.parse(r.receivedAt); if (!isNaN(t) && t >= from && t <= to) A.newRange++; }
   }
-  // phone → lead source, to attribute each real call to Evolution vs Admin-Sales(manual)/follow-up
-  const phoneSrc = new Map();
-  for (const r of state.assigned) { const p = digitsOnly(r.phone); if (p) phoneSrc.set(p, r.source === 'manual' ? 'manual' : 'evolution'); }
-  // Real talk-time from OneCall: calls longer than 7s = talked to the customer.
+  // Match each OneCall to a lead by side|phone → attribute to Evolution vs Admin-Sales(manual)
+  const leadSrc = new Map();
+  for (const r of state.assigned) { if (r.archived) continue; const p = digitsOnly(r.phone); if (p) leadSrc.set(r.sales + '|' + p, r.source === 'manual' ? 'manual' : 'evolution'); }
+  const mkSets = () => ({ evo: new Set(), manual: new Set() });
+  const calledR = { W: mkSets(), K: mkSets() }, calledT = { W: mkSets(), K: mkSets() };
   for (const c of (state.onecall || [])) {
     const A = sides[c.side]; if (!A) continue;
     const t = Date.parse(c.at); if (isNaN(t)) continue;
-    if ((c.dur || 0) > ONECALL_MIN_TALK) {
-      const src = phoneSrc.get(digitsOnly(c.phone)); // 'manual' | 'evolution' | undefined(no matching lead)
-      const inR = t >= from && t <= to, inT = t >= tStart && t <= tEnd;
-      if (inR) { A.talk7Range++; if (src === 'manual') A.talk7ManualRange++; else if (src === 'evolution') A.talk7EvoRange++; else A.talk7OtherRange++; }
-      if (inT) { A.talk7Today++; if (src === 'manual') A.talk7ManualToday++; else if (src === 'evolution') A.talk7EvoToday++; else A.talk7OtherToday++; }
+    const key = c.side + '|' + digitsOnly(c.phone), src = leadSrc.get(key); // matched lead on this side?
+    const inR = t >= from && t <= to, inT = t >= tStart && t <= tEnd;
+    // "โทรแล้ว" = unique matched leads that got ≥1 call (any duration) — per lead
+    if (src) {
+      const b = src === 'manual' ? 'manual' : 'evo';
+      if (inR) calledR[c.side][b].add(key);
+      if (inT) calledT[c.side][b].add(key);
     }
+    // KPI = per-call talks >7s, bucketed by source (or 'Other' if not a lead on this side)
+    if ((c.dur || 0) > ONECALL_MIN_TALK) {
+      const b = src === 'manual' ? 'Manual' : (src === 'evolution' ? 'Evo' : 'Other');
+      if (inR) { A.talk7Range++; A['talk7' + b + 'Range']++; }
+      if (inT) { A.talk7Today++; A['talk7' + b + 'Today']++; }
+    }
+  }
+  for (const sd of ['W', 'K']) {
+    const A = sides[sd];
+    A.calledEvoRange = calledR[sd].evo.size; A.calledManualRange = calledR[sd].manual.size;
+    A.calledEvoToday = calledT[sd].evo.size; A.calledManualToday = calledT[sd].manual.size;
   }
   res.json({
     from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(),
