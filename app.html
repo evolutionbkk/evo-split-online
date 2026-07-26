@@ -113,12 +113,12 @@
   <div class="lastact" id="lastact"></div>
 
   <div class="panel">
-    <h2><span data-ic="refresh" data-sz="18"></span>ดึงรายชื่อใหม่จาก Evolution</h2>
-    <div class="desc">กดปุ่มเดียว ระบบจะไปดึงรายชื่อล่าสุดจาก Evolution มากรอง+แบ่งให้อัตโนมัติ · <b>สูงสุด 100 รายชื่อ/วัน (Namwhan 50 · Khem 50)</b> ตาม KPI · ที่เกินโควตาจะทยอยเข้าวันถัดไป</div>
-    <div class="row">
-      <button class="b-add" id="pullBtn" onclick="doPull()" style="font-size:15px;padding:11px 22px"><span data-ic="refresh" data-sz="17"></span>ดึงรายชื่อใหม่เดี๋ยวนี้</button>
-      <span id="evostatus" style="font-size:12.5px;color:#6b7280"></span>
-    </div>
+    <h2><span data-ic="download" data-sz="18"></span>บันทึกการดึงรายชื่อของเซลล์ (จาก Evolution)</h2>
+    <div class="desc">เซลล์ดึงรายชื่อเองบนเว็บ Evolution · สูงสุด <b>50 รายชื่อ/คน/วัน</b> ตาม KPI · ตารางนี้บันทึกวันที่และจำนวนที่แต่ละคนดึงเข้าระบบ</div>
+    <div class="card" style="box-shadow:none;border:1px solid var(--line);margin-top:6px"><div class="tblwrap" style="max-height:320px"><table>
+      <thead><tr><th>วันที่</th><th style="text-align:right">Namwhan (W)</th><th style="text-align:right">Khem (K)</th><th style="text-align:right">รวม</th></tr></thead>
+      <tbody id="pullsBody"></tbody>
+    </table></div></div>
   </div>
 
   <div class="note">
@@ -366,21 +366,6 @@ function doRestoreFile(input){
   };
   reader.readAsText(f);
 }
-async function doPull(){
-  const btn=document.getElementById('pullBtn'); btn.disabled=true; const old=btn.innerHTML; btn.innerHTML='กำลังดึง…';
-  try{
-    const r=await fetch('/api/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
-    const j=await r.json();
-    if(!r.ok){ document.getElementById('lastact').innerHTML=ic('alert',14)+(j.message||'ดึงไม่สำเร็จ'); }
-    else{ const su=j.summary||{}; const capMsg=(su.capped>0)?(' · <b style="color:#b45309">เต็มโควตาวันนี้ (100/วัน)</b> เหลืออีก '+su.capped+' รอพรุ่งนี้'):''; document.getElementById('lastact').innerHTML=ic('check',14)+'ดึงจาก Evolution '+j.pulled+' ราย → เพิ่มใหม่ <b>'+su.added+'</b> (Namwhan '+su.addW+'/Khem '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>'+capMsg; }
-  }catch(e){ document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e; }
-  btn.disabled=false; btn.innerHTML=old; refresh(); evoStatus();
-}
-async function evoStatus(){
-  try{ const r=await fetch('/api/evo-status'); if(!r.ok)return; const s=await r.json();
-    document.getElementById('evostatus').textContent = s.hasToken ? ('เชื่อมกับ Evolution แล้ว · token อัปเดตล่าสุด '+fmt(s.tokenUpdatedAt)) : 'ยังไม่ได้เชื่อม — เปิดหน้า Evolution (ที่ติดตั้งสคริปต์) สักครั้งก่อน';
-  }catch(e){}
-}
 async function doExportNew(){
   const btn=document.getElementById('newBtn'); btn.disabled=true; const old=btn.innerHTML; btn.innerHTML='กำลังเตรียมไฟล์…';
   try{
@@ -626,8 +611,19 @@ async function doOnecallPull(){
   }catch(e){ document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e; }
   b.disabled=false; b.innerHTML=old; loadOnecallStatus(); loadKpi();
 }
+async function loadPulls(){
+  try{
+    const r=await fetch('/api/pulls'); if(!r.ok)return; const j=await r.json();
+    const days=j.days||[];
+    document.getElementById('pullsBody').innerHTML = days.length ? days.map(d=>{
+      const [y,m,dd]=d.day.split('-');
+      const dt=dd+'/'+m+'/'+(parseInt(y,10)+543);
+      return `<tr><td>${dt}</td><td style="text-align:right;font-weight:600;color:var(--w)">${d.W||'–'}</td><td style="text-align:right;font-weight:600;color:var(--k)">${d.K||'–'}</td><td style="text-align:right;font-weight:700">${d.total}</td></tr>`;
+    }).join('') : '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:18px">ยังไม่มีบันทึกการดึงรายชื่อ</td></tr>';
+  }catch(e){}
+}
 fillIcons();
-refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); loadKpi(); loadOnecallStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadKpi, 30000);
+refresh(); loadBackupsInfo(); loadShareLinks(); loadKpi(); loadOnecallStatus(); loadPulls(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadKpi, 30000);
 </script>
 </body>
 </html>

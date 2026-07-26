@@ -59,6 +59,7 @@ async function boot() {
   let bf = false;
   for (const rec of state.assigned) { if (!rec.receivedAt) { rec.receivedAt = rec.updatedAt || new Date().toISOString(); bf = true; } }
   if (!Array.isArray(state.onecall)) state.onecall = [];
+  if (!Array.isArray(state.pulls)) state.pulls = [];
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -445,6 +446,29 @@ app.post('/api/lead/advance', requireCrm, async (req, res) => {
   res.json({ ok: true, advanced, lead: leadView(rec) });
 });
 
+// Record a salesperson's lead pull (Evolution intake) into the daily log (one row per side per Thai-day).
+function recordPull(side, n) {
+  if (!n || (side !== 'W' && side !== 'K')) return;
+  if (!Array.isArray(state.pulls)) state.pulls = [];
+  const day = S.thaiDay();
+  const e = state.pulls.find((p) => p.side === side && p.day === day);
+  if (e) { e.count += n; e.at = new Date().toISOString(); }
+  else state.pulls.push({ side, day, count: n, at: new Date().toISOString() });
+  if (state.pulls.length > 3000) state.pulls = state.pulls.slice(-3000);
+}
+// Teamlead: the salespeople's pull log (date · Namwhan · Khem · total).
+app.get('/api/pulls', requireAuth, (req, res) => {
+  const byDay = {};
+  for (const p of (state.pulls || [])) {
+    if (!byDay[p.day]) byDay[p.day] = { day: p.day, W: 0, K: 0, at: p.at };
+    byDay[p.day][p.side] += p.count;
+    if (p.at > byDay[p.day].at) byDay[p.day].at = p.at;
+  }
+  const days = Object.values(byDay).sort((a, b) => b.day.localeCompare(a.day)).slice(0, 90)
+    .map((d) => ({ day: d.day, W: d.W, K: d.K, total: d.W + d.K, at: d.at }));
+  res.json({ names: SALES_NAMES, days });
+});
+
 // Push from browser script (auth via INGEST_KEY) OR from the logged-in admin.
 app.post('/api/ingest', async (req, res) => {
   const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
@@ -453,6 +477,7 @@ app.post('/api/ingest', async (req, res) => {
   const customers = (req.body && req.body.customers) || [];
   if (!Array.isArray(customers)) return res.status(400).json({ error: 'customers must be an array' });
   const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE });
+  recordPull('W', summary.addW); recordPull('K', summary.addK);
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
 });
@@ -622,6 +647,7 @@ app.post('/api/pull', requireAuth, async (req, res) => {
     const j = await r.json();
     const customers = mapItems(j);
     const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE });
+    recordPull('W', summary.addW); recordPull('K', summary.addK);
     state = await store.save(state);
     res.json({ ok: true, summary, pulled: customers.length, total: state.assigned.length, tokenAge: evo.updatedAt });
   } catch (e) {

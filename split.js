@@ -195,4 +195,4 @@ function listSide(state, side) { return state.assigned.filter((a) => a.sales ===
 // archived ("removed bin") records for a side
 function listArchived(state, side) { return state.assigned.filter((a) => a.sales === side && a.archived); }
 
-module.exports = { BASE_DATE, cleanPhone, isValid, roundName, keyOf, buildSeed, applyNew, applyManual, parseRows, listSide, listArchived };
+module.exports = { BASE_DATE, cleanPhone, isValid, roundName, keyOf, thaiDay, buildSeed, applyNew, applyManual, parseRows, listSide, listArchived };
