@@ -75,6 +75,24 @@
   .modal input{width:100%;margin-bottom:14px}
   .modal .acts{display:flex;justify-content:flex-end;gap:10px}
   .b-danger{background:#dc2626;color:#fff}.b-danger:disabled{opacity:.45;cursor:not-allowed}
+  .krange{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .kr{background:#eef2f8;color:#334155;border:0;border-radius:9px;padding:8px 14px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer}
+  .kr.on{background:var(--grad);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.22)}
+  .krange input[type=date]{border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-family:inherit;font-size:13px}
+  .ktoday{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .kt{background:#f7faff;border:1px solid #e3ecfb;border-radius:12px;padding:12px 14px}
+  .kt .n{font-size:24px;font-weight:800;color:var(--brand-deep);line-height:1}
+  .kt .l{font-size:12px;color:var(--muted);margin-top:5px;font-weight:600}
+  .kt.warn{background:#fff7ed;border-color:#fed7aa}.kt.warn .n{color:#b45309}
+  .kt.good{background:#f0fdf4;border-color:#bbf7d0}.kt.good .n{color:#166534}
+  .kperson{flex:1;min-width:290px;border:1px solid var(--line);border-radius:13px;padding:14px 16px;background:#fff;box-shadow:var(--shadow-sm)}
+  .kperson h3{margin:0 0 9px;font-size:15px;display:flex;align-items:center;justify-content:space-between;font-weight:700}
+  .kmetric{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid #f4f6fa}
+  .kmetric:last-child{border-bottom:0}
+  .kmetric .v{font-weight:700;color:#0f172a;white-space:nowrap}
+  .kbar{height:8px;border-radius:5px;background:#eef2f8;overflow:hidden;margin:2px 0 7px}
+  .kbar>span{display:block;height:100%;background:linear-gradient(90deg,#16a34a,#22c55e)}
+  @media(max-width:720px){.ktoday{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
 </style>
 </head>
@@ -103,18 +121,79 @@
     </div>
   </div>
 
+  <div class="panel" id="importPanel">
+    <h2><span data-ic="send" data-sz="18"></span>ส่งรายชื่อให้เซลล์ (วางจาก Google Sheet → แยกช่องอัตโนมัติ)</h2>
+    <div class="desc">คัดลอกทั้งแถวจากชีตออเดอร์มาวางในกล่องนี้ ระบบจะแยก ชื่อ · เบอร์ · ที่อยู่ · สินค้า · ยอดขาย · ผู้ปิด · Telesale ให้เอง แล้วกำหนดให้เซลล์ W/K (จากคอลัมน์ Telesale: Namwhan→W, Khem→K) · ตรวจ/แก้ก่อนกดส่ง</div>
+    <textarea id="impPaste" placeholder="วางแถวจาก Google Sheet ที่นี่ (คัดลอกทั้งแถว รวมหัวตารางก็ได้ ระบบจะข้ามหัวให้)" oninput="impParse()" style="min-height:96px"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label style="font-size:12.5px;color:#475569;font-weight:600">ประเภทการโทร
+        <select id="impStep" style="margin-left:4px;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px">
+          <option value="T1">T1 · รายชื่อจากแอดมิน (โทรครั้งแรก)</option>
+          <option value="T2" selected>T2 · ออเดอร์ E-Commerce (Follow up & Up-sell)</option>
+          <option value="T3">T3 · ของใกล้หมด (ติดตามซื้อเพิ่ม)</option>
+        </select>
+      </label>
+      <label style="font-size:12.5px;color:#475569;font-weight:600">มอบให้
+        <select id="impAssign" onchange="impRender()" style="margin-left:4px;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px">
+          <option value="auto" selected>อัตโนมัติจากคอลัมน์ Telesale</option>
+          <option value="alt">สลับ W/K ให้สมดุล</option>
+          <option value="W">บังคับเป็น W (หวาน) ทั้งหมด</option>
+          <option value="K">บังคับเป็น K (เขม) ทั้งหมด</option>
+        </select>
+      </label>
+      <input type="text" id="impLabel" placeholder="ชื่อรอบ/วันที่ (เว้นว่าง = วันนี้)" style="min-width:170px">
+    </div>
+    <div id="impMap" style="display:none;margin-top:10px;padding:10px 12px;background:#f7faff;border:1px solid #dbe7fb;border-radius:11px">
+      <div style="font-size:12px;color:#475569;font-weight:700;margin-bottom:7px;display:flex;align-items:center;gap:6px"><span data-ic="wand" data-sz="14"></span>จับคู่คอลัมน์ (แก้ได้ถ้าระบบจับผิด)</div>
+      <div id="impMapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px"></div>
+    </div>
+    <div id="impPreviewWrap" style="display:none;margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div id="impStat" style="font-size:12.5px;color:#475569"></div>
+        <div style="display:flex;gap:8px">
+          <button class="b-g" onclick="impSelectAll(true)" style="padding:6px 12px;font-size:12.5px">เลือกทั้งหมด</button>
+          <button class="b-g" onclick="impSelectAll(false)" style="padding:6px 12px;font-size:12.5px">ไม่เลือก</button>
+        </div>
+      </div>
+      <div class="card" style="box-shadow:none;border:1px solid var(--line)"><div class="tblwrap" style="max-height:420px"><table id="impTable">
+        <thead><tr>
+          <th style="width:30px"><input type="checkbox" id="impChkAll" checked onchange="impSelectAll(this.checked)"></th>
+          <th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ที่อยู่</th><th>สินค้า</th><th>ยอดขาย</th><th>เพจ</th><th>ผู้ปิด</th><th>มอบให้</th>
+        </tr></thead>
+        <tbody id="impBody"></tbody>
+      </table></div></div>
+      <div class="row" style="margin-top:12px">
+        <button class="b-add" onclick="impSend()" style="font-size:15px;padding:11px 22px"><span data-ic="send" data-sz="16"></span>ส่งเข้าลิสต์เซลล์</button>
+        <button class="b-g" onclick="impClear()"><span data-ic="undo" data-sz="15"></span>ล้าง</button>
+      </div>
+    </div>
+  </div>
+
   <div class="note">
-    <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก &nbsp;|&nbsp;
+    <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก (นำเข้า manual กันซ้ำด้วยเบอร์) &nbsp;|&nbsp;
     ข้อมูลใหม่ส่งเข้ามาอัตโนมัติจากสคริปต์ในเบราว์เซอร์ (หรือกดปุ่มด้านบน / วางเองด้านล่างก็ได้)
   </div>
 
-  <div class="panel">
-    <h2><span data-ic="activity" data-sz="18"></span>สถานะติดตามลูกค้า (CRM)</h2>
-    <div class="desc">สรุปสถานะที่เซลล์อัปเดต · <span id="crmarch"></span></div>
-    <div id="crmsum" class="row" style="gap:14px;align-items:stretch"></div>
-    <div class="row" style="margin-top:10px">
-      <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W</button></a>
-      <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง K</button></a>
+  <div class="panel" id="kpiPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>Dashboard KPI — ภาพรวมทีม Telesales</h2>
+    <div class="desc">วัดผลงานเซลล์ Hwan (W) &amp; Khem (K) · เลือกช่วงเวลาได้ · <span id="kpiarch"></span></div>
+    <div class="krange" id="krange">
+      <button class="kr on" data-r="today" onclick="setKRange('today')">วันนี้</button>
+      <button class="kr" data-r="7" onclick="setKRange('7')">7 วัน</button>
+      <button class="kr" data-r="30" onclick="setKRange('30')">30 วัน</button>
+      <button class="kr" data-r="custom" onclick="setKRange('custom')">กำหนดเอง</button>
+      <span id="kcustom" style="display:none;gap:6px;align-items:center">
+        <input type="date" id="kfrom"> – <input type="date" id="kto">
+        <button class="b-b" style="padding:7px 14px" onclick="loadKpi()">ดู</button>
+      </span>
+      <span id="krangelbl" style="font-size:12px;color:#6b7280;margin-left:auto"></span>
+    </div>
+    <div class="ktoday" id="ktoday"></div>
+    <div id="kpiCards" class="row" style="gap:14px;align-items:stretch;margin-top:2px"></div>
+    <div id="konecall" style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-top:12px"></div>
+    <div class="row" style="margin-top:12px">
+      <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W (Hwan)</button></a>
+      <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง K (Khem)</button></a>
     </div>
   </div>
 
@@ -225,7 +304,11 @@ const ICONS={
   search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
-  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>'
+  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  send:'<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  table:'<path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/>',
+  wand:'<path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h0M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/>'
 };
 function ic(name,size){size=size||16;const p=ICONS[name]||'';return '<svg class="ic" width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';}
 function fillIcons(root){(root||document).querySelectorAll('[data-ic]').forEach(e=>{e.innerHTML=ic(e.dataset.ic,parseInt(e.dataset.sz||'16',10));e.style.display='inline-flex';e.style.alignItems='center';});}
@@ -391,23 +474,160 @@ function copyLink(side){
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(()=>{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }); }
   else{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }
 }
-async function loadCrmSummary(){
+// ===== Dashboard KPI (ภาพรวมทีม Telesales) =====
+let KR={mode:'today'};
+const KLBL={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',custom:'ช่วงที่เลือก'};
+const KSHORT={today:'วันนี้','7':'7 วัน','30':'30 วัน',custom:'ช่วงนี้'};
+function rangeFor(mode){
+  const end=new Date();end.setHours(23,59,59,999);
+  const start=new Date();
+  if(mode==='today')start.setHours(0,0,0,0);
+  else if(mode==='7'){start.setDate(start.getDate()-6);start.setHours(0,0,0,0);}
+  else if(mode==='30'){start.setDate(start.getDate()-29);start.setHours(0,0,0,0);}
+  return{from:start.toISOString(),to:end.toISOString()};
+}
+function setKRange(m){
+  KR.mode=m;
+  document.querySelectorAll('#krange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
+  document.getElementById('kcustom').style.display=(m==='custom')?'inline-flex':'none';
+  if(m!=='custom')loadKpi();
+}
+const kbaht=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+function ktile(n,l,cls){return `<div class="kt ${cls||''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;}
+function personCard(side,name,a){
+  const conv=a.total?Math.round(a.status.won/a.total*100):0;
+  const lbl=KSHORT[KR.mode]||'ช่วงนี้';
+  return `<div class="kperson">
+    <h3><span style="color:var(--${side.toLowerCase()})">Sales (${side}) · ${esc(name)}</span><span style="font-size:12px;color:var(--muted);font-weight:600">${a.total} ราย</span></h3>
+    <div class="kbar"><span style="width:${conv}%"></span></div>
+    <div style="font-size:12.5px;color:#166534;font-weight:700;margin-bottom:6px">Conversion ${conv}% · ปิดได้ ${a.status.won} · ยอดรวม ฿${kbaht(a.rev)}</div>
+    <div class="kmetric"><span>ใหม่ / ยังไม่โทร</span><span class="v">${a.status.new} / ${a.notCalled}</span></div>
+    <div class="kmetric"><span>กำลังติดต่อ / สนใจ</span><span class="v">${a.status.contacting} / ${a.status.interested}</span></div>
+    <div class="kmetric"><span>นัดติดตาม / รับต่อมือ2</span><span class="v">${a.status.followup} / ${a.hand2}</span></div>
+    <div class="kmetric"><span>ปิดการขาย / ไม่ปิด</span><span class="v"><span style="color:#166534">${a.status.won}</span> / <span style="color:#b42318">${a.status.lost}</span></span></div>
+    <div class="kmetric"><span>Lead ค้าง / เกินกำหนด</span><span class="v" style="color:#b45309">${a.pending}</span></div>
+    <div class="kmetric"><span>สายที่โทร (${lbl})</span><span class="v">${a.callsRange}</span></div>
+    <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
+    <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
+  </div>`;
+}
+async function loadKpi(){
+  let q;
+  if(KR.mode==='custom'){
+    const f=document.getElementById('kfrom').value,t=document.getElementById('kto').value;
+    q=[]; if(f)q.push('from='+encodeURIComponent(new Date(f+'T00:00:00').toISOString())); if(t)q.push('to='+encodeURIComponent(new Date(t+'T23:59:59').toISOString())); q=q.join('&');
+  }else{const r=rangeFor(KR.mode);q='from='+encodeURIComponent(r.from)+'&to='+encodeURIComponent(r.to);}
   try{
-    const [w,k]=await Promise.all([fetch('/api/leads?side=W').then(r=>r.json()),fetch('/api/leads?side=K').then(r=>r.json())]);
-    const st=r=>r.leadStatus||'new';
-    const baht=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:2});
-    const sumSide=(j)=>{const a=j.active||[];const c=f=>a.filter(f).length;const arch=j.archived||[];const rev=a.filter(r=>st(r)==='won').reduce((s,r)=>s+((r.saleItems||[]).reduce((x,i)=>x+(Number(i.price)||0),0)),0);return{total:a.length,neww:c(r=>st(r)==='new'),contacting:c(r=>st(r)==='contacting'),interested:c(r=>st(r)==='interested'),followup:c(r=>st(r)==='followup'),won:c(r=>st(r)==='won'),lost:c(r=>st(r)==='lost'),hot:c(r=>r.interest==='hot'),line:c(r=>r.line==='added'),hand2:c(r=>r.stage>0),arch:arch.length,recycled:arch.filter(x=>x.archiveReason==='recycled_out').length,rev};};
-    const W=sumSide(w),K=sumSide(k);
-    const box=(name,cls,s)=>`<div style="flex:1;min-width:250px;border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff;box-shadow:var(--shadow-sm)">
-      <div style="font-weight:700;color:var(--${cls});margin-bottom:6px">Sales (${name}) · ${s.total} ราย</div>
-      <div style="font-size:12.5px;line-height:1.9">ใหม่ <b>${s.neww}</b> · กำลังติดต่อ <b>${s.contacting}</b> · สนใจ <b>${s.interested}</b> · นัดติดตาม <b>${s.followup}</b> · <span style="color:#065f46">ปิดการขาย <b>${s.won}</b></span> · <span style="color:#b42318">ไม่ปิด <b>${s.lost}</b></span> · <span style="color:#b91c1c">สนใจมาก <b>${s.hot}</b></span> · <span style="color:#854d0e">รับต่อมือ2 <b>${s.hand2}</b></span></div>
-      <div style="font-size:13px;margin-top:6px;color:#065f46;font-weight:700">ยอดขายรวม ฿${baht(s.rev)}</div></div>`;
-    document.getElementById('crmsum').innerHTML=box('W','w',W)+box('K','k',K);
-    document.getElementById('crmarch').textContent='ในถังนำออก '+(W.arch+K.arch)+' ราย · คัดออกถาวร(วนครบ) '+(W.recycled+K.recycled)+' ราย (แอดมินกู้คืน/ดึงออกได้)';
+    const r=await fetch('/api/admin/kpi?'+q); if(r.status===401){location.href='/login';return;} const j=await r.json();
+    const W=j.W,K=j.K;
+    const tCalls=W.callsToday+K.callsToday,tWon=W.wonToday+K.wonToday,tPending=W.pending+K.pending,tNot=W.notCalled+K.notCalled;
+    document.getElementById('ktoday').innerHTML=
+      ktile(tCalls,'สายที่โทรวันนี้ (บันทึกในระบบ)','')+
+      ktile(tWon,'ปิดการขายวันนี้','good')+
+      ktile(tPending,'Lead ค้าง / เกินกำหนด','warn')+
+      ktile(tNot,'ยังไม่ได้โทรเลย','');
+    document.getElementById('kpiCards').innerHTML=personCard('W',(j.names&&j.names.W)||'W',W)+personCard('K',(j.names&&j.names.K)||'K',K);
+    document.getElementById('krangelbl').textContent=(KLBL[KR.mode]||'')+' · '+j.from.slice(0,10)+' → '+j.to.slice(0,10);
+    document.getElementById('kpiarch').textContent='ในถังนำออก '+(W.archived+K.archived)+' ราย · คัดออกถาวร '+(W.recycled+K.recycled)+' ราย';
+    document.getElementById('konecall').innerHTML=ic('info',13)+' KPI “สายที่คุยจริงเกิน 7 วินาที” จะเชื่อมจาก OneCall (ส่วนถัดไป) — ตอนนี้ “สายที่โทร” คือจำนวนที่เซลล์กดบันทึกในระบบ';
   }catch(e){}
 }
+// ===== ส่งรายชื่อให้เซลล์: วางจาก Google Sheet → แยกช่อง → พรีวิว → ส่ง =====
+let IMP={matrix:[],map:{},cols:0};
+const _dig=s=>String(s==null?'':s).replace(/\D/g,'');
+const _isPhone=s=>{const d=_dig(s);return d.length>=9&&d.length<=10&&d[0]==='0';};
+const _validPhone=s=>/^0[2689]\d{8}$/.test(_dig(s));
+const _isAmount=s=>/^\d{2,7}(\.\d+)?$/.test(String(s==null?'':s).replace(/[,\s฿]/g,''));
+function _teleSide(s){const t=String(s==null?'':s).trim();if(!t)return '';if(/namwhan|น้ำหวาน|หวาน|hwan/i.test(t))return 'W';if(/khem|เขม/i.test(t))return 'K';if(/^w$/i.test(t))return 'W';if(/^k$/i.test(t))return 'K';return '';}
+const _cell=(r,c)=>(c>=0&&c<r.length)?String(r[c]==null?'':r[c]).trim():'';
+const _escA=s=>esc(s).replace(/"/g,'&quot;');
+const IMP_FIELDS=[['name','ชื่อ-นามสกุล'],['phone','เบอร์โทร'],['address','ที่อยู่'],['product','สินค้า'],['amount','ยอดขาย'],['page','เพจ'],['closer','ผู้ปิด'],['tele','Telesale (W/K)']];
+function impParse(){
+  const text=document.getElementById('impPaste').value||'';
+  if(!text.trim()){IMP={matrix:[],map:{},cols:0};document.getElementById('impPreviewWrap').style.display='none';document.getElementById('impMap').style.display='none';return;}
+  const hasTab=text.indexOf('\t')>=0;
+  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim()!=='');
+  const matrix=lines.map(l=>hasTab?l.split('\t'):l.split(/\s{2,}/));
+  let cols=0;matrix.forEach(r=>{if(r.length>cols)cols=r.length;});
+  IMP.matrix=matrix;IMP.cols=cols;IMP.map=impDetect(matrix,cols);
+  impBuildMapGrid();impRender();
+}
+function _colScore(matrix,c,test){let n=0,ok=0;for(const r of matrix){const v=r[c];if(v==null||String(v).trim()==='')continue;n++;if(test(v))ok++;}return n?ok/n:0;}
+function impDetect(matrix,cols){
+  let phone=-1,ph=0;for(let c=0;c<cols;c++){const s=_colScore(matrix,c,_isPhone);if(s>ph){ph=s;phone=c;}}
+  let tele=-1,ts=0;for(let c=0;c<cols;c++){const s=_colScore(matrix,c,v=>_teleSide(v)!=='');if(s>ts){ts=s;tele=c;}}
+  if(ts<0.3)tele=-1;
+  const at=off=>{const c=phone+off;return(c>=0&&c<cols)?c:-1;};
+  let amount=at(3);
+  if(amount<0||_colScore(matrix,amount,_isAmount)<0.5){let best=-1,bs=0;for(let c=0;c<cols;c++){if(c===phone||c===tele)continue;const s=_colScore(matrix,c,_isAmount);if(s>bs){bs=s;best=c;}}if(bs>=0.5)amount=best;}
+  return{name:at(-1),phone:phone,address:at(1),product:at(2),amount:amount,page:at(-2),closer:at(4),tele:tele};
+}
+function _sample(c){for(const r of IMP.matrix){const v=r[c];if(v!=null&&String(v).trim()!=='')return String(v).trim().slice(0,18);}return '';}
+function impBuildMapGrid(){
+  document.getElementById('impMapGrid').innerHTML=IMP_FIELDS.map(([f,label])=>{
+    let opts='<option value="-1">— ไม่มี —</option>';
+    for(let c=0;c<IMP.cols;c++){const sel=IMP.map[f]===c?' selected':'';opts+='<option value="'+c+'"'+sel+'>#'+(c+1)+' · '+esc(_sample(c))+'</option>';}
+    return '<label style="font-size:11.5px;color:#475569;font-weight:600;display:block">'+label+'<select onchange="impSetMap(\''+f+'\',this.value)" style="width:100%;margin-top:3px;font-family:inherit;font-size:12px;padding:6px 7px;border:1px solid var(--line);border-radius:8px">'+opts+'</select></label>';
+  }).join('');
+  document.getElementById('impMap').style.display='block';fillIcons(document.getElementById('impMap'));
+}
+function impSetMap(f,v){IMP.map[f]=parseInt(v,10);impRender();}
+function _inp(cls,val,w){return '<input class="'+cls+'" value="'+_escA(val)+'" style="width:'+w+';min-width:0;border:1px solid var(--line);border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12.5px">';}
+function impRender(){
+  if(!IMP.matrix.length){document.getElementById('impPreviewWrap').style.display='none';return;}
+  const m=IMP.map,assign=document.getElementById('impAssign').value;
+  let valid=0,skip=0,html='';
+  for(const r of IMP.matrix){
+    if(!_validPhone(_cell(r,m.phone))){skip++;continue;}
+    valid++;
+    const name=_cell(r,m.name),address=_cell(r,m.address),product=_cell(r,m.product);
+    const amount=_cell(r,m.amount).replace(/[^0-9.]/g,''),page=_cell(r,m.page),closer=_cell(r,m.closer);
+    let side=assign==='W'?'W':assign==='K'?'K':(assign==='alt'?'':_teleSide(_cell(r,m.tele)));
+    const selW=side==='W'?' selected':'',selK=side==='K'?' selected':'';
+    html+='<tr>'
+      +'<td style="text-align:center"><input type="checkbox" class="impChk" checked></td>'
+      +'<td>'+_inp('impf-name',name,'150px')+'</td>'
+      +'<td>'+_inp('impf-phone',_dig(_cell(r,m.phone)),'110px')+'</td>'
+      +'<td>'+_inp('impf-address',address,'220px')+'</td>'
+      +'<td>'+_inp('impf-product',product,'90px')+'</td>'
+      +'<td>'+_inp('impf-amount',amount,'70px')+'</td>'
+      +'<td style="color:#64748b;font-size:12px">'+esc(page)+'</td>'
+      +'<td style="color:#64748b;font-size:12px">'+esc(closer)+'</td>'
+      +'<td><select class="impSide" style="font-family:inherit;font-size:12.5px;padding:5px 7px;border:1px solid var(--line);border-radius:8px"><option value=""'+(side?'':' selected')+'>—</option><option value="W"'+selW+'>W หวาน</option><option value="K"'+selK+'>K เขม</option></select></td>'
+      +'</tr>';
+  }
+  document.getElementById('impBody').innerHTML=html;
+  document.getElementById('impPreviewWrap').style.display='block';
+  document.getElementById('impStat').innerHTML='พร้อมส่ง <b>'+valid+'</b> ราย'+(skip?(' · ข้าม (เบอร์ไม่ผ่าน/หัวตาราง) <b>'+skip+'</b>'):'')+(assign==='alt'?' · โหมดสลับจะกำหนด W/K ตอนส่ง':'');
+}
+function impSelectAll(on){document.querySelectorAll('#impBody .impChk').forEach(c=>c.checked=on);document.getElementById('impChkAll').checked=on;}
+function impClear(){document.getElementById('impPaste').value='';IMP={matrix:[],map:{},cols:0};document.getElementById('impPreviewWrap').style.display='none';document.getElementById('impMap').style.display='none';}
+async function impSend(){
+  const trs=[...document.querySelectorAll('#impBody tr')];
+  const assign=document.getElementById('impAssign').value;
+  const rows=[];let altToggle=0;
+  for(const tr of trs){
+    if(!tr.querySelector('.impChk').checked)continue;
+    const g=cls=>{const el=tr.querySelector('.'+cls);return el?el.value.trim():'';};
+    const phone=g('impf-phone');if(!_validPhone(phone))continue;
+    let side=tr.querySelector('.impSide').value;
+    if(assign==='W')side='W';else if(assign==='K')side='K';else if(assign==='alt')side=(altToggle++%2===0)?'W':'K';
+    rows.push({name:g('impf-name'),phone:phone,address:g('impf-address'),product:g('impf-product'),amount:g('impf-amount'),side:side||null,page:tr.children[6].textContent.trim(),closer:tr.children[7].textContent.trim()});
+  }
+  if(!rows.length){alert('ยังไม่มีรายการที่เลือก (ติ๊กถูกอย่างน้อย 1 ราย)');return;}
+  const step=document.getElementById('impStep').value,label=document.getElementById('impLabel').value;
+  try{
+    const r=await fetch('/api/admin/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows,step,label})});
+    const j=await r.json();
+    if(!r.ok){document.getElementById('lastact').innerHTML=ic('alert',14)+(j.message||'ส่งไม่สำเร็จ');return;}
+    const su=j.summary||{};
+    document.getElementById('lastact').innerHTML=ic('check',14)+'ส่งเข้าลิสต์เซลล์ <b>'+su.added+'</b> ราย (W '+su.addW+'/K '+su.addK+') · ข้ามซ้ำ(เบอร์) <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>';
+    impClear();refresh();loadKpi();
+  }catch(e){document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e;}
+}
+
 fillIcons();
-refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); loadCrmSummary(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadCrmSummary, 30000);
+refresh(); evoStatus(); loadBackupsInfo(); loadShareLinks(); loadKpi(); setInterval(refresh, 30000); setInterval(evoStatus, 60000); setInterval(loadBackupsInfo, 60000); setInterval(loadKpi, 30000);
 </script>
 </body>
 </html>

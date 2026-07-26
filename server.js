@@ -249,6 +249,8 @@ function leadView(r) {
     reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '', address: r.address || '',
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
+    source: r.source || 'evolution', step: r.step || '', product: r.product || '',
+    orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '',
     history: (r.history || []).slice(-40),
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
@@ -473,6 +475,73 @@ app.post('/api/paste', requireAuth, async (req, res) => {
   const summary = S.applyNew(state, records, req.body && req.body.label);
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length });
+});
+
+// Admin distributes leads: paste from the order Google Sheet, preview-split, assign to W/K.
+// Body: { rows:[{name,phone,address,product,amount,page,closer,side}], step:'T1'|'T2'|'T3', label }
+const STEP_KEYS = ['T1', 'T2', 'T3'];
+app.post('/api/admin/import', requireAuth, async (req, res) => {
+  const rows = (req.body && req.body.rows) || [];
+  if (!Array.isArray(rows)) return res.status(400).json({ error: 'rows must be an array' });
+  if (rows.length > 3000) return res.status(400).json({ error: 'too_many', message: 'ครั้งละไม่เกิน 3000 รายชื่อ' });
+  const step = STEP_KEYS.includes(req.body && req.body.step) ? req.body.step : 'T1';
+  const summary = S.applyManual(state, rows, { step, label: req.body && req.body.label, by: whoami(req) });
+  state = await store.save(state);
+  res.json({ ok: true, summary, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
+});
+
+// KPI dashboard aggregates for the team lead (pipeline snapshot + range metrics + per-person).
+// Query: from, to (ISO). Real >7s talk time is filled by the OneCall integration (Phase 4).
+const SALES_NAMES = { W: 'Hwan (หวาน)', K: 'Khem (เขม)' };
+function saleRev(r) { return (r.saleItems || []).reduce((s, i) => s + (Number(i.price) || 0), 0); }
+app.get('/api/admin/kpi', requireAuth, async (req, res) => {
+  await runSweep();
+  const now = Date.now();
+  let to = req.query.to ? Date.parse(req.query.to) : now;
+  let from = req.query.from ? Date.parse(req.query.from) : (now - 6 * 86400000);
+  if (isNaN(to)) to = now;
+  if (isNaN(from)) from = to - 6 * 86400000;
+  const d0 = new Date(); d0.setHours(0, 0, 0, 0); const tStart = d0.getTime();
+  const d1 = new Date(); d1.setHours(23, 59, 59, 999); const tEnd = d1.getTime();
+  const blank = () => ({
+    status: { new: 0, contacting: 0, interested: 0, followup: 0, won: 0, lost: 0 },
+    total: 0, notCalled: 0, called: 0, pending: 0, hand2: 0,
+    callsRange: 0, wonRange: 0, newRange: 0, lostRange: 0, revRange: 0,
+    callsToday: 0, wonToday: 0, rev: 0, talk7Range: 0, talk7Today: 0,
+    archived: 0, recycled: 0,
+  });
+  const sides = { W: blank(), K: blank() };
+  for (const r of state.assigned) {
+    const side = r.sales === 'K' ? 'K' : 'W'; const A = sides[side];
+    if (r.archived) { A.archived++; if (r.archiveReason === 'recycled_out') A.recycled++; continue; }
+    A.total++;
+    const st = recStatus(r);
+    if (A.status[st] != null) A.status[st]++;
+    if ((r.callCount || 0) > 0) A.called++; else A.notCalled++;
+    if ((r.stage || 0) > 0) A.hand2++;
+    if (st === 'won') A.rev += saleRev(r);
+    // pending / overdue (not won/lost, past appointment or stale > 3d)
+    if (st !== 'won' && st !== 'lost') {
+      let overdue = false;
+      if (st === 'followup' && r.nextAppt) { const t = Date.parse(r.nextAppt); if (!isNaN(t) && t < now) overdue = true; }
+      if (!overdue) { const la = lastActivityMs(r); if (la != null && (now - la) >= 3 * 86400000) overdue = true; }
+      if (overdue) A.pending++;
+    }
+    // calls in range / today (self-logged taps; real talk time comes from OneCall)
+    for (const c of (r.calls || [])) { const t = Date.parse(c.at); if (isNaN(t)) continue; if (t >= from && t <= to) A.callsRange++; if (t >= tStart && t <= tEnd) A.callsToday++; }
+    // won / lost events inside the range (one per lead)
+    let wonThis = false, wonTod = false, lostThis = false;
+    for (const h of (r.history || [])) {
+      if (h.k !== 'status') continue; const t = Date.parse(h.at); if (isNaN(t)) continue;
+      if (h.v === 'won') { if (t >= from && t <= to) wonThis = true; if (t >= tStart && t <= tEnd) wonTod = true; }
+      if (h.v === 'lost' && t >= from && t <= to) lostThis = true;
+    }
+    if (wonThis) { A.wonRange++; A.revRange += saleRev(r); }
+    if (wonTod) A.wonToday++;
+    if (lostThis) A.lostRange++;
+    if (r.receivedAt) { const t = Date.parse(r.receivedAt); if (!isNaN(t) && t >= from && t <= to) A.newRange++; }
+  }
+  res.json({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(), names: SALES_NAMES, W: sides.W, K: sides.K, onecall: false });
 });
 
 app.post('/api/reset', requireAuth, async (req, res) => {
