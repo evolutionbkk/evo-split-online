@@ -105,9 +105,65 @@ function parseRows(text) {
   return out;
 }
 
+// Import manually-assigned leads (admin pastes rows from the order Google Sheet).
+// Each row may carry an explicit side (from the "Telesale" column) plus order context
+// (address / product / amount / page / closer). Dedupe by phone against active leads.
+// opts: { step:'T1'|'T2'|'T3', label, by }
+function applyManual(state, rows, opts) {
+  opts = opts || {};
+  const step = ['T1', 'T2', 'T3'].includes(opts.step) ? opts.step : 'T1';
+  const activePhones = new Set(state.assigned.filter((a) => !a.archived).map((a) => cleanPhone(a.phone)).filter(Boolean));
+  const parsed = [];
+  let dup = 0, cut = 0;
+  for (const r of (rows || [])) {
+    const rec = {
+      code: String((r && r.code) || '').trim(),
+      name: String((r && r.name) || '').trim(),
+      phone: cleanPhone(r && r.phone),
+    };
+    if (!(rec.name || rec.phone)) continue;
+    if (!isValid(rec.phone)) { cut++; continue; }
+    if (activePhones.has(rec.phone)) { dup++; continue; }
+    activePhones.add(rec.phone);
+    let amt = Number(String((r && r.amount) != null ? r.amount : '').replace(/[^0-9.]/g, ''));
+    if (!isFinite(amt) || amt < 0) amt = 0;
+    parsed.push({
+      code: rec.code, name: rec.name, phone: rec.phone,
+      side: (r && r.side) === 'K' ? 'K' : ((r && r.side) === 'W' ? 'W' : null),
+      address: String((r && r.address) || '').slice(0, 500),
+      product: String((r && r.product) || '').slice(0, 200),
+      orderAmount: Math.round(amt * 100) / 100,
+      page: String((r && r.page) || '').slice(0, 120),
+      closer: String((r && r.closer) || '').slice(0, 120),
+    });
+  }
+  let round = state.maxRound, date = '', addW = 0, addK = 0;
+  if (parsed.length) {
+    const firstEver = state.assigned.length === 0;
+    round = firstEver ? 1 : state.maxRound + 1;
+    state.maxRound = Math.max(state.maxRound, round);
+    date = (opts.label && String(opts.label).trim()) ? String(opts.label).trim() : todayTH();
+    for (const p of parsed) {
+      const side = p.side || nextSide(state.assigned);
+      const nowIso = new Date().toISOString();
+      state.assigned.push({
+        code: p.code, name: p.name, phone: p.phone,
+        sales: side, round, date, exported: true, receivedAt: nowIso,
+        source: 'manual', step,
+        address: p.address, product: p.product, orderAmount: p.orderAmount,
+        page: p.page, closer: p.closer,
+        leadStatus: 'new', callCount: 0, calls: [],
+        history: [{ at: nowIso, by: opts.by || 'admin', k: 'import', v: step }],
+      });
+      if (side === 'W') addW++; else addK++;
+    }
+  }
+  return { added: parsed.length, addW, addK, dup, cut, round, date };
+}
+
 // active (non-archived) records for a side
 function listSide(state, side) { return state.assigned.filter((a) => a.sales === side && !a.archived); }
 // archived ("removed bin") records for a side
 function listArchived(state, side) { return state.assigned.filter((a) => a.sales === side && a.archived); }
 
-module.exports = { BASE_DATE, cleanPhone, isValid, roundName, keyOf, buildSeed, applyNew, parseRows, listSide, listArchived };
+module.exports = { BASE_DATE, cleanPhone, isValid, roundName, keyOf, buildSeed, applyNew, applyManual, parseRows, listSide, listArchived };
