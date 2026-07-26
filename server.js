@@ -56,8 +56,9 @@ async function boot() {
   // backfill receivedAt (staleness clock) for leads that predate this field
   let bf = false;
   for (const rec of state.assigned) { if (!rec.receivedAt) { rec.receivedAt = rec.updatedAt || new Date().toISOString(); bf = true; } }
+  if (!Array.isArray(state.onecall)) state.onecall = [];
   if (bf) state = await store.save(state);
-  console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound);
+  console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
 }
 
@@ -124,6 +125,7 @@ const corsForScript = (req, res, next) => {
 };
 app.use('/api/ingest', corsForScript);
 app.use('/api/token', corsForScript);
+app.use('/api/onecall/ingest', corsForScript);
 
 // ---------- auth routes ----------
 app.get('/login', (req, res) => {
@@ -440,6 +442,53 @@ app.post('/api/token', (req, res) => {
   res.json({ ok: true, hasToken: !!evo.token, tokenUpdatedAt: evo.updatedAt });
 });
 
+// ---------- OneCall (DTAC voice recordings) → real talk-time KPI ----------
+// The Telesales lines. Calls longer than 7s count as "talked to the customer".
+const ONECALL_LINES = { '66948880324': 'W', '66948880326': 'K' };
+const ONECALL_MIN_TALK = 7;   // seconds; > this counts toward KPI
+const ONECALL_MAX = 60000;    // cap stored call records
+function digitsOnly(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
+function normLine(p) { let d = digitsOnly(p); if (d.length === 10 && d[0] === '0') d = '66' + d.slice(1); return d; }
+function onecallSide(localParty) { return ONECALL_LINES[normLine(localParty)] || null; }
+function normPhoneTH(p) { let d = digitsOnly(p); if (d.startsWith('66')) d = '0' + d.slice(2); return d; }
+function onecallAt(ts) {
+  if (typeof ts === 'number') return new Date(ts < 1e12 ? ts * 1000 : ts).toISOString();
+  if (ts) {
+    let s = String(ts).trim();
+    // OneCall sends "YYYY-MM-DD HH:MM:SS" in UTC without a zone marker → force UTC (server-TZ independent)
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) s = s.replace(' ', 'T') + 'Z';
+    const t = Date.parse(s); if (!isNaN(t)) return new Date(t).toISOString();
+  }
+  return null;
+}
+// Userscript on the OneCall page relays recordings here (auth via INGEST_KEY or admin session).
+app.post('/api/onecall/ingest', async (req, res) => {
+  const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
+  const adminOk = (readSession(req) || {}).role === 'admin';
+  if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
+  const records = (req.body && req.body.records) || [];
+  if (!Array.isArray(records)) return res.status(400).json({ error: 'records must be an array' });
+  if (!Array.isArray(state.onecall)) state.onecall = [];
+  const seen = new Set(state.onecall.map((r) => r.id));
+  let added = 0, dup = 0, skipped = 0;
+  for (const rec of records) {
+    const id = String((rec && rec.id) != null ? rec.id : '').trim();
+    if (!id) { skipped++; continue; }
+    if (seen.has(id)) { dup++; continue; }
+    const side = onecallSide(rec.localParty);
+    if (!side) { skipped++; continue; } // other lines (e.g. ...325) are not W/K
+    let dur = parseInt(rec.duration, 10); if (!isFinite(dur) || dur < 0) dur = 0;
+    const at = onecallAt(rec.timestamp) || new Date().toISOString();
+    seen.add(id);
+    state.onecall.push({ id, side, phone: normPhoneTH(rec.remoteParty), dur, at, dir: String(rec.direction || '').slice(0, 12) });
+    added++;
+  }
+  if (state.onecall.length > ONECALL_MAX) state.onecall = state.onecall.slice(-ONECALL_MAX);
+  state.onecallUpdatedAt = new Date().toISOString();
+  state = await store.save(state);
+  res.json({ ok: true, added, dup, skipped, total: state.onecall.length });
+});
+
 // Admin clicks "pull latest": the server fetches from Evolution using the relayed token.
 app.post('/api/pull', requireAuth, async (req, res) => {
   if (!evo.token) {
@@ -501,8 +550,12 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
   let from = req.query.from ? Date.parse(req.query.from) : (now - 6 * 86400000);
   if (isNaN(to)) to = now;
   if (isNaN(from)) from = to - 6 * 86400000;
-  const d0 = new Date(); d0.setHours(0, 0, 0, 0); const tStart = d0.getTime();
-  const d1 = new Date(); d1.setHours(23, 59, 59, 999); const tEnd = d1.getTime();
+  // "Today" boundaries in Thailand time (UTC+7, no DST) so the KPI day matches the sales team's day
+  const TZ = 7 * 3600000;
+  const nowTh = new Date(now + TZ);
+  const y = nowTh.getUTCFullYear(), mo = nowTh.getUTCMonth(), da = nowTh.getUTCDate();
+  const tStart = Date.UTC(y, mo, da, 0, 0, 0) - TZ;
+  const tEnd = Date.UTC(y, mo, da, 23, 59, 59, 999) - TZ;
   const blank = () => ({
     status: { new: 0, contacting: 0, interested: 0, followup: 0, won: 0, lost: 0 },
     total: 0, notCalled: 0, called: 0, pending: 0, hand2: 0,
@@ -541,7 +594,20 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     if (lostThis) A.lostRange++;
     if (r.receivedAt) { const t = Date.parse(r.receivedAt); if (!isNaN(t) && t >= from && t <= to) A.newRange++; }
   }
-  res.json({ from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(), names: SALES_NAMES, W: sides.W, K: sides.K, onecall: false });
+  // Real talk-time from OneCall: calls longer than 7s = talked to the customer.
+  for (const c of (state.onecall || [])) {
+    const A = sides[c.side]; if (!A) continue;
+    const t = Date.parse(c.at); if (isNaN(t)) continue;
+    if ((c.dur || 0) > ONECALL_MIN_TALK) {
+      if (t >= from && t <= to) A.talk7Range++;
+      if (t >= tStart && t <= tEnd) A.talk7Today++;
+    }
+  }
+  res.json({
+    from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(),
+    names: SALES_NAMES, W: sides.W, K: sides.K,
+    onecall: (state.onecall || []).length > 0, onecallUpdatedAt: state.onecallUpdatedAt || null,
+  });
 });
 
 app.post('/api/reset', requireAuth, async (req, res) => {

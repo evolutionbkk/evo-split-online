@@ -475,7 +475,7 @@ function copyLink(side){
   else{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }
 }
 // ===== Dashboard KPI (ภาพรวมทีม Telesales) =====
-let KR={mode:'today'};
+let KR={mode:'today'},KPI_ONECALL=false;
 const KLBL={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',custom:'ช่วงที่เลือก'};
 const KSHORT={today:'วันนี้','7':'7 วัน','30':'30 วัน',custom:'ช่วงนี้'};
 function rangeFor(mode){
@@ -507,6 +507,7 @@ function personCard(side,name,a){
     <div class="kmetric"><span>ปิดการขาย / ไม่ปิด</span><span class="v"><span style="color:#166534">${a.status.won}</span> / <span style="color:#b42318">${a.status.lost}</span></span></div>
     <div class="kmetric"><span>Lead ค้าง / เกินกำหนด</span><span class="v" style="color:#b45309">${a.pending}</span></div>
     <div class="kmetric"><span>สายที่โทร (${lbl})</span><span class="v">${a.callsRange}</span></div>
+    ${KPI_ONECALL?`<div class="kmetric" style="background:#f0fdf4;margin:0 -8px;padding:6px 8px;border-radius:7px;border-bottom:0"><span style="color:#166534;font-weight:700">✓ สายคุยจริง &gt;7 วิ (${lbl})</span><span class="v" style="color:#166534;font-size:15px">${a.talk7Range}</span></div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
   </div>`;
@@ -520,16 +521,20 @@ async function loadKpi(){
   try{
     const r=await fetch('/api/admin/kpi?'+q); if(r.status===401){location.href='/login';return;} const j=await r.json();
     const W=j.W,K=j.K;
-    const tCalls=W.callsToday+K.callsToday,tWon=W.wonToday+K.wonToday,tPending=W.pending+K.pending,tNot=W.notCalled+K.notCalled;
+    KPI_ONECALL=!!j.onecall;
+    const tCalls=W.callsToday+K.callsToday,tWon=W.wonToday+K.wonToday,tPending=W.pending+K.pending,tNot=W.notCalled+K.notCalled,tTalk7=W.talk7Today+K.talk7Today;
+    const firstTile=KPI_ONECALL?ktile(tTalk7,'สายคุยจริง &gt;7 วิ วันนี้ (OneCall)','good'):ktile(tCalls,'สายที่โทรวันนี้ (บันทึกในระบบ)','');
     document.getElementById('ktoday').innerHTML=
-      ktile(tCalls,'สายที่โทรวันนี้ (บันทึกในระบบ)','')+
+      firstTile+
       ktile(tWon,'ปิดการขายวันนี้','good')+
       ktile(tPending,'Lead ค้าง / เกินกำหนด','warn')+
       ktile(tNot,'ยังไม่ได้โทรเลย','');
     document.getElementById('kpiCards').innerHTML=personCard('W',(j.names&&j.names.W)||'W',W)+personCard('K',(j.names&&j.names.K)||'K',K);
     document.getElementById('krangelbl').textContent=(KLBL[KR.mode]||'')+' · '+j.from.slice(0,10)+' → '+j.to.slice(0,10);
     document.getElementById('kpiarch').textContent='ในถังนำออก '+(W.archived+K.archived)+' ราย · คัดออกถาวร '+(W.recycled+K.recycled)+' ราย';
-    document.getElementById('konecall').innerHTML=ic('info',13)+' KPI “สายที่คุยจริงเกิน 7 วินาที” จะเชื่อมจาก OneCall (ส่วนถัดไป) — ตอนนี้ “สายที่โทร” คือจำนวนที่เซลล์กดบันทึกในระบบ';
+    const oc=document.getElementById('konecall');
+    if(KPI_ONECALL){oc.style.color='#166534';oc.style.background='#f0fdf4';oc.style.borderColor='#bbf7d0';oc.innerHTML=ic('check',13)+' เชื่อม OneCall แล้ว · อัปเดตล่าสุด '+(j.onecallUpdatedAt?fmt(j.onecallUpdatedAt):'-')+' · KPI “สายคุยจริง &gt;7 วิ” นับจากเวลาโทรจริง (กันกรอกมั่วตัวเลข)';}
+    else{oc.style.color='#92400e';oc.style.background='#fffbeb';oc.style.borderColor='#fde68a';oc.innerHTML=ic('info',13)+' KPI “สายคุยจริงเกิน 7 วินาที” ยังไม่เชื่อม OneCall — ติดตั้ง userscript แล้วข้อมูลจะขึ้นอัตโนมัติ · ตอนนี้ “สายที่โทร” คือจำนวนที่เซลล์กดบันทึกในระบบ';}
   }catch(e){}
 }
 // ===== ส่งรายชื่อให้เซลล์: วางจาก Google Sheet → แยกช่อง → พรีวิว → ส่ง =====
