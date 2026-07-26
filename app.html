@@ -121,54 +121,6 @@
     </div>
   </div>
 
-  <div class="panel" id="importPanel">
-    <h2><span data-ic="send" data-sz="18"></span>ส่งรายชื่อให้เซลล์ (วางจาก Google Sheet → แยกช่องอัตโนมัติ)</h2>
-    <div class="desc">คัดลอกทั้งแถวจากชีตออเดอร์มาวางในกล่องนี้ ระบบจะแยก ชื่อ · เบอร์ · ที่อยู่ · สินค้า · ยอดขาย · ผู้ปิด · Telesale ให้เอง แล้วกำหนดให้เซลล์ W/K (จากคอลัมน์ Telesale: Namwhan→W, Khem→K) · ตรวจ/แก้ก่อนกดส่ง</div>
-    <textarea id="impPaste" placeholder="วางแถวจาก Google Sheet ที่นี่ (คัดลอกทั้งแถว รวมหัวตารางก็ได้ ระบบจะข้ามหัวให้)" oninput="impParse()" style="min-height:96px"></textarea>
-    <div class="row" style="margin-top:8px">
-      <label style="font-size:12.5px;color:#475569;font-weight:600">ประเภทการโทร
-        <select id="impStep" style="margin-left:4px;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px">
-          <option value="T1">T1 · รายชื่อจากแอดมิน (โทรครั้งแรก)</option>
-          <option value="T2" selected>T2 · ออเดอร์ E-Commerce (Follow up & Up-sell)</option>
-          <option value="T3">T3 · ของใกล้หมด (ติดตามซื้อเพิ่ม)</option>
-        </select>
-      </label>
-      <label style="font-size:12.5px;color:#475569;font-weight:600">มอบให้
-        <select id="impAssign" onchange="impRender()" style="margin-left:4px;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px">
-          <option value="auto" selected>อัตโนมัติจากคอลัมน์ Telesale</option>
-          <option value="alt">สลับ W/K ให้สมดุล</option>
-          <option value="W">บังคับเป็น W (Namwhan) ทั้งหมด</option>
-          <option value="K">บังคับเป็น K (เขม) ทั้งหมด</option>
-        </select>
-      </label>
-      <input type="text" id="impLabel" placeholder="ชื่อรอบ/วันที่ (เว้นว่าง = วันนี้)" style="min-width:170px">
-    </div>
-    <div id="impMap" style="display:none;margin-top:10px;padding:10px 12px;background:#f7faff;border:1px solid #dbe7fb;border-radius:11px">
-      <div style="font-size:12px;color:#475569;font-weight:700;margin-bottom:7px;display:flex;align-items:center;gap:6px"><span data-ic="wand" data-sz="14"></span>จับคู่คอลัมน์ (แก้ได้ถ้าระบบจับผิด)</div>
-      <div id="impMapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px"></div>
-    </div>
-    <div id="impPreviewWrap" style="display:none;margin-top:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-        <div id="impStat" style="font-size:12.5px;color:#475569"></div>
-        <div style="display:flex;gap:8px">
-          <button class="b-g" onclick="impSelectAll(true)" style="padding:6px 12px;font-size:12.5px">เลือกทั้งหมด</button>
-          <button class="b-g" onclick="impSelectAll(false)" style="padding:6px 12px;font-size:12.5px">ไม่เลือก</button>
-        </div>
-      </div>
-      <div class="card" style="box-shadow:none;border:1px solid var(--line)"><div class="tblwrap" style="max-height:420px"><table id="impTable">
-        <thead><tr>
-          <th style="width:30px"><input type="checkbox" id="impChkAll" checked onchange="impSelectAll(this.checked)"></th>
-          <th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ที่อยู่</th><th>สินค้า</th><th>ยอดขาย</th><th>เพจ</th><th>ผู้ปิด</th><th>มอบให้</th>
-        </tr></thead>
-        <tbody id="impBody"></tbody>
-      </table></div></div>
-      <div class="row" style="margin-top:12px">
-        <button class="b-add" onclick="impSend()" style="font-size:15px;padding:11px 22px"><span data-ic="send" data-sz="16"></span>ส่งเข้าลิสต์เซลล์</button>
-        <button class="b-g" onclick="impClear()"><span data-ic="undo" data-sz="15"></span>ล้าง</button>
-      </div>
-    </div>
-  </div>
-
   <div class="note">
     <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก (นำเข้า manual กันซ้ำด้วยเบอร์) &nbsp;|&nbsp;
     ข้อมูลใหม่ส่งเข้ามาอัตโนมัติจากสคริปต์ในเบราว์เซอร์ (หรือกดปุ่มด้านบน / วางเองด้านล่างก็ได้)
