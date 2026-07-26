@@ -114,7 +114,7 @@
 
   <div class="panel">
     <h2><span data-ic="refresh" data-sz="18"></span>ดึงรายชื่อใหม่จาก Evolution</h2>
-    <div class="desc">กดปุ่มเดียว ระบบจะไปดึงรายชื่อล่าสุดจาก Evolution มากรอง+แบ่งให้อัตโนมัติ (เติมเฉพาะรายใหม่)</div>
+    <div class="desc">กดปุ่มเดียว ระบบจะไปดึงรายชื่อล่าสุดจาก Evolution มากรอง+แบ่งให้อัตโนมัติ · <b>สูงสุด 100 รายชื่อ/วัน (Namwhan 50 · Khem 50)</b> ตาม KPI · ที่เกินโควตาจะทยอยเข้าวันถัดไป</div>
     <div class="row">
       <button class="b-add" id="pullBtn" onclick="doPull()" style="font-size:15px;padding:11px 22px"><span data-ic="refresh" data-sz="17"></span>ดึงรายชื่อใหม่เดี๋ยวนี้</button>
       <span id="evostatus" style="font-size:12.5px;color:#6b7280"></span>
@@ -372,7 +372,7 @@ async function doPull(){
     const r=await fetch('/api/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     const j=await r.json();
     if(!r.ok){ document.getElementById('lastact').innerHTML=ic('alert',14)+(j.message||'ดึงไม่สำเร็จ'); }
-    else{ const su=j.summary||{}; document.getElementById('lastact').innerHTML=ic('check',14)+'ดึงจาก Evolution '+j.pulled+' ราย → เพิ่มใหม่ <b>'+su.added+'</b> (W '+su.addW+'/K '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>'; }
+    else{ const su=j.summary||{}; const capMsg=(su.capped>0)?(' · <b style="color:#b45309">เต็มโควตาวันนี้ (100/วัน)</b> เหลืออีก '+su.capped+' รอพรุ่งนี้'):''; document.getElementById('lastact').innerHTML=ic('check',14)+'ดึงจาก Evolution '+j.pulled+' ราย → เพิ่มใหม่ <b>'+su.added+'</b> (Namwhan '+su.addW+'/Khem '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>'+capMsg; }
   }catch(e){ document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e; }
   btn.disabled=false; btn.innerHTML=old; refresh(); evoStatus();
 }

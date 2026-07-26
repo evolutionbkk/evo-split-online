@@ -449,7 +449,7 @@ app.post('/api/ingest', async (req, res) => {
   if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
   const customers = (req.body && req.body.customers) || [];
   if (!Array.isArray(customers)) return res.status(400).json({ error: 'customers must be an array' });
-  const summary = S.applyNew(state, customers, req.body && req.body.label);
+  const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE });
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
 });
@@ -473,6 +473,8 @@ const ONECALL_MAX = 60000;    // cap stored call records
 // Daily call targets per Telesales (adjustable via Railway Variables)
 const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 50;     // Evolution database calls / day
 const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 5; // Admin-Sales + follow-up calls / day
+// Evolution pull quota: new leads handed to EACH Telesales per day (100/day total = 50 each)
+const EVO_DAILY_PER_SIDE = Number(process.env.EVO_DAILY_PER_SIDE) || 50;
 function digitsOnly(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
 function normLine(p) { let d = digitsOnly(p); if (d.length === 10 && d[0] === '0') d = '66' + d.slice(1); return d; }
 function onecallSide(localParty) { return ONECALL_LINES[normLine(localParty)] || null; }
@@ -604,7 +606,7 @@ app.post('/api/pull', requireAuth, async (req, res) => {
     }
     const j = await r.json();
     const customers = mapItems(j);
-    const summary = S.applyNew(state, customers, req.body && req.body.label);
+    const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE });
     state = await store.save(state);
     res.json({ ok: true, summary, pulled: customers.length, total: state.assigned.length, tokenAge: evo.updatedAt });
   } catch (e) {

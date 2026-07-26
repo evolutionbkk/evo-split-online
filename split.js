@@ -16,6 +16,12 @@ function todayTH() {
   const p = (n) => String(n).padStart(2, '0');
   return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + (d.getFullYear() + 543);
 }
+// Thailand-calendar day key (UTC+7) for a timestamp (or now) — used for the per-day pull quota.
+function thaiDay(ts) {
+  const t = ts ? Date.parse(ts) : Date.now();
+  if (isNaN(t)) return '';
+  return new Date(t + 7 * 3600000).toISOString().slice(0, 10);
+}
 
 function nextSide(assigned) {
   let w = 0, k = 0;
@@ -45,7 +51,11 @@ function buildSeed(records) {
 
 // Append only new valid records to an existing state. Existing assignments never change.
 // Returns summary {added, addW, addK, dup, cut, round, date}
-function applyNew(state, records, label) {
+// opts.dailyCapPerSide (e.g. 50): cap Evolution intake to N new leads per side PER Thai-day,
+// split evenly W/K. Leftover fresh records are left un-added (they reappear on the next pull/day).
+function applyNew(state, records, label, opts) {
+  opts = opts || {};
+  const cap = Number(opts.dailyCapPerSide) > 0 ? Number(opts.dailyCapPerSide) : 0;
   const seen = new Set(state.assigned.map(keyOf));
   const fresh = [];
   let dup = 0, cut = 0;
@@ -59,24 +69,43 @@ function applyNew(state, records, label) {
     fresh.push(rec);
   }
   let round = state.maxRound, date = '';
-  let addW = 0, addK = 0;
+  let addW = 0, addK = 0, capped = 0;
   if (fresh.length) {
     const firstEver = state.assigned.length === 0;
     round = firstEver ? 1 : state.maxRound + 1;
     state.maxRound = Math.max(state.maxRound, round);
     date = (label && String(label).trim()) ? String(label).trim() : todayTH();
+    // remaining daily quota per side (Evolution/auto leads only; manual distribution is separate)
+    let capW = Infinity, capK = Infinity;
+    if (cap) {
+      const today = thaiDay();
+      let tW = 0, tK = 0;
+      for (const a of state.assigned) {
+        if (a.archived || a.source === 'manual') continue;
+        if (thaiDay(a.receivedAt) !== today) continue;
+        if (a.sales === 'K') tK++; else tW++;
+      }
+      capW = Math.max(0, cap - tW); capK = Math.max(0, cap - tK);
+    }
     for (const rec of fresh) {
-      const side = nextSide(state.assigned);
+      let side;
+      if (cap) {
+        if (capW <= 0 && capK <= 0) break; // daily quota full
+        if (capW <= 0) side = 'K'; else if (capK <= 0) side = 'W'; else side = capW >= capK ? 'W' : 'K';
+      } else {
+        side = nextSide(state.assigned);
+      }
       rec.sales = side;
       rec.round = round;
       rec.date = date;
       rec.exported = false; // รายใหม่ ยังไม่เคยส่ง
       rec.receivedAt = new Date().toISOString();
       state.assigned.push(rec);
-      if (side === 'W') addW++; else addK++;
+      if (side === 'W') { addW++; capW--; } else { addK++; capK--; }
     }
+    capped = fresh.length - (addW + addK); // fresh leads held back by the quota
   }
-  return { added: fresh.length, addW, addK, dup, cut, round, date };
+  return { added: addW + addK, addW, addK, dup, cut, capped, round, date };
 }
 
 // Parse pasted text (copied from the Evolution table, or code,name,phone lines).
