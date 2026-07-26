@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ส่งรายชื่อให้เซลล์ — Admin Sales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#2563eb;--brand-2:#3b82f6;--brand-deep:#1e3a8a;
+    --grad:linear-gradient(135deg,#1e3a8a 0%,#2563eb 55%,#3b82f6 100%);
+    --w:#2563eb;--k:#4338ca;--ink:#0f172a;--muted:#64748b;--line:#e6ecf5;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(30,58,138,.06);--shadow-sm:0 1px 2px rgba(16,24,40,.04),0 2px 6px rgba(30,58,138,.05)
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Noto Sans Thai","Sarabun","Tahoma",system-ui,sans-serif;color:var(--ink);background:radial-gradient(1200px 420px at 50% -160px,#dbe7fb,transparent),#f4f7fc;font-size:15px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  ::selection{background:#c7dcff;color:#0f172a}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-thumb{background:#cbd6e6;border-radius:9px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#adc0dc}
+  button{transition:background .16s ease,box-shadow .18s ease,transform .12s ease}
+  button:active{transform:translateY(1px)}
+  .wrap{max-width:1200px;margin:0 auto;padding:22px 18px 60px}
+  .ic{display:inline-block;vertical-align:-2px;flex:0 0 auto}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  h1{font-size:21px;margin:0;color:var(--brand-deep);font-weight:800;letter-spacing:.2px;display:flex;align-items:center;gap:9px}
+  h1 .ic{color:var(--brand)}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .lo{background:#eef2f8;border:0;border-radius:9px;padding:8px 14px;font-family:inherit;font-weight:600;cursor:pointer;color:#334155}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:17px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .panel h2{font-size:15px;margin:0 0 5px;display:flex;align-items:center;gap:8px;color:#0f172a}.panel h2 .ic{color:var(--brand)}
+  .panel .desc{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+  textarea{width:100%;min-height:80px;border:1px solid var(--line);border-radius:11px;padding:10px;font-family:inherit;font-size:13px;resize:vertical}
+  input[type=text]{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-family:inherit;font-size:13px;min-width:200px}
+  input[type=text]:focus,textarea:focus{outline:none;border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(59,130,246,.14)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  button{font-family:inherit;font-size:14px;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .b-add{background:var(--grad);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.22)}
+  .b-g{background:#eef2f8;color:#334155}.b-b{background:var(--brand);color:#fff}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .tblwrap{max-height:420px;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 11px;text-align:left;border-bottom:1px solid #f0f2f5;white-space:nowrap}
+  th{position:sticky;top:0;background:#fafbfc;font-weight:700;color:var(--muted);font-size:12px;z-index:1}
+  td.num{color:var(--muted);text-align:center;width:34px}
+  .b-w{background:var(--w);color:#fff}.b-k{background:var(--k);color:#fff}
+  .badge{display:inline-flex;align-items:center;font-size:11.5px;padding:3px 9px;border-radius:7px;font-weight:700}
+  .b-sideW{background:#eaf1fe;color:#2563eb}.b-sideK{background:#eef0fe;color:#4338ca}
+  .b-step{background:#eef2ff;color:#4338ca;font-weight:700}
+  .lastact{font-size:12.5px;color:var(--muted);margin:8px 2px 4px;min-height:18px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .lastact b{color:var(--ink)}.lastact .ic{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1><span data-ic="send" data-sz="20"></span>ส่งรายชื่อลูกค้าให้เซลล์</h1>
+    <form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form>
+  </div>
+  <div class="sub">Admin Sales · <span id="who">ไลลา</span> — วางรายชื่อจากแชท Facebook แล้วแบ่งให้ Telesales (Namwhan / Khem)</div>
+
+  <div class="panel" id="importPanel">
+    <h2><span data-ic="send" data-sz="18"></span>วางจาก Google Sheet → แยกช่องอัตโนมัติ</h2>
+    <div class="desc">คัดลอกทั้งแถวจากชีตออเดอร์มาวาง ระบบจะแยก ชื่อ · เบอร์ · ที่อยู่ · สินค้า · ยอดขาย · ผู้ปิด · Telesale ให้เอง แล้วกำหนดให้เซลล์ W/K (จากคอลัมน์ Telesale: Namwhan→W, Khem→K) · ตรวจ/แก้ก่อนกดส่ง</div>
+    <textarea id="impPaste" placeholder="วางแถวจาก Google Sheet ที่นี่ (คัดลอกทั้งแถว รวมหัวตารางก็ได้ ระบบจะข้ามหัวให้)" oninput="impParse()" style="min-height:96px"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label style="font-size:12.5px;color:#475569;font-weight:600">ประเภทการโทร
+        <select id="impStep" style="margin-left:4px;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px">
+          <option value="T1">T1 · รายชื่อจากแอดมิน (โทรครั้งแรก)</option>
+          <option value="T2" selected>T2 · ออเดอร์ E-Commerce (Follow up & Up-sell)</option>
+          <option value="T3">T3 · ของใกล้หมด (ติดตามซื้อเพิ่ม)</option>
+        </select>
+      </label>
+      <label style="font-size:12.5px;color:#475569;font-weight:600">มอบให้
+        <select id="impAssign" onchange="impRender()" style="margin-left:4px;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px">
+          <option value="auto" selected>อัตโนมัติจากคอลัมน์ Telesale</option>
+          <option value="alt">สลับ W/K ให้สมดุล</option>
+          <option value="W">บังคับเป็น W (Namwhan) ทั้งหมด</option>
+          <option value="K">บังคับเป็น K (Khem) ทั้งหมด</option>
+        </select>
+      </label>
+      <input type="text" id="impLabel" placeholder="ชื่อรอบ/วันที่ (เว้นว่าง = วันนี้)" style="min-width:170px">
+    </div>
+    <div id="impMap" style="display:none;margin-top:10px;padding:10px 12px;background:#f7faff;border:1px solid #dbe7fb;border-radius:11px">
+      <div style="font-size:12px;color:#475569;font-weight:700;margin-bottom:7px;display:flex;align-items:center;gap:6px"><span data-ic="wand" data-sz="14"></span>จับคู่คอลัมน์ (แก้ได้ถ้าระบบจับผิด)</div>
+      <div id="impMapGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px"></div>
+    </div>
+    <div id="impPreviewWrap" style="display:none;margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div id="impStat" style="font-size:12.5px;color:#475569"></div>
+        <div style="display:flex;gap:8px">
+          <button class="b-g" onclick="impSelectAll(true)" style="padding:6px 12px;font-size:12.5px">เลือกทั้งหมด</button>
+          <button class="b-g" onclick="impSelectAll(false)" style="padding:6px 12px;font-size:12.5px">ไม่เลือก</button>
+        </div>
+      </div>
+      <div class="card" style="box-shadow:none;border:1px solid var(--line)"><div class="tblwrap" style="max-height:420px"><table id="impTable">
+        <thead><tr>
+          <th style="width:30px"><input type="checkbox" id="impChkAll" checked onchange="impSelectAll(this.checked)"></th>
+          <th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ที่อยู่</th><th>สินค้า</th><th>ยอดขาย</th><th>เพจ</th><th>ผู้ปิด</th><th>มอบให้</th>
+        </tr></thead>
+        <tbody id="impBody"></tbody>
+      </table></div></div>
+      <div class="row" style="margin-top:12px">
+        <button class="b-add" onclick="impSend()" style="font-size:15px;padding:11px 22px"><span data-ic="send" data-sz="16"></span>ส่งเข้าลิสต์เซลล์</button>
+        <button class="b-g" onclick="impClear()"><span data-ic="undo" data-sz="15"></span>ล้าง</button>
+      </div>
+    </div>
+    <div class="lastact" id="lastact"></div>
+  </div>
+
+  <div class="panel">
+    <h2><span data-ic="inbox" data-sz="18"></span>ประวัติรายชื่อที่ฉันส่ง</h2>
+    <div class="desc">รายชื่อที่คุณส่งให้เซลล์ไปแล้ว (ล่าสุดอยู่บน) · <span id="sentsum"></span></div>
+    <div class="row" style="margin-bottom:8px">
+      <input type="text" id="sentSearch" placeholder="ค้นหา ชื่อ / เบอร์…" oninput="renderSent()" style="min-width:240px">
+      <button class="b-b" onclick="loadMySent()"><span data-ic="refresh" data-sz="15"></span>รีเฟรช</button>
+    </div>
+    <div class="card"><div class="tblwrap"><table>
+      <thead><tr><th class="num">#</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>มอบให้</th><th>ประเภท</th><th>สินค้า</th><th>ยอด</th><th>วันที่ส่ง</th></tr></thead>
+      <tbody id="sentBody"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<script>
+const ICONS={
+  send:'<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/>',
+  wand:'<path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h0M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/>',
+  inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  refresh:'<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
+  undo:'<path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>'
+};
+function ic(name,size){size=size||16;const p=ICONS[name]||'';return '<svg class="ic" width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';}
+function fillIcons(root){(root||document).querySelectorAll('[data-ic]').forEach(e=>{e.innerHTML=ic(e.dataset.ic,parseInt(e.dataset.sz||'16',10));e.style.display='inline-flex';e.style.alignItems='center';});}
+const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function fmt(ts){ if(!ts) return '–'; try{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+(d.getFullYear()+543)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return '–';} }
+const baht=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+
+// ===== import: paste → split → preview → send =====
+let IMP={matrix:[],map:{},cols:0};
+const _dig=s=>String(s==null?'':s).replace(/\D/g,'');
+const _isPhone=s=>{const d=_dig(s);return d.length>=9&&d.length<=10&&d[0]==='0';};
+const _validPhone=s=>/^0[2689]\d{8}$/.test(_dig(s));
+const _isAmount=s=>/^\d{2,7}(\.\d+)?$/.test(String(s==null?'':s).replace(/[,\s฿]/g,''));
+function _teleSide(s){const t=String(s==null?'':s).trim();if(!t)return '';if(/namwhan|น้ำหวาน|หวาน|hwan/i.test(t))return 'W';if(/khem|เขม/i.test(t))return 'K';if(/^w$/i.test(t))return 'W';if(/^k$/i.test(t))return 'K';return '';}
+const _cell=(r,c)=>(c>=0&&c<r.length)?String(r[c]==null?'':r[c]).trim():'';
+const _escA=s=>esc(s).replace(/"/g,'&quot;');
+const IMP_FIELDS=[['name','ชื่อ-นามสกุล'],['phone','เบอร์โทร'],['address','ที่อยู่'],['product','สินค้า'],['amount','ยอดขาย'],['page','เพจ'],['closer','ผู้ปิด'],['tele','Telesale (W/K)']];
+function impParse(){
+  const text=document.getElementById('impPaste').value||'';
+  if(!text.trim()){IMP={matrix:[],map:{},cols:0};document.getElementById('impPreviewWrap').style.display='none';document.getElementById('impMap').style.display='none';return;}
+  const hasTab=text.indexOf('\t')>=0;
+  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim()!=='');
+  const matrix=lines.map(l=>hasTab?l.split('\t'):l.split(/\s{2,}/));
+  let cols=0;matrix.forEach(r=>{if(r.length>cols)cols=r.length;});
+  IMP.matrix=matrix;IMP.cols=cols;IMP.map=impDetect(matrix,cols);
+  impBuildMapGrid();impRender();
+}
+function _colScore(matrix,c,test){let n=0,ok=0;for(const r of matrix){const v=r[c];if(v==null||String(v).trim()==='')continue;n++;if(test(v))ok++;}return n?ok/n:0;}
+function impDetect(matrix,cols){
+  let phone=-1,ph=0;for(let c=0;c<cols;c++){const s=_colScore(matrix,c,_isPhone);if(s>ph){ph=s;phone=c;}}
+  let tele=-1,ts=0;for(let c=0;c<cols;c++){const s=_colScore(matrix,c,v=>_teleSide(v)!=='');if(s>ts){ts=s;tele=c;}}
+  if(ts<0.3)tele=-1;
+  const at=off=>{const c=phone+off;return(c>=0&&c<cols)?c:-1;};
+  let amount=at(3);
+  if(amount<0||_colScore(matrix,amount,_isAmount)<0.5){let best=-1,bs=0;for(let c=0;c<cols;c++){if(c===phone||c===tele)continue;const s=_colScore(matrix,c,_isAmount);if(s>bs){bs=s;best=c;}}if(bs>=0.5)amount=best;}
+  return{name:at(-1),phone:phone,address:at(1),product:at(2),amount:amount,page:at(-2),closer:at(4),tele:tele};
+}
+function _sample(c){for(const r of IMP.matrix){const v=r[c];if(v!=null&&String(v).trim()!=='')return String(v).trim().slice(0,18);}return '';}
+function impBuildMapGrid(){
+  document.getElementById('impMapGrid').innerHTML=IMP_FIELDS.map(([f,label])=>{
+    let opts='<option value="-1">— ไม่มี —</option>';
+    for(let c=0;c<IMP.cols;c++){const sel=IMP.map[f]===c?' selected':'';opts+='<option value="'+c+'"'+sel+'>#'+(c+1)+' · '+esc(_sample(c))+'</option>';}
+    return '<label style="font-size:11.5px;color:#475569;font-weight:600;display:block">'+label+'<select onchange="impSetMap(\''+f+'\',this.value)" style="width:100%;margin-top:3px;font-family:inherit;font-size:12px;padding:6px 7px;border:1px solid var(--line);border-radius:8px">'+opts+'</select></label>';
+  }).join('');
+  document.getElementById('impMap').style.display='block';fillIcons(document.getElementById('impMap'));
+}
+function impSetMap(f,v){IMP.map[f]=parseInt(v,10);impRender();}
+function _inp(cls,val,w){return '<input class="'+cls+'" value="'+_escA(val)+'" style="width:'+w+';min-width:0;border:1px solid var(--line);border-radius:7px;padding:5px 7px;font-family:inherit;font-size:12.5px">';}
+function impRender(){
+  if(!IMP.matrix.length){document.getElementById('impPreviewWrap').style.display='none';return;}
+  const m=IMP.map,assign=document.getElementById('impAssign').value;
+  let valid=0,skip=0,html='';
+  for(const r of IMP.matrix){
+    if(!_validPhone(_cell(r,m.phone))){skip++;continue;}
+    valid++;
+    const name=_cell(r,m.name),address=_cell(r,m.address),product=_cell(r,m.product);
+    const amount=_cell(r,m.amount).replace(/[^0-9.]/g,''),page=_cell(r,m.page),closer=_cell(r,m.closer);
+    let side=assign==='W'?'W':assign==='K'?'K':(assign==='alt'?'':_teleSide(_cell(r,m.tele)));
+    const selW=side==='W'?' selected':'',selK=side==='K'?' selected':'';
+    html+='<tr>'
+      +'<td style="text-align:center"><input type="checkbox" class="impChk" checked></td>'
+      +'<td>'+_inp('impf-name',name,'150px')+'</td>'
+      +'<td>'+_inp('impf-phone',_dig(_cell(r,m.phone)),'110px')+'</td>'
+      +'<td>'+_inp('impf-address',address,'220px')+'</td>'
+      +'<td>'+_inp('impf-product',product,'90px')+'</td>'
+      +'<td>'+_inp('impf-amount',amount,'70px')+'</td>'
+      +'<td style="color:#64748b;font-size:12px">'+esc(page)+'</td>'
+      +'<td style="color:#64748b;font-size:12px">'+esc(closer)+'</td>'
+      +'<td><select class="impSide" style="font-family:inherit;font-size:12.5px;padding:5px 7px;border:1px solid var(--line);border-radius:8px"><option value=""'+(side?'':' selected')+'>—</option><option value="W"'+selW+'>W Namwhan</option><option value="K"'+selK+'>K Khem</option></select></td>'
+      +'</tr>';
+  }
+  document.getElementById('impBody').innerHTML=html;
+  document.getElementById('impPreviewWrap').style.display='block';
+  document.getElementById('impStat').innerHTML='พร้อมส่ง <b>'+valid+'</b> ราย'+(skip?(' · ข้าม (เบอร์ไม่ผ่าน/หัวตาราง) <b>'+skip+'</b>'):'')+(assign==='alt'?' · โหมดสลับจะกำหนด W/K ตอนส่ง':'');
+}
+function impSelectAll(on){document.querySelectorAll('#impBody .impChk').forEach(c=>c.checked=on);document.getElementById('impChkAll').checked=on;}
+function impClear(){document.getElementById('impPaste').value='';IMP={matrix:[],map:{},cols:0};document.getElementById('impPreviewWrap').style.display='none';document.getElementById('impMap').style.display='none';}
+async function impSend(){
+  const trs=[...document.querySelectorAll('#impBody tr')];
+  const assign=document.getElementById('impAssign').value;
+  const rows=[];let altToggle=0;
+  for(const tr of trs){
+    if(!tr.querySelector('.impChk').checked)continue;
+    const g=cls=>{const el=tr.querySelector('.'+cls);return el?el.value.trim():'';};
+    const phone=g('impf-phone');if(!_validPhone(phone))continue;
+    let side=tr.querySelector('.impSide').value;
+    if(assign==='W')side='W';else if(assign==='K')side='K';else if(assign==='alt')side=(altToggle++%2===0)?'W':'K';
+    rows.push({name:g('impf-name'),phone:phone,address:g('impf-address'),product:g('impf-product'),amount:g('impf-amount'),side:side||null,page:tr.children[6].textContent.trim(),closer:tr.children[7].textContent.trim()});
+  }
+  if(!rows.length){alert('ยังไม่มีรายการที่เลือก (ติ๊กถูกอย่างน้อย 1 ราย)');return;}
+  const step=document.getElementById('impStep').value,label=document.getElementById('impLabel').value;
+  try{
+    const r=await fetch('/api/admin/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows,step,label})});
+    if(r.status===401){location.href='/login';return;}
+    const j=await r.json();
+    if(!r.ok){document.getElementById('lastact').innerHTML=ic('alert',14)+(j.message||'ส่งไม่สำเร็จ');return;}
+    const su=j.summary||{};
+    document.getElementById('lastact').innerHTML=ic('check',14)+'ส่งเข้าลิสต์เซลล์ <b>'+su.added+'</b> ราย (W '+su.addW+'/K '+su.addK+') · ข้ามซ้ำ(เบอร์) <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>';
+    impClear();loadMySent();
+  }catch(e){document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e;}
+}
+
+// ===== my sent history =====
+let SENT=[];
+const STEP_LABEL={T1:'T1 · จากแอดมิน',T2:'T2 · Follow up/Up-sell',T3:'T3 · ของใกล้หมด'};
+async function loadMySent(){
+  try{
+    const r=await fetch('/api/mysent'); if(r.status===401){location.href='/login';return;}
+    const j=await r.json(); SENT=j.list||[];
+    document.getElementById('sentsum').textContent='ส่งไปแล้ว '+(j.count||0)+' ราย (W '+(j.addW||0)+' / K '+(j.addK||0)+')';
+    renderSent();
+  }catch(e){}
+}
+function renderSent(){
+  const q=(document.getElementById('sentSearch').value||'').trim().toLowerCase();
+  const list=SENT.filter(r=>!q||[r.name,r.phone].some(v=>String(v==null?'':v).toLowerCase().includes(q)));
+  document.getElementById('sentBody').innerHTML = list.length ? list.map((r,i)=>`<tr>
+    <td class="num">${i+1}</td>
+    <td style="font-weight:600">${esc(r.name)||'(ไม่มีชื่อ)'}${r.archived?' <span class="badge" style="background:#f1f5f9;color:#64748b">นำออก</span>':''}</td>
+    <td>${esc(r.phone)}</td>
+    <td><span class="badge ${r.sales==='K'?'b-sideK':'b-sideW'}">${r.sales==='K'?'K · Khem':'W · Namwhan'}</span></td>
+    <td>${r.step?`<span class="badge b-step">${esc(STEP_LABEL[r.step]||r.step)}</span>`:'–'}</td>
+    <td>${esc(r.product)||'–'}</td>
+    <td>${r.orderAmount?('฿'+baht(r.orderAmount)):'–'}</td>
+    <td style="color:#64748b;font-size:12px">${r.at?esc(fmt(r.at)):esc(r.date||'–')}</td>
+  </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">ยังไม่มีรายชื่อที่ส่ง</td></tr>';
+}
+
+async function init(){
+  const r=await fetch('/api/me'); if(r.status===401){location.href='/login';return;}
+  const me=await r.json();
+  if(me.role!=='adminsales'&&me.role!=='admin'){ location.href=(me.role==='sales'?'/sales':'/login'); return; }
+  document.getElementById('who').textContent=me.user||'ไลลา';
+  fillIcons();
+  loadMySent();
+}
+init();
+</script>
+</body>
+</html>

@@ -137,7 +137,7 @@
         <select id="impAssign" onchange="impRender()" style="margin-left:4px;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:9px">
           <option value="auto" selected>อัตโนมัติจากคอลัมน์ Telesale</option>
           <option value="alt">สลับ W/K ให้สมดุล</option>
-          <option value="W">บังคับเป็น W (หวาน) ทั้งหมด</option>
+          <option value="W">บังคับเป็น W (Namwhan) ทั้งหมด</option>
           <option value="K">บังคับเป็น K (เขม) ทั้งหมด</option>
         </select>
       </label>
@@ -176,7 +176,7 @@
 
   <div class="panel" id="kpiPanel">
     <h2><span data-ic="activity" data-sz="18"></span>Dashboard KPI — ภาพรวมทีม Telesales</h2>
-    <div class="desc">วัดผลงานเซลล์ Hwan (W) &amp; Khem (K) · เลือกช่วงเวลาได้ · <span id="kpiarch"></span></div>
+    <div class="desc">วัดผลงานเซลล์ Namwhan (W) &amp; Khem (K) · เลือกช่วงเวลาได้ · <span id="kpiarch"></span></div>
     <div class="krange" id="krange">
       <button class="kr on" data-r="today" onclick="setKRange('today')">วันนี้</button>
       <button class="kr" data-r="7" onclick="setKRange('7')">7 วัน</button>
@@ -196,7 +196,7 @@
       <span id="ocstatus" style="font-size:12px;color:#6b7280"></span>
     </div>
     <div class="row" style="margin-top:12px">
-      <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W (Hwan)</button></a>
+      <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W (Namwhan)</button></a>
       <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง K (Khem)</button></a>
     </div>
   </div>
@@ -479,7 +479,15 @@ function copyLink(side){
   else{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }
 }
 // ===== Dashboard KPI (ภาพรวมทีม Telesales) =====
-let KR={mode:'today'},KPI_ONECALL=false;
+let KR={mode:'today'},KPI_ONECALL=false,KPI_TARGETS={evo:50,manual:5};
+function targetBar(label,val,target,color){
+  const pct=target>0?Math.min(100,Math.round(val/target*100)):0;
+  const done=val>=target&&target>0;
+  return `<div style="margin-bottom:7px">
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="color:#334155">${label}</span><span style="font-weight:700;color:${done?'#166534':'#334155'}">${val} / ${target}${done?' ✓':''}</span></div>
+    <div class="kbar"><span style="width:${pct}%;background:${done?'linear-gradient(90deg,#16a34a,#22c55e)':color}"></span></div>
+  </div>`;
+}
 const KLBL={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',custom:'ช่วงที่เลือก'};
 const KSHORT={today:'วันนี้','7':'7 วัน','30':'30 วัน',custom:'ช่วงนี้'};
 function rangeFor(mode){
@@ -511,7 +519,12 @@ function personCard(side,name,a){
     <div class="kmetric"><span>ปิดการขาย / ไม่ปิด</span><span class="v"><span style="color:#166534">${a.status.won}</span> / <span style="color:#b42318">${a.status.lost}</span></span></div>
     <div class="kmetric"><span>Lead ค้าง / เกินกำหนด</span><span class="v" style="color:#b45309">${a.pending}</span></div>
     <div class="kmetric"><span>สายที่โทร (${lbl})</span><span class="v">${a.callsRange}</span></div>
-    ${KPI_ONECALL?`<div class="kmetric" style="background:#f0fdf4;margin:0 -8px;padding:6px 8px;border-radius:7px;border-bottom:0"><span style="color:#166534;font-weight:700">✓ สายคุยจริง &gt;7 วิ (${lbl})</span><span class="v" style="color:#166534;font-size:15px">${a.talk7Range}</span></div>`:''}
+    ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
+      <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">✓ สายคุยจริง &gt;7 วิ · เป้าวันนี้</div>
+      ${targetBar('Evolution', a.talk7EvoToday, KPI_TARGETS.evo, '#2563eb')}
+      ${targetBar('ไลลา + follow-up', a.talk7ManualToday, KPI_TARGETS.manual, '#7c3aed')}
+      <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Evolution <b>${a.talk7EvoRange}</b> · ไลลา <b>${a.talk7ManualRange}</b>${a.talk7OtherRange?(' · อื่นๆ '+a.talk7OtherRange):''}</div>
+    </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
   </div>`;
@@ -526,6 +539,7 @@ async function loadKpi(){
     const r=await fetch('/api/admin/kpi?'+q); if(r.status===401){location.href='/login';return;} const j=await r.json();
     const W=j.W,K=j.K;
     KPI_ONECALL=!!j.onecall;
+    if(j.targets)KPI_TARGETS=j.targets;
     const tCalls=W.callsToday+K.callsToday,tWon=W.wonToday+K.wonToday,tPending=W.pending+K.pending,tNot=W.notCalled+K.notCalled,tTalk7=W.talk7Today+K.talk7Today;
     const firstTile=KPI_ONECALL?ktile(tTalk7,'สายคุยจริง &gt;7 วิ วันนี้ (OneCall)','good'):ktile(tCalls,'สายที่โทรวันนี้ (บันทึกในระบบ)','');
     document.getElementById('ktoday').innerHTML=
@@ -602,7 +616,7 @@ function impRender(){
       +'<td>'+_inp('impf-amount',amount,'70px')+'</td>'
       +'<td style="color:#64748b;font-size:12px">'+esc(page)+'</td>'
       +'<td style="color:#64748b;font-size:12px">'+esc(closer)+'</td>'
-      +'<td><select class="impSide" style="font-family:inherit;font-size:12.5px;padding:5px 7px;border:1px solid var(--line);border-radius:8px"><option value=""'+(side?'':' selected')+'>—</option><option value="W"'+selW+'>W หวาน</option><option value="K"'+selK+'>K เขม</option></select></td>'
+      +'<td><select class="impSide" style="font-family:inherit;font-size:12.5px;padding:5px 7px;border:1px solid var(--line);border-radius:8px"><option value=""'+(side?'':' selected')+'>—</option><option value="W"'+selW+'>W Namwhan</option><option value="K"'+selK+'>K Khem</option></select></td>'
       +'</tr>';
   }
   document.getElementById('impBody').innerHTML=html;

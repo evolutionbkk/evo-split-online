@@ -18,6 +18,8 @@ const SALES = {
   W: { user: process.env.SALES_W_USER || 'salesW', pass: process.env.SALES_W_PASS || '' },
   K: { user: process.env.SALES_K_USER || 'salesK', pass: process.env.SALES_K_PASS || '' },
 };
+// Admin Sales (Lyla): distributes FB-chat leads to Telesales; does NOT see the team's CRM/KPI.
+const ADMINSALES = { user: process.env.ADMINSALES_USER || 'adminsales', pass: process.env.ADMINSALES_PASS || '' };
 
 if (!ADMIN_PASS) console.warn('[warn] ADMIN_PASS is not set — set it in Railway Variables before going live.');
 if (!INGEST_KEY) console.warn('[warn] INGEST_KEY is not set — the browser script cannot push data until you set one.');
@@ -109,6 +111,23 @@ function requireLogin(req, res, next) {
   if (!s) return apiPath(req) ? res.status(401).json({ error: 'unauthorized' }) : res.redirect('/login');
   req.session = s; next();
 }
+// requireDistributor = Teamlead (admin) OR Admin Sales (adminsales) — can distribute leads
+function requireDistributor(req, res, next) {
+  const s = readSession(req);
+  if (!s) return apiPath(req) ? res.status(401).json({ error: 'unauthorized' }) : res.redirect('/login');
+  req.session = s;
+  if (s.role !== 'admin' && s.role !== 'adminsales') return apiPath(req) ? res.status(403).json({ error: 'forbidden' }) : res.redirect('/sales');
+  next();
+}
+// requireCrm = Teamlead (admin) OR Telesales (sales) — the lead CRM. Admin Sales (adminsales) is BLOCKED
+// so a distributor never sees the team's customer statuses/notes.
+function requireCrm(req, res, next) {
+  const s = readSession(req);
+  if (!s) return apiPath(req) ? res.status(401).json({ error: 'unauthorized' }) : res.redirect('/login');
+  req.session = s;
+  if (s.role !== 'admin' && s.role !== 'sales') return apiPath(req) ? res.status(403).json({ error: 'forbidden' }) : res.redirect('/distribute');
+  next();
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -139,9 +158,11 @@ app.post('/login', (req, res) => {
   if (ADMIN_PASS && safeEq(username, ADMIN_USER) && safeEq(password, ADMIN_PASS)) { role = 'admin'; user = ADMIN_USER; }
   else if (SALES.W.pass && safeEq(username, SALES.W.user) && safeEq(password, SALES.W.pass)) { role = 'sales'; side = 'W'; user = SALES.W.user; }
   else if (SALES.K.pass && safeEq(username, SALES.K.user) && safeEq(password, SALES.K.pass)) { role = 'sales'; side = 'K'; user = SALES.K.user; }
+  else if (ADMINSALES.pass && safeEq(username, ADMINSALES.user) && safeEq(password, ADMINSALES.pass)) { role = 'adminsales'; user = ADMINSALES.user; }
   if (role) {
     res.setHeader('Set-Cookie', `sess=${makeToken(user, role, side)}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax; Secure`);
-    return res.redirect(role === 'admin' ? '/' : '/sales');
+    const dest = role === 'admin' ? '/' : (role === 'adminsales' ? '/distribute' : '/sales');
+    return res.redirect(dest);
   }
   res.status(401).sendFile(path.join(__dirname, 'login.html'));
 });
@@ -184,6 +205,7 @@ app.get('/api/share-links', requireAuth, (req, res) => {
 // ---------- app ----------
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'app.html')));
 app.get('/sales', requireLogin, (req, res) => res.sendFile(path.join(__dirname, 'sales.html')));
+app.get('/distribute', requireDistributor, (req, res) => res.sendFile(path.join(__dirname, 'distribute.html')));
 
 app.get('/api/state', requireAuth, async (req, res) => {
   await runSweep();
@@ -320,7 +342,7 @@ function whoami(req) { return req.session.role === 'admin' ? 'admin' : req.sessi
 
 app.get('/api/me', requireLogin, (req, res) => res.json({ role: req.session.role, side: req.session.side || null, user: req.session.u }));
 
-app.get('/api/leads', requireLogin, async (req, res) => {
+app.get('/api/leads', requireCrm, async (req, res) => {
   await runSweep();
   const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : (req.query.side === 'W' ? 'W' : null));
   let list = state.assigned;
@@ -332,7 +354,7 @@ app.get('/api/leads', requireLogin, async (req, res) => {
   });
 });
 
-app.post('/api/lead/call', requireLogin, async (req, res) => {
+app.post('/api/lead/call', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   const nowIso = new Date().toISOString();
@@ -346,7 +368,7 @@ app.post('/api/lead/call', requireLogin, async (req, res) => {
   res.json({ ok: true, lead: leadView(rec), advanced });
 });
 
-app.post('/api/lead/update', requireLogin, async (req, res) => {
+app.post('/api/lead/update', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   const p = (req.body && req.body.patch) || {};
@@ -388,7 +410,7 @@ app.post('/api/lead/update', requireLogin, async (req, res) => {
   res.json({ ok: true, lead: leadView(rec), advanced: null });
 });
 
-app.post('/api/lead/archive', requireLogin, async (req, res) => {
+app.post('/api/lead/archive', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   rec.archived = true;
@@ -399,7 +421,7 @@ app.post('/api/lead/archive', requireLogin, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/lead/restore', requireLogin, async (req, res) => {
+app.post('/api/lead/restore', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   rec.archived = false; rec.archiveReason = ''; rec.archivedAt = null;
@@ -410,7 +432,7 @@ app.post('/api/lead/restore', requireLogin, async (req, res) => {
 });
 
 // Manual hand-off: force-advance one stage now (skip the 3-round wait).
-app.post('/api/lead/advance', requireLogin, async (req, res) => {
+app.post('/api/lead/advance', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
   if (rec.archived) return res.status(400).json({ error: 'already_removed' });
@@ -448,6 +470,9 @@ app.post('/api/token', (req, res) => {
 const ONECALL_LINES = { '66948880324': 'W', '66948880326': 'K' };
 const ONECALL_MIN_TALK = 7;   // seconds; > this counts toward KPI
 const ONECALL_MAX = 60000;    // cap stored call records
+// Daily call targets per Telesales (adjustable via Railway Variables)
+const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 50;     // Evolution database calls / day
+const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 5; // Admin-Sales + follow-up calls / day
 function digitsOnly(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
 function normLine(p) { let d = digitsOnly(p); if (d.length === 10 && d[0] === '0') d = '66' + d.slice(1); return d; }
 function onecallSide(localParty) { return ONECALL_LINES[normLine(localParty)] || null; }
@@ -603,19 +628,30 @@ app.post('/api/paste', requireAuth, async (req, res) => {
 // Admin distributes leads: paste from the order Google Sheet, preview-split, assign to W/K.
 // Body: { rows:[{name,phone,address,product,amount,page,closer,side}], step:'T1'|'T2'|'T3', label }
 const STEP_KEYS = ['T1', 'T2', 'T3'];
-app.post('/api/admin/import', requireAuth, async (req, res) => {
+app.post('/api/admin/import', requireDistributor, async (req, res) => {
   const rows = (req.body && req.body.rows) || [];
   if (!Array.isArray(rows)) return res.status(400).json({ error: 'rows must be an array' });
   if (rows.length > 3000) return res.status(400).json({ error: 'too_many', message: 'ครั้งละไม่เกิน 3000 รายชื่อ' });
   const step = STEP_KEYS.includes(req.body && req.body.step) ? req.body.step : 'T1';
-  const summary = S.applyManual(state, rows, { step, label: req.body && req.body.label, by: whoami(req) });
+  const who = req.session.u || 'admin';
+  const summary = S.applyManual(state, rows, { step, label: req.body && req.body.label, by: who, distributedBy: who });
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
 });
 
+// Admin Sales sees ONLY the leads they distributed (name/phone/side/product/amount/date) — NOT the team's CRM.
+app.get('/api/mysent', requireDistributor, (req, res) => {
+  const me = req.session.u;
+  const list = state.assigned
+    .filter((r) => r.source === 'manual' && r.distributedBy === me)
+    .map((r) => ({ name: r.name, phone: r.phone, sales: r.sales, product: r.product || '', orderAmount: r.orderAmount || 0, step: r.step || '', date: r.date || '', at: r.receivedAt || null, archived: !!r.archived }))
+    .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+  res.json({ count: list.length, addW: list.filter((x) => x.sales === 'W').length, addK: list.filter((x) => x.sales === 'K').length, list });
+});
+
 // KPI dashboard aggregates for the team lead (pipeline snapshot + range metrics + per-person).
 // Query: from, to (ISO). Real >7s talk time is filled by the OneCall integration (Phase 4).
-const SALES_NAMES = { W: 'Hwan (หวาน)', K: 'Khem (เขม)' };
+const SALES_NAMES = { W: 'Namwhan (น้ำหวาน)', K: 'Khem (เขม)' };
 function saleRev(r) { return (r.saleItems || []).reduce((s, i) => s + (Number(i.price) || 0), 0); }
 app.get('/api/admin/kpi', requireAuth, async (req, res) => {
   await runSweep();
@@ -635,6 +671,8 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     total: 0, notCalled: 0, called: 0, pending: 0, hand2: 0,
     callsRange: 0, wonRange: 0, newRange: 0, lostRange: 0, revRange: 0,
     callsToday: 0, wonToday: 0, rev: 0, talk7Range: 0, talk7Today: 0,
+    talk7EvoRange: 0, talk7ManualRange: 0, talk7OtherRange: 0,
+    talk7EvoToday: 0, talk7ManualToday: 0, talk7OtherToday: 0,
     archived: 0, recycled: 0,
   });
   const sides = { W: blank(), K: blank() };
@@ -668,19 +706,25 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     if (lostThis) A.lostRange++;
     if (r.receivedAt) { const t = Date.parse(r.receivedAt); if (!isNaN(t) && t >= from && t <= to) A.newRange++; }
   }
+  // phone → lead source, to attribute each real call to Evolution vs Admin-Sales(manual)/follow-up
+  const phoneSrc = new Map();
+  for (const r of state.assigned) { const p = digitsOnly(r.phone); if (p) phoneSrc.set(p, r.source === 'manual' ? 'manual' : 'evolution'); }
   // Real talk-time from OneCall: calls longer than 7s = talked to the customer.
   for (const c of (state.onecall || [])) {
     const A = sides[c.side]; if (!A) continue;
     const t = Date.parse(c.at); if (isNaN(t)) continue;
     if ((c.dur || 0) > ONECALL_MIN_TALK) {
-      if (t >= from && t <= to) A.talk7Range++;
-      if (t >= tStart && t <= tEnd) A.talk7Today++;
+      const src = phoneSrc.get(digitsOnly(c.phone)); // 'manual' | 'evolution' | undefined(no matching lead)
+      const inR = t >= from && t <= to, inT = t >= tStart && t <= tEnd;
+      if (inR) { A.talk7Range++; if (src === 'manual') A.talk7ManualRange++; else if (src === 'evolution') A.talk7EvoRange++; else A.talk7OtherRange++; }
+      if (inT) { A.talk7Today++; if (src === 'manual') A.talk7ManualToday++; else if (src === 'evolution') A.talk7EvoToday++; else A.talk7OtherToday++; }
     }
   }
   res.json({
     from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(),
     names: SALES_NAMES, W: sides.W, K: sides.K,
     onecall: (state.onecall || []).length > 0, onecallUpdatedAt: state.onecallUpdatedAt || null,
+    targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL },
   });
 });
 
