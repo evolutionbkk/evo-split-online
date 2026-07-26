@@ -113,9 +113,14 @@
   <div class="lastact" id="lastact"></div>
 
   <div class="panel">
-    <h2><span data-ic="download" data-sz="18"></span>บันทึกการดึงรายชื่อของเซลล์ (จาก Evolution)</h2>
-    <div class="desc">เซลล์ดึงรายชื่อเองบนเว็บ Evolution · สูงสุด <b>50 รายชื่อ/คน/วัน</b> ตาม KPI · ตารางนี้บันทึกวันที่และจำนวนที่แต่ละคนดึงเข้าระบบ</div>
-    <div class="card" style="box-shadow:none;border:1px solid var(--line);margin-top:6px"><div class="tblwrap" style="max-height:320px"><table>
+    <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
+    <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
+    <div class="row">
+      <button class="b-add" id="pullBtn" onclick="doPull()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>ดึงรายชื่อ + แจก 50/50 อัตโนมัติ</button>
+      <span class="hint" id="evostatus" style="font-size:12.5px;color:#6b7280"></span>
+    </div>
+    <div class="desc" style="margin-top:12px;margin-bottom:4px"><b>บันทึกการดึงรายชื่อ</b> (วันที่ · จำนวนที่แจกให้แต่ละคน)</div>
+    <div class="card" style="box-shadow:none;border:1px solid var(--line)"><div class="tblwrap" style="max-height:320px"><table>
       <thead><tr><th>วันที่</th><th style="text-align:right">Namwhan (W)</th><th style="text-align:right">Khem (K)</th><th style="text-align:right">รวม</th></tr></thead>
       <tbody id="pullsBody"></tbody>
     </table></div></div>
@@ -123,7 +128,7 @@
 
   <div class="note">
     <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก (นำเข้า manual กันซ้ำด้วยเบอร์) &nbsp;|&nbsp;
-    ข้อมูลใหม่ส่งเข้ามาอัตโนมัติจากสคริปต์ในเบราว์เซอร์ (หรือกดปุ่มด้านบน / วางเองด้านล่างก็ได้)
+    ต้องเปิดหน้า Evolution (ที่ติดตั้งสคริปต์) ค้างไว้สักครั้งเพื่อเชื่อม token ก่อนกดดึง
   </div>
 
   <div class="panel" id="kpiPanel">
@@ -550,8 +555,24 @@ async function loadPulls(){
     }).join('') : '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:18px">ยังไม่มีบันทึกการดึงรายชื่อ</td></tr>';
   }catch(e){}
 }
+async function doPull(){
+  const btn=document.getElementById('pullBtn'); btn.disabled=true; const old=btn.innerHTML; btn.innerHTML='กำลังดึง…';
+  try{
+    const r=await fetch('/api/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const j=await r.json();
+    if(!r.ok){ document.getElementById('lastact').innerHTML=ic('alert',14)+(j.message||'ดึงไม่สำเร็จ'); }
+    else{ const su=j.summary||{}; const capMsg=(su.capped>0)?(' · <b style="color:#b45309">เต็มโควตาวันนี้ (100/วัน)</b> เหลืออีก '+su.capped+' รอพรุ่งนี้'):''; document.getElementById('lastact').innerHTML=ic('check',14)+'ดึงจาก Evolution '+j.pulled+' ราย → แจกใหม่ <b>'+su.added+'</b> (Namwhan '+su.addW+' / Khem '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>'+capMsg; }
+  }catch(e){ document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e; }
+  btn.disabled=false; btn.innerHTML=old; refresh(); loadPulls(); evoStatus();
+}
+async function evoStatus(){
+  try{ const r=await fetch('/api/evo-status'); if(!r.ok)return; const s=await r.json();
+    const el=document.getElementById('evostatus'); if(!el)return;
+    el.innerHTML = s.hasToken ? (ic('check',13)+'เชื่อมกับ Evolution แล้ว · token อัปเดต '+fmt(s.tokenUpdatedAt)) : (ic('alert',13)+'ยังไม่ได้เชื่อม — เปิดหน้า Evolution (ที่ติดตั้งสคริปต์) สักครั้งก่อนกดดึง');
+  }catch(e){}
+}
 fillIcons();
-refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000);
+refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000);
 </script>
 </body>
 </html>

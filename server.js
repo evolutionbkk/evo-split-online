@@ -48,7 +48,9 @@ function mapItems(j) {
 async function boot() {
   await store.init();
   let s = await store.load();
-  if (!s || !Array.isArray(s.assigned) || !s.assigned.length) {
+  // Seed ONLY when there is no saved state at all (brand-new DB). An intentionally
+  // emptied state (assigned:[]) is respected so "start from zero" survives restarts.
+  if (!s || !Array.isArray(s.assigned)) {
     const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'seed.json'), 'utf8'));
     s = S.buildSeed(seed);
     s = await store.save(s);
@@ -791,6 +793,16 @@ app.post('/api/reset', requireAuth, async (req, res) => {
   state = S.buildSeed(seed);
   state = await store.save(state);
   res.json({ ok: true, total: state.assigned.length });
+});
+
+// Start from zero: wipe all lead assignments and the pull log. (Call recordings/onecall
+// are kept.) The daily auto-backup already snapshots the previous data for recovery.
+app.post('/api/clear', requireAuth, async (req, res) => {
+  const before = state.assigned.length;
+  state = { assigned: [], maxRound: 0, onecall: state.onecall || [], pulls: [] };
+  state = await store.save(state);
+  console.log('[clear] wiped', before, 'leads → 0 (start from zero)');
+  res.json({ ok: true, cleared: before, total: 0 });
 });
 
 // ---------- exports ----------
