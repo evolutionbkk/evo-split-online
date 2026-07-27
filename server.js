@@ -529,25 +529,34 @@ function pancakeItems(o) {
   }
   return parts.join(', ').slice(0, 200);
 }
-// Build a full Thai address string from whatever address shape Pancake provides.
+// Pick a readable Thai address from a Pancake address object.
+function pickPancakeAddr(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  const full = obj.new_full_address || obj.full_address || obj.address_full || obj.full_name_address || '';
+  if (full && String(full).trim()) return String(full).trim();
+  const parts = [obj.address, obj.commune_name || obj.commnue_name || obj.ward_name || obj.commune, obj.district_name || obj.district, obj.province_name || obj.province, obj.post_code || obj.zip_code]
+    .map((x) => (x == null ? '' : String(x).trim())).filter(Boolean);
+  return parts.join(' ');
+}
+// Build a full Thai address string from a Pancake ORDER.
 function pancakeAddress(o) {
   if (!o) return '';
-  const sa = o.shipping_address || (o.customer && o.customer.shipping_address) || null;
-  const pick = (obj) => {
-    if (!obj || typeof obj !== 'object') return '';
-    const full = obj.full_address || obj.address_full || obj.full_name_address || '';
-    if (full && String(full).trim()) return String(full).trim();
-    const parts = [obj.address, obj.commune_name || obj.ward_name || obj.commune, obj.district_name || obj.district, obj.province_name || obj.province, obj.country_name, obj.post_code || obj.zip_code]
-      .map((x) => (x == null ? '' : String(x).trim())).filter(Boolean);
-    return parts.join(' ');
-  };
-  let addr = pick(sa);
+  let addr = pickPancakeAddr(o.shipping_address);
   if (!addr) {
-    const caList = (o.customer && (o.customer.shipping_addresses || o.customer.addresses)) || o.shipping_addresses || [];
-    if (Array.isArray(caList) && caList.length) addr = pick(caList[0]);
+    const list = (o.customer && (o.customer.shop_customer_addresses || o.customer.shipping_addresses || o.customer.addresses)) || o.shop_customer_addresses || o.shipping_addresses || [];
+    if (Array.isArray(list) && list.length) addr = pickPancakeAddr(list[0]);
   }
   if (!addr) addr = String(o.bill_full_address || o.full_address || '').trim();
   return addr.slice(0, 500);
+}
+// Build a full Thai address string from a Pancake CUSTOMER (customers API).
+function pancakeCustomerAddress(c) {
+  if (!c) return '';
+  const list = c.shop_customer_addresses || c.shipping_addresses || c.addresses || [];
+  let addr = '';
+  if (Array.isArray(list) && list.length) { for (const a of list) { addr = pickPancakeAddr(a); if (addr) break; } }
+  if (!addr) addr = pickPancakeAddr(c.shipping_address);
+  return String(addr || '').slice(0, 500);
 }
 function pancakeOrderToRow(o) {
   const phone = String((o.bill_phone_number || '') || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')).trim();
@@ -1030,6 +1039,7 @@ async function pancakeRefill(daysMin, daysMax) {
           lastOrderAt: c.last_order_at, daysSince: Math.floor((now - lo) / 86400000),
           orderCount: Number(c.order_count || 0), succeedOrders: Number(c.succeed_order_count || 0),
           spent: Math.round(Number(c.purchased_amount || 0)) / 100,
+          address: pancakeCustomerAddress(c),
           inQueue: seenActive.has(digitsOnly(phone)),
         });
       }
@@ -1055,7 +1065,7 @@ app.post('/api/pancake/refill/import', requireAuth, async (req, res) => {
   const d = _refillCache.data || { candidates: [] };
   let cands = d.candidates || [];
   if (phones) { const set = new Set(phones.map(digitsOnly)); cands = cands.filter((c) => set.has(digitsOnly(c.phone))); }
-  const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null }));
+  const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '' }));
   const sum = S.applyManual(state, rows, { source: 'refill', by: 'Refill', step: 'T1' });
   state = await store.save(state);
   res.json({ ok: true, added: sum.added, addW: sum.addW, addK: sum.addK, dup: sum.dup });
@@ -1082,7 +1092,7 @@ async function pancakeRefillAuto() {
       state.refillAuto = { lastRun: new Date().toISOString(), added: 0, open: openRefill, scanned: data.scanned || 0, note: 'no_candidates' };
       await store.save(state); return { added: 0, open: openRefill };
     }
-    const rows = pick.map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null }));
+    const rows = pick.map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '' }));
     const sum = S.applyManual(state, rows, { source: 'refill', by: 'Auto-Refill', step: 'T1' });
     state.refillAuto = { lastRun: new Date().toISOString(), added: sum.added, addW: sum.addW, addK: sum.addK, open: openRefill + sum.added, scanned: data.scanned || 0 };
     state = await store.save(state);
@@ -1119,24 +1129,40 @@ app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
   try { state = await store.save(state); } catch (_) {}
   res.json({ ok: !out.err, added: out.added, hours, error: out.err || null });
 });
-// TEMP DIAGNOSTIC: show address-related KEY NAMES on a sample order (no values/PII/keys). Remove after use.
-app.get('/api/pancake/_debugkeys', requireAuth, async (req, res) => {
-  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
+// One-time backfill: fill the address on existing leads that are missing one,
+// matching by phone against Pancake orders (recent) + customers (repeat buyers).
+app.post('/api/pancake/fill-address', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key' });
+  const map = new Map();
+  const put = (phone, addr) => { const p = digitsOnly(phone); if (p && addr && String(addr).trim() && !map.has(p)) map.set(p, String(addr).trim()); };
+  let fromOrders = 0, fromCustomers = 0;
   try {
-    const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=1&page_size=5';
-    const j = await (await fetch(url)).json();
-    const o = (j.data || [])[0] || {};
-    const addrShape = {};
-    for (const k of Object.keys(o)) {
-      if (!/addr|ship|bill|province|district|commune|ward|location|full/i.test(k)) continue;
-      const v = o[k];
-      addrShape[k] = (v && typeof v === 'object' && !Array.isArray(v)) ? ('OBJ{' + Object.keys(v).join(',') + '}')
-        : Array.isArray(v) ? ('ARR[' + (v[0] && typeof v[0] === 'object' ? Object.keys(v[0]).join(',') : typeof (v[0])) + ']')
-        : typeof v;
+    // Pancake ORDERS (recent) — up to 10 pages
+    for (let page = 1; page <= 10; page++) {
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const o of j.data) { const a = pancakeAddress(o); if (a) { const before = map.size; put(o.bill_phone_number || (o.shipping_address && o.shipping_address.phone_number) || (o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]), a); if (map.size > before) fromOrders++; } }
+      if (j.data.length < 100) break;
     }
-    const cust = o.customer && typeof o.customer === 'object' ? Object.keys(o.customer).filter((k) => /addr|ship/i.test(k)) : [];
-    res.json({ orderKeys: Object.keys(o), addrShape, customerAddrKeys: cust, extracted: pancakeAddress(o) ? 'HAS_ADDRESS' : 'EMPTY' });
-  } catch (e) { res.json({ error: String(e) }); }
+    // Pancake CUSTOMERS (repeat buyers) — up to 16 pages
+    for (let page = 1; page <= 16; page++) {
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const c of j.data) { const a = pancakeCustomerAddress(c); if (a) { const before = map.size; put((c.phone_numbers && c.phone_numbers[0]) || '', a); if (map.size > before) fromCustomers++; } }
+      if (j.data.length < 100) break;
+    }
+  } catch (e) { return res.status(500).json({ error: String(e), mapSize: map.size }); }
+  let filled = 0;
+  for (const r of state.assigned) {
+    if (r.archived) continue;
+    if (r.address && String(r.address).trim()) continue;
+    const a = map.get(digitsOnly(r.phone));
+    if (a) { r.address = a; pushHist(r, 'address', 'auto-fill from Pancake', 'system'); filled++; }
+  }
+  if (filled) state = await store.save(state);
+  res.json({ ok: true, filled, mapSize: map.size, fromOrders, fromCustomers });
 });
 app.get('/api/pancake/status', requireAuth, (req, res) => {
   const p = state.pancake || {};
