@@ -1131,6 +1131,44 @@ app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
   try { state = await store.save(state); } catch (_) {}
   res.json({ ok: !out.err, added: out.added, hours, error: out.err || null });
 });
+// Deeper backfill by DAYS: page through Pancake orders and import every closed sale
+// updated within the last N days (dedup by phone against active leads). Forward-only poll unchanged.
+app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
+  const days = Math.min(120, Math.max(1, Number(req.query.days) || 30));
+  if (!state.pancake) state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null };
+  const cutoff = Date.now() - days * 86400000;
+  const seen = new Set(state.pancake.seen || []);
+  const rows = [];
+  let scanned = 0, pages = 0, inWindow = 0;
+  try {
+    for (let page = 1; page <= 30; page++) {
+      pages = page;
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const o of j.data) {
+        scanned++;
+        const upd = Date.parse(o.updated_at || o.inserted_at || 0);
+        if (!isFinite(upd) || upd < cutoff) continue;            // outside the N-day window
+        inWindow++;
+        if (PANCAKE_SKIP_STATUS.has(String(o.status))) continue; // not a closed sale
+        const id = String(o.id || o.system_id);
+        if (seen.has(id)) continue;
+        rows.push(pancakeOrderToRow(o));
+        seen.add(id);
+      }
+      if (j.data.length < 100) break;
+    }
+    let added = 0, addW = 0, addK = 0, dup = 0;
+    if (rows.length) { const sum = S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1' }); added = sum.added; addW = sum.addW; addK = sum.addK; dup = sum.dup; }
+    state.pancake.seen = Array.from(seen).slice(-8000);
+    state.pancake.lastRun = new Date().toISOString();
+    state.pancake.lastAdded = added;
+    state = await store.save(state);
+    res.json({ ok: true, days, pages, scanned, inWindow, closedSaleCandidates: rows.length, added, addW, addK, dup });
+  } catch (e) { res.status(500).json({ error: String(e), scanned, pages }); }
+});
 // One-time backfill: fill the address on existing leads that are missing one,
 // matching by phone against Pancake orders (recent) + customers (repeat buyers).
 app.post('/api/pancake/fill-address', requireAuth, async (req, res) => {
