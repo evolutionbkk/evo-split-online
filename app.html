@@ -233,7 +233,17 @@
 
   <div class="panel" id="callPanel" data-sec="analytics">
     <h2><span data-ic="activity" data-sz="18"></span>วิเคราะห์การโทร (OneCall) <span id="callrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
-    <div class="desc">ภาพรวมสายที่โทรจริงจาก OneCall · เลือกช่วงเวลาจากแถบด้านบน (Dashboard KPI) · <span style="color:#166534">คุยจริง = สายที่นานเกิน <b id="callmintalk">7</b> วิ</span></div>
+    <div class="desc">ภาพรวมสายที่โทรจริงจาก OneCall · เลือกช่วงเวลาได้เอง · <span style="color:#166534">คุยจริง = สายที่นานเกิน <b id="callmintalk">7</b> วิ</span></div>
+    <div class="krange" id="anRange" style="margin:6px 0 12px;flex-wrap:wrap">
+      <button class="kr on" data-r="today" onclick="anSetRange('today')">รายวัน (วันนี้)</button>
+      <button class="kr" data-r="7" onclick="anSetRange('7')">รายสัปดาห์ (7 วัน)</button>
+      <button class="kr" data-r="30" onclick="anSetRange('30')">รายเดือน (30 วัน)</button>
+      <button class="kr" data-r="custom" onclick="anSetRange('custom')">เลือกวันเอง</button>
+      <span id="anCustom" style="display:none;gap:6px;align-items:center">
+        <input type="date" id="anFrom"> – <input type="date" id="anTo">
+        <button class="b-b" style="padding:6px 12px" onclick="anLoad()">ดู</button>
+      </span>
+    </div>
     <div id="callWarn" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:10px"></div>
     <div class="tblwrap" style="margin-bottom:14px"><table id="callSummary" style="min-width:520px">
       <thead><tr>
@@ -581,7 +591,6 @@ async function loadKpi(){
     if(KPI_ONECALL){oc.style.color='#166534';oc.style.background='#f0fdf4';oc.style.borderColor='#bbf7d0';oc.innerHTML=ic('check',13)+' เชื่อม OneCall แล้ว · อัปเดตล่าสุด '+(j.onecallUpdatedAt?fmt(j.onecallUpdatedAt):'-')+' · KPI “สายคุยจริง &gt;7 วิ” นับจากเวลาโทรจริง (กันกรอกมั่วตัวเลข)';}
     else{oc.style.color='#92400e';oc.style.background='#fffbeb';oc.style.borderColor='#fde68a';oc.innerHTML=ic('info',13)+' KPI “สายคุยจริงเกิน 7 วินาที” ยังไม่เชื่อม OneCall — ติดตั้ง userscript แล้วข้อมูลจะขึ้นอัตโนมัติ · ตอนนี้ “สายที่โทร” คือจำนวนที่เซลล์กดบันทึกในระบบ';}
     renderMgmt(j);
-    loadCallStats(q);
   }catch(e){}
 }
 // ===== Management view: sales funnel + revenue vs target =====
@@ -632,6 +641,22 @@ function renderMgmt(j){
   const rl=document.getElementById('mgmtrangelbl'); if(rl)rl.textContent='· '+j.from.slice(0,10)+' → '+j.to.slice(0,10);
 }
 // ===== Call analytics + charts (OneCall) =====
+// Independent date range for the analytics panel (daily / weekly / monthly / custom).
+let ANR={mode:'today'};
+function anSetRange(m){
+  ANR.mode=m;
+  document.querySelectorAll('#anRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
+  const c=document.getElementById('anCustom'); if(c)c.style.display=(m==='custom')?'inline-flex':'none';
+  if(m!=='custom')anLoad();
+}
+function anRangeQ(){
+  if(ANR.mode==='custom'){
+    const f=(document.getElementById('anFrom')||{}).value,t=(document.getElementById('anTo')||{}).value;
+    const p=[]; if(f)p.push('from='+encodeURIComponent(new Date(f+'T00:00:00').toISOString())); if(t)p.push('to='+encodeURIComponent(new Date(t+'T23:59:59').toISOString())); return p.join('&');
+  }
+  const r=rangeFor(ANR.mode); return 'from='+encodeURIComponent(r.from)+'&to='+encodeURIComponent(r.to);
+}
+function anLoad(){ loadCallStats(anRangeQ()); }
 let CHART_DAILY=null,CHART_HOURLY=null;
 const WCOL='#2563eb',KCOL='#db2777';
 function callRow(label,color,a){
@@ -939,6 +964,7 @@ function showSec(sec){
   document.querySelectorAll('[data-sec]').forEach(el=>el.classList.toggle('shown',el.dataset.sec===sec));
   renderNav();
   if(sec==='refill'&&!REFILL_LOADED){REFILL_LOADED=true;loadRefill(false);}
+  if(sec==='analytics')anLoad();
   window.scrollTo(0,0);
 }
 // ===== Refill (ลูกค้าเดิมซื้อซ้ำ) =====
