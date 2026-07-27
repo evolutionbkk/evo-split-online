@@ -238,9 +238,15 @@
     <div id="clWarn" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:10px"></div>
     <div class="cards" id="clStats" style="grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px"></div>
 
-    <div class="tblwrap" style="max-height:460px"><table style="min-width:640px">
+    <div id="clPlayerBar" style="display:none;align-items:center;gap:10px;margin-bottom:12px;padding:9px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px">
+      <span id="clPlayerLabel" style="font-size:12.5px;color:#0369a1;font-weight:700;white-space:nowrap"></span>
+      <audio id="clPlayer" controls preload="none" style="flex:1;min-width:180px;height:36px"></audio>
+      <button class="b-b" style="padding:6px 12px" onclick="clClosePlayer()">ปิด</button>
+    </div>
+
+    <div class="tblwrap" style="max-height:460px"><table style="min-width:700px">
       <thead><tr>
-        <th>เวลา</th><th>เซลล์</th><th>เบอร์</th><th>ชื่อลูกค้า</th><th style="text-align:center">ทิศทาง</th>
+        <th style="text-align:center">ฟัง</th><th>เวลา</th><th>เซลล์</th><th>เบอร์</th><th>ชื่อลูกค้า</th><th style="text-align:center">ทิศทาง</th>
         <th style="text-align:right">ระยะเวลาคุย</th><th style="text-align:center">โทรซ้ำ</th>
       </tr></thead>
       <tbody id="clBody"></tbody>
@@ -810,7 +816,13 @@ function renderCallLog(){
     const repBadge=rc>1?`<span class="badge" style="background:${rc>=3?'#fef3c7':'#f1f5f9'};color:${rc>=3?'#b45309':'#475569'};font-weight:700">×${rc}</span>`:'<span style="color:#cbd5e1">–</span>';
     const talk=c.dur>mt;
     const dir=/IN/i.test(c.dir)?'<span style="color:#0e7490">เข้า</span>':'<span style="color:#475569">ออก</span>';
+    const lbl=fmtDT(c.at)+' · '+(c.phone||'')+' ('+c.side+')';
+    const listen=(c.id!=null)
+      ? `<button class="clplay" title="ฟังเสียง" onclick="clPlay('${c.id}',${JSON.stringify(lbl).replace(/"/g,'&quot;')})" style="border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:13px">▶</button>
+         <a href="/api/onecall/audio/${c.id}?dl=1" title="ดาวน์โหลด" style="margin-left:4px;color:#64748b;text-decoration:none;font-size:13px">⬇</a>`
+      : '<span style="color:#cbd5e1">–</span>';
     return `<tr>
+      <td style="text-align:center;white-space:nowrap">${listen}</td>
       <td style="white-space:nowrap">${fmtDT(c.at)}</td>
       <td>${sideBadge(c.side)} ${esc((CL_DATA.names&&CL_DATA.names[c.side])||c.side)}</td>
       <td style="font-variant-numeric:tabular-nums">${esc(c.phone||'–')}</td>
@@ -819,8 +831,20 @@ function renderCallLog(){
       <td style="text-align:right;font-weight:600;color:${talk?'#166534':'#94a3b8'}">${fmtDur(c.dur)}</td>
       <td style="text-align:center">${repBadge}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">ไม่มีสายที่ตรงกับตัวกรอง</td></tr>';
-  document.getElementById('clFoot').innerHTML='แสดง <b>'+rows.length+'</b> สาย'+(CL_DATA.capped?' (จำกัด 3000 สายล่าสุด)':'')+' · โทรซ้ำ ×N = จำนวนครั้งที่เซลล์คนนั้นโทรเบอร์นั้นในช่วงที่เลือก';
+  }).join(''):'<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px">ไม่มีสายที่ตรงกับตัวกรอง</td></tr>';
+  document.getElementById('clFoot').innerHTML='แสดง <b>'+rows.length+'</b> สาย'+(CL_DATA.capped?' (จำกัด 3000 สายล่าสุด)':'')+' · โทรซ้ำ ×N = จำนวนครั้งที่เซลล์คนนั้นโทรเบอร์นั้นในช่วงที่เลือก · ▶ ฟังเสียง / ⬇ ดาวน์โหลด (เฉพาะ Teamlead)';
+}
+function clPlay(id,label){
+  const bar=document.getElementById('clPlayerBar'),p=document.getElementById('clPlayer');
+  document.getElementById('clPlayerLabel').textContent='🔊 '+label;
+  bar.style.display='flex';
+  p.src='/api/onecall/audio/'+id;
+  p.play().catch(()=>{});
+  bar.scrollIntoView({block:'nearest'});
+}
+function clClosePlayer(){
+  const p=document.getElementById('clPlayer'); try{p.pause();}catch(e){} p.removeAttribute('src'); p.load();
+  document.getElementById('clPlayerBar').style.display='none';
 }
 fillIcons();
 refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000);

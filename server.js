@@ -868,13 +868,42 @@ app.get('/api/admin/calllog', requireAuth, (req, res) => {
     if (sideF && sd !== sideF) continue;
     const t = Date.parse(c.at); if (isNaN(t)) continue;
     if (t < from || t > to) continue;
-    calls.push({ side: sd, phone: c.phone, name: nameMap.get(digitsOnly(c.phone)) || '', dur: Number(c.dur) || 0, at: c.at, dir: c.dir || '' });
+    calls.push({ id: c.id, side: sd, phone: c.phone, name: nameMap.get(digitsOnly(c.phone)) || '', dur: Number(c.dur) || 0, at: c.at, dir: c.dir || '' });
   }
   calls.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   res.json({
     names: SALES_NAMES, minTalk: ONECALL_MIN_TALK,
     total: calls.length, capped: calls.length > 3000, calls: calls.slice(0, 3000),
   });
+});
+
+// Stream a OneCall recording's audio through our server (token stays server-side, admin-only).
+// The recording id is the same id we already store in state.onecall.
+app.get('/api/onecall/audio/:id', requireAuth, async (req, res) => {
+  const id = String(req.params.id || '').replace(/\D/g, '');
+  if (!id) return res.status(400).json({ error: 'bad_id' });
+  if (!onecallAuth.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่มี token OneCall — เปิดหน้า OneCall (ที่ติดตั้ง userscript) สักครั้ง' });
+  const usage = req.query.dl ? 'download' : 'play';
+  const url = ONECALL_HOST + '/orktrack/rest/mediastream/' + id + '?at=' + encodeURIComponent(onecallAuth.token) + '&usage=' + usage;
+  try {
+    const headers = { 'Authorization': onecallAuth.token, 'Accept': '*/*' };
+    if (req.headers.range) headers.Range = req.headers.range;
+    const r = await fetch(url, { headers });
+    if (r.status === 401 || r.status === 403) return res.status(400).json({ error: 'token_expired', message: 'token OneCall หมดอายุ — เปิดหน้า OneCall อีกครั้ง' });
+    if (!r.ok && r.status !== 206) return res.status(502).json({ error: 'audio_unavailable', status: r.status });
+    res.status(r.status);
+    const pass = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
+    for (const h of pass) { const v = r.headers.get(h); if (v) res.setHeader(h, v); }
+    if (!r.headers.get('content-type')) res.setHeader('Content-Type', 'audio/wav');
+    if (usage === 'download') res.setHeader('Content-Disposition', 'attachment; filename="call-' + id + '.wav"');
+    if (r.body && typeof require('stream').Readable.fromWeb === 'function') {
+      require('stream').Readable.fromWeb(r.body).pipe(res);
+    } else {
+      res.end(Buffer.from(await r.arrayBuffer()));
+    }
+  } catch (e) {
+    res.status(502).json({ error: 'audio_failed', message: String(e) });
+  }
 });
 
 app.post('/api/reset', requireAuth, async (req, res) => {
