@@ -504,7 +504,7 @@ const ONECALL_MIN_TALK = 7;   // seconds; > this counts toward KPI
 const ONECALL_MAX = 60000;    // cap stored call records
 // Daily call targets per Telesales (adjustable via Railway Variables)
 const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 50;     // Evolution database calls / day
-const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 5; // Admin-Sales + follow-up calls / day
+const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 15; // FB + Follow-up calls/day (T1+T2+T3 = 5+5+5, counted per call)
 const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
 // Evolution pull quota: new leads handed to EACH Telesales per day (100/day total = 50 each)
 const EVO_DAILY_PER_SIDE = Number(process.env.EVO_DAILY_PER_SIDE) || 50;
@@ -788,6 +788,7 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     talk7EvoRange: 0, talk7ManualRange: 0, talk7OtherRange: 0,
     talk7EvoToday: 0, talk7ManualToday: 0, talk7OtherToday: 0,
     calledEvoRange: 0, calledManualRange: 0, calledEvoToday: 0, calledManualToday: 0,
+    callsManualRange: 0, callsManualToday: 0,
     archived: 0, recycled: 0,
   });
   const sides = { W: blank(), K: blank() };
@@ -823,7 +824,7 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
   }
   // Match each OneCall to a lead by side|phone → attribute to Evolution vs Admin-Sales(manual)
   const leadSrc = new Map();
-  for (const r of state.assigned) { if (r.archived) continue; const p = digitsOnly(r.phone); if (p) leadSrc.set(r.sales + '|' + p, r.source === 'manual' ? 'manual' : 'evolution'); }
+  for (const r of state.assigned) { if (r.archived) continue; const p = digitsOnly(r.phone); if (p) leadSrc.set(r.sales + '|' + p, (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill') ? 'manual' : 'evolution'); }
   const mkSets = () => ({ evo: new Set(), manual: new Set() });
   const calledR = { W: mkSets(), K: mkSets() }, calledT = { W: mkSets(), K: mkSets() };
   for (const c of (state.onecall || [])) {
@@ -834,8 +835,8 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     // "โทรแล้ว" = unique matched leads that got ≥1 call (any duration) — per lead
     if (src) {
       const b = src === 'manual' ? 'manual' : 'evo';
-      if (inR) calledR[c.side][b].add(key);
-      if (inT) calledT[c.side][b].add(key);
+      if (inR) { calledR[c.side][b].add(key); if (b === 'manual') A.callsManualRange++; }
+      if (inT) { calledT[c.side][b].add(key); if (b === 'manual') A.callsManualToday++; }
     }
     // KPI = per-call talks >7s, bucketed by source (or 'Other' if not a lead on this side)
     if ((c.dur || 0) > ONECALL_MIN_TALK) {
