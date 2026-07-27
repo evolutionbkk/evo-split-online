@@ -528,7 +528,8 @@ function pancakeOrderToRow(o) {
   const phone = String((o.bill_phone_number || '') || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')).trim();
   const name = String((o.bill_full_name || '') || ((o.customer && o.customer.name) || '')).trim();
   const page = String((o.page && o.page.name) || o.order_sources_name || '').slice(0, 120);
-  const amount = Number(o.total_price_after_sub_discount || o.total_price || 0) || 0;
+  // Pancake stores money in the smallest unit (satang) → divide by 100 for THB.
+  const amount = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
   return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page };
 }
 async function pancakePull() {
@@ -985,6 +986,13 @@ app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
   if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
   const hours = Math.min(48, Math.max(1, Number(req.query.hours) || 6));
   if (!state.pancake) state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null };
+  // ?reset=1 : drop previously-imported Pancake leads first, then re-import fresh (fixes bad data).
+  if (req.query.reset) {
+    const before = state.assigned.length;
+    state.assigned = state.assigned.filter((r) => r.source !== 'pancake');
+    state.pancake.seen = [];
+    console.log('[pancake] reset removed', before - state.assigned.length, 'pancake leads');
+  }
   state.pancake.startedAt = new Date(Date.now() - hours * 3600000).toISOString();
   const out = await pancakePull();
   state.pancake.startedAt = new Date().toISOString(); // forward-only from here on
