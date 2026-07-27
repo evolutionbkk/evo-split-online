@@ -161,11 +161,13 @@
   <div class="head" id="head"><h1><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1z"/><path d="M9 4h6"/></svg><span id="title">งานของฉัน</span></h1><form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form></div>
   <div class="switch" id="switch"></div>
   <div class="buckets" id="buckets"></div>
+  <button id="callModeBtn" onclick="callModeStart()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--grad-w);color:#fff;font-weight:700;font-size:15px;border:none;border-radius:13px;padding:13px;margin-bottom:14px;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,.24)">▶ โหมดโทรทีละราย — โฟกัสไล่โทรทีละคน</button>
   <div class="chips" id="chips"></div>
   <div class="search"><span class="si"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input type="text" id="search" placeholder="ค้นหา ชื่อ / เบอร์ / รหัส…" oninput="render()"></div>
   <div id="list"></div>
 </div>
 <div class="mbg" id="mbg" onclick="if(event.target===this)closeSheet()"><div class="sheet" id="sheet"></div></div>
+<div class="mbg" id="cmbg" onclick="if(event.target===this)callModeClose()"><div class="sheet" id="cmsheet"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -485,6 +487,42 @@ async function setField(field,value){
   if(j&&j.ok){ toast(nv?'บันทึกแล้ว':'ล้างแล้ว'); await reload(); openLeadByKey(CUR.key); }
 }
 function closeSheet(){document.getElementById('mbg').classList.remove('on');CUR=null;}
+// ===== โหมดโทรทีละราย (focus dialer) =====
+let CM_LIST=[],CM_IDX=0;
+function callModeStart(){
+  CM_LIST=(CURLIST||[]).slice();
+  if(!CM_LIST.length){toast('ไม่มีรายชื่อในหมวดนี้');return;}
+  CM_IDX=0;document.getElementById('cmbg').classList.add('on');callModeRender();
+}
+function callModeClose(){document.getElementById('cmbg').classList.remove('on');reload();}
+function callModeNext(){if(CM_IDX<CM_LIST.length-1){CM_IDX++;callModeRender();}else{toast('ไล่ครบทุกรายแล้ว 🎉');callModeClose();}}
+function callModePrev(){if(CM_IDX>0){CM_IDX--;callModeRender();}}
+function callModeCall(){const r=CM_LIST[CM_IDX];if(r)api('/api/lead/call',{key:r.key}).then(()=>{});/* ไม่ preventDefault ให้ tel: โทรออก */}
+function callModeAct(v,label){const r=CM_LIST[CM_IDX];if(!r)return;r.leadStatus=v;api('/api/lead/update',{key:r.key,patch:{leadStatus:v}}).then(()=>{toast('บันทึก: '+label);callModeNext();});}
+function callModeRender(){
+  const r=CM_LIST[CM_IDX];if(!r){callModeClose();return;}
+  const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
+  const qbtn=(v,lbl,ico,bg,fg)=>`<button onclick="callModeAct('${v}','${lbl}')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:5px;background:${bg};color:${fg};border:none;border-radius:11px;padding:12px 6px;font-weight:700;font-size:14px;cursor:pointer">${ic(ico,15)}${lbl}</button>`;
+  document.getElementById('cmsheet').innerHTML=`<button class="closeX" onclick="callModeClose()">${ic('x',16)}</button>
+    <div style="font-size:13px;color:#64748b;font-weight:800;margin-bottom:8px">📞 โทรทีละราย · <span style="color:#2563eb">${CM_IDX+1}</span> / ${CM_LIST.length}</div>
+    <div style="height:5px;background:#eef2f7;border-radius:4px;margin-bottom:14px;overflow:hidden"><div style="height:100%;width:${Math.round((CM_IDX+1)/CM_LIST.length*100)}%;background:linear-gradient(90deg,#2563eb,#22c55e)"></div></div>
+    <h3 style="margin:0 0 3px;font-size:22px">${esc(r.name)||'(ไม่มีชื่อ)'}</h3>
+    <div class="sub" style="margin-bottom:14px">${esc(r.code)||''} · <span class="badge ${sm.badge}">${ic(sm.icon,12)}${sm.label}</span>${r.callCount?(' · โทรมาแล้ว <b>'+r.callCount+'</b> ครั้ง'):''}</div>
+    <a class="dialbtn" href="tel:${esc(r.phone)}" onclick="callModeCall()" style="font-size:20px;padding:18px;margin-bottom:14px">${ic('phone',20)} โทรออก ${esc(r.phone)}</a>
+    ${realCallBox(r)}
+    ${orderBox(r)}
+    <div style="font-size:12.5px;color:#475569;font-weight:800;margin:16px 0 8px">อัปเดตผลเร็ว แล้วไปรายต่อไปอัตโนมัติ</div>
+    <div style="display:flex;gap:8px">
+      ${qbtn('interested','สนใจ','star','#f5f3ff','#6d28d9')}
+      ${qbtn('followup','นัดติดตาม','calendar','#ecfeff','#0e7490')}
+      ${qbtn('won','ปิดได้','checkCircle','#f0fdf4','#166534')}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button onclick="callModePrev()" ${CM_IDX===0?'disabled':''} style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:11px;padding:13px;font-weight:700;cursor:pointer;opacity:${CM_IDX===0?0.5:1}">‹ ก่อนหน้า</button>
+      <button onclick="callModeNext()" style="flex:2;background:#0f172a;color:#fff;border:none;border-radius:11px;padding:13px;font-weight:700;cursor:pointer">ข้าม / ถัดไป ›</button>
+    </div>
+    <div style="text-align:center;margin-top:12px"><a href="#" onclick="callModeClose();setTimeout(()=>openLeadByKey('${r.key}'),50);return false;" style="font-size:12.5px;color:#2563eb">เปิดรายละเอียดเต็ม →</a></div>`;
+}
 async function saveFollowup(){
   if(!CUR)return; const v=document.getElementById('fdate').value;
   const iso=v?new Date(v).toISOString():'';
