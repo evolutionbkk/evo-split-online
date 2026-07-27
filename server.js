@@ -282,7 +282,7 @@ function leadView(r, ocMap) {
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
     source: r.source || 'evolution', step: r.step || '', product: r.product || '',
-    orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '',
+    orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
     history: (r.history || []).slice(-40),
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
@@ -514,6 +514,11 @@ const PANCAKE_SHOP_ID = process.env.PANCAKE_SHOP_ID || '1328953496';
 const PANCAKE_HOST = 'https://pos.pancake.vn/api/v1';
 // Statuses that are NOT a "closed sale" (skip): 0 new/unconfirmed, 6 returning, 7 returned, 11 canceled.
 const PANCAKE_SKIP_STATUS = new Set(String(process.env.PANCAKE_SKIP_STATUS || '0,6,7,11').split(',').map((s) => s.trim()).filter(Boolean));
+// Auto-refill: keep the sales refill queue topped up to REFILL_QUEUE_MAX open leads,
+// picking repeat customers whose last order was REFILL_AUTO_MIN..REFILL_AUTO_MAX days ago.
+const REFILL_QUEUE_MAX = Number(process.env.REFILL_QUEUE_MAX) || 40;
+const REFILL_AUTO_MIN = Number(process.env.REFILL_AUTO_MIN) || 25;
+const REFILL_AUTO_MAX = Number(process.env.REFILL_AUTO_MAX) || 90;
 function pancakeItems(o) {
   const items = (o && o.items) || [];
   const parts = [];
@@ -1030,11 +1035,44 @@ app.post('/api/pancake/refill/import', requireAuth, async (req, res) => {
   const d = _refillCache.data || { candidates: [] };
   let cands = d.candidates || [];
   if (phones) { const set = new Set(phones.map(digitsOnly)); cands = cands.filter((c) => set.has(digitsOnly(c.phone))); }
-  const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill' }));
+  const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null }));
   const sum = S.applyManual(state, rows, { source: 'refill', by: 'Refill', step: 'T1' });
   state = await store.save(state);
   res.json({ ok: true, added: sum.added, addW: sum.addW, addK: sum.addK, dup: sum.dup });
 });
+
+// Auto-refill: top up the sales refill queue automatically (no Teamlead button press),
+// so overdue repeat customers keep flowing to the team even if the Teamlead is off.
+// Self-regulating: only tops up while the active (un-won/lost) refill queue is below the cap.
+async function pancakeRefillAuto() {
+  if (!PANCAKE_API_KEY) return { skipped: 'no_api_key' };
+  try {
+    // count refill leads still open (not won/lost/archived) — the working queue
+    const openRefill = state.assigned.filter((a) => !a.archived && a.source === 'refill'
+      && a.leadStatus !== 'won' && a.leadStatus !== 'lost').length;
+    if (openRefill >= REFILL_QUEUE_MAX) {
+      state.refillAuto = { lastRun: new Date().toISOString(), added: 0, open: openRefill, note: 'queue_full' };
+      await store.save(state); return { added: 0, open: openRefill, note: 'queue_full' };
+    }
+    const want = REFILL_QUEUE_MAX - openRefill;              // how many more to enqueue
+    const data = await pancakeRefill(REFILL_AUTO_MIN, REFILL_AUTO_MAX);
+    const cands = (data.candidates || []).filter((c) => !c.inQueue); // most-overdue first (pancakeRefill sorts desc)
+    const pick = cands.slice(0, want);
+    if (!pick.length) {
+      state.refillAuto = { lastRun: new Date().toISOString(), added: 0, open: openRefill, scanned: data.scanned || 0, note: 'no_candidates' };
+      await store.save(state); return { added: 0, open: openRefill };
+    }
+    const rows = pick.map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null }));
+    const sum = S.applyManual(state, rows, { source: 'refill', by: 'Auto-Refill', step: 'T1' });
+    state.refillAuto = { lastRun: new Date().toISOString(), added: sum.added, addW: sum.addW, addK: sum.addK, open: openRefill + sum.added, scanned: data.scanned || 0 };
+    state = await store.save(state);
+    return { added: sum.added, addW: sum.addW, addK: sum.addK, open: openRefill + sum.added };
+  } catch (e) {
+    state.refillAuto = { lastRun: new Date().toISOString(), added: 0, error: String(e) };
+    try { await store.save(state); } catch (_) {}
+    return { error: String(e) };
+  }
+}
 
 // Pancake: manual "sync now" + status for the Teamlead dashboard.
 app.post('/api/pancake/pull', requireAuth, async (req, res) => {
@@ -1233,5 +1271,7 @@ boot().then(() => {
   if (PANCAKE_API_KEY) {
     setTimeout(() => { pancakePull().catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot
     setInterval(() => { pancakePull().catch(() => {}); }, 10 * 60 * 1000);     // pull closed-sale orders every 10 min
+    setTimeout(() => { pancakeRefillAuto().catch(() => {}); }, 90 * 1000);     // first auto-refill top-up ~1.5 min after boot
+    setInterval(() => { pancakeRefillAuto().catch(() => {}); }, 6 * 60 * 60 * 1000); // top up refill queue every 6h (works even if Teamlead is off)
   }
 }).catch((e) => { console.error('boot failed', e); process.exit(1); });

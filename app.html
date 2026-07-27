@@ -166,6 +166,7 @@
   <div class="panel" id="refillPanel" data-sec="refill">
     <h2><span data-ic="refresh" data-sz="18"></span>ลูกค้าเดิม · ถึงกำหนดซื้อซ้ำ (Refill)</h2>
     <div class="desc">เซรั่มใช้หมดใน ~30-45 วัน → ระบบดึงลูกค้าที่เคยซื้อและถึงกำหนดซื้อซ้ำจาก Pancake มาให้โทรชวนสั่งใหม่ (ปิดง่ายกว่าลูกค้าใหม่มาก) · เรียงตามค้างนานสุดก่อน</div>
+    <div id="rfAuto" style="background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:8px">✅ ระบบส่งลูกค้าซื้อซ้ำเข้าคิวเซลล์ให้ <b>อัตโนมัติ</b> (เติมคิวทุก 6 ชม. · เรียงค้างนานสุดก่อน · แจก 50/50) — Teamlead ไม่ต้องกดเอง ตารางนี้ไว้ดูรายชื่อเฉย ๆ</div>
     <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
       <span style="font-size:12.5px;color:#475569">ช่วงที่ซื้อไปแล้ว:</span>
       <select id="rfWindow" onchange="loadRefill(true)" style="padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px">
@@ -175,7 +176,7 @@
         <option value="20-45">20–45 วัน</option>
       </select>
       <button class="b-b" id="rfRefresh" onclick="loadRefill(true)" style="padding:7px 12px"><span data-ic="refresh" data-sz="14"></span>รีเฟรช</button>
-      <button class="b-add" id="rfImport" onclick="importRefill()" style="padding:7px 14px;font-weight:700"><span data-ic="download" data-sz="14"></span>ส่งเข้าคิวโทร (แจก 50/50)</button>
+      <button class="b-b" id="rfImport" onclick="importRefill()" style="padding:7px 14px"><span data-ic="download" data-sz="14"></span>ส่งเข้าคิวเดี๋ยวนี้ (ไม่บังคับ)</button>
       <span id="rfInfo" style="font-size:12px;color:#6b7280"></span>
     </div>
     <div class="tblwrap" style="max-height:460px"><table style="min-width:620px">
