@@ -979,6 +979,18 @@ app.post('/api/pancake/pull', requireAuth, async (req, res) => {
   const out = await pancakePull();
   res.json({ ok: !out.err, added: out.added, error: out.err || null });
 });
+// One-time bounded backfill: import closed-sale orders from the last N hours (default 6, max 48),
+// then reset the baseline to now so the regular poll continues forward-only.
+app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
+  const hours = Math.min(48, Math.max(1, Number(req.query.hours) || 6));
+  if (!state.pancake) state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null };
+  state.pancake.startedAt = new Date(Date.now() - hours * 3600000).toISOString();
+  const out = await pancakePull();
+  state.pancake.startedAt = new Date().toISOString(); // forward-only from here on
+  try { state = await store.save(state); } catch (_) {}
+  res.json({ ok: !out.err, added: out.added, hours, error: out.err || null });
+});
 app.get('/api/pancake/status', requireAuth, (req, res) => {
   const p = state.pancake || {};
   res.json({
