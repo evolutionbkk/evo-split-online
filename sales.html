@@ -91,6 +91,8 @@
   .ltbl td.prog{text-align:center;color:#475569;font-weight:600;white-space:nowrap}
   .ltbl td.linec{text-align:center}
   .ltbl td.notec{color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+  .ltbl td.ordc{max-width:250px;white-space:normal;overflow:visible;color:#334155}
+  .ltbl td.ordc>span{display:block;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ltbl a.tel{display:inline-flex;align-items:center;gap:5px;color:#1d4ed8;font-weight:700;text-decoration:none;white-space:nowrap}
   .lrow.k a.tel{color:#4338ca}
   .dash{color:#cbd5e1}
@@ -385,10 +387,14 @@ function render(){
     const im=optMeta(INTEREST,r.interest);
     const interestCell=im?`<span class="badge ${im.badge}">${im.label}</span>`:'<span class="dash">–</span>';
     const cr=optLabel(CALL_RESULTS,r.callResult), na=optLabel(NEXT_ACTIONS,r.nextAction);
+    const ordCell=(r.product||r.orderAmount>0)
+      ? `${r.product?('<span title="'+esc(r.product)+'">'+esc(r.product)+'</span>'):''}${r.orderAmount>0?('<div style="color:#166534;font-weight:700;margin-top:2px">฿'+fmtBaht(r.orderAmount)+'</div>'):''}`
+      : '<span class="dash">–</span>';
     return `<tr class="lrow ${kc}" onclick="openLead(${i})">
       <td class="num">${i+1}</td>
       <td class="codecell">${esc(r.code)}</td>
       <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
+      <td class="notec ordc">${ordCell}</td>
       <td><a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',14)}${esc(r.phone)}</a></td>
       <td class="stc">${r.step?`<span class="badge b-step">${esc(r.step)}</span>`:''}<span class="badge ${sm.badge}">${ic(sm.icon,12)}${sm.label}</span>${flags.join('')}</td>
       <td>${cr?esc(cr):'<span class="dash">–</span>'}</td>
@@ -404,7 +410,7 @@ function render(){
       <td class="notec" title="${esc(r.note)}">${r.note?esc(r.note):''}</td>
     </tr>`;
   }).join('');
-  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ผลการโทร</th><th>ความสนใจ</th><th>Next Action</th><th>นัดถัดไป</th><th>ผู้รับผิดชอบ</th><th>เหตุผลไม่ปิด</th><th>โทรล่าสุด</th><th>ครั้งที่ติดต่อ</th><th>สินค้า/ยอดขาย</th><th>ที่อยู่</th><th>หมายเหตุการสนทนา</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>สินค้าที่สั่งซื้อ / ราคา</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ผลการโทร</th><th>ความสนใจ</th><th>Next Action</th><th>นัดถัดไป</th><th>ผู้รับผิดชอบ</th><th>เหตุผลไม่ปิด</th><th>โทรล่าสุด</th><th>ครั้งที่ติดต่อ</th><th>ยอดที่ปิดได้</th><th>ที่อยู่</th><th>หมายเหตุการสนทนา</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 async function api(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>({}));}
 function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(j=>{if(!(j&&advToast(j.advanced)))toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
