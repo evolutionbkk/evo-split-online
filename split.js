@@ -57,6 +57,8 @@ function applyNew(state, records, label, opts) {
   opts = opts || {};
   const cap = Number(opts.dailyCapPerSide) > 0 ? Number(opts.dailyCapPerSide) : 0;
   const seen = new Set(state.assigned.map(keyOf));
+  // cross-source guard: never add a phone that is already an ACTIVE lead from any source
+  const activePhones = new Set(state.assigned.filter((a) => !a.archived).map((a) => cleanPhone(a.phone)).filter(Boolean));
   const fresh = [];
   let dup = 0, cut = 0;
   for (const r of records) {
@@ -64,8 +66,8 @@ function applyNew(state, records, label, opts) {
     if (!(rec.code || rec.name || rec.phone)) continue;
     if (!isValid(rec.phone)) { cut++; continue; }
     const k = keyOf(rec);
-    if (seen.has(k)) { dup++; continue; }
-    seen.add(k);
+    if (seen.has(k) || activePhones.has(rec.phone)) { dup++; continue; }
+    seen.add(k); activePhones.add(rec.phone);
     fresh.push(rec);
   }
   let round = state.maxRound, date = '';

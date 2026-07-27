@@ -228,7 +228,7 @@ app.get('/api/state', requireAuth, async (req, res) => {
 // ---------- lead CRM (per-salesperson status tracking) ----------
 const UNREACH_REASONS = ['ไม่สะดวกคุย', 'ไม่รับสาย', 'ปิดเครื่อง', 'พบช่องทางอื่นที่ถูกกว่า', 'สะดวกสั่งซื้อช่องทางอื่น'];
 const REACH_STATUS = ['not_ready', 'appointment', 'closed'];
-const ARCH_REASONS = ['unreachable', 'bad_data'];
+const ARCH_REASONS = ['unreachable', 'bad_data', 'duplicate'];
 // New CRM taxonomy (replaces the old reachStatus/contact model in the UI; legacy fields kept for back-compat)
 const LEAD_STATUS_KEYS = ['new', 'contacting', 'interested', 'followup', 'won', 'lost'];
 const CALL_RESULT_KEYS = ['no_answer', 'connected', 'hung_up', 'wrong_number'];
@@ -439,6 +439,65 @@ app.post('/api/lead/restore', requireCrm, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ----- Cross-source duplicate detection: same phone in 2+ ACTIVE leads -----
+function activeDupGroups() {
+  const byPhone = new Map();
+  for (const r of state.assigned) {
+    if (r.archived) continue;
+    const p = digitsOnly(r.phone);
+    if (!p) continue;
+    if (!byPhone.has(p)) byPhone.set(p, []);
+    byPhone.get(p).push(r);
+  }
+  const groups = [];
+  for (const [p, list] of byPhone) if (list.length > 1) groups.push({ phone: p, list });
+  return groups;
+}
+// keep-priority: won > warm status > more calls > has appointment > has sale items > newest
+function leadKeepScore(r) {
+  let s = 0;
+  const st = recStatus(r);
+  if (st === 'won') s += 1e6;
+  else if (st === 'interested' || st === 'followup' || st === 'contacting') s += 1e4;
+  s += Math.min(5000, (r.callCount || 0) * 500);
+  if (r.nextAppt) s += 2000;
+  s += Math.min(1000, (r.saleItems || []).length * 300);
+  const t = Date.parse(r.receivedAt || r.date || 0); if (isFinite(t)) s += t / 1e13;
+  return s;
+}
+app.get('/api/admin/duplicates', requireAuth, (req, res) => {
+  const groups = activeDupGroups().map((g) => {
+    const sorted = g.list.slice().sort((a, b) => leadKeepScore(b) - leadKeepScore(a));
+    return {
+      phone: g.phone, keep: S.keyOf(sorted[0]),
+      leads: sorted.map((r) => ({
+        key: S.keyOf(r), name: r.name || '', side: r.sales, source: r.source || 'evolution',
+        status: recStatus(r), callCount: r.callCount || 0, receivedAt: r.receivedAt || null, product: r.product || '',
+      })),
+    };
+  });
+  groups.sort((a, b) => b.leads.length - a.leads.length || (a.phone < b.phone ? -1 : 1));
+  res.json({ count: groups.length, groups, names: SALES_NAMES });
+});
+// Resolve duplicates: keep the best lead per phone, archive the rest as 'duplicate'.
+// body.phone = one phone; omit to clean up ALL duplicate groups at once.
+app.post('/api/admin/dedup', requireAuth, async (req, res) => {
+  const onePhone = req.body && req.body.phone ? digitsOnly(req.body.phone) : null;
+  const groups = activeDupGroups().filter((g) => !onePhone || g.phone === onePhone);
+  let archived = 0;
+  for (const g of groups) {
+    const sorted = g.list.slice().sort((a, b) => leadKeepScore(b) - leadKeepScore(a));
+    for (let i = 1; i < sorted.length; i++) {
+      const r = sorted[i]; if (r.archived) continue;
+      r.archived = true; r.archiveReason = 'duplicate'; r.archivedAt = new Date().toISOString();
+      r.updatedAt = r.archivedAt; r.updatedBy = whoami(req);
+      pushHist(r, 'archive', 'duplicate', whoami(req));
+      archived++;
+    }
+  }
+  if (archived) state = await store.save(state);
+  res.json({ ok: true, archived, groups: groups.length });
+});
 // Manual hand-off: force-advance one stage now (skip the 3-round wait).
 app.post('/api/lead/advance', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
@@ -994,6 +1053,41 @@ app.get('/api/admin/calllog', requireAuth, (req, res) => {
   });
 });
 
+// Call QA: per-salesperson quality metrics + calls that should be reviewed/coached.
+// Flags: long talk that didn't close (coach), or very short "hung-up" calls to a real lead.
+app.get('/api/admin/qa', requireAuth, (req, res) => {
+  const now = Date.now();
+  let to = req.query.to ? Date.parse(req.query.to) : now; if (isNaN(to)) to = now;
+  let from = req.query.from ? Date.parse(req.query.from) : (now - 6 * 86400000); if (isNaN(from)) from = to - 6 * 86400000;
+  const LONG = Number(process.env.QA_LONG_SEC) || 60;
+  const leadBy = new Map();
+  for (const r of state.assigned) { if (r.archived) continue; const p = digitsOnly(r.phone); if (p) leadBy.set(r.sales + '|' + p, r); }
+  const mk = () => ({ calls: 0, talk: 0, over7: 0, longest: 0, flagged: 0 });
+  const sum = { W: mk(), K: mk(), team: mk() };
+  const flagged = [];
+  for (const c of (state.onecall || [])) {
+    const sd = c.side; if (sd !== 'W' && sd !== 'K') continue;
+    const t = Date.parse(c.at); if (isNaN(t) || t < from || t > to) continue;
+    const dur = Number(c.dur) || 0;
+    for (const bk of [sd, 'team']) { const A = sum[bk]; A.calls++; A.talk += dur; if (dur > ONECALL_MIN_TALK) A.over7++; if (dur > A.longest) A.longest = dur; }
+    const lead = leadBy.get(sd + '|' + digitsOnly(c.phone));
+    let reason = '';
+    if (lead && dur >= LONG && recStatus(lead) !== 'won') reason = 'คุยนาน ' + dur + ' วิ ยังไม่ปิด';
+    else if (lead && dur >= 1 && dur <= 4) reason = 'คุยสั้น ' + dur + ' วิ (ตัดเร็ว)';
+    if (reason) {
+      sum[sd].flagged++; sum.team.flagged++;
+      flagged.push({ id: c.id, side: sd, phone: c.phone, name: lead ? (lead.name || '') : '', dur, at: c.at, status: lead ? recStatus(lead) : '', reason });
+    }
+  }
+  flagged.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const fin = (A) => ({ calls: A.calls, avgSec: A.calls ? Math.round(A.talk / A.calls) : 0, over7: A.over7, pct: A.calls ? Math.round(A.over7 / A.calls * 100) : 0, longest: A.longest, flagged: A.flagged });
+  res.json({
+    from: new Date(from).toISOString(), to: new Date(to).toISOString(), minTalk: ONECALL_MIN_TALK, longSec: LONG,
+    names: SALES_NAMES, hasOnecall: (state.onecall || []).length > 0,
+    summary: { team: fin(sum.team), W: fin(sum.W), K: fin(sum.K) }, flagged: flagged.slice(0, 200), total: flagged.length,
+  });
+});
+
 // Stream a OneCall recording's audio through our server (token stays server-side, admin-only).
 // The recording id is the same id we already store in state.onecall.
 app.get('/api/onecall/audio/:id', requireAuth, async (req, res) => {
@@ -1024,6 +1118,15 @@ app.get('/api/onecall/audio/:id', requireAuth, async (req, res) => {
 });
 
 // Pancake refill: customers who bought a while ago (serum used up) and are due to re-order.
+// Refill urgency tier from days since last order (serum lasts ~30-45 days).
+function refillTier(days) {
+  const d = Number(days) || 0;
+  if (d < 25) return { key: 'early', label: 'ยังไม่ถึงกำหนด', color: '#64748b', rank: 4 };
+  if (d <= 40) return { key: 'proactive', label: 'ควรโทรเชิงรุก', color: '#16a34a', rank: 2 };
+  if (d <= 60) return { key: 'prime', label: 'ช่วงทอง · ปิดง่าย', color: '#ca8a04', rank: 0 };
+  if (d <= 90) return { key: 'lapsing', label: 'เริ่มขาด', color: '#ea580c', rank: 1 };
+  return { key: 'winback', label: 'หายนาน · ดึงกลับ', color: '#dc2626', rank: 3 };
+}
 let _refillCache = { at: 0, data: null, min: 0, max: 0 };
 async function pancakeRefill(daysMin, daysMax) {
   if (!PANCAKE_API_KEY) return { error: 'no_api_key', candidates: [] };
@@ -1051,6 +1154,7 @@ async function pancakeRefill(daysMin, daysMax) {
         out.push({
           name: c.name || '', phone,
           lastOrderAt: c.last_order_at, daysSince: Math.floor((now - lo) / 86400000),
+          tier: refillTier(Math.floor((now - lo) / 86400000)),
           orderCount: Number(c.order_count || 0), succeedOrders: Number(c.succeed_order_count || 0),
           spent: Math.round(Number(c.purchased_amount || 0)) / 100,
           address: pancakeCustomerAddress(c),

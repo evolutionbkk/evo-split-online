@@ -182,7 +182,7 @@
       <span id="rfInfo" style="font-size:12px;color:#6b7280"></span>
     </div>
     <div class="tblwrap" style="max-height:460px"><table style="min-width:620px">
-      <thead><tr><th>ชื่อลูกค้า</th><th>เบอร์</th><th style="text-align:right">ซื้อล่าสุด (วันก่อน)</th><th style="text-align:right">เคยซื้อ</th><th style="text-align:right">ยอดสะสม</th><th style="text-align:center">สถานะ</th></tr></thead>
+      <thead><tr><th>ชื่อลูกค้า</th><th>เบอร์</th><th style="text-align:right">ซื้อล่าสุด (วันก่อน)</th><th style="text-align:center">ระดับความเร่งด่วน</th><th style="text-align:right">เคยซื้อ</th><th style="text-align:right">ยอดสะสม</th><th style="text-align:center">สถานะ</th></tr></thead>
       <tbody id="rfBody"></tbody>
     </table></div>
     <div id="rfFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
@@ -318,6 +318,42 @@
       <tbody id="clBody"></tbody>
     </table></div>
     <div id="clFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+  </div>
+
+  <div class="panel" data-sec="qa">
+    <h2><span data-ic="check" data-sz="18"></span>คุณภาพการโทร (QA จากบันทึกเสียง)</h2>
+    <div class="desc">ดูคุณภาพการคุยของแต่ละคน และสายที่ควรฟังทวนเพื่อโค้ชทีม · กดฟังเสียงได้เลย (จาก OneCall)</div>
+    <div class="krange" id="qaRange" style="margin:6px 0 12px;flex-wrap:wrap">
+      <button class="kr on" data-r="today" onclick="qaSetRange('today')">วันนี้</button>
+      <button class="kr" data-r="7" onclick="qaSetRange('7')">7 วัน</button>
+      <button class="kr" data-r="30" onclick="qaSetRange('30')">30 วัน</button>
+    </div>
+    <div id="qaWarn" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:10px"></div>
+    <div class="tblwrap" style="margin-bottom:14px"><table style="min-width:560px">
+      <thead><tr><th></th><th style="text-align:right">สายทั้งหมด</th><th style="text-align:right">คุยเฉลี่ย</th><th style="text-align:right">% คุย&gt;7วิ</th><th style="text-align:right">ยาวสุด</th><th style="text-align:right">ควรฟังทวน</th></tr></thead>
+      <tbody id="qaSummaryBody"></tbody>
+    </table></div>
+    <div style="font-size:13px;font-weight:700;color:#334155;margin:6px 0 8px">สายที่ควรฟังทวน <span style="font-weight:400;color:#94a3b8">· คุยนานแต่ยังไม่ปิด / สายสั้นผิดปกติ</span></div>
+    <div id="qaPlayerBar" style="display:none;margin-bottom:10px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:8px 10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span id="qaPlayerLbl" style="font-size:12px;color:#334155;font-weight:600"></span><span onclick="qaClosePlayer()" style="cursor:pointer;color:#94a3b8;font-size:12px">✕ ปิด</span></div>
+      <audio id="qaPlayer" controls style="width:100%"></audio>
+    </div>
+    <div class="tblwrap"><table style="min-width:660px">
+      <thead><tr><th style="text-align:center">ฟัง</th><th>เวลา</th><th>เซลล์</th><th>เบอร์</th><th>ชื่อลูกค้า</th><th style="text-align:right">คุย(วิ)</th><th>สถานะลีด</th><th>เหตุผล</th></tr></thead>
+      <tbody id="qaBody"></tbody>
+    </table></div>
+    <div id="qaFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+  </div>
+
+  <div class="panel" data-sec="dupes">
+    <h2><span data-ic="alert" data-sz="18"></span>ตรวจเบอร์ซ้ำในระบบ</h2>
+    <div class="desc">เบอร์เดียวกันที่เป็นลูกค้ามากกว่า 1 รายการ (คนละแหล่ง/คนละเซลล์) — กันโทรซ้ำ · ระบบจะเก็บรายการที่ดีที่สุด (ปิดการขาย/คุยเยอะ) แล้วนำที่ซ้ำออก<div style="margin-top:4px;color:#166534">รายชื่อใหม่ที่ดึงเข้ามาระบบกันเบอร์ซ้ำอัตโนมัติอยู่แล้ว — หน้านี้ไว้เก็บกวาดของเดิม</div></div>
+    <div class="row" style="gap:10px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+      <button class="b-b" onclick="loadDupes()" style="padding:7px 12px"><span data-ic="refresh" data-sz="14"></span>ตรวจใหม่</button>
+      <button class="b-add" id="dedupAllBtn" onclick="dedupAll()" style="padding:7px 14px;font-weight:700"><span data-ic="check" data-sz="14"></span>นำเบอร์ซ้ำออกทั้งหมด</button>
+      <span id="dupInfo" style="font-size:12px;color:#6b7280"></span>
+    </div>
+    <div id="dupBody"></div>
   </div>
 
   <div class="searchbar" data-sec="customers">
@@ -932,6 +968,73 @@ function clClosePlayer(){
   const p=document.getElementById('clPlayer'); try{p.pause();}catch(e){} p.removeAttribute('src'); p.load();
   document.getElementById('clPlayerBar').style.display='none';
 }
+// ===== Call QA (คุณภาพการโทร) =====
+let QAR={mode:'today'};
+function qaSetRange(m){QAR.mode=m;document.querySelectorAll('#qaRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));qaLoad();}
+const QA_ST=v=>({won:'ปิดได้',lost:'ไม่ปิด',interested:'สนใจ',followup:'นัดติดตาม',contacting:'กำลังติดต่อ',new:'ใหม่'}[v]||v||'-');
+async function qaLoad(){
+  try{
+    const r0=rangeFor(QAR.mode),q='from='+encodeURIComponent(r0.from)+'&to='+encodeURIComponent(r0.to);
+    const r=await fetch('/api/admin/qa?'+q);if(!r.ok)return;const j=await r.json();
+    const nmW=(j.names&&j.names.W)||'W',nmK=(j.names&&j.names.K)||'K',nm=s=>s==='W'?nmW:nmK;
+    const row=(label,color,a)=>`<tr><td style="font-weight:600">${color?'<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:'+color+';margin-right:6px"></span>':''}${label}</td><td style="text-align:right;font-weight:700">${a.calls}</td><td style="text-align:right">${a.avgSec} วิ</td><td style="text-align:right"><b style="color:${a.pct>=50?'#166534':'#b45309'}">${a.pct}%</b></td><td style="text-align:right">${a.longest} วิ</td><td style="text-align:right;color:${a.flagged?'#b45309':'#94a3b8'};font-weight:700">${a.flagged}</td></tr>`;
+    document.getElementById('qaSummaryBody').innerHTML=row('ทีมรวม','',j.summary.team)+row(nmW,'#2563eb',j.summary.W)+row(nmK,'#db2777',j.summary.K);
+    const warn=document.getElementById('qaWarn');
+    if(!j.hasOnecall){warn.style.display='block';warn.innerHTML=ic('info',13)+' ยังไม่มีข้อมูลการโทรจาก OneCall';}else warn.style.display='none';
+    const rows=(j.flagged||[]).map(f=>`<tr>
+      <td style="text-align:center"><button class="b-b" style="padding:4px 9px" onclick="qaPlay('${f.id}','${esc(f.phone)}',${f.dur})">${ic('phone',13)}</button></td>
+      <td style="white-space:nowrap;font-size:12px">${fmt(f.at)}</td><td>${esc(nm(f.side))}</td>
+      <td style="font-variant-numeric:tabular-nums">${esc(f.phone)}</td>
+      <td>${esc(f.name)||'<span style="color:#cbd5e1">–</span>'}</td>
+      <td style="text-align:right;font-weight:700">${f.dur}</td><td>${QA_ST(f.status)}</td>
+      <td style="color:#b45309;font-size:12px">${esc(f.reason)}</td></tr>`).join('');
+    document.getElementById('qaBody').innerHTML=rows||'<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:18px">ไม่มีสายที่ต้องฟังทวนในช่วงนี้ 👍</td></tr>';
+    document.getElementById('qaFoot').textContent='ช่วง '+j.from.slice(0,10)+' → '+j.to.slice(0,10)+' · flag เมื่อคุยนาน ≥'+j.longSec+' วิ แต่ยังไม่ปิด หรือคุยสั้น ≤4 วิกับลีดจริง · แสดงสูงสุด 200 (ทั้งหมด '+j.total+')';
+  }catch(e){}
+}
+function qaPlay(id,phone,dur){
+  const bar=document.getElementById('qaPlayerBar'),p=document.getElementById('qaPlayer');
+  document.getElementById('qaPlayerLbl').textContent='กำลังเล่น: '+phone+' · '+dur+' วิ';
+  p.src='/api/onecall/audio/'+encodeURIComponent(id);bar.style.display='block';p.play().catch(()=>{});bar.scrollIntoView({block:'nearest'});
+}
+function qaClosePlayer(){const p=document.getElementById('qaPlayer');try{p.pause();}catch(e){}p.removeAttribute('src');p.load();document.getElementById('qaPlayerBar').style.display='none';}
+// ===== Duplicate phones (ตรวจเบอร์ซ้ำ) =====
+let DUP_DATA={groups:[]};
+async function loadDupes(){
+  const info=document.getElementById('dupInfo');if(info)info.textContent='กำลังตรวจ…';
+  try{const r=await fetch('/api/admin/duplicates');if(!r.ok)return;DUP_DATA=await r.json();renderDupes();}
+  catch(e){if(info)info.textContent='ผิดพลาด: '+e;}
+}
+function renderDupes(){
+  const j=DUP_DATA,gs=j.groups||[],nm=s=>((j.names&&j.names[s])||s);
+  const srcLbl=s=>s==='pancake'?'FB ปิดการขาย':s==='refill'?'ซื้อซ้ำ':s==='manual'?'FB/manual':'Evolution';
+  document.getElementById('dupInfo').innerHTML='พบเบอร์ซ้ำ <b>'+gs.length+'</b> เบอร์'+(gs.length?' · '+gs.reduce((s,g)=>s+g.leads.length-1,0)+' รายการที่ควรนำออก':'');
+  document.getElementById('dedupAllBtn').style.display=gs.length?'':'none';
+  if(!gs.length){document.getElementById('dupBody').innerHTML='<div style="text-align:center;color:#16a34a;padding:20px">'+ic('check',15)+' ไม่พบเบอร์ซ้ำในระบบ</div>';return;}
+  document.getElementById('dupBody').innerHTML=gs.map(g=>`
+    <div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;flex-wrap:wrap">
+        <div style="font-weight:700;color:#0f172a">${esc(g.phone)} <span style="font-weight:400;color:#94a3b8">· ซ้ำ ${g.leads.length} รายการ</span></div>
+        <button class="b-b" style="padding:5px 11px" onclick="dedupOne('${esc(g.phone)}')">นำที่ซ้ำออก</button>
+      </div>
+      <div class="tblwrap"><table style="min-width:520px"><thead><tr><th></th><th>ชื่อ</th><th>เซลล์</th><th>แหล่ง</th><th>สถานะ</th><th style="text-align:right">โทรแล้ว</th></tr></thead><tbody>
+      ${g.leads.map((l,i)=>`<tr style="${i===0?'background:#f0fdf4':''}">
+        <td style="white-space:nowrap">${i===0?'<span class="badge" style="background:#dcfce7;color:#166534">เก็บไว้</span>':'<span class="badge" style="background:#fef2f2;color:#b91c1c">นำออก</span>'}</td>
+        <td>${esc(l.name)||'<span style="color:#cbd5e1">–</span>'}</td><td>${esc(nm(l.side))}</td>
+        <td>${srcLbl(l.source)}</td><td>${QA_ST(l.status)}</td><td style="text-align:right">${l.callCount}</td>
+      </tr>`).join('')}</tbody></table></div>
+    </div>`).join('');
+}
+async function dedupOne(phone){
+  const r=await fetch('/api/admin/dedup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
+  const j=await r.json().catch(()=>({}));if(j&&j.ok){loadDupes();try{refresh();}catch(e){}}
+}
+async function dedupAll(){
+  const b=document.getElementById('dedupAllBtn'),old=b.innerHTML;b.disabled=true;b.textContent='กำลังนำออก…';
+  const r=await fetch('/api/admin/dedup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+  const j=await r.json().catch(()=>({}));b.disabled=false;b.innerHTML=old;
+  if(j&&j.ok){loadDupes();try{refresh();}catch(e){}}
+}
 // ===== Pancake status =====
 async function loadPancakeStatus(){
   try{const r=await fetch('/api/pancake/status');if(!r.ok)return;const s=await r.json();const el=document.getElementById('pcstatus');if(!el)return;
@@ -956,6 +1059,8 @@ const SECTIONS=[
   {k:'refill',label:'ลูกค้าเดิม · ซื้อซ้ำ',icon:'refresh'},
   {k:'analytics',label:'วิเคราะห์การโทร',icon:'activity'},
   {k:'calllog',label:'ประวัติการโทร',icon:'phone'},
+  {k:'qa',label:'คุณภาพการโทร',icon:'check'},
+  {k:'dupes',label:'ตรวจเบอร์ซ้ำ',icon:'alert'},
   {k:'customers',label:'รายชื่อลูกค้า',icon:'search'},
 ];
 let CURSEC='overview',REFILL_LOADED=false;
@@ -968,6 +1073,8 @@ function showSec(sec){
   renderNav();
   if(sec==='refill'&&!REFILL_LOADED){REFILL_LOADED=true;loadRefill(false);}
   if(sec==='analytics')anLoad();
+  if(sec==='qa')qaLoad();
+  if(sec==='dupes')loadDupes();
   window.scrollTo(0,0);
 }
 // ===== Refill (ลูกค้าเดิมซื้อซ้ำ) =====
@@ -983,14 +1090,16 @@ async function loadRefill(force){
 }
 function renderRefill(){
   const j=REFILL_DATA,c=j.candidates||[],baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+  const tierBadge=t=>t?('<span class="badge" style="background:'+t.color+'1a;color:'+t.color+';font-weight:700">'+t.label+'</span>'):'';
   document.getElementById('rfBody').innerHTML=c.length?c.map(x=>`<tr>
     <td>${esc(x.name)||'<span style="color:#cbd5e1">–</span>'}</td>
     <td style="font-variant-numeric:tabular-nums">${esc(x.phone)}</td>
-    <td style="text-align:right;font-weight:700;color:${x.daysSince>=45?'#b45309':'#0f172a'}">${x.daysSince}</td>
+    <td style="text-align:right;font-weight:700;color:${x.tier?x.tier.color:'#0f172a'}">${x.daysSince}</td>
+    <td style="text-align:center">${tierBadge(x.tier)}</td>
     <td style="text-align:right">${x.succeedOrders}</td>
     <td style="text-align:right;color:#166534">${baht(x.spent)}</td>
     <td style="text-align:center">${x.inQueue?'<span class="badge" style="background:#dcfce7;color:#166534">อยู่ในคิวแล้ว</span>':'<span class="badge" style="background:#eff6ff;color:#1e40af">พร้อมส่ง</span>'}</td>
-  </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">ไม่พบลูกค้าที่ถึงกำหนดซื้อซ้ำในช่วงนี้</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">ไม่พบลูกค้าที่ถึงกำหนดซื้อซ้ำในช่วงนี้</td></tr>';
   const ready=c.filter(x=>!x.inQueue).length;
   document.getElementById('rfInfo').innerHTML='พบ <b>'+c.length+'</b> ราย · พร้อมส่งเข้าคิว <b>'+ready+'</b>'+(j.error?(' · <span style="color:#b45309">⚠ '+esc(j.error)+'</span>'):'');
   document.getElementById('rfFoot').innerHTML='อัปเดต '+(j.cachedAt?fmt(j.cachedAt):'-')+' · สแกน '+(j.scanned||0)+' ราย · คอลัมน์ "ซื้อล่าสุด" = จำนวนวันที่ผ่านมา · "ส่งเข้าคิวโทร" เพิ่มเฉพาะรายที่ยังไม่อยู่ในคิว แจก 50/50';

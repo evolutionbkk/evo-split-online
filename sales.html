@@ -639,29 +639,41 @@ function daysSinceOrder(r){
   if(isNaN(t))return null;
   return Math.max(0,Math.floor((Date.now()-t)/86400000));
 }
+function refillTier(days){
+  var d=Number(days)||0;
+  if(d<25)return{label:'ยังไม่ถึงกำหนด',color:'#64748b',rank:4};
+  if(d<=40)return{label:'ควรโทรเชิงรุก',color:'#16a34a',rank:2};
+  if(d<=60)return{label:'ช่วงทอง · ปิดง่าย',color:'#ca8a04',rank:0};
+  if(d<=90)return{label:'เริ่มขาด',color:'#ea580c',rank:1};
+  return{label:'หายนาน · ดึงกลับ',color:'#dc2626',rank:3};
+}
 function renderRefillSales(){
   const box=document.getElementById('rfBody2'); if(!box)return;
   const A=ACTIVE.filter(r=>!r.archived&&r.source==='refill'&&(r.leadStatus||'new')!=='won'&&(r.leadStatus||'new')!=='lost');
-  // sort most-overdue first: biggest days-since-last-order at the top (null last = bottom)
+  // sort by urgency tier (ช่วงทอง first), then most-overdue within tier; null last
   A.sort((a,b)=>{ const da=daysSinceOrder(a),db=daysSinceOrder(b);
-    if(da==null&&db==null)return 0; if(da==null)return 1; if(db==null)return -1; return db-da; });
+    if(da==null&&db==null)return 0; if(da==null)return 1; if(db==null)return -1;
+    const ra=refillTier(da).rank,rb=refillTier(db).rank; if(ra!==rb)return ra-rb; return db-da; });
   REFILL_COUNT=A.length; renderNav();
   if(!A.length){box.innerHTML='<div class="empty">ยังไม่มีลูกค้าเดิมในคิวของคุณ — ระบบจะส่งลูกค้าที่ถึงกำหนดซื้อซ้ำมาให้อัตโนมัติ</div>';return;}
   const rows=A.map((r,i)=>{
     const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
     const ds=daysSinceOrder(r);
-    const dsc=ds==null?'<span class="dash">–</span>':('<b style="color:'+(ds>=60?'#dc2626':ds>=40?'#d97706':'#334155')+'">'+ds+'</b> วัน');
+    const t=ds==null?null:refillTier(ds);
+    const dsc=ds==null?'<span class="dash">–</span>':('<b style="color:'+(t?t.color:'#334155')+'">'+ds+'</b> วัน');
+    const tb=t?('<span class="badge" style="background:'+t.color+'1a;color:'+t.color+';font-weight:700">'+t.label+'</span>'):'<span class="dash">–</span>';
     return `<tr class="lrow" onclick="openLeadByKey('${r.key}')">
       <td class="num">${i+1}</td>
       <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
       <td><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation()">${ic('phone',14)}${esc(r.phone)}</a></td>
       <td class="codec">${dsc}</td>
+      <td class="stc">${tb}</td>
       <td class="notec">${esc(r.product||'')}</td>
       <td class="stc"><span class="badge ${sm.badge}">${ic(sm.icon,12)}${sm.label}</span></td>
       <td class="codec">${r.lastCallAt?esc(fmtShort(r.lastCallAt)):'<span class="dash">–</span>'}</td>
     </tr>`;
   }).join('');
-  box.innerHTML='<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ซื้อล่าสุด</th><th>รายละเอียด (เคยซื้อ)</th><th>สถานะ</th><th>โทรล่าสุด</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  box.innerHTML='<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ซื้อล่าสุด</th><th>ระดับความเร่งด่วน</th><th>รายละเอียด (เคยซื้อ)</th><th>สถานะ</th><th>โทรล่าสุด</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 async function init(){
   const r=await fetch('/api/me'); if(r.status===401){location.href='/login';return;} ME=await r.json();
