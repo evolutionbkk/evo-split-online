@@ -869,14 +869,17 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     // "โทรแล้ว" = unique matched leads that got ≥1 call (any duration) — per lead
     if (src) {
       const b = src === 'manual' ? 'manual' : 'evo';
-      if (inR) { calledR[c.side][b].add(key); if (b === 'manual') A.callsManualRange++; }
-      if (inT) { calledT[c.side][b].add(key); if (b === 'manual') A.callsManualToday++; }
+      if (inR) { calledR[c.side][b].add(key); }
+      if (inT) { calledT[c.side][b].add(key); }
     }
     // KPI = per-call talks >7s, bucketed by source (or 'Other' if not a lead on this side)
     if ((c.dur || 0) > ONECALL_MIN_TALK) {
       const b = src === 'manual' ? 'Manual' : (src === 'evolution' ? 'Evo' : 'Other');
       if (inR) { A.talk7Range++; A['talk7' + b + 'Range']++; }
       if (inT) { A.talk7Today++; A['talk7' + b + 'Today']++; }
+      // FB "T1+T2+T3" target = every quality (>7s) call that is NOT an Evolution website lead
+      // (matched FB leads in the system + new FB inquiry numbers not yet imported). Per call.
+      if (src !== 'evolution') { if (inR) A.callsManualRange++; if (inT) A.callsManualToday++; }
     }
   }
   for (const sd of ['W', 'K']) {

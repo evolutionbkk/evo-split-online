@@ -558,9 +558,9 @@ function personCard(side,name,a){
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
       <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
       ${targetBar('Evolution', a.calledEvoToday, KPI_TARGETS.evo, '#2563eb', a.talk7EvoToday)}
-      ${targetBar('FB + Follow up (T1·T2·T3)', a.callsManualToday, KPI_TARGETS.manual, '#7c3aed', a.talk7ManualToday)}
-      <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Evolution <b>${a.calledEvoRange}</b> ราย (คุย ${a.talk7EvoRange}) · FB <b>${a.callsManualRange}</b> สาย (คุย ${a.talk7ManualRange})</div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:3px">Evolution นับ<b>ต่อราย</b> (เป้า 50) · FB นับ<b>ต่อสาย</b> รวม T1+T2+T3 (เป้า 15 = 5+5+5) · “คุย” = สายที่คุยเกิน 7 วิ</div>
+      ${targetBar('FB + Follow up (T1·T2·T3)', a.callsManualToday, KPI_TARGETS.manual, '#7c3aed')}
+      <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Evolution <b>${a.calledEvoRange}</b> ราย (คุย ${a.talk7EvoRange}) · FB <b>${a.callsManualRange}</b> สายคุยจริง <span style="color:#94a3b8">(ตรงกับลีดในระบบ ${a.talk7ManualRange} · เบอร์ทักใหม่ ${a.talk7OtherRange})</span></div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">Evolution นับ<b>ต่อราย</b> (เป้า 50) · FB นับ<b>ต่อสาย</b> = สายคุยจริง (เกิน 7 วิ) ที่ไม่ใช่ลีดเว็บ Evolution รวม T1+T2+T3 (เป้า 15 = 5+5+5)</div>
     </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
