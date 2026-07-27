@@ -1247,6 +1247,24 @@ app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
   try { state = await store.save(state); } catch (_) {}
   res.json({ ok: !out.err, added: out.added, hours, error: out.err || null });
 });
+// TEMP PROBE: discover customer object fields + whether search-by-phone works (no PII returned).
+app.get('/api/pancake/_probe', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
+  const phone = digitsOnly(req.query.phone || '');
+  const out = {};
+  try {
+    const cu = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=1&page_size=1')).json();
+    out.customerKeys = (cu.data && cu.data[0]) ? Object.keys(cu.data[0]) : [];
+    if (phone) {
+      const cs = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=5&search=' + encodeURIComponent(phone))).json();
+      out.custSearch = { ok: !!(cs && cs.success), n: (cs.data || []).length, matched: (cs.data || []).some((c) => (c.phone_numbers || []).some((p) => digitsOnly(p) === phone)) };
+      const os = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=10&search=' + encodeURIComponent(phone))).json();
+      out.orderSearch = { ok: !!(os && os.success), n: (os.data || []).length, total: os.total_entries, matched: (os.data || []).filter((o) => digitsOnly(o.bill_phone_number || '') === phone).length };
+      out.orderItemKeys = (os.data && os.data[0]) ? Object.keys(os.data[0]).filter((k) => /item|price|status|insert|updated|product|note/i.test(k)) : [];
+    }
+  } catch (e) { out.error = String(e); }
+  res.json(out);
+});
 // Deeper backfill by DAYS: page through Pancake orders and import every closed sale
 // updated within the last N days (dedup by phone against active leads). Forward-only poll unchanged.
 app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
