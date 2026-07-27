@@ -1127,6 +1127,14 @@ function refillTier(days) {
   if (d <= 90) return { key: 'lapsing', label: 'เริ่มขาด', color: '#ea580c', rank: 1 };
   return { key: 'winback', label: 'หายนาน · ดึงกลับ', color: '#dc2626', rank: 3 };
 }
+// VIP tier from lifetime value (baht) + successful order count.
+function vipTier(ltv, succeedOrders) {
+  const v = Number(ltv) || 0, n = Number(succeedOrders) || 0;
+  if (v >= 8000 || n >= 6) return { key: 'gold', label: 'VIP ทอง', color: '#b45309' };
+  if (v >= 2500 || n >= 3) return { key: 'silver', label: 'ลูกค้าประจำ', color: '#0e7490' };
+  if (n >= 1) return { key: 'regular', label: 'เคยซื้อ', color: '#475569' };
+  return { key: 'new', label: 'ลูกค้าใหม่', color: '#64748b' };
+}
 let _refillCache = { at: 0, data: null, min: 0, max: 0 };
 async function pancakeRefill(daysMin, daysMax) {
   if (!PANCAKE_API_KEY) return { error: 'no_api_key', candidates: [] };
@@ -1247,24 +1255,6 @@ app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
   try { state = await store.save(state); } catch (_) {}
   res.json({ ok: !out.err, added: out.added, hours, error: out.err || null });
 });
-// TEMP PROBE: discover customer object fields + whether search-by-phone works (no PII returned).
-app.get('/api/pancake/_probe', requireAuth, async (req, res) => {
-  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
-  const phone = digitsOnly(req.query.phone || '');
-  const out = {};
-  try {
-    const cu = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=1&page_size=1')).json();
-    out.customerKeys = (cu.data && cu.data[0]) ? Object.keys(cu.data[0]) : [];
-    if (phone) {
-      const cs = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=5&search=' + encodeURIComponent(phone))).json();
-      out.custSearch = { ok: !!(cs && cs.success), n: (cs.data || []).length, matched: (cs.data || []).some((c) => (c.phone_numbers || []).some((p) => digitsOnly(p) === phone)) };
-      const os = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=10&search=' + encodeURIComponent(phone))).json();
-      out.orderSearch = { ok: !!(os && os.success), n: (os.data || []).length, total: os.total_entries, matched: (os.data || []).filter((o) => digitsOnly(o.bill_phone_number || '') === phone).length };
-      out.orderItemKeys = (os.data && os.data[0]) ? Object.keys(os.data[0]).filter((k) => /item|price|status|insert|updated|product|note/i.test(k)) : [];
-    }
-  } catch (e) { out.error = String(e); }
-  res.json(out);
-});
 // Deeper backfill by DAYS: page through Pancake orders and import every closed sale
 // updated within the last N days (dedup by phone against active leads). Forward-only poll unchanged.
 app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
@@ -1302,6 +1292,44 @@ app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
     state = await store.save(state);
     res.json({ ok: true, days, pages, scanned, inWindow, closedSaleCandidates: rows.length, added, addW, addK, dup });
   } catch (e) { res.status(500).json({ error: String(e), scanned, pages }); }
+});
+// Customer 360: live profile from Pancake (LTV, order history, VIP tier, reorder cycle).
+// Sales can call this when opening a lead. Cached briefly per phone to spare the API.
+const _profileCache = new Map(); // phone -> { at, data }
+app.get('/api/customer/profile', requireCrm, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
+  const phone = digitsOnly(req.query.phone || '');
+  if (!phone) return res.json({ error: 'no_phone' });
+  const cached = _profileCache.get(phone);
+  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return res.json(cached.data);
+  try {
+    const cs = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=5&search=' + encodeURIComponent(phone))).json();
+    const cust = (cs.data || []).find((c) => (c.phone_numbers || []).some((p) => digitsOnly(p) === phone)) || (cs.data || [])[0] || null;
+    const os = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=50&search=' + encodeURIComponent(phone))).json();
+    let orders = (os.data || []).map((o) => ({
+      date: o.inserted_at || o.updated_at || null,
+      amount: (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100,
+      items: pancakeItems(o), status: o.status_name || String(o.status || ''), statusCode: o.status,
+      canceled: PANCAKE_SKIP_STATUS.has(String(o.status)),
+    })).sort((a, b) => Date.parse(b.date || 0) - Date.parse(a.date || 0));
+    const ltv = cust ? Math.round(Number(cust.purchased_amount || 0)) / 100 : orders.reduce((s, o) => s + (o.canceled ? 0 : o.amount), 0);
+    const orderCount = cust ? Number(cust.order_count || 0) : orders.length;
+    const succeed = cust ? Number(cust.succeed_order_count || 0) : orders.filter((o) => !o.canceled).length;
+    const returned = cust ? Number(cust.returned_order_count || 0) : 0;
+    const firstAt = (cust && cust.inserted_at) || (orders.length ? orders[orders.length - 1].date : null);
+    const lastAt = (cust && cust.last_order_at) || (orders.length ? orders[0].date : null);
+    // reorder cycle: avg days between successful orders
+    const dates = orders.filter((o) => !o.canceled).map((o) => Date.parse(o.date)).filter((x) => isFinite(x)).sort((a, b) => a - b);
+    let avgCycleDays = null;
+    if (dates.length >= 2) { let sum = 0; for (let i = 1; i < dates.length; i++) sum += dates[i] - dates[i - 1]; avgCycleDays = Math.round(sum / (dates.length - 1) / 86400000); }
+    const data = {
+      ok: true, phone, name: cust ? (cust.name || '') : '', ltv, orderCount, succeed, returned,
+      firstAt, lastAt, rewardPoint: cust ? Number(cust.reward_point || 0) : 0,
+      avgCycleDays, vip: vipTier(ltv, succeed), orders: orders.slice(0, 30), orderTotal: orders.length,
+    };
+    _profileCache.set(phone, { at: Date.now(), data });
+    res.json(data);
+  } catch (e) { res.json({ error: String(e) }); }
 });
 // One-time backfill: fill the address on existing leads that are missing one,
 // matching by phone against Pancake orders (recent) + customers (repeat buyers).

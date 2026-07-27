@@ -439,6 +439,7 @@ function openLeadByKey(key){
     <a class="dialbtn" href="tel:${esc(r.phone)}" onclick="sheetCall(event)">${ic('phone',18)}โทรออก ${esc(r.phone)}</a>
     ${realCallBox(r)}
     ${orderBox(r)}
+    <div id="cust360" style="margin:14px 0"></div>
     <div class="sec">โทรออกครั้งที่ (แตะเพื่อปรับจำนวน · ครบ 3 ครั้งส่งต่ออีกฝั่ง)</div>
     <div class="lineseg" style="gap:8px">
       <button class="${(r.callCount||0)>=1?'on':''}" onclick="setCalls(1)">ครั้งที่ 1</button>
@@ -480,6 +481,46 @@ function openLeadByKey(key){
     <div class="rm"><div class="sec">นำออก (ย้ายไปถัง กู้คืนได้)</div>
       <div class="grid"><button onclick="doArchive('unreachable')">${ic('trash',15)}เบอร์ติดต่อไม่ได้</button><button onclick="doArchive('bad_data')">${ic('trash',15)}ข้อมูลไม่ครบ/เสีย</button></div></div>`;
   document.getElementById('mbg').classList.add('on');
+  loadCust360(r.phone);
+}
+// ===== Customer 360 (โปรไฟล์ลูกค้าเชิงลึกจาก Pancake) =====
+function loadCust360(phone){
+  const box=document.getElementById('cust360'); if(!box)return;
+  box.innerHTML='<div style="border:1px solid #e5e9f0;border-radius:12px;padding:12px;color:#94a3b8;font-size:12.5px">'+ic('activity',14)+' กำลังโหลดประวัติลูกค้าจาก Pancake…</div>';
+  fetch('/api/customer/profile?phone='+encodeURIComponent(phone)).then(r=>r.json()).then(j=>renderCust360(j,phone)).catch(()=>{box.innerHTML='';});
+}
+function d360(s){ if(!s)return '–'; const t=Date.parse(String(s).replace(' ','T')); if(isNaN(t))return '–'; const d=new Date(t); const p=n=>String(n).padStart(2,'0'); return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+(d.getFullYear()+543); }
+function baht360(n){ return '฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0}); }
+function renderCust360(j,phone){
+  const box=document.getElementById('cust360'); if(!box)return;
+  if(!j||j.error||!j.ok){
+    box.innerHTML='<div style="border:1px solid #e5e9f0;border-radius:12px;padding:12px;color:#94a3b8;font-size:12.5px">'+(j&&j.error==='no_api_key'?'ยังไม่ได้เชื่อม Pancake':'ไม่พบประวัติลูกค้ารายนี้ใน Pancake')+'</div>';
+    return;
+  }
+  const v=j.vip||{label:'',color:'#64748b'};
+  const stat=(label,val)=>`<div style="flex:1;min-width:78px"><div style="font-size:16px;font-weight:800;color:#0f172a">${val}</div><div style="font-size:11px;color:#64748b">${label}</div></div>`;
+  const cyc=j.avgCycleDays?('ทุก ~'+j.avgCycleDays+' วัน'):'–';
+  const oh=(j.orders||[]).map(o=>`<tr style="${o.canceled?'opacity:.5':''}">
+    <td style="white-space:nowrap;font-size:12px">${d360(o.date)}</td>
+    <td style="font-size:12px">${esc(o.items||'')||'<span class="dash">–</span>'}</td>
+    <td style="text-align:right;font-weight:700;color:${o.canceled?'#94a3b8':'#166534'};white-space:nowrap">${o.canceled?'ยกเลิก':baht360(o.amount)}</td>
+  </tr>`).join('');
+  box.innerHTML=`<div style="border:1px solid #dbe3ef;border-radius:12px;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:linear-gradient(90deg,#f0f7ff,#f8fafc)">
+      <div style="font-weight:800;color:#0f172a;font-size:13.5px">${ic('star',15)} โปรไฟล์ลูกค้า (Pancake)</div>
+      <span class="badge" style="background:${v.color}1a;color:${v.color};font-weight:800">${v.label}</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px">
+      ${stat('ยอดซื้อสะสม',baht360(j.ltv))}
+      ${stat('ออเดอร์สำเร็จ',j.succeed+(j.returned?(' <span style=\"color:#b91c1c;font-size:11px\">(คืน '+j.returned+')</span>'):''))}
+      ${stat('ลูกค้าตั้งแต่',d360(j.firstAt))}
+      ${stat('ซื้อล่าสุด',d360(j.lastAt))}
+      ${stat('ซื้อซ้ำเฉลี่ย',cyc)}
+      ${j.rewardPoint?stat('แต้มสะสม',j.rewardPoint.toLocaleString('en-US')):''}
+    </div>
+    ${oh?`<div style="padding:0 12px 12px"><div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:5px">ประวัติการซื้อ (${j.orderTotal} ออเดอร์)</div>
+      <div class="tblwrap" style="max-height:220px"><table style="width:100%;font-size:12px"><thead><tr><th style="text-align:left">วันที่</th><th style="text-align:left">รายการ</th><th style="text-align:right">ยอด</th></tr></thead><tbody>${oh}</tbody></table></div></div>`:''}
+  </div>`;
 }
 function orderBox(r){
   const stepLabel={T1:'T1 · จากแอดมิน (โทรครั้งแรก)',T2:'T2 · ออเดอร์ E-Commerce (Follow up / Up-sell)',T3:'T3 · ของใกล้หมด (ติดตามซื้อเพิ่ม)'}[r.step]||'';
