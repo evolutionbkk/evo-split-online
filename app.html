@@ -132,6 +132,15 @@
     ต้องเปิดหน้า Evolution (ที่ติดตั้งสคริปต์) ค้างไว้สักครั้งเพื่อเชื่อม token ก่อนกดดึง
   </div>
 
+  <div class="panel" id="pancakePanel">
+    <h2><span data-ic="download" data-sz="18"></span>เชื่อม Pancake — ออเดอร์ที่ปิดการขาย → ทีมเซลล์</h2>
+    <div class="desc">ระบบดึงออเดอร์ที่ <b>ปิดการขายแล้ว</b> จาก Pancake อัตโนมัติทุก 10 นาที → แจกให้ Namwhan/Khem 50/50 · กันซ้ำด้วยเบอร์ · นับเฉพาะออเดอร์ที่ปิดหลังเริ่มเชื่อม (ไม่ดึงย้อนหลัง)</div>
+    <div class="row" style="align-items:center;gap:10px">
+      <button class="b-add" id="pcpullbtn" onclick="doPancakePull()" style="padding:9px 16px"><span data-ic="refresh" data-sz="15"></span>ซิงค์ Pancake เดี๋ยวนี้</button>
+      <span id="pcstatus" style="font-size:12.5px;color:#6b7280"></span>
+    </div>
+  </div>
+
   <div class="panel" id="kpiPanel">
     <h2><span data-ic="activity" data-sz="18"></span>Dashboard KPI — ภาพรวมทีม Telesales</h2>
     <div class="desc">วัดผลงานเซลล์ Namwhan (W) &amp; Khem (K) · เลือกช่วงเวลาได้ · <span id="kpiarch"></span></div>
@@ -846,8 +855,25 @@ function clClosePlayer(){
   const p=document.getElementById('clPlayer'); try{p.pause();}catch(e){} p.removeAttribute('src'); p.load();
   document.getElementById('clPlayerBar').style.display='none';
 }
+// ===== Pancake status =====
+async function loadPancakeStatus(){
+  try{const r=await fetch('/api/pancake/status');if(!r.ok)return;const s=await r.json();const el=document.getElementById('pcstatus');if(!el)return;
+    if(!s.configured){el.innerHTML=ic('alert',13)+' ยังไม่ได้ตั้ง PANCAKE_API_KEY ใน Railway';return;}
+    let t=ic('check',13)+' เชื่อมแล้ว · นำเข้าจาก Pancake สะสม <b>'+(s.imported||0)+'</b> ราย';
+    if(s.lastRun)t+=' · ซิงค์ล่าสุด '+fmt(s.lastRun)+' (เพิ่ม '+(s.lastAdded||0)+')';
+    if(s.lastError)t+=' · <span style="color:#b45309">⚠ '+esc(s.lastError)+'</span>';
+    el.innerHTML=t;
+  }catch(e){}
+}
+async function doPancakePull(){
+  const b=document.getElementById('pcpullbtn');b.disabled=true;const old=b.innerHTML;b.innerHTML='กำลังซิงค์…';
+  try{const r=await fetch('/api/pancake/pull',{method:'POST'});const j=await r.json();
+    document.getElementById('lastact').innerHTML=r.ok?(ic('check',14)+'ซิงค์ Pancake แล้ว · เพิ่มใหม่ <b>'+(j.added||0)+'</b> ราย'):(ic('alert',14)+(j.message||j.error||'ซิงค์ไม่สำเร็จ'));
+  }catch(e){document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e;}
+  b.disabled=false;b.innerHTML=old;loadPancakeStatus();refresh();
+}
 fillIcons();
-refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000);
+refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000);
 </script>
 </body>
 </html>

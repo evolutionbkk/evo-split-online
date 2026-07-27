@@ -178,7 +178,7 @@ function applyManual(state, rows, opts) {
       state.assigned.push({
         code: p.code, name: p.name, phone: p.phone,
         sales: side, round, date, exported: true, receivedAt: nowIso,
-        source: 'manual', step, distributedBy: opts.distributedBy || opts.by || '',
+        source: opts.source || 'manual', step, distributedBy: opts.distributedBy || opts.by || '',
         address: p.address, product: p.product, orderAmount: p.orderAmount,
         page: p.page, closer: p.closer,
         leadStatus: 'new', callCount: 0, calls: [],

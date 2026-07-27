@@ -62,6 +62,8 @@ async function boot() {
   for (const rec of state.assigned) { if (!rec.receivedAt) { rec.receivedAt = rec.updatedAt || new Date().toISOString(); bf = true; } }
   if (!Array.isArray(state.onecall)) state.onecall = [];
   if (!Array.isArray(state.pulls)) state.pulls = [];
+  // Pancake baseline: set once, so we only forward orders CLOSED from now on (no 1,375 backfill).
+  if (!state.pancake) { state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null }; bf = true; }
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -506,6 +508,71 @@ const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 5; // Admin-S
 const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
 // Evolution pull quota: new leads handed to EACH Telesales per day (100/day total = 50 each)
 const EVO_DAILY_PER_SIDE = Number(process.env.EVO_DAILY_PER_SIDE) || 50;
+// ---------- Pancake POS: pull CLOSED-SALE orders → hand to the telesales team ----------
+const PANCAKE_API_KEY = process.env.PANCAKE_API_KEY || '';
+const PANCAKE_SHOP_ID = process.env.PANCAKE_SHOP_ID || '1328953496';
+const PANCAKE_HOST = 'https://pos.pancake.vn/api/v1';
+// Statuses that are NOT a "closed sale" (skip): 0 new/unconfirmed, 6 returning, 7 returned, 11 canceled.
+const PANCAKE_SKIP_STATUS = new Set(String(process.env.PANCAKE_SKIP_STATUS || '0,6,7,11').split(',').map((s) => s.trim()).filter(Boolean));
+function pancakeItems(o) {
+  const items = (o && o.items) || [];
+  const parts = [];
+  for (const it of items) {
+    const vi = it.variation_info || {};
+    const nm = vi.name || vi.detail || it.name || it.product_name || (it.product_display_id ? ('#' + it.product_display_id) : '');
+    if (nm) parts.push(String(nm) + ((it.quantity || 1) > 1 ? (' x' + it.quantity) : ''));
+  }
+  return parts.join(', ').slice(0, 200);
+}
+function pancakeOrderToRow(o) {
+  const phone = String((o.bill_phone_number || '') || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')).trim();
+  const name = String((o.bill_full_name || '') || ((o.customer && o.customer.name) || '')).trim();
+  const page = String((o.page && o.page.name) || o.order_sources_name || '').slice(0, 120);
+  const amount = Number(o.total_price_after_sub_discount || o.total_price || 0) || 0;
+  return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page };
+}
+async function pancakePull() {
+  if (!PANCAKE_API_KEY) { return { added: 0, err: 'no_api_key' }; }
+  if (!state.pancake) state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null };
+  const seen = new Set(state.pancake.seen || []);
+  const startedAt = Date.parse(state.pancake.startedAt) || Date.now();
+  let added = 0, scanned = 0, err = null;
+  try {
+    const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=1&page_size=100';
+    const r = await fetch(url);
+    const j = await r.json().catch(() => null);
+    if (!j || j.success !== true || !Array.isArray(j.data)) throw new Error('bad_response_status_' + r.status);
+    // oldest-first so multiple new closes this cycle keep a stable order
+    const orders = j.data.slice().sort((a, b) => Date.parse(a.updated_at || a.inserted_at || 0) - Date.parse(b.updated_at || b.inserted_at || 0));
+    const rows = [];
+    for (const o of orders) {
+      scanned++;
+      const id = String(o.id || o.system_id);
+      if (seen.has(id)) continue;
+      if (PANCAKE_SKIP_STATUS.has(String(o.status))) continue; // not a closed sale (may close later)
+      const upd = Date.parse(o.updated_at || o.inserted_at || 0);
+      if (isFinite(upd) && upd < startedAt) continue;           // pre-existing history — don't backfill
+      rows.push(pancakeOrderToRow(o));
+      seen.add(id);
+    }
+    if (rows.length) {
+      const sum = S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1' });
+      added = sum.added;
+    }
+    state.pancake.seen = Array.from(seen).slice(-8000);
+    state.pancake.lastRun = new Date().toISOString();
+    state.pancake.lastAdded = added;
+    state.pancake.lastScanned = scanned;
+    state.pancake.lastError = null;
+    state = await store.save(state);
+  } catch (e) {
+    err = String(e);
+    state.pancake.lastError = err;
+    state.pancake.lastRun = new Date().toISOString();
+    try { state = await store.save(state); } catch (_) {}
+  }
+  return { added, err };
+}
 function digitsOnly(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
 function normLine(p) { let d = digitsOnly(p); if (d.length === 10 && d[0] === '0') d = '66' + d.slice(1); return d; }
 function onecallSide(localParty) { return ONECALL_LINES[normLine(localParty)] || null; }
@@ -906,6 +973,22 @@ app.get('/api/onecall/audio/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Pancake: manual "sync now" + status for the Teamlead dashboard.
+app.post('/api/pancake/pull', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY ใน Railway' });
+  const out = await pancakePull();
+  res.json({ ok: !out.err, added: out.added, error: out.err || null });
+});
+app.get('/api/pancake/status', requireAuth, (req, res) => {
+  const p = state.pancake || {};
+  res.json({
+    configured: !!PANCAKE_API_KEY, shopId: PANCAKE_SHOP_ID,
+    startedAt: p.startedAt || null, lastRun: p.lastRun || null,
+    lastAdded: p.lastAdded || 0, lastError: p.lastError || null,
+    imported: (state.assigned || []).filter((r) => r.source === 'pancake').length,
+  });
+});
+
 app.post('/api/reset', requireAuth, async (req, res) => {
   const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'seed.json'), 'utf8'));
   state = S.buildSeed(seed);
@@ -1065,4 +1148,8 @@ boot().then(() => {
   setInterval(() => { runSweep().catch(() => {}); }, 60 * 60 * 1000); // hourly stale sweep
   setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
+  if (PANCAKE_API_KEY) {
+    setTimeout(() => { pancakePull().catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot
+    setInterval(() => { pancakePull().catch(() => {}); }, 10 * 60 * 1000);     // pull closed-sale orders every 10 min
+  }
 }).catch((e) => { console.error('boot failed', e); process.exit(1); });
