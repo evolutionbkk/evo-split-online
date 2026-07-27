@@ -453,9 +453,16 @@ function openLeadByKey(key){
     <div class="sec" style="margin-top:16px">วันติดตามครั้งถัดไป</div>
     <div class="apptbox"><input type="datetime-local" id="fdate" value="${fval}"><div class="row2"><button class="act b-cancel" style="flex:1" onclick="clearFollowup()">ล้างวันนัด</button><button class="act b-save" style="flex:2" onclick="saveFollowup()">บันทึกวันติดตาม</button></div>${r.nextAppt?`<div style="font-size:12px;color:#075985;margin-top:8px">นัดปัจจุบัน: ${esc(fmtShort(r.nextAppt))}</div>`:''}</div>
     ${lostSection}
-    <div class="sec" style="margin-top:16px">ที่อยู่ลูกค้า (กรอกเองได้)</div>
-    <textarea id="addr" rows="2" placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์…">${esc(r.address)}</textarea>
-    <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveAddr()">บันทึกที่อยู่</button>
+    <div class="sec" style="margin-top:16px">ที่อยู่ลูกค้า</div>
+    ${r.address ? `
+    <div id="addrView" style="background:#f8fafc;border:1px solid #e5e9f0;border-radius:10px;padding:10px 12px;font-size:13.5px;color:#334155;white-space:pre-wrap;line-height:1.5">${esc(r.address)}</div>
+    <button id="addrEditBtn" class="act b-b" style="width:100%;margin-top:8px" onclick="editAddr()">${ic('pencil',15)}แก้ไขที่อยู่</button>
+    <div id="addrEdit" style="display:none">
+      <textarea id="addr" rows="2" placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์…">${esc(r.address)}</textarea>
+      <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveAddr()">บันทึกที่อยู่</button>
+    </div>` : `
+    <textarea id="addr" rows="2" placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์…"></textarea>
+    <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveAddr()">บันทึกที่อยู่</button>`}
     <div class="sec" style="margin-top:16px">หมายเหตุการสนทนา</div>
     <textarea id="note" rows="3" placeholder="บันทึกรายละเอียดการคุย…">${esc(r.note)}</textarea>
     <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveNote()">บันทึกหมายเหตุ</button>
@@ -548,7 +555,8 @@ async function tapLine(v){
     document.querySelectorAll('.lineseg button').forEach(b=>{}); openLeadByKey(CUR.key); }
 }
 async function saveNote(){ if(!CUR)return; const t=document.getElementById('note').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{note:t}}); if(j&&j.ok){toast('บันทึกหมายเหตุแล้ว');reload();} }
-async function saveAddr(){ if(!CUR)return; const t=document.getElementById('addr').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{address:t}}); if(j&&j.ok){toast('บันทึกที่อยู่แล้ว');reload();} }
+function editAddr(){ const e=document.getElementById('addrEdit'),v=document.getElementById('addrView'),b=document.getElementById('addrEditBtn'); if(e)e.style.display='block'; if(v)v.style.display='none'; if(b)b.style.display='none'; const t=document.getElementById('addr'); if(t)t.focus(); }
+async function saveAddr(){ if(!CUR)return; const t=document.getElementById('addr').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{address:t}}); if(j&&j.ok){toast('บันทึกที่อยู่แล้ว');CUR.address=t;await reload();if(CUR)openLeadByKey(CUR.key);} }
 function editName(){
   if(!CUR)return; const h=document.getElementById('h3name'); if(!h)return;
   h.innerHTML=`<input id="cname" value="${esc(CUR.name)}" placeholder="ชื่อลูกค้า"><button class="act b-save" style="padding:8px 12px" onclick="saveName()">${ic('check',16)}</button><button class="act b-cancel" style="padding:8px 12px" onclick="openLeadByKey(CUR.key)">${ic('x',16)}</button>`;

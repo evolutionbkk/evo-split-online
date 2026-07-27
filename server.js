@@ -529,13 +529,33 @@ function pancakeItems(o) {
   }
   return parts.join(', ').slice(0, 200);
 }
+// Build a full Thai address string from whatever address shape Pancake provides.
+function pancakeAddress(o) {
+  if (!o) return '';
+  const sa = o.shipping_address || (o.customer && o.customer.shipping_address) || null;
+  const pick = (obj) => {
+    if (!obj || typeof obj !== 'object') return '';
+    const full = obj.full_address || obj.address_full || obj.full_name_address || '';
+    if (full && String(full).trim()) return String(full).trim();
+    const parts = [obj.address, obj.commune_name || obj.ward_name || obj.commune, obj.district_name || obj.district, obj.province_name || obj.province, obj.country_name, obj.post_code || obj.zip_code]
+      .map((x) => (x == null ? '' : String(x).trim())).filter(Boolean);
+    return parts.join(' ');
+  };
+  let addr = pick(sa);
+  if (!addr) {
+    const caList = (o.customer && (o.customer.shipping_addresses || o.customer.addresses)) || o.shipping_addresses || [];
+    if (Array.isArray(caList) && caList.length) addr = pick(caList[0]);
+  }
+  if (!addr) addr = String(o.bill_full_address || o.full_address || '').trim();
+  return addr.slice(0, 500);
+}
 function pancakeOrderToRow(o) {
   const phone = String((o.bill_phone_number || '') || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')).trim();
   const name = String((o.bill_full_name || '') || ((o.customer && o.customer.name) || '')).trim();
   const page = String((o.page && o.page.name) || o.order_sources_name || '').slice(0, 120);
   // Pancake stores money in the smallest unit (satang) → divide by 100 for THB.
   const amount = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
-  return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page };
+  return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page, address: pancakeAddress(o) };
 }
 async function pancakePull() {
   if (!PANCAKE_API_KEY) { return { added: 0, err: 'no_api_key' }; }
@@ -1098,6 +1118,25 @@ app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
   state.pancake.startedAt = new Date().toISOString(); // forward-only from here on
   try { state = await store.save(state); } catch (_) {}
   res.json({ ok: !out.err, added: out.added, hours, error: out.err || null });
+});
+// TEMP DIAGNOSTIC: show address-related KEY NAMES on a sample order (no values/PII/keys). Remove after use.
+app.get('/api/pancake/_debugkeys', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
+  try {
+    const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=1&page_size=5';
+    const j = await (await fetch(url)).json();
+    const o = (j.data || [])[0] || {};
+    const addrShape = {};
+    for (const k of Object.keys(o)) {
+      if (!/addr|ship|bill|province|district|commune|ward|location|full/i.test(k)) continue;
+      const v = o[k];
+      addrShape[k] = (v && typeof v === 'object' && !Array.isArray(v)) ? ('OBJ{' + Object.keys(v).join(',') + '}')
+        : Array.isArray(v) ? ('ARR[' + (v[0] && typeof v[0] === 'object' ? Object.keys(v[0]).join(',') : typeof (v[0])) + ']')
+        : typeof v;
+    }
+    const cust = o.customer && typeof o.customer === 'object' ? Object.keys(o.customer).filter((k) => /addr|ship/i.test(k)) : [];
+    res.json({ orderKeys: Object.keys(o), addrShape, customerAddrKeys: cust, extracted: pancakeAddress(o) ? 'HAS_ADDRESS' : 'EMPTY' });
+  } catch (e) { res.json({ error: String(e) }); }
 });
 app.get('/api/pancake/status', requireAuth, (req, res) => {
   const p = state.pancake || {};
