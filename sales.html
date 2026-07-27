@@ -232,7 +232,7 @@ function fmtBaht(n){return (Number(n)||0).toLocaleString('en-US',{maximumFractio
 
 let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='new',CURLIST=[],CUR=null,SRC='all';
 // แหล่งที่มาของลีด: Marketplace = Facebook/Pancake (source pancake/manual) · E-commerce = เว็บ Evolution (ที่เหลือ)
-function srcGroup(r){return (r.source==='pancake'||r.source==='manual')?'mkt':'ecom';}
+function srcGroup(r){return (r.source==='pancake'||r.source==='manual'||r.source==='refill')?'mkt':'ecom';}
 function setSrc(s){SRC=s;render();}
 function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),1600);}
 function fmtShort(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}

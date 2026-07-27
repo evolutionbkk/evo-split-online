@@ -974,6 +974,67 @@ app.get('/api/onecall/audio/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Pancake refill: customers who bought a while ago (serum used up) and are due to re-order.
+let _refillCache = { at: 0, data: null, min: 0, max: 0 };
+async function pancakeRefill(daysMin, daysMax) {
+  if (!PANCAKE_API_KEY) return { error: 'no_api_key', candidates: [] };
+  const now = Date.now();
+  const maxTs = now - daysMin * 86400000; // ordered at least daysMin ago
+  const minTs = now - daysMax * 86400000; // but not older than daysMax
+  const seenActive = new Set(state.assigned.filter((a) => !a.archived).map((a) => digitsOnly(a.phone)).filter(Boolean));
+  const out = [];
+  let page = 1, scanned = 0;
+  const MAX_PAGES = 16;
+  try {
+    while (page <= MAX_PAGES) {
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const r = await fetch(url);
+      const j = await r.json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const c of j.data) {
+        scanned++;
+        if (Number(c.succeed_order_count || 0) < 1) continue;
+        const loRaw = String(c.last_order_at || '').replace(' ', 'T');
+        const lo = Date.parse(loRaw);
+        if (isNaN(lo) || lo < minTs || lo > maxTs) continue;
+        const phone = normPhoneTH((c.phone_numbers && c.phone_numbers[0]) || '');
+        if (!phone) continue;
+        out.push({
+          name: c.name || '', phone,
+          lastOrderAt: c.last_order_at, daysSince: Math.floor((now - lo) / 86400000),
+          orderCount: Number(c.order_count || 0), succeedOrders: Number(c.succeed_order_count || 0),
+          spent: Math.round(Number(c.purchased_amount || 0)) / 100,
+          inQueue: seenActive.has(digitsOnly(phone)),
+        });
+      }
+      if (j.data.length < 100) break;
+      page++;
+    }
+    out.sort((a, b) => b.daysSince - a.daysSince);
+    return { candidates: out, scanned };
+  } catch (e) { return { error: String(e), candidates: out, scanned }; }
+}
+app.get('/api/pancake/refill', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
+  const dmin = Math.max(1, Number(req.query.min) || 25), dmax = Math.min(180, Number(req.query.max) || 60);
+  const stale = (Date.now() - _refillCache.at > 30 * 60 * 1000) || _refillCache.min !== dmin || _refillCache.max !== dmax;
+  if (req.query.refresh || stale || !_refillCache.data) {
+    _refillCache = { at: Date.now(), data: await pancakeRefill(dmin, dmax), min: dmin, max: dmax };
+  }
+  const d = _refillCache.data || { candidates: [] };
+  res.json({ candidates: d.candidates || [], scanned: d.scanned || 0, error: d.error || null, cachedAt: new Date(_refillCache.at).toISOString(), min: dmin, max: dmax, names: SALES_NAMES });
+});
+app.post('/api/pancake/refill/import', requireAuth, async (req, res) => {
+  const phones = (req.body && Array.isArray(req.body.phones)) ? req.body.phones : null;
+  const d = _refillCache.data || { candidates: [] };
+  let cands = d.candidates || [];
+  if (phones) { const set = new Set(phones.map(digitsOnly)); cands = cands.filter((c) => set.has(digitsOnly(c.phone))); }
+  const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill' }));
+  const sum = S.applyManual(state, rows, { source: 'refill', by: 'Refill', step: 'T1' });
+  state = await store.save(state);
+  res.json({ ok: true, added: sum.added, addW: sum.addW, addK: sum.addK, dup: sum.dup });
+});
+
 // Pancake: manual "sync now" + status for the Teamlead dashboard.
 app.post('/api/pancake/pull', requireAuth, async (req, res) => {
   if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY ใน Railway' });

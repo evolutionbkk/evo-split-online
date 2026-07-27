@@ -94,26 +94,44 @@
   .kbar>span{display:block;height:100%;background:linear-gradient(90deg,#16a34a,#22c55e)}
   @media(max-width:720px){.ktoday{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+  .applayout{display:flex;align-items:flex-start;gap:18px;max-width:1240px;margin:0 auto;padding:16px 14px}
+  .side{position:sticky;top:16px;width:214px;flex:none;background:#0f172a;border-radius:16px;padding:14px 10px;box-shadow:0 10px 30px rgba(15,23,42,.14)}
+  .side .brand{color:#fff;font-weight:800;font-size:14.5px;padding:6px 10px 12px;line-height:1.3;border-bottom:1px solid #1e293b;margin-bottom:8px}
+  .side .brand small{display:block;color:#94a3b8;font-weight:600;font-size:11.5px;margin-top:2px}
+  .side .nav{display:flex;flex-direction:column;gap:3px}
+  .side .nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:transparent;border:none;color:#cbd5e1;font-size:13.5px;font-weight:600;padding:11px 12px;border-radius:10px;cursor:pointer;transition:background .15s}
+  .side .nav button:hover{background:#1e293b;color:#fff}
+  .side .nav button.on{background:#2563eb;color:#fff}
+  .side .nav button .rfb{margin-left:auto;background:#dc2626;color:#fff;font-size:11px;font-weight:700;border-radius:9px;padding:0 7px;min-width:18px;text-align:center}
+  .applayout .wrap{flex:1;min-width:0;max-width:none;margin:0;padding:0}
+  [data-sec]{display:none}
+  [data-sec].shown{display:block}
+  @media(max-width:900px){.applayout{flex-direction:column;gap:10px;padding:10px}.side{position:static;width:100%}.side .nav{flex-direction:row;flex-wrap:wrap}.side .nav button{width:auto;flex:1;min-width:120px;justify-content:center}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
-<div class="wrap">
+<div class="applayout">
+  <nav class="side">
+    <div class="brand">EVOLUTION · Teamlead<small>ศูนย์ควบคุมทีมเทเลเซลล์</small></div>
+    <div class="nav" id="navmenu"></div>
+  </nav>
+  <div class="wrap">
   <div class="top">
     <h1>แบ่งรายชื่อลูกค้าให้เซลล์ — Sales (W) &amp; Sales (K)</h1>
     <form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form>
   </div>
   <div class="sub">ฐานข้อมูลกลางออนไลน์ · เติมเฉพาะรายใหม่ต่อคิว ของเดิมไม่เปลี่ยนเซลล์ · บันทึกรอบ/วันที่</div>
+  <div class="lastact" id="lastact"></div>
 
-  <div class="cards">
+  <div class="cards" data-sec="overview">
     <div class="card total"><div class="n" id="c-all">–</div><div class="l">รวมที่แบ่งแล้ว</div></div>
     <div class="card w"><div class="n" id="c-w">–</div><div class="l">Sales (W)</div></div>
     <div class="card k"><div class="n" id="c-k">–</div><div class="l">Sales (K)</div></div>
     <div class="card upd"><div class="n" id="c-upd">–</div><div class="l">อัปเดตล่าสุด</div></div>
   </div>
-  <div class="lastact" id="lastact"></div>
 
-  <div class="panel">
+  <div class="panel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
     <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
     <div class="row">
@@ -127,12 +145,12 @@
     </table></div></div>
   </div>
 
-  <div class="note">
+  <div class="note" data-sec="leads">
     <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก (นำเข้า manual กันซ้ำด้วยเบอร์) &nbsp;|&nbsp;
     ต้องเปิดหน้า Evolution (ที่ติดตั้งสคริปต์) ค้างไว้สักครั้งเพื่อเชื่อม token ก่อนกดดึง
   </div>
 
-  <div class="panel" id="pancakePanel">
+  <div class="panel" id="pancakePanel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>เชื่อม Pancake — ออเดอร์ที่ปิดการขาย → ทีมเซลล์</h2>
     <div class="desc">ระบบดึงออเดอร์ที่ <b>ปิดการขายแล้ว</b> จาก Pancake อัตโนมัติทุก 10 นาที → แจกให้ Namwhan/Khem 50/50 · กันซ้ำด้วยเบอร์ · นับเฉพาะออเดอร์ที่ปิดหลังเริ่มเชื่อม (ไม่ดึงย้อนหลัง)</div>
     <div class="row" style="align-items:center;gap:10px">
@@ -141,7 +159,29 @@
     </div>
   </div>
 
-  <div class="panel" id="kpiPanel">
+  <div class="panel" id="refillPanel" data-sec="refill">
+    <h2><span data-ic="refresh" data-sz="18"></span>ลูกค้าเดิม · ถึงกำหนดซื้อซ้ำ (Refill)</h2>
+    <div class="desc">เซรั่มใช้หมดใน ~30-45 วัน → ระบบดึงลูกค้าที่เคยซื้อและถึงกำหนดซื้อซ้ำจาก Pancake มาให้โทรชวนสั่งใหม่ (ปิดง่ายกว่าลูกค้าใหม่มาก) · เรียงตามค้างนานสุดก่อน</div>
+    <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <span style="font-size:12.5px;color:#475569">ช่วงที่ซื้อไปแล้ว:</span>
+      <select id="rfWindow" onchange="loadRefill(true)" style="padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px">
+        <option value="25-60">25–60 วัน (แนะนำ)</option>
+        <option value="30-90">30–90 วัน</option>
+        <option value="45-120">45–120 วัน</option>
+        <option value="20-45">20–45 วัน</option>
+      </select>
+      <button class="b-b" id="rfRefresh" onclick="loadRefill(true)" style="padding:7px 12px"><span data-ic="refresh" data-sz="14"></span>รีเฟรช</button>
+      <button class="b-add" id="rfImport" onclick="importRefill()" style="padding:7px 14px;font-weight:700"><span data-ic="download" data-sz="14"></span>ส่งเข้าคิวโทร (แจก 50/50)</button>
+      <span id="rfInfo" style="font-size:12px;color:#6b7280"></span>
+    </div>
+    <div class="tblwrap" style="max-height:460px"><table style="min-width:620px">
+      <thead><tr><th>ชื่อลูกค้า</th><th>เบอร์</th><th style="text-align:right">ซื้อล่าสุด (วันก่อน)</th><th style="text-align:right">เคยซื้อ</th><th style="text-align:right">ยอดสะสม</th><th style="text-align:center">สถานะ</th></tr></thead>
+      <tbody id="rfBody"></tbody>
+    </table></div>
+    <div id="rfFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+  </div>
+
+  <div class="panel" id="kpiPanel" data-sec="overview">
     <h2><span data-ic="activity" data-sz="18"></span>Dashboard KPI — ภาพรวมทีม Telesales</h2>
     <div class="desc">วัดผลงานเซลล์ Namwhan (W) &amp; Khem (K) · เลือกช่วงเวลาได้ · <span id="kpiarch"></span></div>
     <div class="krange" id="krange">
@@ -168,7 +208,7 @@
     </div>
   </div>
 
-  <div class="panel" id="mgmtPanel">
+  <div class="panel" id="mgmtPanel" data-sec="overview">
     <h2><span data-ic="activity" data-sz="18"></span>ภาพเชิงบริหาร — Funnel &amp; ยอดขาย <span id="mgmtrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="desc">กรวยการขาย (สถานะลีดปัจจุบัน) และยอดขายเทียบเป้าในช่วงที่เลือก · ดูว่าลีดหลุดตรงขั้นไหนเยอะ</div>
     <div class="cols" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start">
@@ -184,7 +224,7 @@
     </div>
   </div>
 
-  <div class="panel" id="callPanel">
+  <div class="panel" id="callPanel" data-sec="analytics">
     <h2><span data-ic="activity" data-sz="18"></span>วิเคราะห์การโทร (OneCall) <span id="callrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="desc">ภาพรวมสายที่โทรจริงจาก OneCall · เลือกช่วงเวลาจากแถบด้านบน (Dashboard KPI) · <span style="color:#166534">คุยจริง = สายที่นานเกิน <b id="callmintalk">7</b> วิ</span></div>
     <div id="callWarn" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:10px"></div>
@@ -207,7 +247,7 @@
     </div>
   </div>
 
-  <div class="panel" id="cllogPanel">
+  <div class="panel" id="cllogPanel" data-sec="calllog">
     <h2><span data-ic="phone" data-sz="18"></span>ประวัติการโทรรายคน (OneCall)</h2>
     <div class="desc">ดูว่าเซลล์แต่ละคนโทรเบอร์ไหนไปบ้าง คุยกี่วินาที เบอร์ไหนคุยนาน/สั้นสุด และเบอร์ไหนโทรซ้ำบ่อย · กรองได้ตามคน / ช่วงเวลา / ประเภทสาย</div>
 
@@ -263,13 +303,13 @@
     <div id="clFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
   </div>
 
-  <div class="searchbar">
+  <div class="searchbar" data-sec="customers">
     <span data-ic="search" data-sz="18" style="color:#94a3b8"></span>
     <input type="text" id="search" placeholder="ค้นหา: รหัสสมาชิก / ชื่อ / เบอร์โทร…" oninput="renderTables()">
     <span class="hint" id="searchinfo"></span>
   </div>
 
-  <div class="cols">
+  <div class="cols" data-sec="customers">
     <div class="col w">
       <div class="col-head"><span>Sales (W)</span><span class="cnt" id="hw">– ราย</span></div>
       <div class="tblwrap"><table><thead><tr><th class="num">#</th><th>รหัสสมาชิก</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทรศัพท์</th><th>รอบที่ดึง</th></tr></thead><tbody id="tw"></tbody></table></div>
@@ -278,6 +318,7 @@
       <div class="col-head"><span>Sales (K)</span><span class="cnt" id="hk">– ราย</span></div>
       <div class="tblwrap"><table><thead><tr><th class="num">#</th><th>รหัสสมาชิก</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทรศัพท์</th><th>รอบที่ดึง</th></tr></thead><tbody id="tk"></tbody></table></div>
     </div>
+  </div>
   </div>
 </div>
 
@@ -872,7 +913,60 @@ async function doPancakePull(){
   }catch(e){document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e;}
   b.disabled=false;b.innerHTML=old;loadPancakeStatus();refresh();
 }
+// ===== Sidebar navigation =====
+const SECTIONS=[
+  {k:'overview',label:'ภาพรวม',icon:'activity'},
+  {k:'leads',label:'ดึงรายชื่อเข้า',icon:'download'},
+  {k:'refill',label:'ลูกค้าเดิม · ซื้อซ้ำ',icon:'refresh'},
+  {k:'analytics',label:'วิเคราะห์การโทร',icon:'activity'},
+  {k:'calllog',label:'ประวัติการโทร',icon:'phone'},
+  {k:'customers',label:'รายชื่อลูกค้า',icon:'search'},
+];
+let CURSEC='overview',REFILL_LOADED=false;
+function renderNav(){
+  document.getElementById('navmenu').innerHTML=SECTIONS.map(s=>`<button class="${CURSEC===s.k?'on':''}" onclick="showSec('${s.k}')">${ic(s.icon,17)}<span>${s.label}</span></button>`).join('');
+}
+function showSec(sec){
+  CURSEC=sec;
+  document.querySelectorAll('[data-sec]').forEach(el=>el.classList.toggle('shown',el.dataset.sec===sec));
+  renderNav();
+  if(sec==='refill'&&!REFILL_LOADED){REFILL_LOADED=true;loadRefill(false);}
+  window.scrollTo(0,0);
+}
+// ===== Refill (ลูกค้าเดิมซื้อซ้ำ) =====
+let REFILL_DATA={candidates:[]};
+function rfWin(){const v=(document.getElementById('rfWindow')||{}).value||'25-60';const p=v.split('-');return {min:p[0],max:p[1]};}
+async function loadRefill(force){
+  const w=rfWin(),info=document.getElementById('rfInfo');if(info)info.textContent='กำลังดึงข้อมูลจาก Pancake…';
+  try{
+    const r=await fetch('/api/pancake/refill?min='+w.min+'&max='+w.max+(force?'&refresh=1':''));
+    if(!r.ok){const e=await r.json().catch(()=>({}));if(info)info.textContent=e.message||'ดึงไม่สำเร็จ';return;}
+    REFILL_DATA=await r.json();renderRefill();
+  }catch(e){if(info)info.textContent='ผิดพลาด: '+e;}
+}
+function renderRefill(){
+  const j=REFILL_DATA,c=j.candidates||[],baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+  document.getElementById('rfBody').innerHTML=c.length?c.map(x=>`<tr>
+    <td>${esc(x.name)||'<span style="color:#cbd5e1">–</span>'}</td>
+    <td style="font-variant-numeric:tabular-nums">${esc(x.phone)}</td>
+    <td style="text-align:right;font-weight:700;color:${x.daysSince>=45?'#b45309':'#0f172a'}">${x.daysSince}</td>
+    <td style="text-align:right">${x.succeedOrders}</td>
+    <td style="text-align:right;color:#166534">${baht(x.spent)}</td>
+    <td style="text-align:center">${x.inQueue?'<span class="badge" style="background:#dcfce7;color:#166534">อยู่ในคิวแล้ว</span>':'<span class="badge" style="background:#eff6ff;color:#1e40af">พร้อมส่ง</span>'}</td>
+  </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">ไม่พบลูกค้าที่ถึงกำหนดซื้อซ้ำในช่วงนี้</td></tr>';
+  const ready=c.filter(x=>!x.inQueue).length;
+  document.getElementById('rfInfo').innerHTML='พบ <b>'+c.length+'</b> ราย · พร้อมส่งเข้าคิว <b>'+ready+'</b>'+(j.error?(' · <span style="color:#b45309">⚠ '+esc(j.error)+'</span>'):'');
+  document.getElementById('rfFoot').innerHTML='อัปเดต '+(j.cachedAt?fmt(j.cachedAt):'-')+' · สแกน '+(j.scanned||0)+' ราย · คอลัมน์ "ซื้อล่าสุด" = จำนวนวันที่ผ่านมา · "ส่งเข้าคิวโทร" เพิ่มเฉพาะรายที่ยังไม่อยู่ในคิว แจก 50/50';
+}
+async function importRefill(){
+  const b=document.getElementById('rfImport');b.disabled=true;const old=b.innerHTML;b.innerHTML='กำลังส่ง…';
+  try{const r=await fetch('/api/pancake/refill/import',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const j=await r.json();
+    document.getElementById('lastact').innerHTML=r.ok?(ic('check',14)+'ส่งเข้าคิวโทรแล้ว <b>'+(j.added||0)+'</b> ราย (Namwhan '+(j.addW||0)+'/Khem '+(j.addK||0)+') · ข้ามซ้ำ '+(j.dup||0)):(ic('alert',14)+(j.message||'ส่งไม่สำเร็จ'));
+  }catch(e){document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e;}
+  b.disabled=false;b.innerHTML=old;refresh();loadRefill(true);
+}
 fillIcons();
+renderNav(); showSec('overview');
 refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000);
 </script>
 </body>
