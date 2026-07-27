@@ -1167,6 +1167,39 @@ app.post('/api/pancake/fill-address', requireAuth, async (req, res) => {
   if (filled) state = await store.save(state);
   res.json({ ok: true, filled, mapSize: map.size, fromOrders, fromCustomers });
 });
+// TEMP DIAGNOSTIC: do today's UNMATCHED quality-call numbers exist in Pancake's customer list?
+// If yes, importing FB inbound customers would make those calls match a real lead. (no PII returned)
+app.get('/api/pancake/_matchcheck', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
+  const now = Date.now();
+  const d = new Date(now + 7 * 3600000); d.setUTCHours(0, 0, 0, 0); const tStart = d.getTime() - 7 * 3600000; // start of Thai today
+  const leadPhones = new Set(state.assigned.filter((a) => !a.archived).map((a) => digitsOnly(a.phone)).filter(Boolean));
+  const unmatched = new Set();
+  for (const c of (state.onecall || [])) {
+    if (c.side !== 'W' && c.side !== 'K') continue;
+    const t = Date.parse(c.at); if (isNaN(t) || t < tStart || t > now) continue;
+    if ((c.dur || 0) <= ONECALL_MIN_TALK) continue;
+    const p = digitsOnly(c.phone); if (!p) continue;
+    if (!leadPhones.has(p)) unmatched.add(p);
+  }
+  // Build Pancake customer phone set (all customers, incl. non-buyers = FB inbound)
+  const custPhones = new Set(); let scanned = 0, zeroOrders = 0, withOrders = 0;
+  try {
+    for (let page = 1; page <= 40; page++) {
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const c of j.data) {
+        scanned++;
+        if (Number(c.order_count || 0) >= 1) withOrders++; else zeroOrders++;
+        for (const ph of (c.phone_numbers || [])) { const p = digitsOnly(normPhoneTH(ph)); if (p) custPhones.add(p); }
+      }
+      if (j.data.length < 100) break;
+    }
+  } catch (e) { return res.json({ error: String(e), unmatchedToday: unmatched.size }); }
+  let overlap = 0; for (const p of unmatched) if (custPhones.has(p)) overlap++;
+  res.json({ unmatchedToday: unmatched.size, existInPancakeCustomers: overlap, custScanned: scanned, custWithOrders: withOrders, custZeroOrders: zeroOrders, custUniquePhones: custPhones.size });
+});
 app.get('/api/pancake/status', requireAuth, (req, res) => {
   const p = state.pancake || {};
   res.json({
