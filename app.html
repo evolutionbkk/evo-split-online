@@ -513,7 +513,7 @@ function copyLink(side){
   else{ const el=document.getElementById(side==='K'?'linkK':'linkW'); el.select(); try{document.execCommand('copy');}catch(e){} done(); }
 }
 // ===== Dashboard KPI (ภาพรวมทีม Telesales) =====
-let KR={mode:'today'},KPI_ONECALL=false,KPI_TARGETS={evo:50,manual:5};
+let KR={mode:'today'},KPI_ONECALL=false,KPI_TARGETS={evo:50,manual:5},KPI_FB_LEGACY=false;
 // val = โทรแล้ว (unique leads, drives the bar vs target) · talk = คุยจริง >7 วิ (per-call)
 function targetBar(label,val,target,color,talk){
   const pct=target>0?Math.min(100,Math.round(val/target*100)):0;
@@ -558,9 +558,9 @@ function personCard(side,name,a){
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
       <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
       ${targetBar('Evolution', a.calledEvoToday, KPI_TARGETS.evo, '#2563eb', a.talk7EvoToday)}
-      ${targetBar('FB + Follow up (T1·T2·T3)', a.callsManualToday, KPI_TARGETS.manual, '#7c3aed', a.talk7ManualToday)}
-      <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Evolution <b>${a.calledEvoRange}</b> ราย · FB ปิดการขาย <b>${a.callsManualRange}</b> สาย <span style="color:#94a3b8">· เบอร์ทักใหม่ ${a.talk7OtherRange} สาย (ไม่นับ KPI)</span></div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:3px">เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ลูกค้าซื้อซ้ำ · FB นับ<b>ต่อสาย</b> รวม T1+T2+T3 (เป้า 15 = 5+5+5) · เบอร์ FB ทักใหม่เป็นงานแอดมิน จึงไม่นับ · “คุย” = คุยเกิน 7 วิ</div>
+      ${targetBar('FB + Follow up (T1·T2·T3)', a.callsManualToday, KPI_TARGETS.manual, '#7c3aed', KPI_FB_LEGACY?null:a.talk7ManualToday)}
+      <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Evolution <b>${a.calledEvoRange}</b> ราย · FB <b>${a.callsManualRange}</b> สาย${KPI_FB_LEGACY?' <span style="color:#b45309">(นับสายที่โทรจริงทั้งหมด — ช่วงย้ายระบบ)</span>':' ปิดการขาย <span style="color:#94a3b8">· เบอร์ทักใหม่ '+a.talk7OtherRange+' สาย (ไม่นับ KPI)</span>'}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Evolution ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}FB นับ<b>ต่อสาย</b> รวม T1+T2+T3 (เป้า 15 = 5+5+5) · เริ่มนับแบบตรงลีดตั้งแต่ 28/07/2569</div>
     </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
@@ -577,6 +577,8 @@ async function loadKpi(){
     const W=j.W,K=j.K;
     KPI_ONECALL=!!j.onecall;
     if(j.targets)KPI_TARGETS=j.targets;
+    // legacy era = the viewed range ends before the FB matching baseline (migration day) → credit all real calls
+    KPI_FB_LEGACY=!!(j.kpiFbMatchFrom&&Date.parse(j.to)<=Date.parse(j.kpiFbMatchFrom));
     const tCalls=W.callsToday+K.callsToday,tWon=W.wonToday+K.wonToday,tPending=W.pending+K.pending,tNot=W.notCalled+K.notCalled,tTalk7=W.talk7Today+K.talk7Today;
     const firstTile=KPI_ONECALL?ktile(tTalk7,'สายคุยจริง &gt;7 วิ วันนี้ (OneCall)','good'):ktile(tCalls,'สายที่โทรวันนี้ (บันทึกในระบบ)','');
     document.getElementById('ktoday').innerHTML=

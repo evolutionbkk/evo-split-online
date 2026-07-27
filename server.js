@@ -506,6 +506,11 @@ const ONECALL_MAX = 60000;    // cap stored call records
 const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 50;     // Evolution database calls / day
 const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 15; // FB + Follow-up calls/day (T1+T2+T3 = 5+5+5, counted per call)
 const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
+// FB KPI matching baseline: from this moment on, an FB call only counts if it's to a
+// closed-sale/refill lead in the system. Before it (migration day) we credit every real
+// (>7s) non-Evolution call, because the closed-sale list wasn't complete yet.
+// Default = 28/07/2026 00:00 Thai (UTC+7). Override via KPI_FB_MATCH_FROM (ISO).
+const KPI_FB_MATCH_FROM = Date.parse(process.env.KPI_FB_MATCH_FROM || '2026-07-27T17:00:00Z') || 0;
 // Evolution pull quota: new leads handed to EACH Telesales per day (100/day total = 50 each)
 const EVO_DAILY_PER_SIDE = Number(process.env.EVO_DAILY_PER_SIDE) || 50;
 // ---------- Pancake POS: pull CLOSED-SALE orders → hand to the telesales team ----------
@@ -866,14 +871,19 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     const t = Date.parse(c.at); if (isNaN(t)) continue;
     const key = c.side + '|' + digitsOnly(c.phone), src = leadSrc.get(key); // matched lead on this side?
     const inR = t >= from && t <= to, inT = t >= tStart && t <= tEnd;
-    // "โทรแล้ว" = unique matched leads that got ≥1 call (any duration) — per lead
-    // FB KPI = per-call calls to a CLOSED-SALE lead (Pancake) or refill customer, on this side.
-    // New FB inquiry numbers (not a lead in the system) are the admin team's job, NOT counted here.
+    // "โทรแล้ว ... ราย" = unique matched leads that got ≥1 call (any duration) — always matched-only
     if (src) {
       const b = src === 'manual' ? 'manual' : 'evo';
-      if (inR) { calledR[c.side][b].add(key); if (b === 'manual') A.callsManualRange++; }
-      if (inT) { calledT[c.side][b].add(key); if (b === 'manual') A.callsManualToday++; }
+      if (inR) calledR[c.side][b].add(key);
+      if (inT) calledT[c.side][b].add(key);
     }
+    // FB "T1+T2+T3" per-call KPI:
+    //  - from KPI_FB_MATCH_FROM onward: only calls to a CLOSED-SALE (Pancake) / refill lead on this side
+    //  - before it (migration day): every real (>7s) call that isn't an Evolution website lead
+    const fbCall = (t >= KPI_FB_MATCH_FROM)
+      ? (src === 'manual')
+      : (src !== 'evolution' && (c.dur || 0) > ONECALL_MIN_TALK);
+    if (fbCall) { if (inR) A.callsManualRange++; if (inT) A.callsManualToday++; }
     // per-call talks >7s, bucketed by source (or 'Other' if not a lead on this side)
     if ((c.dur || 0) > ONECALL_MIN_TALK) {
       const b = src === 'manual' ? 'Manual' : (src === 'evolution' ? 'Evo' : 'Other');
@@ -891,6 +901,7 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     names: SALES_NAMES, W: sides.W, K: sides.K,
     onecall: (state.onecall || []).length > 0, onecallUpdatedAt: state.onecallUpdatedAt || null,
     targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL, rev: KPI_TARGET_REV },
+    kpiFbMatchFrom: new Date(KPI_FB_MATCH_FROM).toISOString(),
   });
 });
 
