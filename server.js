@@ -845,6 +845,37 @@ app.get('/api/admin/callstats', requireAuth, (req, res) => {
   });
 });
 
+// Per-call history for the Teamlead: individual OneCall records in a range, filtered by
+// salesperson, with the matched customer name. The client does live search/sort/repeat-count.
+app.get('/api/admin/calllog', requireAuth, (req, res) => {
+  const now = Date.now();
+  let to = req.query.to ? Date.parse(req.query.to) : now;
+  let from = req.query.from ? Date.parse(req.query.from) : (now - 6 * 86400000);
+  if (isNaN(to)) to = now;
+  if (isNaN(from)) from = to - 6 * 86400000;
+  const sideF = (req.query.side === 'W' || req.query.side === 'K') ? req.query.side : null;
+  // phone -> customer name (from active leads) so the log shows who was called
+  const nameMap = new Map();
+  for (const a of state.assigned) {
+    if (a.archived) continue;
+    const p = digitsOnly(a.phone);
+    if (p && !nameMap.has(p)) nameMap.set(p, a.name || '');
+  }
+  const calls = [];
+  for (const c of (state.onecall || [])) {
+    const sd = c.side; if (sd !== 'W' && sd !== 'K') continue;
+    if (sideF && sd !== sideF) continue;
+    const t = Date.parse(c.at); if (isNaN(t)) continue;
+    if (t < from || t > to) continue;
+    calls.push({ side: sd, phone: c.phone, name: nameMap.get(digitsOnly(c.phone)) || '', dur: Number(c.dur) || 0, at: c.at, dir: c.dir || '' });
+  }
+  calls.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  res.json({
+    names: SALES_NAMES, minTalk: ONECALL_MIN_TALK,
+    total: calls.length, capped: calls.length > 3000, calls: calls.slice(0, 3000),
+  });
+});
+
 app.post('/api/reset', requireAuth, async (req, res) => {
   const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'seed.json'), 'utf8'));
   state = S.buildSeed(seed);

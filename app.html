@@ -182,6 +182,56 @@
     </div>
   </div>
 
+  <div class="panel" id="cllogPanel">
+    <h2><span data-ic="phone" data-sz="18"></span>ประวัติการโทรรายคน (OneCall)</h2>
+    <div class="desc">ดูว่าเซลล์แต่ละคนโทรเบอร์ไหนไปบ้าง คุยกี่วินาที เบอร์ไหนคุยนาน/สั้นสุด และเบอร์ไหนโทรซ้ำบ่อย · กรองได้ตามคน / ช่วงเวลา / ประเภทสาย</div>
+
+    <div class="cl-filters" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+      <div class="krange" id="clDate" style="margin:0">
+        <button class="kr on" data-r="today" onclick="clSetDate('today')">วันนี้</button>
+        <button class="kr" data-r="7" onclick="clSetDate('7')">7 วัน</button>
+        <button class="kr" data-r="30" onclick="clSetDate('30')">30 วัน</button>
+        <button class="kr" data-r="custom" onclick="clSetDate('custom')">กำหนดเอง</button>
+        <span id="clCustom" style="display:none;gap:6px;align-items:center">
+          <input type="date" id="clFrom"> – <input type="date" id="clTo">
+          <button class="b-b" style="padding:6px 12px" onclick="loadCallLog()">ดู</button>
+        </span>
+      </div>
+    </div>
+    <div class="cl-filters" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+      <div class="krange" id="clSideSel" style="margin:0">
+        <button class="kr on" data-s="all" onclick="clSetSide('all')">ทั้งคู่</button>
+        <button class="kr" data-s="W" onclick="clSetSide('W')">Namwhan (W)</button>
+        <button class="kr" data-s="K" onclick="clSetSide('K')">Khem (K)</button>
+      </div>
+      <div class="krange" id="clDurSel" style="margin:0">
+        <button class="kr on" data-d="all" onclick="clSetDur('all')">ทุกสาย</button>
+        <button class="kr" data-d="talk" onclick="clSetDur('talk')">คุย &gt;7 วิ</button>
+        <button class="kr" data-d="short" onclick="clSetDur('short')">สั้น ≤7 วิ</button>
+      </div>
+      <input type="text" id="clSearch" placeholder="ค้นหาเบอร์ / ชื่อลูกค้า" oninput="renderCallLog()" style="padding:7px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;min-width:170px">
+      <select id="clSort" onchange="renderCallLog()" style="padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px">
+        <option value="time_desc">ล่าสุดก่อน</option>
+        <option value="time_asc">เก่าสุดก่อน</option>
+        <option value="dur_desc">คุยนานสุดก่อน</option>
+        <option value="dur_asc">คุยสั้นสุดก่อน</option>
+        <option value="rep_desc">โทรซ้ำบ่อยสุดก่อน</option>
+      </select>
+    </div>
+
+    <div id="clWarn" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:10px"></div>
+    <div class="cards" id="clStats" style="grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px"></div>
+
+    <div class="tblwrap" style="max-height:460px"><table style="min-width:640px">
+      <thead><tr>
+        <th>เวลา</th><th>เซลล์</th><th>เบอร์</th><th>ชื่อลูกค้า</th><th style="text-align:center">ทิศทาง</th>
+        <th style="text-align:right">ระยะเวลาคุย</th><th style="text-align:center">โทรซ้ำ</th>
+      </tr></thead>
+      <tbody id="clBody"></tbody>
+    </table></div>
+    <div id="clFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+  </div>
+
   <div class="searchbar">
     <span data-ic="search" data-sz="18" style="color:#94a3b8"></span>
     <input type="text" id="search" placeholder="ค้นหา: รหัสสมาชิก / ชื่อ / เบอร์โทร…" oninput="renderTables()">
@@ -637,8 +687,79 @@ async function evoStatus(){
     el.innerHTML = s.hasToken ? (ic('check',13)+'เชื่อมกับ Evolution แล้ว · token อัปเดต '+fmt(s.tokenUpdatedAt)) : (ic('alert',13)+'ยังไม่ได้เชื่อม — เปิดหน้า Evolution (ที่ติดตั้งสคริปต์) สักครั้งก่อนกดดึง');
   }catch(e){}
 }
+// ===== Per-salesperson call history (OneCall) =====
+let CL={mode:'today',side:'all',dur:'all'},CL_DATA={calls:[],minTalk:7,names:{},total:0,capped:false};
+function fmtDur(s){s=Number(s)||0; if(s>=60){const m=Math.floor(s/60),ss=s%60;return m+':'+String(ss).padStart(2,'0')+' น.';} return s+' วิ';}
+function fmtDT(ts){try{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return '–';}}
+function clSetDate(m){CL.mode=m;document.querySelectorAll('#clDate .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));document.getElementById('clCustom').style.display=(m==='custom')?'inline-flex':'none';if(m!=='custom')loadCallLog();}
+function clSetSide(s){CL.side=s;document.querySelectorAll('#clSideSel .kr').forEach(b=>b.classList.toggle('on',b.dataset.s===s));renderCallLog();}
+function clSetDur(d){CL.dur=d;document.querySelectorAll('#clDurSel .kr').forEach(b=>b.classList.toggle('on',b.dataset.d===d));renderCallLog();}
+function clRange(){
+  if(CL.mode==='custom'){const f=document.getElementById('clFrom').value,t=document.getElementById('clTo').value;const q=[];if(f)q.push('from='+encodeURIComponent(new Date(f+'T00:00:00').toISOString()));if(t)q.push('to='+encodeURIComponent(new Date(t+'T23:59:59').toISOString()));return q.join('&');}
+  const r=rangeFor(CL.mode==='today'?'today':CL.mode);return 'from='+encodeURIComponent(r.from)+'&to='+encodeURIComponent(r.to);
+}
+async function loadCallLog(){
+  try{
+    const r=await fetch('/api/admin/calllog?'+clRange()); if(r.status===401){location.href='/login';return;} if(!r.ok)return;
+    CL_DATA=await r.json();
+    document.getElementById('clminlabel')&&(document.getElementById('clminlabel').textContent=CL_DATA.minTalk);
+    renderCallLog();
+  }catch(e){}
+}
+function clTile(n,l,cls){return `<div class="kt ${cls||''}" style="padding:11px 12px"><div class="n" style="font-size:20px">${n}</div><div class="l">${l}</div></div>`;}
+function renderCallLog(){
+  const mt=CL_DATA.minTalk||7;
+  let rows=(CL_DATA.calls||[]).slice();
+  if(CL.side!=='all')rows=rows.filter(c=>c.side===CL.side);
+  if(CL.dur==='talk')rows=rows.filter(c=>c.dur>mt);
+  else if(CL.dur==='short')rows=rows.filter(c=>c.dur<=mt);
+  const q=(document.getElementById('clSearch').value||'').trim().toLowerCase();
+  if(q)rows=rows.filter(c=>(c.phone||'').toLowerCase().includes(q)||(c.name||'').toLowerCase().includes(q));
+  // repeat counts (per salesperson + number) over the current side/date/dur/search-filtered set
+  const repCount={},repKey=c=>c.side+'|'+c.phone;
+  rows.forEach(c=>{repCount[repKey(c)]=(repCount[repKey(c)]||0)+1;});
+  // stats
+  const n=rows.length,totTalk=rows.reduce((s,c)=>s+(c.dur||0),0);
+  let longest=null,shortest=null;
+  rows.forEach(c=>{if(!longest||c.dur>longest.dur)longest=c;if(!shortest||c.dur<shortest.dur)shortest=c;});
+  let topRep=null;Object.keys(repCount).forEach(k=>{if(!topRep||repCount[k]>topRep.n)topRep={key:k,n:repCount[k]};});
+  const topRepPhone=topRep?topRep.key.split('|')[1]:'–';
+  document.getElementById('clStats').innerHTML=
+    clTile(n,'สายทั้งหมด','')+
+    clTile(fmtDur(totTalk).replace(' น.','').replace(' วิ',''),'รวมเวลาคุย'+(totTalk>=60?' (นาที:วิ)':' (วิ)'),'')+
+    clTile(n?Math.round(totTalk/n)+' วิ':'0 วิ','เฉลี่ย/สาย','')+
+    clTile(longest?fmtDur(longest.dur):'–','นานสุด'+(longest?' · '+longest.phone:''),'good')+
+    clTile(topRep?topRep.n+' ครั้ง':'–','โทรซ้ำบ่อยสุด'+(topRep&&topRep.n>1?' · '+topRepPhone:''),topRep&&topRep.n>=3?'warn':'');
+  // sort
+  const sort=document.getElementById('clSort').value;
+  if(sort==='time_desc')rows.sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
+  else if(sort==='time_asc')rows.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
+  else if(sort==='dur_desc')rows.sort((a,b)=>b.dur-a.dur);
+  else if(sort==='dur_asc')rows.sort((a,b)=>a.dur-b.dur);
+  else if(sort==='rep_desc')rows.sort((a,b)=>(repCount[repKey(b)]-repCount[repKey(a)])||(Date.parse(b.at)-Date.parse(a.at)));
+  const warn=document.getElementById('clWarn');
+  if(!(CL_DATA.calls||[]).length){warn.style.display='block';warn.innerHTML=ic('info',13)+' ยังไม่มีข้อมูลการโทรในช่วงนี้ — เปลี่ยนช่วงเวลา หรือรอ OneCall ดึงข้อมูลเข้ามา';}
+  else warn.style.display='none';
+  const sideBadge=s=>`<span class="badge" style="background:${s==='W'?'#dbeafe':'#fce7f3'};color:${s==='W'?'#1e40af':'#9d174b'}">${s}</span>`;
+  document.getElementById('clBody').innerHTML=rows.length?rows.map(c=>{
+    const rc=repCount[repKey(c)];
+    const repBadge=rc>1?`<span class="badge" style="background:${rc>=3?'#fef3c7':'#f1f5f9'};color:${rc>=3?'#b45309':'#475569'};font-weight:700">×${rc}</span>`:'<span style="color:#cbd5e1">–</span>';
+    const talk=c.dur>mt;
+    const dir=/IN/i.test(c.dir)?'<span style="color:#0e7490">เข้า</span>':'<span style="color:#475569">ออก</span>';
+    return `<tr>
+      <td style="white-space:nowrap">${fmtDT(c.at)}</td>
+      <td>${sideBadge(c.side)} ${esc((CL_DATA.names&&CL_DATA.names[c.side])||c.side)}</td>
+      <td style="font-variant-numeric:tabular-nums">${esc(c.phone||'–')}</td>
+      <td>${esc(c.name||'')||'<span style="color:#cbd5e1">–</span>'}</td>
+      <td style="text-align:center">${dir}</td>
+      <td style="text-align:right;font-weight:600;color:${talk?'#166534':'#94a3b8'}">${fmtDur(c.dur)}</td>
+      <td style="text-align:center">${repBadge}</td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">ไม่มีสายที่ตรงกับตัวกรอง</td></tr>';
+  document.getElementById('clFoot').innerHTML='แสดง <b>'+rows.length+'</b> สาย'+(CL_DATA.capped?' (จำกัด 3000 สายล่าสุด)':'')+' · โทรซ้ำ ×N = จำนวนครั้งที่เซลล์คนนั้นโทรเบอร์นั้นในช่วงที่เลือก';
+}
 fillIcons();
-refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000);
+refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000);
 </script>
 </body>
 </html>
