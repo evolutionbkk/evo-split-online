@@ -674,7 +674,8 @@ async function loadCallStats(q){
   try{
     const r=await fetch('/api/admin/callstats?'+q); if(!r.ok)return; const j=await r.json();
     document.getElementById('callmintalk').textContent=j.minTalk;
-    document.getElementById('callrangelbl').textContent='· '+j.from.slice(0,10)+' → '+j.to.slice(0,10);
+    const ANLBL={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',custom:'ช่วงที่เลือก'};
+    document.getElementById('callrangelbl').textContent='· '+(ANLBL[ANR.mode]||'')+(ANR.mode==='today'?'':(' ('+j.from.slice(0,10)+' → '+j.to.slice(0,10)+')'));
     const nmW=(j.names&&j.names.W)||'W',nmK=(j.names&&j.names.K)||'K';
     document.getElementById('callSummaryBody').innerHTML=
       callRow('ทีมรวม','',j.summary.team)+
