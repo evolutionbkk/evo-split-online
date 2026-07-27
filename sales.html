@@ -154,17 +154,46 @@
   .tlmeta{font-size:11.5px;color:#94a3b8;margin-top:2px}
   .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:11px 18px;border-radius:22px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:60;font-weight:600}
   .toast.on{opacity:1}
+  .applayout{margin:0;max-width:none;padding:0}
+  .side{position:fixed;top:0;left:0;height:100vh;width:230px;background:#0f172a;padding:20px 14px;overflow-y:auto;box-shadow:2px 0 24px rgba(15,23,42,.10);z-index:20}
+  .side .brand{color:#fff;font-weight:800;font-size:15px;padding:4px 10px 14px;line-height:1.3;border-bottom:1px solid #1e293b;margin-bottom:10px}
+  .side .brand small{display:block;color:#94a3b8;font-weight:600;font-size:11.5px;margin-top:3px}
+  .side .nav{display:flex;flex-direction:column;gap:3px}
+  .side .nav button{display:flex;align-items:center;justify-content:flex-start;gap:11px;width:100%;text-align:left;background:transparent;border:none;color:#cbd5e1;font-size:14px;font-weight:600;padding:12px 14px;border-radius:10px;cursor:pointer;transition:background .15s}
+  .side .nav button:hover{background:#1e293b;color:#fff}
+  .side .nav button.on{background:#2563eb;color:#fff}
+  .side .nav button .rfn{margin-left:auto;background:#db2777;color:#fff;font-size:11px;font-weight:700;border-radius:9px;padding:0 7px}
+  .applayout .wrap{margin:0 0 0 230px;max-width:1180px;padding:18px 22px 90px}
+  [data-sec]{display:none}[data-sec].shown{display:block}
+  @media(max-width:900px){.side{position:static;height:auto;width:100%;box-shadow:none}.side .nav{flex-direction:row;flex-wrap:wrap}.side .nav button{width:auto;flex:1;min-width:120px}.applayout .wrap{margin:0;padding:12px 12px 90px}}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="applayout">
+  <nav class="side">
+    <div class="brand" id="brandbox">งานของฉัน<small id="brandsub">Telesales</small></div>
+    <div class="nav" id="navmenu"></div>
+  </nav>
+  <div class="wrap">
   <div class="head" id="head"><h1><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1z"/><path d="M9 4h6"/></svg><span id="title">งานของฉัน</span></h1><form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form></div>
   <div class="switch" id="switch"></div>
-  <div class="buckets" id="buckets"></div>
-  <div id="srcseg" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>
-  <div class="chips" id="chips"></div>
-  <div class="search"><span class="si"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input type="text" id="search" placeholder="ค้นหา ชื่อ / เบอร์ / รหัส…" oninput="render()"></div>
-  <div id="list"></div>
+
+  <div data-sec="overview"><div id="ovBody"></div></div>
+
+  <div data-sec="leads">
+    <div class="buckets" id="buckets"></div>
+    <div id="srcseg" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>
+    <div class="chips" id="chips"></div>
+    <div class="search"><span class="si"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input type="text" id="search" placeholder="ค้นหา ชื่อ / เบอร์ / รหัส…" oninput="render()"></div>
+    <div id="list"></div>
+  </div>
+
+  <div data-sec="refill">
+    <h2 style="font-size:16px;margin:0 0 4px">ลูกค้าเดิม · ควรโทรชวนซื้อซ้ำ</h2>
+    <div style="font-size:12.5px;color:#64748b;margin-bottom:12px">ลูกค้าที่เคยซื้อ (เซรั่มน่าจะใช้หมดแล้ว) และถูกส่งเข้าคิวให้คุณ · โทรชวนสั่งซ้ำ ปิดง่ายกว่าลูกค้าใหม่</div>
+    <div id="rfBody2"></div>
+  </div>
+  </div>
 </div>
 <div class="mbg" id="mbg" onclick="if(event.target===this)closeSheet()"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
@@ -541,7 +570,71 @@ async function doAdvance(){
 async function reload(){
   const url='/api/leads'+(ME.role==='admin'&&ME.side?('?side='+ME.side):'');
   const r=await fetch(url); if(r.status===401){location.href='/login';return;} const j=await r.json();
-  ACTIVE=j.active||[]; ARCHIVED=j.archived||[]; render();
+  ACTIVE=j.active||[]; ARCHIVED=j.archived||[]; render(); renderOverview(); renderRefillSales();
+}
+// ===== Sidebar (sales) =====
+let CURSEC='overview',REFILL_COUNT=0;
+function salesSections(){return [
+  {k:'overview',label:'ภาพรวมของฉัน',icon:'activity'},
+  {k:'leads',label:'รายชื่อลูกค้า',icon:'inbox'},
+  {k:'refill',label:'ลูกค้าเดิม · ซื้อซ้ำ',icon:'repeat',badge:REFILL_COUNT},
+];}
+function renderNav(){
+  document.getElementById('navmenu').innerHTML=salesSections().map(s=>`<button class="${CURSEC===s.k?'on':''}" onclick="showSec('${s.k}')">${ic(s.icon,17)}<span>${s.label}</span>${s.badge?('<span class="rfn">'+s.badge+'</span>'):''}</button>`).join('');
+}
+function showSec(sec){CURSEC=sec;document.querySelectorAll('[data-sec]').forEach(el=>el.classList.toggle('shown',el.dataset.sec===sec));renderNav();window.scrollTo(0,0);}
+function ovTile(n,l,color){return `<div style="flex:1;min-width:130px;background:#fff;border:1px solid var(--line,#e2e8f0);border-radius:14px;padding:14px 16px"><div style="font-size:26px;font-weight:800;color:${color||'#0f172a'};line-height:1.1">${n}</div><div style="font-size:12.5px;color:#64748b;margin-top:3px">${l}</div></div>`;}
+function renderOverview(){
+  const box=document.getElementById('ovBody'); if(!box)return;
+  const A=ACTIVE.filter(r=>!r.archived);
+  const total=A.length;
+  const called=A.filter(r=>(r.realCalls>0)||(r.callCount>0)).length;
+  const st=k=>A.filter(r=>(r.leadStatus||'new')===k).length;
+  const won=st('won'),lost=st('lost'),interested=st('interested'),contacting=st('contacting'),followup=st('followup'),fresh=st('new');
+  const overdue=A.filter(r=>isOverdue(r)).length;
+  const wonT=A.filter(r=>wonToday(r)).length;
+  const rev=A.filter(r=>(r.leadStatus||'new')==='won').reduce((s,r)=>s+saleTotal(r),0);
+  const talk=A.reduce((s,r)=>s+(r.realTalkCalls||0),0);
+  const ecom=A.filter(r=>srcGroup(r)==='ecom').length,mkt=A.filter(r=>srcGroup(r)==='mkt').length,refill=A.filter(r=>r.source==='refill').length;
+  const conv=total?Math.round(won/total*100):0;
+  const baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+  const chip=(l,n,c)=>`<span style="display:inline-flex;gap:6px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:5px 11px;font-size:12.5px;color:#334155">${l} <b style="color:${c||'#0f172a'}">${n}</b></span>`;
+  box.innerHTML=`
+    <div style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:2px">ภาพรวมของฉัน — Sales (${esc(ME.side||'?')})</div>
+    <div style="font-size:12.5px;color:#64748b;margin-bottom:14px">สรุปงานและลูกค้าในมือของคุณ</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      ${ovTile(total,'ลูกค้าทั้งหมด','#2563eb')}
+      ${ovTile(total-called,'ยังไม่ได้โทร','#b45309')}
+      ${ovTile(wonT,'ปิดการขายวันนี้','#166534')}
+      ${ovTile(overdue,'เกินกำหนด/ค้าง','#b91c1c')}
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13.5px;color:#166534;font-weight:700">Conversion ${conv}% · ปิดได้ทั้งหมด ${won} ราย · ยอดขายรวม ${baht(rev)} · คุยจริง >7วิ ${talk} สาย</div>
+    <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:8px">สถานะลูกค้า</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      ${chip('ใหม่',fresh)}${chip('กำลังติดต่อ',contacting)}${chip('สนใจ',interested,'#6d28d9')}${chip('นัดติดตาม',followup,'#0e7490')}${chip('ปิดได้',won,'#166534')}${chip('ไม่ปิด',lost,'#b91c1c')}
+    </div>
+    <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:8px">แหล่งที่มา</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${chip('E-commerce (Evolution)',ecom,'#1e40af')}${chip('Marketplace (Facebook)',mkt,'#9d174b')}${chip('· ในนั้นเป็นลูกค้าเดิม/refill',refill,'#db2777')}
+    </div>`;
+}
+function renderRefillSales(){
+  const box=document.getElementById('rfBody2'); if(!box)return;
+  const A=ACTIVE.filter(r=>!r.archived&&r.source==='refill'&&(r.leadStatus||'new')!=='won'&&(r.leadStatus||'new')!=='lost');
+  REFILL_COUNT=A.length; renderNav();
+  if(!A.length){box.innerHTML='<div class="empty">ยังไม่มีลูกค้าเดิมในคิวของคุณ — Teamlead จะส่งลูกค้าที่ถึงกำหนดซื้อซ้ำมาให้</div>';return;}
+  const rows=A.map((r,i)=>{
+    const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
+    return `<tr class="lrow" onclick="openLeadByKey('${r.key}')">
+      <td class="num">${i+1}</td>
+      <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
+      <td><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation()">${ic('phone',14)}${esc(r.phone)}</a></td>
+      <td class="notec">${esc(r.product||'')}</td>
+      <td class="stc"><span class="badge ${sm.badge}">${ic(sm.icon,12)}${sm.label}</span></td>
+      <td class="codec">${r.lastCallAt?esc(fmtShort(r.lastCallAt)):'<span class="dash">–</span>'}</td>
+    </tr>`;
+  }).join('');
+  box.innerHTML='<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>รายละเอียด (เคยซื้อ)</th><th>สถานะ</th><th>โทรล่าสุด</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 async function init(){
   const r=await fetch('/api/me'); if(r.status===401){location.href='/login';return;} ME=await r.json();
@@ -550,6 +643,8 @@ async function init(){
     document.getElementById('switch').innerHTML='โหมดแอดมิน · ดูฝั่ง: <a onclick="location.search=\'?side=W\'">W</a> | <a onclick="location.search=\'?side=K\'">K</a> · <a href="/">กลับหน้าแอดมิน</a>'; }
   document.getElementById('head').classList.add((side||'w').toLowerCase());
   document.getElementById('title').textContent='งานของฉัน — Sales ('+(side||'?')+')';
+  const bs=document.getElementById('brandsub'); if(bs)bs.textContent='Sales ('+(side||'?')+') · Telesales';
+  renderNav(); showSec('overview');
   await reload();
 }
 init();
