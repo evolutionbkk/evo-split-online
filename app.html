@@ -159,6 +159,22 @@
     </div>
   </div>
 
+  <div class="panel" id="mgmtPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>ภาพเชิงบริหาร — Funnel &amp; ยอดขาย <span id="mgmtrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="desc">กรวยการขาย (สถานะลีดปัจจุบัน) และยอดขายเทียบเป้าในช่วงที่เลือก · ดูว่าลีดหลุดตรงขั้นไหนเยอะ</div>
+    <div class="cols" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">กรวยการขาย (ทีมรวม)</div>
+        <div id="funnelBox"></div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">ยอดขาย (ช่วงที่เลือก)</div>
+        <div id="revBox"></div>
+        <div class="cards" id="mgmtStats" style="grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="panel" id="callPanel">
     <h2><span data-ic="activity" data-sz="18"></span>วิเคราะห์การโทร (OneCall) <span id="callrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="desc">ภาพรวมสายที่โทรจริงจาก OneCall · เลือกช่วงเวลาจากแถบด้านบน (Dashboard KPI) · <span style="color:#166534">คุยจริง = สายที่นานเกิน <b id="callmintalk">7</b> วิ</span></div>
@@ -500,8 +516,56 @@ async function loadKpi(){
     const oc=document.getElementById('konecall');
     if(KPI_ONECALL){oc.style.color='#166534';oc.style.background='#f0fdf4';oc.style.borderColor='#bbf7d0';oc.innerHTML=ic('check',13)+' เชื่อม OneCall แล้ว · อัปเดตล่าสุด '+(j.onecallUpdatedAt?fmt(j.onecallUpdatedAt):'-')+' · KPI “สายคุยจริง &gt;7 วิ” นับจากเวลาโทรจริง (กันกรอกมั่วตัวเลข)';}
     else{oc.style.color='#92400e';oc.style.background='#fffbeb';oc.style.borderColor='#fde68a';oc.innerHTML=ic('info',13)+' KPI “สายคุยจริงเกิน 7 วินาที” ยังไม่เชื่อม OneCall — ติดตั้ง userscript แล้วข้อมูลจะขึ้นอัตโนมัติ · ตอนนี้ “สายที่โทร” คือจำนวนที่เซลล์กดบันทึกในระบบ';}
+    renderMgmt(j);
     loadCallStats(q);
   }catch(e){}
+}
+// ===== Management view: sales funnel + revenue vs target =====
+function funnelRow(label,val,base,color,pctOfPrev){
+  const w=base>0?Math.max(2,Math.round(val/base*100)):0;
+  const prevTxt=(pctOfPrev!=null)?`<span style="color:#94a3b8;font-size:11px"> · ${pctOfPrev}% จากขั้นก่อน</span>`:'';
+  return `<div style="margin-bottom:9px">
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px"><span style="color:#334155;font-weight:600">${label}</span><span style="color:#0f172a"><b>${val.toLocaleString('en-US')}</b>${prevTxt}</span></div>
+    <div style="height:22px;background:#f1f5f9;border-radius:6px;overflow:hidden"><div style="height:100%;width:${w}%;background:${color};border-radius:6px;transition:width .4s"></div></div>
+  </div>`;
+}
+function renderMgmt(j){
+  const W=j.W,K=j.K; if(!W||!K)return;
+  const st=s=>({new:s.status.new,contacting:s.status.contacting,interested:s.status.interested,followup:s.status.followup,won:s.status.won,lost:s.status.lost});
+  const a=st(W),b=st(K);
+  const total=W.total+K.total;
+  const called=W.called+K.called;
+  const warm=(a.interested+a.followup+a.won)+(b.interested+b.followup+b.won);
+  const won=a.won+b.won;
+  const lost=a.lost+b.lost;
+  const pc=(x,y)=>y>0?Math.round(x/y*100):0;
+  document.getElementById('funnelBox').innerHTML=
+    funnelRow('ลีดทั้งหมด',total,total,'#64748b',null)+
+    funnelRow('โทรแล้ว',called,total,'#2563eb',pc(called,total))+
+    funnelRow('สนใจ / คุยต่อได้',warm,total,'#7c3aed',pc(warm,called))+
+    funnelRow('ปิดการขาย',won,total,'#16a34a',pc(won,warm))+
+    `<div style="font-size:11.5px;color:#94a3b8;margin-top:6px">อัตราปิดรวม (ลีด→ปิด): <b style="color:#166534">${pc(won,total)}%</b> · โทรแล้ว→ปิด: <b style="color:#166534">${pc(won,called)}%</b> · เสีย/ไม่ปิด ${lost.toLocaleString('en-US')} ราย</div>`;
+  // revenue
+  const rev=(W.revRange||0)+(K.revRange||0);
+  const wonRange=(W.wonRange||0)+(K.wonRange||0);
+  const target=(j.targets&&j.targets.rev)||0;
+  const baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+  let revHtml;
+  if(target>0){
+    const pct=Math.min(100,Math.round(rev/target*100)),done=rev>=target;
+    revHtml=`<div style="font-size:26px;font-weight:800;color:#166534;line-height:1.1">${baht(rev)}</div>
+      <div style="font-size:12px;color:#64748b;margin:4px 0 8px">จากเป้า ${baht(target)} · <b style="color:${done?'#166534':'#b45309'}">${pct}%</b>${done?' ✓ ถึงเป้า':''}</div>
+      <div style="height:14px;background:#f1f5f9;border-radius:7px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${done?'linear-gradient(90deg,#16a34a,#22c55e)':'#f59e0b'};border-radius:7px"></div></div>`;
+  }else{
+    revHtml=`<div style="font-size:26px;font-weight:800;color:#166534;line-height:1.1">${baht(rev)}</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:4px">ตั้งเป้ายอดขายได้ที่ Railway → Variables → <b>KPI_REV_TARGET</b> เพื่อให้ขึ้นแถบเทียบเป้า</div>`;
+  }
+  document.getElementById('revBox').innerHTML=revHtml;
+  const avgDeal=wonRange>0?rev/wonRange:0;
+  document.getElementById('mgmtStats').innerHTML=
+    `<div class="kt good" style="padding:11px 12px"><div class="n" style="font-size:20px">${wonRange}</div><div class="l">ดีลที่ปิดได้</div></div>`+
+    `<div class="kt" style="padding:11px 12px"><div class="n" style="font-size:20px">${baht(Math.round(avgDeal))}</div><div class="l">เฉลี่ย/ดีล</div></div>`;
+  const rl=document.getElementById('mgmtrangelbl'); if(rl)rl.textContent='· '+j.from.slice(0,10)+' → '+j.to.slice(0,10);
 }
 // ===== Call analytics + charts (OneCall) =====
 let CHART_DAILY=null,CHART_HOURLY=null;

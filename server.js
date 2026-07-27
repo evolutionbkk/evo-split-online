@@ -503,6 +503,7 @@ const ONECALL_MAX = 60000;    // cap stored call records
 // Daily call targets per Telesales (adjustable via Railway Variables)
 const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 50;     // Evolution database calls / day
 const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 5; // Admin-Sales + follow-up calls / day
+const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
 // Evolution pull quota: new leads handed to EACH Telesales per day (100/day total = 50 each)
 const EVO_DAILY_PER_SIDE = Number(process.env.EVO_DAILY_PER_SIDE) || 50;
 function digitsOnly(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
@@ -784,7 +785,7 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(),
     names: SALES_NAMES, W: sides.W, K: sides.K,
     onecall: (state.onecall || []).length > 0, onecallUpdatedAt: state.onecallUpdatedAt || null,
-    targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL },
+    targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL, rev: KPI_TARGET_REV },
   });
 });
 
