@@ -161,6 +161,7 @@
   <div class="head" id="head"><h1><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1z"/><path d="M9 4h6"/></svg><span id="title">งานของฉัน</span></h1><form method="POST" action="/logout"><button class="lo">ออกจากระบบ</button></form></div>
   <div class="switch" id="switch"></div>
   <div class="buckets" id="buckets"></div>
+  <div id="srcseg" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>
   <button id="callModeBtn" onclick="callModeStart()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--grad-w);color:#fff;font-weight:700;font-size:15px;border:none;border-radius:13px;padding:13px;margin-bottom:14px;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,.24)">▶ โหมดโทรทีละราย — โฟกัสไล่โทรทีละคน</button>
   <div class="chips" id="chips"></div>
   <div class="search"><span class="si"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input type="text" id="search" placeholder="ค้นหา ชื่อ / เบอร์ / รหัส…" oninput="render()"></div>
@@ -231,7 +232,10 @@ function optLabel(arr,k){const o=optMeta(arr,k);return o?o.label:'';}
 function saleTotal(r){return (r.saleItems||[]).reduce((s,i)=>s+(Number(i.price)||0),0);}
 function fmtBaht(n){return (Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:2});}
 
-let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='new',CURLIST=[],CUR=null;
+let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='new',CURLIST=[],CUR=null,SRC='all';
+// แหล่งที่มาของลีด: Marketplace = Facebook/Pancake (source pancake/manual) · E-commerce = เว็บ Evolution (ที่เหลือ)
+function srcGroup(r){return (r.source==='pancake'||r.source==='manual')?'mkt':'ecom';}
+function setSrc(s){SRC=s;render();}
 function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),1600);}
 function fmtShort(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}
 function fmtFull(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String((d.getFullYear()+543)%100).padStart(2,'0')+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}
@@ -317,6 +321,13 @@ function renderChips(){
   document.getElementById('chips').innerHTML=FILTER_GROUPS.map(g=>`<div class="fgroup"><div class="flabel">${ic(g.icon,14)}<span>${g.label}</span></div><div class="frow">${g.items.map(([f,l])=>`<div class="chip ${FILTER===f?'on':''}" onclick="setFilter('${f}')"><span>${l}</span><b>${cnt(f)}</b></div>`).join('')}</div></div>`).join('');
 }
 function setFilter(f){FILTER=f;render();}
+function renderSrcSeg(all,ecom,mkt){
+  const segs=[['all','ทั้งหมด',all,'#334155'],['ecom','E-commerce (Evolution)',ecom,'#2563eb'],['mkt','Marketplace (Facebook)',mkt,'#db2777']];
+  document.getElementById('srcseg').innerHTML=segs.map(([k,l,n,col])=>{
+    const on=SRC===k;
+    return `<button onclick="setSrc('${k}')" style="flex:1;min-width:130px;display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 10px;border-radius:12px;border:1.5px solid ${on?col:'#e2e8f0'};background:${on?col:'#fff'};color:${on?'#fff':'#334155'};font-weight:700;font-size:13.5px;cursor:pointer"><span>${l}</span><b style="background:${on?'rgba(255,255,255,.25)':'#f1f5f9'};color:${on?'#fff':col};border-radius:8px;padding:1px 8px;font-size:12px">${n}</b></button>`;
+  }).join('');
+}
 const q=()=>(document.getElementById('search').value||'').trim().toLowerCase();
 function ms(r){const s=q();if(!s)return true;return[r.code,r.name,r.phone,r.address].some(v=>String(v==null?'':v).toLowerCase().includes(s));}
 function rank(r){const m={new:0,contacting:1,followup:2,interested:3,won:4,lost:5};const v=m[r.leadStatus||'new'];return v==null?6:v;}
@@ -326,13 +337,18 @@ function render(){
   const pool=FILTER==='archived'?ARCHIVED:ACTIVE;
   let list=pool.filter(r=>pass(r,FILTER)&&ms(r));
   if(FILTER!=='archived')list=list.slice().sort((a,b)=>rank(a)-rank(b));
+  // แยกกลุ่มแหล่งที่มา: E-commerce (Evolution) vs Marketplace (Facebook/Pancake)
+  renderSrcSeg(list.length, list.filter(r=>srcGroup(r)==='ecom').length, list.filter(r=>srcGroup(r)==='mkt').length);
+  if(SRC!=='all')list=list.filter(r=>srcGroup(r)===SRC);
   CURLIST=list;
   const box=document.getElementById('list');
-  if(!list.length){box.innerHTML='<div class="empty">ไม่มีรายชื่อในหมวดนี้</div>';return;}
+  if(!list.length){box.innerHTML='<div class="empty">ไม่มีรายชื่อในกลุ่มนี้</div>';return;}
   const kc=ME.side==='K'?'k':'';
   const rows=list.map((r,i)=>{
     const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
     const flags=[];
+    const sg=srcGroup(r);
+    flags.push(`<span class="badge" style="background:${sg==='mkt'?'#fce7f3':'#dbeafe'};color:${sg==='mkt'?'#9d174b':'#1e40af'}">${sg==='mkt'?ic('inbox',12)+'FB':ic('download',12)+'Evo'}</span>`);
     if(r.realCalls>0)flags.push(`<span class="badge" style="background:#dcfce7;color:#166534">${ic('phone',12)}โทรแล้ว ${r.realCalls}${r.realTalkCalls?(' · คุย '+r.realTalkCalls):''}</span>`);
     if(!r.archived&&r.stage>0)flags.push(`<span class="badge" style="background:#fef9c3;color:#854d0e">${ic('repeat',12)}มือ2</span>`);
     if(isStale(r)){const d=daysIdle(r);flags.push(`<span class="badge" style="background:#fef2f2;color:#b91c1c">${ic('clock',12)}${d} วัน</span>`);}
