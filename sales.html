@@ -346,7 +346,8 @@ function render(){
     const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
     const flags=[];
     const sg=srcGroup(r);
-    flags.push(`<span class="badge" style="justify-content:center;min-width:104px;background:${sg==='mkt'?'#fce7f3':'#dbeafe'};color:${sg==='mkt'?'#9d174b':'#1e40af'}">${sg==='mkt'?'Marketplace':'E-commerce'}</span>`);
+    if(sg==='mkt') flags.push(`<span class="badge" style="background:#fce7f3;color:#9d174b">${ic('inbox',12)}FB</span>`);
+    else flags.push(`<span class="badge" style="justify-content:center;min-width:104px;background:#dbeafe;color:#1e40af">E-commerce</span>`);
     if(r.realCalls>0)flags.push(`<span class="badge" style="background:#dcfce7;color:#166534">${ic('phone',12)}โทรแล้ว ${r.realCalls}${r.realTalkCalls?(' · คุย '+r.realTalkCalls):''}</span>`);
     if(!r.archived&&r.stage>0)flags.push(`<span class="badge" style="background:#fef9c3;color:#854d0e">${ic('repeat',12)}มือ2</span>`);
     if(isStale(r)){const d=daysIdle(r);flags.push(`<span class="badge" style="background:#fef2f2;color:#b91c1c">${ic('clock',12)}${d} วัน</span>`);}
