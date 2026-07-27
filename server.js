@@ -509,8 +509,9 @@ const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales 
 // FB KPI matching baseline: from this moment on, an FB call only counts if it's to a
 // closed-sale/refill lead in the system. Before it (migration day) we credit every real
 // (>7s) non-Evolution call, because the closed-sale list wasn't complete yet.
-// Default = 28/07/2026 00:00 Thai (UTC+7). Override via KPI_FB_MATCH_FROM (ISO).
-const KPI_FB_MATCH_FROM = Date.parse(process.env.KPI_FB_MATCH_FROM || '2026-07-27T17:00:00Z') || 0;
+// Default = 30/07/2026 (Thu) 00:00 Thai (UTC+7) — the day the sales team starts using the
+// system again. Override via KPI_FB_MATCH_FROM (ISO) in Railway.
+const KPI_FB_MATCH_FROM = Date.parse(process.env.KPI_FB_MATCH_FROM || '2026-07-29T17:00:00Z') || 0;
 // Evolution pull quota: new leads handed to EACH Telesales per day (100/day total = 50 each)
 const EVO_DAILY_PER_SIDE = Number(process.env.EVO_DAILY_PER_SIDE) || 50;
 // ---------- Pancake POS: pull CLOSED-SALE orders → hand to the telesales team ----------
