@@ -167,6 +167,8 @@ function applyManual(state, rows, opts) {
       page: String((r && r.page) || '').slice(0, 120),
       closer: String((r && r.closer) || '').slice(0, 120),
       lastOrderAt: (r && r.lastOrderAt) || null,
+      ltv: (r && typeof r.ltv === 'number') ? r.ltv : null,
+      succeedOrders: (r && typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
     });
   }
   let round = state.maxRound, date = '', addW = 0, addK = 0;
@@ -184,6 +186,7 @@ function applyManual(state, rows, opts) {
         source: opts.source || 'manual', step, distributedBy: opts.distributedBy || opts.by || '',
         address: p.address, product: p.product, orderAmount: p.orderAmount,
         page: p.page, closer: p.closer, lastOrderAt: p.lastOrderAt || null,
+        ...(p.ltv != null ? { ltv: p.ltv } : {}), ...(p.succeedOrders != null ? { succeedOrders: p.succeedOrders } : {}),
         leadStatus: 'new', callCount: 0, calls: [],
         history: [{ at: nowIso, by: opts.by || 'admin', k: 'import', v: step }],
       });

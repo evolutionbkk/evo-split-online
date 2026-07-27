@@ -283,6 +283,8 @@ function leadView(r, ocMap) {
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
     source: r.source || 'evolution', step: r.step || '', product: r.product || '',
     orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
+    ltv: (typeof r.ltv === 'number') ? r.ltv : null,
+    vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
@@ -1191,7 +1193,7 @@ app.post('/api/pancake/refill/import', requireAuth, async (req, res) => {
   const d = _refillCache.data || { candidates: [] };
   let cands = d.candidates || [];
   if (phones) { const set = new Set(phones.map(digitsOnly)); cands = cands.filter((c) => set.has(digitsOnly(c.phone))); }
-  const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '' }));
+  const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '', ltv: (typeof c.spent === 'number') ? c.spent : null, succeedOrders: (typeof c.succeedOrders === 'number') ? c.succeedOrders : null }));
   const sum = S.applyManual(state, rows, { source: 'refill', by: 'Refill', step: 'T1' });
   state = await store.save(state);
   res.json({ ok: true, added: sum.added, addW: sum.addW, addK: sum.addK, dup: sum.dup });
@@ -1218,7 +1220,7 @@ async function pancakeRefillAuto() {
       state.refillAuto = { lastRun: new Date().toISOString(), added: 0, open: openRefill, scanned: data.scanned || 0, note: 'no_candidates' };
       await store.save(state); return { added: 0, open: openRefill };
     }
-    const rows = pick.map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '' }));
+    const rows = pick.map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '', ltv: (typeof c.spent === 'number') ? c.spent : null, succeedOrders: (typeof c.succeedOrders === 'number') ? c.succeedOrders : null }));
     const sum = S.applyManual(state, rows, { source: 'refill', by: 'Auto-Refill', step: 'T1' });
     state.refillAuto = { lastRun: new Date().toISOString(), added: sum.added, addW: sum.addW, addK: sum.addK, open: openRefill + sum.added, scanned: data.scanned || 0 };
     state = await store.save(state);
@@ -1365,6 +1367,42 @@ app.post('/api/pancake/fill-address', requireAuth, async (req, res) => {
   }
   if (filled) state = await store.save(state);
   res.json({ ok: true, filled, mapSize: map.size, fromOrders, fromCustomers });
+});
+// Enrich active leads with lifetime value (LTV) + succeed-order count from Pancake customers,
+// so every lead row can show a VIP badge. Scans customer pages once and maps by phone.
+async function pancakeEnrichVip() {
+  if (!PANCAKE_API_KEY) return { skipped: 'no_api_key' };
+  const map = new Map(); // phone -> { ltv, succeed }
+  let scanned = 0;
+  try {
+    for (let page = 1; page <= 20; page++) {
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const c of j.data) {
+        scanned++;
+        const ltv = Math.round(Number(c.purchased_amount || 0)) / 100;
+        const succeed = Number(c.succeed_order_count || 0);
+        for (const ph of (c.phone_numbers || [])) { const p = digitsOnly(normPhoneTH(ph)); if (p && !map.has(p)) map.set(p, { ltv, succeed }); }
+      }
+      if (j.data.length < 100) break;
+    }
+  } catch (e) { return { error: String(e), scanned }; }
+  let updated = 0, vipCount = 0;
+  for (const r of state.assigned) {
+    if (r.archived) continue;
+    const m = map.get(digitsOnly(r.phone));
+    if (!m) continue;
+    if (r.ltv !== m.ltv || r.succeedOrders !== m.succeed) { r.ltv = m.ltv; r.succeedOrders = m.succeed; updated++; }
+    if (vipTier(m.ltv, m.succeed).key !== 'new') vipCount++;
+  }
+  state.vipEnrich = { lastRun: new Date().toISOString(), scanned, updated, vipCount };
+  if (updated) state = await store.save(state); else { try { state = await store.save(state); } catch (_) {} }
+  return { ok: true, scanned, updated, vipCount, mapSize: map.size };
+}
+app.post('/api/admin/enrich-vip', requireAuth, async (req, res) => {
+  const out = await pancakeEnrichVip();
+  res.json(out);
 });
 app.get('/api/pancake/status', requireAuth, (req, res) => {
   const p = state.pancake || {};
@@ -1540,5 +1578,7 @@ boot().then(() => {
     setInterval(() => { pancakePull().catch(() => {}); }, 10 * 60 * 1000);     // pull closed-sale orders every 10 min
     setTimeout(() => { pancakeRefillAuto().catch(() => {}); }, 90 * 1000);     // first auto-refill top-up ~1.5 min after boot
     setInterval(() => { pancakeRefillAuto().catch(() => {}); }, 6 * 60 * 60 * 1000); // top up refill queue every 6h (works even if Teamlead is off)
+    setTimeout(() => { pancakeEnrichVip().catch(() => {}); }, 150 * 1000);     // enrich LTV/VIP ~2.5 min after boot
+    setInterval(() => { pancakeEnrichVip().catch(() => {}); }, 12 * 60 * 60 * 1000); // refresh LTV/VIP every 12h
   }
 }).catch((e) => { console.error('boot failed', e); process.exit(1); });
