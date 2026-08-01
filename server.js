@@ -1666,6 +1666,20 @@ const PANCAKE_USER_TOKEN = process.env.PANCAKE_USER_TOKEN || '';
 let PANCAKE_PAGES_ENV = [];
 try { const _j = JSON.parse(process.env.PANCAKE_PAGES || '[]'); if (Array.isArray(_j)) PANCAKE_PAGES_ENV = _j; } catch (_) { console.warn('[warn] PANCAKE_PAGES is not valid JSON'); }
 function pkChatConfigured() { return !!(PANCAKE_USER_TOKEN || PANCAKE_PAGES_ENV.length); }
+// Pages hidden from the inbox. Override in Railway with PANCAKE_CHAT_EXCLUDE
+// (comma-separated). Use "id:<page_id>" to match by id, or a plain string to match by name.
+// Default hides the pages the telesales team does not answer chats on.
+const PANCAKE_CHAT_EXCLUDE = (process.env.PANCAKE_CHAT_EXCLUDE
+  || 'id:1199426223246175,id:ln_2008866313,id:106477368094788,id:941732345694448')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+function pkExcluded(id, name) {
+  id = String(id || ''); name = String(name || '');
+  for (const ex of PANCAKE_CHAT_EXCLUDE) {
+    if (ex.startsWith('id:')) { if (id === ex.slice(3)) return true; }
+    else if (id === ex || (ex && name.includes(ex))) return true;
+  }
+  return false;
+}
 
 // per-page rate guard (Pancake public API = 5 req/sec/page)
 const _pkHits = {};
@@ -1697,6 +1711,7 @@ async function pkEnsurePages(force) {
   for (const p of PANCAKE_PAGES_ENV) {
     if (!p || !p.id || !p.token) continue;
     const id = String(p.id);
+    if (pkExcluded(id, p.name)) continue;
     cs.tokens[id] = String(p.token);
     byId[id] = { id, name: String(p.name || id), platform: String(p.platform || '') };
   }
@@ -1715,6 +1730,7 @@ async function pkEnsurePages(force) {
       for (const p of (list || [])) {
         const id = String((p && (p.id || p.page_id)) || '');
         if (!id) continue;
+        if (pkExcluded(id, p.name)) continue;
         byId[id] = { id, name: String(p.name || id), platform: String(p.platform || p.type || '') };
         if (!cs.tokens[id]) {
           try {
