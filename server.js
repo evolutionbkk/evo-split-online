@@ -1218,12 +1218,24 @@ app.post('/api/pancake/refill/import', requireAuth, async (req, res) => {
   state = await store.save(state);
   res.json({ ok: true, added: sum.added, addW: sum.addW, addK: sum.addK, dup: sum.dup });
 });
+// Turn the whole refill feature on/off, and optionally purge existing refill leads.
+// body: { off:true|false, purge:true } — off stops the auto-refill scheduler.
+app.post('/api/pancake/refill-toggle', requireAuth, async (req, res) => {
+  const off = !!(req.body && req.body.off);
+  const purge = !!(req.body && req.body.purge);
+  state.refillOff = off;
+  let removed = 0;
+  if (purge) { const before = state.assigned.length; state.assigned = state.assigned.filter((r) => r.source !== 'refill'); removed = before - state.assigned.length; }
+  state = await store.save(state);
+  res.json({ ok: true, refillOff: off, removed });
+});
 
 // Auto-refill: top up the sales refill queue automatically (no Teamlead button press),
 // so overdue repeat customers keep flowing to the team even if the Teamlead is off.
 // Self-regulating: only tops up while the active (un-won/lost) refill queue is below the cap.
 async function pancakeRefillAuto() {
   if (!PANCAKE_API_KEY) return { skipped: 'no_api_key' };
+  if (state.refillOff) return { skipped: 'refill_off' };
   try {
     // count refill leads still open (not won/lost/archived) — the working queue
     const openRefill = state.assigned.filter((a) => !a.archived && a.source === 'refill'
