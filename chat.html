@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แชท — ตอบลูกค้า</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#2563eb;--brand-2:#3b82f6;--brand-deep:#1e3a8a;
+    --grad:linear-gradient(135deg,#1e3a8a 0%,#2563eb 55%,#3b82f6 100%);
+    --ink:#0f172a;--muted:#64748b;--line:#e6ecf5;--bg:#f4f7fc;
+    --in:#fff;--out:#2563eb;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(30,58,138,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{margin:0;font-family:"Noto Sans Thai","Tahoma",system-ui,sans-serif;color:var(--ink);background:var(--bg);font-size:15px;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#cbd6e6;border-radius:9px;border:2px solid transparent;background-clip:content-box}
+  a{color:inherit;text-decoration:none}
+  .app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+  .head{background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;box-shadow:0 8px 24px rgba(37,99,235,.20);z-index:20}
+  .head h1{margin:0;font-size:17px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .head .r{display:flex;align-items:center;gap:10px}
+  .head .badge{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:600}
+  .head a.back{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:10px;padding:7px 13px;font-size:13.5px;font-weight:600}
+  .head a.back:hover{background:rgba(255,255,255,.26)}
+  .body{flex:1;display:flex;min-height:0}
+  /* ---- left: conversation list ---- */
+  .left{width:352px;flex:0 0 352px;border-right:1px solid var(--line);background:#fff;display:flex;flex-direction:column;min-height:0}
+  .pages{display:flex;gap:7px;overflow-x:auto;padding:11px 12px;border-bottom:1px solid var(--line);scrollbar-width:none}
+  .pages::-webkit-scrollbar{display:none}
+  .pchip{flex:0 0 auto;border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:600;color:#334155;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:.15s}
+  .pchip .dot{width:8px;height:8px;border-radius:50%;background:#94a3b8}
+  .pchip.fb .dot{background:#1877f2}.pchip.line .dot{background:#06c755}.pchip.ig .dot{background:#e1306c}
+  .pchip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .pchip.on .dot{background:#fff}
+  .pchip .cnt{background:#ef4444;color:#fff;border-radius:999px;font-size:11px;padding:0 6px;min-width:17px;text-align:center;line-height:16px;font-weight:700}
+  .search{padding:10px 12px;border-bottom:1px solid var(--line)}
+  .search input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit;font-size:14px;background:#f8fafc;outline:none}
+  .search input:focus{border-color:var(--brand-2);background:#fff}
+  .clist{flex:1;overflow-y:auto;min-height:0}
+  .citem{display:flex;gap:11px;padding:11px 13px;border-bottom:1px solid #f1f5f9;cursor:pointer;align-items:center;transition:background .12s}
+  .citem:hover{background:#f6f9ff}
+  .citem.on{background:#eaf2ff}
+  .av{width:44px;height:44px;flex:0 0 44px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;position:relative}
+  .av .pg{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;border:2px solid #fff;background:#94a3b8}
+  .av .pg.fb{background:#1877f2}.av .pg.line{background:#06c755}.av .pg.ig{background:#e1306c}
+  .ci-main{flex:1;min-width:0}
+  .ci-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .ci-name{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ci-time{font-size:11.5px;color:var(--muted);flex:0 0 auto}
+  .ci-snip{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .citem.unread .ci-name{font-weight:700}
+  .citem.unread .ci-snip{color:#0f172a;font-weight:500}
+  .unreadDot{width:9px;height:9px;border-radius:50%;background:var(--brand);flex:0 0 auto}
+  .ci-pg{font-size:11px;color:#94a3b8}
+  /* ---- right: thread ---- */
+  .right{flex:1;display:flex;flex-direction:column;min-width:0;background:#eef2f9}
+  .thead{background:#fff;border-bottom:1px solid var(--line);padding:11px 16px;display:flex;align-items:center;gap:12px;flex:0 0 auto}
+  .thead .av{width:40px;height:40px;flex-basis:40px;font-size:15px}
+  .thead .ti{flex:1;min-width:0}
+  .thead .tn{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .thead .tm{font-size:12.5px;color:var(--muted);margin-top:1px;display:flex;gap:10px;flex-wrap:wrap}
+  .thead .tm b{color:#0f172a;font-weight:600}
+  .thead .vip{background:#fef3c7;color:#b45309;border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:700}
+  .msgs{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:9px;min-height:0}
+  .daysep{align-self:center;background:#dbe4f2;color:#475569;font-size:11.5px;font-weight:600;border-radius:999px;padding:3px 12px;margin:6px 0}
+  .bubble{max-width:74%;padding:8px 12px;border-radius:15px;font-size:14.5px;line-height:1.42;word-wrap:break-word;white-space:pre-wrap;box-shadow:0 1px 1px rgba(16,24,40,.05)}
+  .bubble.in{align-self:flex-start;background:var(--in);border-bottom-left-radius:5px;color:#0f172a}
+  .bubble.out{align-self:flex-end;background:var(--out);border-bottom-right-radius:5px;color:#fff}
+  .bubble img{max-width:220px;border-radius:10px;display:block;margin:3px 0;cursor:pointer}
+  .bmeta{font-size:10.5px;color:var(--muted);margin-top:3px;padding:0 4px}
+  .bmeta.out{align-self:flex-end}.bmeta.in{align-self:flex-start}
+  .att-file{display:inline-block;background:rgba(0,0,0,.06);border-radius:8px;padding:5px 10px;font-size:13px;margin:2px 0}
+  .out .att-file{background:rgba(255,255,255,.22);color:#fff}
+  .reply{flex:0 0 auto;background:#fff;border-top:1px solid var(--line);padding:11px 14px;display:flex;gap:10px;align-items:flex-end}
+  .reply textarea{flex:1;border:1px solid var(--line);border-radius:14px;padding:10px 14px;font:inherit;font-size:14.5px;resize:none;max-height:130px;outline:none;background:#f8fafc}
+  .reply textarea:focus{border-color:var(--brand-2);background:#fff}
+  .sendbtn{flex:0 0 auto;background:var(--brand);color:#fff;border:none;border-radius:50%;width:46px;height:46px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(37,99,235,.3);transition:.15s}
+  .sendbtn:hover{background:#1d4ed8}
+  .sendbtn:disabled{background:#cbd5e1;box-shadow:none;cursor:default}
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#94a3b8;gap:12px;text-align:center;padding:24px}
+  .empty svg{opacity:.5}
+  .win{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12.5px;padding:7px 14px;text-align:center;flex:0 0 auto}
+  .setup{max-width:640px;margin:40px auto;background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 28px;box-shadow:var(--shadow);line-height:1.65}
+  .setup h2{margin:0 0 6px;font-size:19px}
+  .setup code{background:#eef2f9;border-radius:6px;padding:2px 7px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+  .setup ol{padding-left:20px}.setup li{margin:9px 0}
+  .setup .note{background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 14px;font-size:13.5px;color:#075985;margin-top:14px}
+  .spin{width:22px;height:22px;border:3px solid #dbe4f2;border-top-color:var(--brand);border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .loading{flex:1;display:flex;align-items:center;justify-content:center}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:9px 18px;border-radius:10px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  .backMobile{display:none}
+  @media(max-width:760px){
+    .left{width:100%;flex-basis:100%}
+    .right{display:none}
+    .body.thread .left{display:none}
+    .body.thread .right{display:flex}
+    .backMobile{display:inline-flex}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="head">
+    <h1>
+      <svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      แชทลูกค้า
+    </h1>
+    <div class="r">
+      <span class="badge" id="totBadge">—</span>
+      <a class="back" href="/">← กลับ</a>
+    </div>
+  </div>
+  <div class="body" id="bodyWrap">
+    <div class="left">
+      <div class="pages" id="pages"></div>
+      <div class="search"><input id="q" placeholder="ค้นหาชื่อ / เบอร์ / ข้อความ…" autocomplete="off"></div>
+      <div class="clist" id="clist"><div class="loading"><div class="spin"></div></div></div>
+    </div>
+    <div class="right" id="right">
+      <div class="empty" id="emptyPane">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" stroke="#94a3b8" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <div>เลือกบทสนทนาทางซ้ายเพื่อเริ่มตอบลูกค้า</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const $=(s,r)=>(r||document).querySelector(s);
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDING=false;
+
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);}
+function plat(p){p=(p||'').toLowerCase();if(p.includes('face')||p.includes('fb'))return'fb';if(p.includes('line'))return'line';if(p.includes('insta')||p.includes('ig'))return'ig';return'';}
+function initial(n){n=(n||'').trim();return n?n[0].toUpperCase():'?';}
+function thTime(iso){if(!iso)return'';const d=new Date(iso);const now=new Date();const sameDay=d.toDateString()===now.toDateString();const p=(x)=>String(x).padStart(2,'0');if(sameDay)return p(d.getHours())+':'+p(d.getMinutes());const yes=new Date(now);yes.setDate(now.getDate()-1);if(d.toDateString()===yes.toDateString())return'เมื่อวาน';return p(d.getDate())+'/'+p(d.getMonth()+1);}
+function thDayLabel(iso){const d=new Date(iso);const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
+
+async function jget(u){const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>null);}
+async function jpost(u,b){const r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json().catch(()=>null);}
+
+async function loadPages(){
+  const j=await jget('/api/chat/pages');
+  if(!j)return;
+  if(!j.configured){renderSetup();return;}
+  PAGES=j.pages||[];
+  renderPages();
+  await loadConvs(true);
+  startPolling();
+}
+function renderPages(){
+  const el=$('#pages');
+  let h='<div class="pchip '+(CUR_PAGE===''?'on':'')+'" data-p=""><span class="dot"></span>ทั้งหมด</div>';
+  for(const p of PAGES){
+    const c=plat(p.platform);
+    h+='<div class="pchip '+c+' '+(CUR_PAGE===p.id?'on':'')+'" data-p="'+esc(p.id)+'"><span class="dot"></span>'+esc(p.name)+'<span class="cnt" style="display:none" data-cnt="'+esc(p.id)+'"></span></div>';
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('.pchip').forEach(ch=>ch.onclick=()=>{CUR_PAGE=ch.dataset.p;renderPages();loadConvs(true);});
+}
+function renderSetup(){
+  $('#bodyWrap').innerHTML='<div style="flex:1;overflow:auto"><div class="setup">'+
+    '<h2>ตั้งค่าการเชื่อมต่อแชท Pancake</h2>'+
+    '<p style="color:#64748b">ยังไม่ได้ตั้งค่า token — ทำ 2 ขั้นตอนนี้ใน Railway แล้วรีเฟรช</p>'+
+    '<ol>'+
+    '<li><b>วิธีเร็ว (ทุกเพจอัตโนมัติ):</b> เข้า pages.fm → บัญชี → ตั้งค่าส่วนตัว → คัดลอก <b>API Access Token</b> แล้วตั้งเป็น <code>PANCAKE_USER_TOKEN</code> ใน Railway</li>'+
+    '<li><b>หรือแบบเลือกเพจเอง:</b> เปิดเพจ → การตั้งค่า → เครื่องมือ → <b>Public API access token</b> → สร้าง/คัดลอก แล้วตั้ง <code>PANCAKE_PAGES</code> เป็น JSON เช่น<br><code>[{"id":"เลขเพจ","name":"ชื่อเพจ","token":"โทเค็น"}]</code></li>'+
+    '</ol>'+
+    '<div class="note">โทเค็นเก็บไว้ใน Railway เท่านั้น ไม่อยู่ในโค้ด — เมื่อตั้งค่าเสร็จ กดรีเฟรชหน้านี้ ระบบจะดึงแชทมาให้อัตโนมัติ</div>'+
+    '</div></div>';
+}
+
+async function loadConvs(showSpin){
+  if(showSpin)$('#clist').innerHTML='<div class="loading"><div class="spin"></div></div>';
+  const u='/api/chat/conversations'+(CUR_PAGE?('?page_id='+encodeURIComponent(CUR_PAGE)):'');
+  const j=await jget(u);
+  if(!j)return;
+  CONVS=j.conversations||[];
+  renderConvs();
+  const tot=CONVS.length, un=CONVS.filter(c=>!c.seen).length;
+  $('#totBadge').textContent=tot+' แชท'+(un?(' · '+un+' ใหม่'):'');
+}
+function filterConvs(){
+  const q=($('#q').value||'').trim().toLowerCase();
+  if(!q)return CONVS;
+  return CONVS.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.snippet||'').toLowerCase().includes(q));
+}
+function renderConvs(){
+  const list=filterConvs();
+  const el=$('#clist');
+  if(!list.length){el.innerHTML='<div class="empty" style="padding:40px 20px"><div>ยังไม่มีบทสนทนา</div></div>';return;}
+  let h='';
+  for(const c of list){
+    const pc=plat(c.platform);
+    h+='<div class="citem '+(!c.seen?'unread':'')+' '+(OPEN&&OPEN.id===c.id&&OPEN.pageId===c.pageId?'on':'')+'" data-id="'+esc(c.id)+'" data-pg="'+esc(c.pageId)+'">'+
+      '<div class="av">'+esc(initial(c.name))+'<span class="pg '+pc+'"></span></div>'+
+      '<div class="ci-main"><div class="ci-top"><span class="ci-name">'+esc(c.name)+'</span><span class="ci-time">'+esc(thTime(c.updatedAt))+'</span></div>'+
+      '<div class="ci-snip">'+(c.lastByPage?'<span style="color:#94a3b8">คุณ: </span>':'')+esc(c.snippet||(c.phone?('📞 '+c.phone):'[รูป/ไฟล์]'))+'</div>'+
+      '<div class="ci-pg">'+esc(c.pageName)+(c.phone?(' · '+esc(c.phone)):'')+'</div></div>'+
+      (!c.seen?'<div class="unreadDot"></div>':'')+
+      '</div>';
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('.citem').forEach(it=>it.onclick=()=>openConv(it.dataset.pg,it.dataset.id));
+}
+
+async function openConv(pageId,id){
+  const c=CONVS.find(x=>x.id===id&&x.pageId===pageId);
+  if(!c)return;
+  OPEN={id,pageId,conv:c};
+  renderConvs();
+  $('#bodyWrap').classList.add('thread');
+  renderThreadShell(c);
+  await loadMsgs(true);
+  // mark read locally + server
+  if(!c.seen){c.seen=true;jpost('/api/chat/read',{page_id:pageId,conversation_id:id});}
+  clearInterval(POLL_M);POLL_M=setInterval(()=>loadMsgs(false),8000);
+}
+function renderThreadShell(c){
+  const pc=plat(c.platform);
+  $('#right').innerHTML=
+    '<div class="thead">'+
+      '<a class="back backMobile" href="#" onclick="closeThread();return false" style="color:#334155;font-weight:700;font-size:20px;padding:0 4px">‹</a>'+
+      '<div class="av">'+esc(initial(c.name))+'<span class="pg '+pc+'"></span></div>'+
+      '<div class="ti"><div class="tn">'+esc(c.name)+'</div><div class="tm" id="tmeta"><span>'+esc(c.pageName)+'</span>'+(c.phone?('<span>📞 <b>'+esc(c.phone)+'</b></span>'):'')+'</div></div>'+
+    '</div>'+
+    '<div class="win" id="winNote" style="display:none">เลย 24 ชม.แล้ว — Facebook อาจไม่ให้ส่งข้อความปกติ</div>'+
+    '<div class="msgs" id="msgs"><div class="loading"><div class="spin"></div></div></div>'+
+    '<div class="reply">'+
+      '<textarea id="rt" rows="1" placeholder="พิมพ์ข้อความ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)"></textarea>'+
+      '<button class="sendbtn" id="sb" title="ส่ง"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></button>'+
+    '</div>';
+  const rt=$('#rt');
+  rt.oninput=()=>{rt.style.height='auto';rt.style.height=Math.min(rt.scrollHeight,130)+'px';};
+  rt.onkeydown=(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}};
+  $('#sb').onclick=doSend;
+}
+function closeThread(){$('#bodyWrap').classList.remove('thread');clearInterval(POLL_M);OPEN=null;renderConvs();}
+
+async function loadMsgs(showSpin){
+  if(!OPEN)return;
+  const cur=OPEN;
+  const j=await jget('/api/chat/messages?page_id='+encodeURIComponent(cur.pageId)+'&conversation_id='+encodeURIComponent(cur.id));
+  if(!j||!OPEN||OPEN.id!==cur.id)return;
+  renderMsgs(j.messages||[],showSpin);
+  if(j.customer){
+    const cu=j.customer;const tm=$('#tmeta');if(tm){
+      let h='<span>'+esc(cur.conv.pageName)+'</span>';
+      if(cu.phone)h+='<span>📞 <b>'+esc(cu.phone)+'</b></span>';
+      if(cu.orders)h+='<span>ซื้อ <b>'+cu.orders+'</b> ครั้ง</span>';
+      if(cu.ltv)h+='<span>ยอดรวม <b>฿'+Number(cu.ltv).toLocaleString()+'</b></span>';
+      if((cu.ltv>=8000)||(cu.succeed>=6))h+='<span class="vip">VIP</span>';
+      tm.innerHTML=h;
+    }
+  }
+  if(j.canInbox===false)$('#winNote')&&($('#winNote').style.display='block');
+}
+function renderMsgs(msgs,force){
+  const el=$('#msgs');if(!el)return;
+  const near=el.scrollHeight-el.scrollTop-el.clientHeight<140;
+  let h='',lastDay='';
+  for(const m of msgs){
+    const day=m.at?new Date(m.at).toDateString():'';
+    if(day&&day!==lastDay){h+='<div class="daysep">'+esc(thDayLabel(m.at))+'</div>';lastDay=day;}
+    let inner='';
+    for(const a of (m.atts||[])){
+      const t=(a.type||'').toLowerCase();
+      if(t.includes('photo')||t.includes('image')||(a.mime||'').startsWith('image'))inner+='<img src="'+esc(a.url)+'" onclick="window.open(this.src)">';
+      else inner+='<a class="att-file" href="'+esc(a.url)+'" target="_blank">📎 '+esc(t||'ไฟล์')+'</a>';
+    }
+    if(m.text)inner+=esc(m.text);
+    if(!inner)inner='<span style="opacity:.6">[ไม่มีข้อความ]</span>';
+    h+='<div class="bubble '+m.dir+'">'+inner+'</div>';
+    h+='<div class="bmeta '+m.dir+'">'+(m.dir==='out'&&m.fromName?esc(m.fromName)+' · ':'')+esc(thTime(m.at))+'</div>';
+  }
+  el.innerHTML=h||'<div class="empty"><div>ยังไม่มีข้อความ</div></div>';
+  if(near||force)el.scrollTop=el.scrollHeight;
+}
+
+async function doSend(){
+  if(SENDING||!OPEN)return;
+  const rt=$('#rt');const txt=(rt.value||'').trim();if(!txt)return;
+  SENDING=true;$('#sb').disabled=true;
+  const cur=OPEN;
+  // optimistic bubble
+  const el=$('#msgs');
+  if(el){el.insertAdjacentHTML('beforeend','<div class="bubble out" style="opacity:.55">'+esc(txt)+'</div><div class="bmeta out">กำลังส่ง…</div>');el.scrollTop=el.scrollHeight;}
+  rt.value='';rt.style.height='auto';
+  const j=await jpost('/api/chat/send',{page_id:cur.pageId,conversation_id:cur.id,message:txt});
+  SENDING=false;$('#sb').disabled=false;
+  if(j&&j.ok){await loadMsgs(false);loadConvs(false);}
+  else{toast('ส่งไม่สำเร็จ: '+((j&&j.error)||'error'));rt.value=txt;await loadMsgs(false);}
+}
+
+function startPolling(){clearInterval(POLL_C);POLL_C=setInterval(()=>loadConvs(false),15000);}
+$('#q').addEventListener('input',renderConvs);
+window.closeThread=closeThread;
+loadPages();
+</script>
+</body>
+</html>

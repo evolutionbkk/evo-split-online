@@ -1653,6 +1653,199 @@ app.post('/api/restore-backup', requireAuth, async (req, res) => {
   res.json({ ok: true, day, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
 });
 
+// ================= Pancake Chat — in-app omnichannel inbox =================
+// Reply to Facebook / Line / etc. chats inside this app via the Pancake Public API.
+// Docs: https://developer.pancake.biz  (base https://pages.fm/api/public_api/v1|v2 ; token as query param)
+// Configure in Railway (NEVER in code/repo):
+//   PANCAKE_USER_TOKEN – pages.fm → Account → Personal Settings → API Access Token.
+//                        Lets the server list every page and auto-generate a page token for each.
+//   PANCAKE_PAGES      – OR a JSON array of manually-copied page tokens (Settings → Tools):
+//                        [{"id":"123456","name":"Yanhee Evolution","token":"xxxxx","platform":"facebook"}]
+const PK_CHAT_HOST = 'https://pages.fm';
+const PANCAKE_USER_TOKEN = process.env.PANCAKE_USER_TOKEN || '';
+let PANCAKE_PAGES_ENV = [];
+try { const _j = JSON.parse(process.env.PANCAKE_PAGES || '[]'); if (Array.isArray(_j)) PANCAKE_PAGES_ENV = _j; } catch (_) { console.warn('[warn] PANCAKE_PAGES is not valid JSON'); }
+function pkChatConfigured() { return !!(PANCAKE_USER_TOKEN || PANCAKE_PAGES_ENV.length); }
+
+// per-page rate guard (Pancake public API = 5 req/sec/page)
+const _pkHits = {};
+async function pkThrottle(key) {
+  key = String(key || 'user'); const now = Date.now();
+  const arr = _pkHits[key] = (_pkHits[key] || []).filter((t) => now - t < 1000);
+  if (arr.length >= 5) await new Promise((r) => setTimeout(r, 260));
+  (_pkHits[key] = _pkHits[key] || []).push(Date.now());
+}
+async function pkFetch(url, opts, key) {
+  await pkThrottle(key);
+  let r = await fetch(url, opts || {});
+  if (r.status === 429) { await new Promise((res) => setTimeout(res, 1200)); r = await fetch(url, opts || {}); }
+  return r;
+}
+// state.pancakeChat = { pages:[{id,name,platform}], tokens:{[id]:token}, syncedAt }
+function pkChatState() {
+  if (!state.pancakeChat) state.pancakeChat = { pages: [], tokens: {}, syncedAt: null };
+  if (!state.pancakeChat.tokens) state.pancakeChat.tokens = {};
+  if (!Array.isArray(state.pancakeChat.pages)) state.pancakeChat.pages = [];
+  return state.pancakeChat;
+}
+let _pkPagesLoaded = false;
+async function pkEnsurePages(force) {
+  const cs = pkChatState();
+  if (_pkPagesLoaded && !force && cs.pages.length) return cs;
+  const byId = {};
+  // 1) manual page tokens from env (safe — no token regeneration)
+  for (const p of PANCAKE_PAGES_ENV) {
+    if (!p || !p.id || !p.token) continue;
+    const id = String(p.id);
+    cs.tokens[id] = String(p.token);
+    byId[id] = { id, name: String(p.name || id), platform: String(p.platform || '') };
+  }
+  // 2) auto path: list pages with the user token, generate (once) a page token for each
+  if (PANCAKE_USER_TOKEN) {
+    try {
+      const r = await pkFetch(PK_CHAT_HOST + '/api/v1/pages?access_token=' + encodeURIComponent(PANCAKE_USER_TOKEN), {}, 'user');
+      const j = await r.json().catch(() => null);
+      let list = [];
+      if (Array.isArray(j)) list = j;
+      else if (j) {
+        if (Array.isArray(j.data)) list = j.data;
+        else if (Array.isArray(j.pages)) list = j.pages;
+        else if (j.categorized) list = [].concat(j.categorized.activated || [], j.categorized.not_activated || [], j.categorized.pages || []);
+      }
+      for (const p of (list || [])) {
+        const id = String((p && (p.id || p.page_id)) || '');
+        if (!id) continue;
+        byId[id] = { id, name: String(p.name || id), platform: String(p.platform || p.type || '') };
+        if (!cs.tokens[id]) {
+          try {
+            const g = await pkFetch(PK_CHAT_HOST + '/api/v1/pages/' + encodeURIComponent(id) + '/generate_page_access_token?access_token=' + encodeURIComponent(PANCAKE_USER_TOKEN), { method: 'POST' }, 'user');
+            const gj = await g.json().catch(() => null);
+            const tok = gj && (gj.page_access_token || (gj.data && gj.data.page_access_token));
+            if (tok) cs.tokens[id] = String(tok);
+          } catch (_) {}
+        }
+      }
+    } catch (e) { console.warn('[chat] page list failed', e && e.message); }
+  }
+  cs.pages = Object.values(byId);
+  cs.syncedAt = new Date().toISOString();
+  _pkPagesLoaded = true;
+  try { state = await store.save(state); } catch (_) {}
+  return cs;
+}
+function pkStripHtml(s) { return String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(); }
+function pkConvNorm(c, pageId, pageName, platform) {
+  const from = c.from || {};
+  const phone = (Array.isArray(c.recent_phone_numbers) && c.recent_phone_numbers[0] && c.recent_phone_numbers[0].phone_number) || '';
+  const assignees = (c.current_assign_users || []).map((u) => u && u.name).filter(Boolean);
+  const last = c.last_sent_by || {};
+  return {
+    id: String(c.id), pageId: String(pageId), pageName: pageName || '', platform: platform || '',
+    type: c.type || 'INBOX', name: String(from.name || 'ลูกค้า'), psid: String(from.id || ''),
+    snippet: pkStripHtml(c.snippet || ''), seen: !!c.seen,
+    updatedAt: c.updated_at || c.inserted_at || null, phone: String(phone || ''),
+    assignees, lastByPage: !!(last.admin_id || last.uid),
+  };
+}
+function pkMsgDir(m, custPsid) {
+  const f = m.from || {};
+  if (f.admin_id || f.uid || f.is_automated || f.ai_generated) return 'out';
+  if (custPsid && String(f.id) === String(custPsid)) return 'in';
+  return 'in';
+}
+function pkMsgNorm(m, custPsid) {
+  const atts = (m.attachments || []).map((a) => ({ type: String(a.type || ''), url: String(a.url || a.link || ''), mime: String(a.mime_type || '') })).filter((a) => a.url);
+  let text = m.original_message;
+  if (text == null || !String(text).trim()) text = pkStripHtml(m.message);
+  return {
+    id: String(m.id || ''), dir: pkMsgDir(m, custPsid), text: String(text || ''),
+    at: m.inserted_at || null, fromName: String((m.from && (m.from.name || m.from.admin_name)) || ''), atts,
+  };
+}
+
+app.get('/inbox', requireCrm, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
+
+app.get('/api/chat/pages', requireCrm, async (req, res) => {
+  if (!pkChatConfigured()) return res.json({ configured: false, pages: [] });
+  const cs = await pkEnsurePages(req.query.refresh === '1');
+  res.json({ configured: true, syncedAt: cs.syncedAt,
+    pages: cs.pages.map((p) => ({ id: p.id, name: p.name, platform: p.platform, hasToken: !!cs.tokens[p.id] })) });
+});
+
+app.get('/api/chat/conversations', requireCrm, async (req, res) => {
+  if (!pkChatConfigured()) return res.json({ error: 'not_configured', conversations: [] });
+  const cs = await pkEnsurePages(false);
+  const type = String(req.query.type || 'INBOX');
+  const want = req.query.page_id ? cs.pages.filter((p) => String(p.id) === String(req.query.page_id)) : cs.pages;
+  const results = await Promise.all(want.map(async (p) => {
+    const tok = cs.tokens[p.id]; if (!tok) return [];
+    try {
+      let u = PK_CHAT_HOST + '/api/public_api/v2/pages/' + encodeURIComponent(p.id) + '/conversations?page_access_token=' + encodeURIComponent(tok) + '&type=' + encodeURIComponent(type) + '&order_by=updated_at';
+      if (req.query.last && req.query.page_id) u += '&last_conversation_id=' + encodeURIComponent(req.query.last);
+      const r = await pkFetch(u, {}, p.id);
+      const j = await r.json().catch(() => null);
+      const arr = (j && Array.isArray(j.conversations)) ? j.conversations : [];
+      return arr.map((c) => pkConvNorm(c, p.id, p.name, p.platform));
+    } catch (_) { return []; }
+  }));
+  let convs = [].concat(...results);
+  convs.sort((a, b) => (Date.parse(b.updatedAt || 0) || 0) - (Date.parse(a.updatedAt || 0) || 0));
+  convs = convs.slice(0, 300);
+  res.json({ conversations: convs, unread: convs.filter((c) => !c.seen).length });
+});
+
+app.get('/api/chat/messages', requireCrm, async (req, res) => {
+  if (!pkChatConfigured()) return res.json({ error: 'not_configured', messages: [] });
+  const cs = await pkEnsurePages(false);
+  const pageId = String(req.query.page_id || ''); const convId = String(req.query.conversation_id || '');
+  const tok = cs.tokens[pageId];
+  if (!tok || !convId) return res.status(400).json({ error: 'bad_request' });
+  try {
+    let u = PK_CHAT_HOST + '/api/public_api/v1/pages/' + encodeURIComponent(pageId) + '/conversations/' + encodeURIComponent(convId) + '/messages?page_access_token=' + encodeURIComponent(tok);
+    if (req.query.current_count) u += '&current_count=' + encodeURIComponent(req.query.current_count);
+    const r = await pkFetch(u, {}, pageId);
+    const j = await r.json().catch(() => null);
+    const custPsid = (j && j.conv_from && j.conv_from.id) || (convId.indexOf('_') >= 0 ? convId.split('_').pop() : convId);
+    const msgs = (j && Array.isArray(j.messages)) ? j.messages.map((m) => pkMsgNorm(m, custPsid)) : [];
+    msgs.reverse(); // API returns newest→oldest; UI shows oldest→newest
+    const cust = (j && Array.isArray(j.customers) && j.customers[0]) || null;
+    res.json({
+      messages: msgs, conversationId: convId,
+      customer: cust ? { name: cust.name || '', phone: (cust.recent_phone_numbers && cust.recent_phone_numbers[0] && cust.recent_phone_numbers[0].phone_number) || '', ltv: Math.round((cust.purchased_amount || 0) / 100), orders: cust.order_count || 0, succeed: cust.succeed_order_count || 0 } : null,
+      canInbox: (j && typeof j.can_inbox === 'boolean') ? j.can_inbox : true,
+    });
+  } catch (e) { res.status(502).json({ error: 'fetch_failed', messages: [] }); }
+});
+
+// Send a reply. NOTE: initiated by the human sales/admin user from the inbox UI.
+app.post('/api/chat/send', requireCrm, async (req, res) => {
+  if (!pkChatConfigured()) return res.status(400).json({ error: 'not_configured' });
+  const cs = await pkEnsurePages(false);
+  const { page_id, conversation_id, message } = req.body || {};
+  const tok = cs.tokens[String(page_id || '')];
+  if (!tok || !conversation_id || !String(message || '').trim()) return res.status(400).json({ error: 'bad_request' });
+  try {
+    const u = PK_CHAT_HOST + '/api/public_api/v1/pages/' + encodeURIComponent(page_id) + '/conversations/' + encodeURIComponent(conversation_id) + '/messages?page_access_token=' + encodeURIComponent(tok);
+    const r = await pkFetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ action: 'reply_inbox', message: String(message) }) }, page_id);
+    const j = await r.json().catch(() => null);
+    if (j && (j.success || j.id)) return res.json({ ok: true, id: j.id || null });
+    return res.status(502).json({ ok: false, error: (j && j.message) || ('http_' + r.status) });
+  } catch (e) { res.status(502).json({ ok: false, error: 'send_failed' }); }
+});
+
+app.post('/api/chat/read', requireCrm, async (req, res) => {
+  if (!pkChatConfigured()) return res.status(400).json({ error: 'not_configured' });
+  const cs = await pkEnsurePages(false);
+  const { page_id, conversation_id } = req.body || {};
+  const tok = cs.tokens[String(page_id || '')];
+  if (!tok || !conversation_id) return res.status(400).json({ error: 'bad_request' });
+  try {
+    const u = PK_CHAT_HOST + '/api/public_api/v1/pages/' + encodeURIComponent(page_id) + '/conversations/' + encodeURIComponent(conversation_id) + '/read?page_access_token=' + encodeURIComponent(tok);
+    await pkFetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }, page_id);
+    res.json({ ok: true });
+  } catch (e) { res.json({ ok: false }); }
+});
+
 app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.length }));
 
 boot().then(() => {
