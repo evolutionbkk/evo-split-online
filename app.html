@@ -148,6 +148,12 @@
     <div id="srcOvBody"><div style="padding:18px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
 
+  <div class="panel" data-sec="overview" id="dayoffPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>วันลาของเซลล์ (วันนี้)</h2>
+    <div class="desc">กด "ลาวันนี้" เมื่อเซลล์คนไหนหยุด — รายชื่อที่ยังไม่ปิดจะย้ายไปให้อีกคน และรายชื่อใหม่วันนี้จะวิ่งไปหาคนที่ทำงาน · <b>ขึ้นวันใหม่ระบบคืนให้อัตโนมัติ ไม่ต้องกดยกเลิก</b></div>
+    <div id="dayoffBox" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+  </div>
+
   <div class="panel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
     <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
@@ -462,6 +468,34 @@ async function refresh(){
   document.getElementById('c-k').textContent=s.K.length;
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
   LAST={W:s.W,K:s.K}; renderTables();
+  DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff();
+}
+let DAYOFF={W:false,K:false};
+const SNAME={W:'Namwhan (W)',K:'Khem (K)'};
+function renderDayoff(){
+  const box=document.getElementById('dayoffBox'); if(!box)return;
+  let h='';
+  for(const side of ['W','K']){
+    const off=!!DAYOFF[side];
+    h+='<div style="flex:1;min-width:210px;border:1px solid '+(off?'#fecaca':'var(--line)')+';border-radius:12px;padding:12px 14px;background:'+(off?'#fef2f2':'#fff')+'">'
+      +'<div style="font-weight:700;color:#0f172a">'+SNAME[side]+'</div>'
+      +'<div style="font-size:12.5px;margin:3px 0 10px;color:'+(off?'#b91c1c':'#16a34a')+'">'+(off?'🌴 ลาวันนี้ — ย้ายรายชื่อไปให้อีกคนแล้ว':'✓ ทำงานปกติ')+'</div>'
+      +'<button class="b-b" style="padding:7px 14px'+(off?';background:#ef4444':'')+'" onclick="toggleDayoff(\''+side+'\','+(!off)+')">'+(off?'ยกเลิกวันลา':'ลาวันนี้')+'</button>'
+      +'</div>';
+  }
+  box.innerHTML=h;
+}
+async function toggleDayoff(side,off){
+  const name=SNAME[side];
+  const msg=off?(name+' ลาวันนี้ใช่ไหม?\n\nรายชื่อที่ยังไม่ปิดของ '+name+' จะย้ายไปให้อีกคน และรายชื่อใหม่วันนี้จะวิ่งไปหาอีกคน\n(ขึ้นวันใหม่ระบบคืนให้อัตโนมัติ)'):('ยกเลิกวันลาของ '+name+' และคืนรายชื่อที่ย้ายไปให้ '+name+' ตอนนี้เลยใช่ไหม?');
+  if(!confirm(msg))return;
+  try{
+    const r=await fetch('/api/admin/dayoff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({side,off})});
+    const j=await r.json();
+    if(!j.ok){alert(j.message||'ทำรายการไม่สำเร็จ');return;}
+    document.getElementById('lastact').innerHTML=ic('check',14)+(off?('ตั้ง '+name+' ลาวันนี้ · ย้าย <b>'+j.moved+'</b> รายชื่อไปให้อีกคน'):('ยกเลิกวันลา '+name+' · คืน <b>'+j.moved+'</b> รายชื่อ'));
+    refresh();
+  }catch(e){alert('เกิดข้อผิดพลาด: '+e);}
 }
 async function doPaste(){
   const text=document.getElementById('paste').value; if(!text.trim()){alert('ยังไม่มีข้อมูลที่วาง');return;}

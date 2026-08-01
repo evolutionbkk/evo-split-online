@@ -64,6 +64,7 @@ async function boot() {
   if (!Array.isArray(state.pulls)) state.pulls = [];
   // Pancake baseline: set once, so we only forward orders CLOSED from now on (no 1,375 backfill).
   if (!state.pancake) { state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null }; bf = true; }
+  if (!state.dayoff) { state.dayoff = { W: null, K: null }; bf = true; }
   // Restore the persisted Evolution token so a server restart/redeploy doesn't drop the connection.
   if (state.evo && state.evo.token) { evo.token = state.evo.token; evo.facility = state.evo.facility || evo.facility; evo.updatedAt = state.evo.updatedAt || null; }
   if (bf) state = await store.save(state);
@@ -224,7 +225,69 @@ app.get('/api/state', requireAuth, async (req, res) => {
     W: S.listSide(state, 'W'),
     K: S.listSide(state, 'K'),
     archivedCount: state.assigned.filter((a) => a.archived).length,
+    dayoff: { W: !!(state.dayoff && state.dayoff.W), K: !!(state.dayoff && state.dayoff.K) },
   });
+});
+
+// ---------- Day off / วันลา (คิดเป็นวันต่อวัน): mark a salesperson on leave for TODAY.
+// New leads route to the working one and the on-leave person's active leads move over.
+// When the Thai day rolls over, it auto-resets and the moved leads return — no manual cancel. ----------
+// state.dayoff = { W: 'YYYY-MM-DD'|null, K: ... }  (the Thai day that side is on leave)
+function dof() {
+  const today = S.thaiDay();
+  return { W: !!(state.dayoff && state.dayoff.W === today), K: !!(state.dayoff && state.dayoff.K === today) };
+}
+// Auto-return leads whose owner's leave day has passed, and clear stale leave marks.
+async function reconcileDayoff() {
+  if (!state.dayoff) { state.dayoff = { W: null, K: null }; }
+  const today = S.thaiDay();
+  let changed = false, returned = 0;
+  for (const side of ['W', 'K']) {
+    if (state.dayoff[side] && state.dayoff[side] !== today) {
+      const now = new Date().toISOString();
+      for (const a of state.assigned) {
+        if (a.archived || a.dayoffMoved !== side) continue;
+        a.sales = side; delete a.dayoffMoved;
+        (a.history = a.history || []).push({ at: now, by: 'system', k: 'dayoff_return', v: 'ครบวันลา คืนอัตโนมัติ' });
+        returned++;
+      }
+      state.dayoff[side] = null; changed = true;
+    }
+  }
+  if (changed) { state.updatedAt = new Date().toISOString(); state = await store.save(state); }
+  return { changed, returned };
+}
+app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
+  const side = (req.body && req.body.side) === 'K' ? 'K' : ((req.body && req.body.side) === 'W' ? 'W' : null);
+  const off = !!(req.body && req.body.off);
+  if (!side) return res.status(400).json({ error: 'bad_side' });
+  if (!state.dayoff) state.dayoff = { W: null, K: null };
+  await reconcileDayoff();
+  const other = side === 'W' ? 'K' : 'W';
+  const today = S.thaiDay();
+  if (off && state.dayoff[other] === today) return res.status(400).json({ error: 'both_off', message: 'อีกคนลาอยู่แล้ว — ต้องมีเซลล์ทำงานอย่างน้อย 1 คน' });
+  const now = new Date().toISOString();
+  let moved = 0;
+  if (off) {
+    state.dayoff[side] = today; // on leave for today only; resets on the next Thai day
+    for (const a of state.assigned) {
+      if (a.archived || a.sales !== side) continue;
+      a.sales = other; a.dayoffMoved = side;
+      (a.history = a.history || []).push({ at: now, by: 'admin', k: 'dayoff_move', v: side + '→' + other });
+      moved++;
+    }
+  } else {
+    state.dayoff[side] = null; // cancel leave now → return the moved leads
+    for (const a of state.assigned) {
+      if (a.archived || a.dayoffMoved !== side) continue;
+      a.sales = side; delete a.dayoffMoved;
+      (a.history = a.history || []).push({ at: now, by: 'admin', k: 'dayoff_return', v: 'ยกเลิกวันลา' });
+      moved++;
+    }
+  }
+  state.updatedAt = now;
+  state = await store.save(state);
+  res.json({ ok: true, side, off, moved, dayoff: dof() });
 });
 
 // ---------- lead CRM (per-salesperson status tracking) ----------
@@ -341,6 +404,7 @@ async function runSweep() {
     if (now - la > STALE_DAYS * 86400000) { advanceStage(rec); changed = true; }
   }
   if (changed) state = await store.save(state);
+  try { await reconcileDayoff(); } catch (_) {} // auto-reset day-off when the Thai day rolls over
   return changed;
 }
 function leadFor(req, key) {
@@ -543,7 +607,7 @@ app.post('/api/ingest', async (req, res) => {
   if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
   const customers = (req.body && req.body.customers) || [];
   if (!Array.isArray(customers)) return res.status(400).json({ error: 'customers must be an array' });
-  const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE });
+  const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE, off: dof() });
   recordPull('W', summary.addW); recordPull('K', summary.addK);
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
@@ -670,7 +734,7 @@ async function pancakePull() {
       seen.add(id);
     }
     if (rows.length) {
-      const sum = S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1' });
+      const sum = S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1', off: dof() });
       added = sum.added;
     }
     state.pancake.seen = Array.from(seen).slice(-8000);
@@ -830,7 +894,7 @@ app.post('/api/pull', requireAuth, async (req, res) => {
     }
     const j = await r.json();
     const customers = mapItems(j);
-    const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE });
+    const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE, off: dof() });
     recordPull('W', summary.addW); recordPull('K', summary.addK);
     state = await store.save(state);
     res.json({ ok: true, summary, pulled: customers.length, total: state.assigned.length, tokenAge: evo.updatedAt });
@@ -847,7 +911,7 @@ app.get('/api/evo-status', requireAuth, (req, res) => {
 // Manual paste/upload from the admin UI
 app.post('/api/paste', requireAuth, async (req, res) => {
   const records = S.parseRows((req.body && req.body.text) || '');
-  const summary = S.applyNew(state, records, req.body && req.body.label);
+  const summary = S.applyNew(state, records, req.body && req.body.label, { off: dof() });
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length });
 });
@@ -861,7 +925,7 @@ app.post('/api/admin/import', requireDistributor, async (req, res) => {
   if (rows.length > 3000) return res.status(400).json({ error: 'too_many', message: 'ครั้งละไม่เกิน 3000 รายชื่อ' });
   const step = STEP_KEYS.includes(req.body && req.body.step) ? req.body.step : 'T1';
   const who = req.session.u || 'admin';
-  const summary = S.applyManual(state, rows, { step, label: req.body && req.body.label, by: who, distributedBy: who });
+  const summary = S.applyManual(state, rows, { step, label: req.body && req.body.label, by: who, distributedBy: who, off: dof() });
   state = await store.save(state);
   res.json({ ok: true, summary, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
 });
@@ -1219,7 +1283,7 @@ app.post('/api/pancake/refill/import', requireAuth, async (req, res) => {
   let cands = d.candidates || [];
   if (phones) { const set = new Set(phones.map(digitsOnly)); cands = cands.filter((c) => set.has(digitsOnly(c.phone))); }
   const rows = cands.filter((c) => !c.inQueue).map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '', ltv: (typeof c.spent === 'number') ? c.spent : null, succeedOrders: (typeof c.succeedOrders === 'number') ? c.succeedOrders : null }));
-  const sum = S.applyManual(state, rows, { source: 'refill', by: 'Refill', step: 'T1' });
+  const sum = S.applyManual(state, rows, { source: 'refill', by: 'Refill', step: 'T1', off: dof() });
   state = await store.save(state);
   res.json({ ok: true, added: sum.added, addW: sum.addW, addK: sum.addK, dup: sum.dup });
 });
@@ -1258,7 +1322,7 @@ async function pancakeRefillAuto() {
       await store.save(state); return { added: 0, open: openRefill };
     }
     const rows = pick.map((c) => ({ code: 'RF' + digitsOnly(c.phone).slice(-6), name: c.name, phone: c.phone, product: 'ซื้อซ้ำ (refill) · เคยซื้อ ' + c.succeedOrders + ' ครั้ง · ล่าสุด ' + c.daysSince + ' วันก่อน', amount: 0, page: 'Refill', lastOrderAt: c.lastOrderAt || null, address: c.address || '', ltv: (typeof c.spent === 'number') ? c.spent : null, succeedOrders: (typeof c.succeedOrders === 'number') ? c.succeedOrders : null }));
-    const sum = S.applyManual(state, rows, { source: 'refill', by: 'Auto-Refill', step: 'T1' });
+    const sum = S.applyManual(state, rows, { source: 'refill', by: 'Auto-Refill', step: 'T1', off: dof() });
     state.refillAuto = { lastRun: new Date().toISOString(), added: sum.added, addW: sum.addW, addK: sum.addK, open: openRefill + sum.added, scanned: data.scanned || 0 };
     state = await store.save(state);
     return { added: sum.added, addW: sum.addW, addK: sum.addK, open: openRefill + sum.added };
@@ -1327,7 +1391,7 @@ app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
       if (j.data.length < 100) break;
     }
     let added = 0, addW = 0, addK = 0, dup = 0;
-    if (rows.length) { const sum = S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1' }); added = sum.added; addW = sum.addW; addK = sum.addK; dup = sum.dup; }
+    if (rows.length) { const sum = S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1', off: dof() }); added = sum.added; addW = sum.addW; addK = sum.addK; dup = sum.dup; }
     state.pancake.seen = Array.from(seen).slice(-8000);
     state.pancake.lastRun = new Date().toISOString();
     state.pancake.lastAdded = added;

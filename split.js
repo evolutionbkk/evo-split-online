@@ -23,7 +23,16 @@ function thaiDay(ts) {
   return new Date(t + 7 * 3600000).toISOString().slice(0, 10);
 }
 
-function nextSide(assigned) {
+const otherSide = (s) => (s === 'W' ? 'K' : 'W');
+// If `side` is on leave today and the other side is working, return the other side; else null.
+function offRedirect(off, side) {
+  off = off || {};
+  return (off[side] && !off[otherSide(side)]) ? otherSide(side) : null;
+}
+function nextSide(assigned, off) {
+  off = off || {};
+  if (off.W && !off.K) return 'K';   // Namwhan on leave → everything to Khem
+  if (off.K && !off.W) return 'W';   // Khem on leave → everything to Namwhan
   let w = 0, k = 0;
   for (const a of assigned) { if (a.archived) continue; if (a.sales === 'W') w++; else k++; }
   return w <= k ? 'W' : 'K';
@@ -89,13 +98,16 @@ function applyNew(state, records, label, opts) {
       }
       capW = Math.max(0, cap - tW); capK = Math.max(0, cap - tK);
     }
+    const forcedSide = (opts.off && opts.off.W && !opts.off.K) ? 'K' : ((opts.off && opts.off.K && !opts.off.W) ? 'W' : null);
     for (const rec of fresh) {
       let side;
-      if (cap) {
+      if (forcedSide) {
+        side = forcedSide; // a salesperson is on leave → the working one takes every new lead
+      } else if (cap) {
         if (capW <= 0 && capK <= 0) break; // daily quota full
         if (capW <= 0) side = 'K'; else if (capK <= 0) side = 'W'; else side = capW >= capK ? 'W' : 'K';
       } else {
-        side = nextSide(state.assigned);
+        side = nextSide(state.assigned, opts.off);
       }
       rec.sales = side;
       rec.round = round;
@@ -178,7 +190,8 @@ function applyManual(state, rows, opts) {
     state.maxRound = Math.max(state.maxRound, round);
     date = (opts.label && String(opts.label).trim()) ? String(opts.label).trim() : todayTH();
     for (const p of parsed) {
-      const side = p.side || nextSide(state.assigned);
+      let side = p.side || nextSide(state.assigned, opts.off);
+      const redir = offRedirect(opts.off, side); if (redir) side = redir; // on-leave side → other
       const nowIso = new Date().toISOString();
       state.assigned.push({
         code: p.code, name: p.name, phone: p.phone,
