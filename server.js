@@ -1335,6 +1335,60 @@ app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
     res.json({ ok: true, days, pages, scanned, inWindow, closedSaleCandidates: rows.length, added, addW, addK, dup });
   } catch (e) { res.status(500).json({ error: String(e), scanned, pages }); }
 });
+
+// ---------- Teamlead dashboard: sales split by SOURCE ----------
+// FB / chat-linked orders (have a conversation/page/social source) = closed by ADMIN.
+// Orders with no chat link (created manually, e.g. a telesales phone close) = TELESALES.
+function orderSource(o) {
+  const linked = !!(o && (o.conversation_id || o.post_id || (o.page && o.page.id) || o.page_id));
+  const src = String((o && o.order_sources_name) || '').toLowerCase();
+  const channel = /face|insta|messenger|line|zalo|tiktok|shopee|lazada/.test(src);
+  return (linked || channel) ? 'admin' : 'telesales';
+}
+app.get('/api/admin/sales-source', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
+  const toTs = req.query.to ? Date.parse(req.query.to) : Date.now();
+  const fromTs = req.query.from ? Date.parse(req.query.from) : (toTs - 7 * 86400000);
+  const from = isFinite(fromTs) ? fromTs : (Date.now() - 7 * 86400000);
+  const to = isFinite(toTs) ? toTs : Date.now();
+  const skip = req.query.all === '1' ? new Set() : PANCAKE_SKIP_STATUS;
+  const thDay = (iso) => new Date((Date.parse(iso) || 0) + 7 * 3600000).toISOString().slice(0, 10);
+  const blank = () => ({ admin: { orders: 0, revenue: 0 }, telesales: { orders: 0, revenue: 0 } });
+  const total = blank(); const byDay = {}; const byCloser = {}; const byPage = {};
+  const sample = [];
+  let scanned = 0, pages = 0, counted = 0;
+  try {
+    for (let page = 1; page <= 60; page++) {
+      pages = page;
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      let allOlder = true;
+      for (const o of j.data) {
+        scanned++;
+        const ins = Date.parse(o.inserted_at || o.updated_at || 0);
+        if (!isFinite(ins)) continue;
+        if (ins > to) { allOlder = false; continue; }
+        if (ins < from) continue;
+        allOlder = false;
+        if (skip.has(String(o.status))) continue;
+        const rev = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
+        const src = orderSource(o);
+        total[src].orders++; total[src].revenue += rev; counted++;
+        const d = thDay(o.inserted_at || o.updated_at);
+        (byDay[d] = byDay[d] || blank())[src].orders++; byDay[d][src].revenue += rev;
+        const closer = pancakeCloser(o) || '—';
+        (byCloser[closer] = byCloser[closer] || blank())[src].orders++; byCloser[closer][src].revenue += rev;
+        const pg = (o.page && o.page.name) || o.account_name || '—';
+        (byPage[pg] = byPage[pg] || blank())[src].orders++; byPage[pg][src].revenue += rev;
+        if (sample.length < 12) sample.push({ id: o.id, src, sources_name: o.order_sources_name || null, has_conv: !!o.conversation_id, closer, rev, status: o.status });
+      }
+      if (j.data.length < 100) break;
+      if (allOlder && page > 1) break;
+    }
+    res.json({ ok: true, from: new Date(from).toISOString(), to: new Date(to).toISOString(), scanned, counted, pages, total, byDay, byCloser, byPage, sample });
+  } catch (e) { res.status(500).json({ error: String(e), scanned, pages }); }
+});
 // Customer 360: live profile from Pancake (LTV, order history, VIP tier, reorder cycle).
 // Sales can call this when opening a lead. Cached briefly per phone to spare the API.
 const _profileCache = new Map(); // phone -> { at, data }
