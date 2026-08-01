@@ -947,6 +947,9 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     leadSrc.set(r.sales + '|' + p, isFb ? 'manual' : 'evolution');
     if (isFb) fbPhones.add(p);
   }
+  // include ALL Pancake buyers (past closed-sale customers) so follow-up calls count as FB,
+  // even when that customer isn't in the current (this-month) lead list.
+  for (const p of (state.fbPhones || [])) fbPhones.add(p);
   const mkSets = () => ({ evo: new Set(), manual: new Set() });
   const calledR = { W: mkSets(), K: mkSets() }, calledT = { W: mkSets(), K: mkSets() };
   for (const c of (state.onecall || [])) {
@@ -1456,6 +1459,11 @@ async function pancakeEnrichVip() {
       if (j.data.length < 100) break;
     }
   } catch (e) { return { error: String(e), scanned }; }
+  // Persist the set of phones that are Pancake BUYERS (succeed_order_count >= 1) so the FB KPI
+  // can credit follow-up calls to past closed-sale customers even when they're not an active lead.
+  const buyerPhones = [];
+  for (const [p, m] of map) if (m.succeed >= 1) buyerPhones.push(p);
+  state.fbPhones = buyerPhones;
   let updated = 0, vipCount = 0;
   for (const r of state.assigned) {
     if (r.archived) continue;
