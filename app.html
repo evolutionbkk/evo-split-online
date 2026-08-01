@@ -137,6 +137,17 @@
     <div class="card upd"><div class="n" id="c-upd">–</div><div class="l">อัปเดตล่าสุด</div></div>
   </div>
 
+  <div class="panel" data-sec="overview" id="srcOvPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>ยอดขายตามแหล่งที่มา <span id="srcOvLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="krange" id="srcOvRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center">
+      <button class="kr" data-r="today" onclick="srcOvSet('today')">วันนี้</button>
+      <button class="kr on" data-r="month" onclick="srcOvSet('month')">เดือนนี้</button>
+      <button class="kr" data-r="30" onclick="srcOvSet('30')">30 วัน</button>
+      <a class="kr" style="text-decoration:none;cursor:pointer" onclick="showSec('source')">ดูละเอียด →</a>
+    </div>
+    <div id="srcOvBody"><div style="padding:18px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
+  </div>
+
   <div class="panel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
     <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
@@ -1097,6 +1108,7 @@ function showSec(sec){
   if(sec==='qa')qaLoad();
   if(sec==='dupes')loadDupes();
   if(sec==='source')srcLoad();
+  if(sec==='overview')srcOvLoad();
   window.scrollTo(0,0);
 }
 // ===== Refill (ลูกค้าเดิมซื้อซ้ำ) =====
@@ -1158,10 +1170,23 @@ async function srcLoad(){
   try{
     const j=await fetch('/api/admin/sales-source?from='+encodeURIComponent(q.from)+'&to='+encodeURIComponent(q.to),{credentials:'same-origin'}).then(r=>r.json());
     if(!j||!j.ok){body.innerHTML='<div style="padding:20px;color:#b91c1c">ดึงข้อมูลไม่สำเร็จ'+((j&&j.message)?': '+j.message:'')+'</div>';return;}
-    renderSrc(j);
+    renderSrc(j,'srcBody',false);
   }catch(e){body.innerHTML='<div style="padding:20px;color:#b91c1c">เกิดข้อผิดพลาด: '+e+'</div>';}
 }
-function renderSrc(j){
+let SRC_OV_MODE='month';
+function srcOvSet(mode){SRC_OV_MODE=mode;document.querySelectorAll('#srcOvRange .kr[data-r]').forEach(b=>b.classList.toggle('on',b.dataset.r===mode));srcOvLoad();}
+async function srcOvLoad(){
+  const q=srcQ(SRC_OV_MODE);const body=document.getElementById('srcOvBody');if(!body)return;
+  body.innerHTML='<div style="padding:18px;text-align:center;color:#94a3b8">กำลังโหลดจาก Pancake…</div>';
+  const lbl=document.getElementById('srcOvLbl');if(lbl)lbl.textContent=q.label;
+  try{
+    const j=await fetch('/api/admin/sales-source?from='+encodeURIComponent(q.from)+'&to='+encodeURIComponent(q.to),{credentials:'same-origin'}).then(r=>r.json());
+    if(!j||!j.ok){body.innerHTML='<div style="padding:16px;color:#b91c1c">ดึงข้อมูลไม่สำเร็จ</div>';return;}
+    renderSrc(j,'srcOvBody',true);
+  }catch(e){body.innerHTML='<div style="padding:16px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
+}
+function renderSrc(j,target,compact){
+  target=target||'srcBody';
   const bht=x=>'฿'+Math.round(x||0).toLocaleString();
   const a=j.total.admin,t=j.total.telesales;
   const totRev=a.revenue+t.revenue,totO=a.orders+t.orders;
@@ -1179,13 +1204,13 @@ function renderSrc(j){
   for(const c of closers){const type=c.ar>=c.tr?'<span style="color:#1d4ed8;font-weight:600">แอดมิน</span>':'<span style="color:#047857;font-weight:600">เทเลเซลล์</span>';h+='<tr><td>'+esc(c.name)+'</td><td style="text-align:center">'+type+'</td><td style="text-align:right">'+c.o+'</td><td style="text-align:right;font-weight:600">'+bht(c.r)+'</td></tr>';}
   h+='</tbody></table></div>';
   const days=Object.entries(j.byDay||{}).sort((x,y)=>y[0].localeCompare(x[0]));
-  if(days.length){
+  if(!compact&&days.length){
     h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 8px">รายวัน</div>';
     h+='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>วันที่</th><th style="text-align:right">แอดมิน</th><th style="text-align:right">เทเลเซลล์</th><th style="text-align:right">รวม</th></tr></thead><tbody>';
     for(const [d,v] of days){const dr=v.admin.revenue+v.telesales.revenue;h+='<tr><td>'+srcThDayShort(d)+'</td><td style="text-align:right;color:#1d4ed8">'+bht(v.admin.revenue)+' <span style="color:#94a3b8">('+v.admin.orders+')</span></td><td style="text-align:right;color:#047857">'+bht(v.telesales.revenue)+' <span style="color:#94a3b8">('+v.telesales.orders+')</span></td><td style="text-align:right;font-weight:600">'+bht(dr)+'</td></tr>';}
     h+='</tbody></table></div>';
   }
-  document.getElementById('srcBody').innerHTML=h;
+  document.getElementById(target).innerHTML=h;
 }
 renderNav(); showSec('overview');
 refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000);
