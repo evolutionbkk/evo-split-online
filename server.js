@@ -1765,9 +1765,11 @@ function pkConvNorm(c, pageId, pageName, platform) {
 }
 function pkMsgDir(m, custPsid) {
   const f = m.from || {};
-  if (f.admin_id || f.uid || f.is_automated || f.ai_generated) return 'out';
-  if (custPsid && String(f.id) === String(custPsid)) return 'in';
-  return 'in';
+  const fid = String(f.id || '');
+  if (custPsid && fid === String(custPsid)) return 'in';            // sent BY the customer
+  if (f.admin_id || f.uid || f.is_automated || f.ai_generated) return 'out'; // staff / bot / AI
+  if (custPsid) return 'out';   // known customer, and this isn't them → it's the page/bot side
+  return 'in';                  // customer id unknown → safest default
 }
 function pkMsgNorm(m, custPsid) {
   const atts = (m.attachments || []).map((a) => ({ type: String(a.type || ''), url: String(a.url || a.link || ''), mime: String(a.mime_type || '') })).filter((a) => a.url);
