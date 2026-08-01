@@ -421,20 +421,11 @@ function render(){
       <td><a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',14)}${esc(r.phone)}</a></td>
       <td class="stc">${stCell}</td>
       <td class="codec">${r.closer?esc(r.closer):'<span class="dash">–</span>'}</td>
-      <td>${cr?esc(cr):'<span class="dash">–</span>'}</td>
-      <td class="linec">${interestCell}</td>
-      <td>${na?esc(na):'<span class="dash">–</span>'}</td>
       <td class="codec">${r.nextAppt?esc(fmtShort(r.nextAppt)):'<span class="dash">–</span>'}</td>
-      <td class="prog">${esc(r.sales)}</td>
-      <td class="codec">${r.lostReason?esc(r.lostReason):'<span class="dash">–</span>'}</td>
       <td class="codec">${r.lastCallAt?esc(fmtShort(r.lastCallAt)):'<span class="dash">–</span>'}</td>
-      <td class="prog">${r.callCount||0}</td>
-      <td class="codec">${(r.saleItems&&r.saleItems.length)?esc(r.saleItems.length+' รายการ · ฿'+fmtBaht(saleTotal(r))):'<span class="dash">–</span>'}</td>
-      <td class="notec" title="${esc(r.address)}">${r.address?esc(r.address):'<span class="dash">–</span>'}</td>
-      <td class="notec" title="${esc(r.note)}">${r.note?esc(r.note):''}</td>
     </tr>`;
   }).join('');
-  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>สินค้าที่สั่งซื้อ / ราคา</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ปิดการขายโดย</th><th>ผลการโทร</th><th>ความสนใจ</th><th>Next Action</th><th>นัดถัดไป</th><th>ผู้รับผิดชอบ</th><th>เหตุผลไม่ปิด</th><th>โทรล่าสุด</th><th>ครั้งที่ติดต่อ</th><th>ยอดที่ปิดได้</th><th>ที่อยู่</th><th>หมายเหตุการสนทนา</th></tr></thead><tbody>${rows}</tbody></table></div>`+pageBar(total,pages);
+  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>สินค้าที่สั่งซื้อ / ราคา</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ปิดการขายโดย</th><th>นัดถัดไป</th><th>โทรล่าสุด</th></tr></thead><tbody>${rows}</tbody></table></div>`+pageBar(total,pages);
 }
 function pageNumBtn(n){return `<button class="pgbtn ${n===PAGE?'on':''}" onclick="gotoPage(${n})">${n}</button>`;}
 function pageBar(total,pages){
