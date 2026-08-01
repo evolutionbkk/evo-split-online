@@ -1419,6 +1419,7 @@ app.get('/api/admin/sales-source', requireAuth, async (req, res) => {
   const thDay = (iso) => new Date((Date.parse(iso) || 0) + 7 * 3600000).toISOString().slice(0, 10);
   const blank = () => ({ admin: { orders: 0, revenue: 0 }, telesales: { orders: 0, revenue: 0 } });
   const total = blank(); const byDay = {}; const byCloser = {}; const byPage = {};
+  const byProduct = {}; const orders = [];
   const sample = [];
   let scanned = 0, pages = 0, counted = 0;
   try {
@@ -1445,12 +1446,23 @@ app.get('/api/admin/sales-source', requireAuth, async (req, res) => {
         (byCloser[closer] = byCloser[closer] || blank())[src].orders++; byCloser[closer][src].revenue += rev;
         const pg = (o.page && o.page.name) || o.account_name || '—';
         (byPage[pg] = byPage[pg] || blank())[src].orders++; byPage[pg][src].revenue += rev;
+        // per-product breakdown (SKU/variation) — skip zero-price upsell placeholders in the money, keep the qty
+        for (const it of (o.items || [])) {
+          const vi = it.variation_info || {};
+          const nm = String(vi.name || it.name || it.product_name || '').trim();
+          if (!nm) continue;
+          const q = Number(it.quantity || 1) || 1;
+          const pr = ((Math.round(Number(vi.retail_price || 0)) || 0) / 100) * q;
+          const bp = byProduct[nm] = byProduct[nm] || { qty: 0, revenue: 0, lines: 0 };
+          bp.qty += q; bp.revenue += pr; bp.lines++;
+        }
+        if (orders.length < 300) orders.push({ code: 'PC' + (o.system_id || o.id), at: o.inserted_at, amount: rev, product: pancakeItems(o), qty: o.total_quantity || 0, closer, src, page: pg, status_name: o.status_name || '' });
         if (sample.length < 12) sample.push({ id: o.id, src, sources_name: o.order_sources_name || null, has_conv: !!o.conversation_id, closer, rev, status: o.status });
       }
       if (j.data.length < 100) break;
       if (allOlder && page > 1) break;
     }
-    res.json({ ok: true, from: new Date(from).toISOString(), to: new Date(to).toISOString(), scanned, counted, pages, total, byDay, byCloser, byPage, sample });
+    res.json({ ok: true, from: new Date(from).toISOString(), to: new Date(to).toISOString(), scanned, counted, pages, total, byDay, byCloser, byPage, byProduct, orders, sample });
   } catch (e) { res.status(500).json({ error: String(e), scanned, pages }); }
 });
 // Customer 360: live profile from Pancake (LTV, order history, VIP tier, reorder cycle).

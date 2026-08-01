@@ -1235,9 +1235,19 @@ function renderSrc(j,target,compact){
   h+='<div class="card" style="border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#fff);padding:16px"><div style="font-size:13px;font-weight:700;color:#1d4ed8;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#1877f2;display:inline-block"></span>แอดมิน (จากแชท FB)</div><div style="font-size:26px;font-weight:800;color:#0f172a;margin-top:6px">'+bht(a.revenue)+'</div><div style="font-size:13px;color:#475569;margin-top:2px">'+a.orders+' ออเดอร์ · '+pct(a.revenue)+'% ของยอดรวม</div></div>';
   h+='<div class="card" style="border:1px solid #a7f3d0;background:linear-gradient(135deg,#ecfdf5,#fff);padding:16px"><div style="font-size:13px;font-weight:700;color:#047857;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block"></span>เทเลเซลล์ (โทรปิดเอง)</div><div style="font-size:26px;font-weight:800;color:#0f172a;margin-top:6px">'+bht(t.revenue)+'</div><div style="font-size:13px;color:#475569;margin-top:2px">'+t.orders+' ออเดอร์ · '+pct(t.revenue)+'% ของยอดรวม</div></div>';
   h+='</div>';
-  h+='<div style="font-size:13px;color:#334155;margin:10px 2px 4px">ยอดขายรวม <b>'+bht(totRev)+'</b> · '+totO+' ออเดอร์</div>';
+  const avg=totO>0?(totRev/totO):0;
+  h+='<div style="font-size:13px;color:#334155;margin:10px 2px 4px">ยอดขายรวม <b>'+bht(totRev)+'</b> · '+totO+' ออเดอร์ · เฉลี่ย <b>'+bht(avg)+'</b>/ออเดอร์</div>';
   const aw=totRev>0?(a.revenue/totRev*100):0;
   h+='<div style="display:flex;height:14px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-bottom:16px"><div style="width:'+aw+'%;background:#3b82f6"></div><div style="flex:1;background:#10b981"></div></div>';
+  // ----- แยกตามสินค้า -----
+  const prods=Object.entries(j.byProduct||{}).map(([n,v])=>({n,qty:v.qty,r:v.revenue})).sort((x,y)=>y.r-x.r);
+  if(prods.length){
+    const showP=compact?prods.slice(0,6):prods;
+    h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 8px">สินค้าที่ขายได้'+(compact&&prods.length>6?(' <span style="font-weight:400;color:#94a3b8">(แสดง 6 จาก '+prods.length+' รายการ)</span>'):'')+'</div>';
+    h+='<div class="tblwrap" style="margin-bottom:16px"><table style="min-width:420px"><thead><tr><th>สินค้า (SKU)</th><th style="text-align:right">จำนวน</th><th style="text-align:right">ยอดขาย</th></tr></thead><tbody>';
+    for(const p of showP)h+='<tr><td>'+esc(p.n)+'</td><td style="text-align:right">'+p.qty+'</td><td style="text-align:right;font-weight:600">'+bht(p.r)+'</td></tr>';
+    h+='</tbody></table></div>';
+  }
   const closers=Object.entries(j.byCloser||{}).map(([name,v])=>({name,o:v.admin.orders+v.telesales.orders,r:v.admin.revenue+v.telesales.revenue,ar:v.admin.revenue,tr:v.telesales.revenue})).sort((x,y)=>y.r-x.r);
   h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 8px">พนักงานปิดการขาย</div>';
   h+='<div class="tblwrap" style="margin-bottom:16px"><table style="min-width:520px"><thead><tr><th>พนักงาน</th><th style="text-align:center">ประเภทหลัก</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ยอดขาย</th></tr></thead><tbody>';
@@ -1250,8 +1260,16 @@ function renderSrc(j,target,compact){
     for(const [d,v] of days){const dr=v.admin.revenue+v.telesales.revenue;h+='<tr><td>'+srcThDayShort(d)+'</td><td style="text-align:right;color:#1d4ed8">'+bht(v.admin.revenue)+' <span style="color:#94a3b8">('+v.admin.orders+')</span></td><td style="text-align:right;color:#047857">'+bht(v.telesales.revenue)+' <span style="color:#94a3b8">('+v.telesales.orders+')</span></td><td style="text-align:right;font-weight:600">'+bht(dr)+'</td></tr>';}
     h+='</tbody></table></div>';
   }
+  const olist=(j.orders||[]).slice().sort((x,y)=>(Date.parse(y.at)||0)-(Date.parse(x.at)||0));
+  if(!compact&&olist.length){
+    h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:14px 2px 8px">รายการออเดอร์ ('+olist.length+')</div>';
+    h+='<div class="tblwrap"><table style="min-width:660px"><thead><tr><th>ออเดอร์</th><th>เวลา</th><th>สินค้า</th><th style="text-align:center">แหล่ง</th><th>ปิดโดย</th><th style="text-align:right">ยอด</th></tr></thead><tbody>';
+    for(const o of olist){const badge=o.src==='admin'?'<span style="color:#1d4ed8;font-weight:600">FB</span>':'<span style="color:#047857;font-weight:600">โทร</span>';h+='<tr><td>'+esc(o.code)+'</td><td style="white-space:nowrap">'+srcThDateTime(o.at)+'</td><td>'+esc(o.product||'—')+'</td><td style="text-align:center">'+badge+'</td><td>'+esc(o.closer||'—')+'</td><td style="text-align:right;font-weight:600">'+bht(o.amount)+'</td></tr>';}
+    h+='</tbody></table></div>';
+  }
   document.getElementById(target).innerHTML=h;
 }
+function srcThDateTime(iso){const d=new Date((Date.parse(iso)||0)+7*3600000);const p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());}
 renderNav(); showSec('overview');
 refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000);
 </script>
