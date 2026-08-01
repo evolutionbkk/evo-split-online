@@ -88,6 +88,16 @@
   .ltbl td.codecell{font-weight:700;color:#1d4ed8;white-space:nowrap;font-size:13px}
   .ltbl td.stc{white-space:nowrap;vertical-align:top;padding-top:12px}
   .ltbl td.stc .badge{margin-right:4px}
+  .pagebar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 4px 4px;margin-top:8px}
+  .pgnums{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .pgright{display:flex;align-items:center;gap:12px}
+  .pgbtn{min-width:34px;height:34px;padding:0 9px;border:1px solid var(--line);background:#fff;border-radius:9px;font-family:inherit;font-size:13px;font-weight:600;color:#334155;cursor:pointer}
+  .pgbtn:hover:not(:disabled){background:#f1f5f9}
+  .pgbtn.on{background:#2563eb;border-color:#2563eb;color:#fff}
+  .pgbtn:disabled{opacity:.4;cursor:default}
+  .pgdot{color:#94a3b8;padding:0 4px}
+  .pginfo{font-size:12.5px;color:#64748b}
+  .pgsel{height:34px;padding:0 10px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;background:#fff;cursor:pointer}
   .ltbl td.prog{text-align:center;color:#475569;font-weight:600;white-space:nowrap}
   .ltbl td.linec{text-align:center}
   .ltbl td.notec{color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
@@ -264,6 +274,7 @@ function saleTotal(r){return (r.saleItems||[]).reduce((s,i)=>s+(Number(i.price)|
 function fmtBaht(n){return (Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:2});}
 
 let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='new',CURLIST=[],CUR=null,SRC='all';
+let PAGE=1,PER=30,LAST_SIG='';
 // แหล่งที่มาของลีด: Marketplace = Facebook/Pancake (source pancake/manual) · E-commerce = เว็บ Evolution (ที่เหลือ)
 function srcGroup(r){return (r.source==='pancake'||r.source==='manual'||r.source==='refill')?'mkt':'ecom';}
 function setSrc(s){SRC=s;render();}
@@ -371,11 +382,19 @@ function render(){
   // แยกกลุ่มแหล่งที่มา: E-commerce (Evolution) vs Marketplace (Facebook/Pancake)
   renderSrcSeg(list.length, list.filter(r=>srcGroup(r)==='ecom').length, list.filter(r=>srcGroup(r)==='mkt').length);
   if(SRC!=='all')list=list.filter(r=>srcGroup(r)===SRC);
-  CURLIST=list;
+  // pagination — reset to page 1 when the filter/search/source changes
+  const sig=FILTER+'|'+SRC+'|'+q();
+  if(sig!==LAST_SIG){PAGE=1;LAST_SIG=sig;}
+  const total=list.length;
+  const pages=Math.max(1,Math.ceil(total/PER));
+  if(PAGE>pages)PAGE=pages; if(PAGE<1)PAGE=1;
+  const offset=(PAGE-1)*PER;
+  const pageList=list.slice(offset,offset+PER);
+  CURLIST=pageList;
   const box=document.getElementById('list');
-  if(!list.length){box.innerHTML='<div class="empty">ไม่มีรายชื่อในกลุ่มนี้</div>';return;}
+  if(!total){box.innerHTML='<div class="empty">ไม่มีรายชื่อในกลุ่มนี้</div>';return;}
   const kc=ME.side==='K'?'k':'';
-  const rows=list.map((r,i)=>{
+  const rows=pageList.map((r,i)=>{
     const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
     const sg=srcGroup(r);
     const STCOL={new:'#2563eb',contacting:'#0891b2',interested:'#7c3aed',followup:'#0e7490',won:'#16a34a',lost:'#b91c1c'};
@@ -395,7 +414,7 @@ function render(){
       ? `${r.product?('<span title="'+esc(r.product)+'">'+esc(r.product)+'</span>'):''}${r.orderAmount>0?('<div style="color:#166534;font-weight:700;margin-top:2px">฿'+fmtBaht(r.orderAmount)+'</div>'):''}`
       : '<span class="dash">–</span>';
     return `<tr class="lrow ${kc}" onclick="openLead(${i})">
-      <td class="num">${i+1}</td>
+      <td class="num">${offset+i+1}</td>
       <td class="codecell">${esc(r.code)}</td>
       <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
       <td class="notec ordc">${ordCell}</td>
@@ -415,8 +434,25 @@ function render(){
       <td class="notec" title="${esc(r.note)}">${r.note?esc(r.note):''}</td>
     </tr>`;
   }).join('');
-  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>สินค้าที่สั่งซื้อ / ราคา</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ปิดการขายโดย</th><th>ผลการโทร</th><th>ความสนใจ</th><th>Next Action</th><th>นัดถัดไป</th><th>ผู้รับผิดชอบ</th><th>เหตุผลไม่ปิด</th><th>โทรล่าสุด</th><th>ครั้งที่ติดต่อ</th><th>ยอดที่ปิดได้</th><th>ที่อยู่</th><th>หมายเหตุการสนทนา</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>สินค้าที่สั่งซื้อ / ราคา</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ปิดการขายโดย</th><th>ผลการโทร</th><th>ความสนใจ</th><th>Next Action</th><th>นัดถัดไป</th><th>ผู้รับผิดชอบ</th><th>เหตุผลไม่ปิด</th><th>โทรล่าสุด</th><th>ครั้งที่ติดต่อ</th><th>ยอดที่ปิดได้</th><th>ที่อยู่</th><th>หมายเหตุการสนทนา</th></tr></thead><tbody>${rows}</tbody></table></div>`+pageBar(total,pages);
 }
+function pageNumBtn(n){return `<button class="pgbtn ${n===PAGE?'on':''}" onclick="gotoPage(${n})">${n}</button>`;}
+function pageBar(total,pages){
+  if(total<=PER&&pages<=1){ return `<div class="pagebar"><span class="pginfo">ทั้งหมด ${total} รายชื่อ</span><select class="pgsel" onchange="setPer(this.value)">${[30,50,100,150,200,500,1000].map(n=>`<option value="${n}" ${n===PER?'selected':''}>${n} / หน้า</option>`).join('')}</select></div>`; }
+  let lo=Math.max(1,PAGE-2),hi=Math.min(pages,PAGE+2);
+  if(PAGE<=3){lo=1;hi=Math.min(pages,5);}
+  if(PAGE>=pages-2){hi=pages;lo=Math.max(1,pages-4);}
+  const b=[];
+  b.push(`<button class="pgbtn" ${PAGE<=1?'disabled':''} onclick="gotoPage(${PAGE-1})">‹</button>`);
+  if(lo>1){b.push(pageNumBtn(1)); if(lo>2)b.push('<span class="pgdot">…</span>');}
+  for(let n=lo;n<=hi;n++)b.push(pageNumBtn(n));
+  if(hi<pages){ if(hi<pages-1)b.push('<span class="pgdot">…</span>'); b.push(pageNumBtn(pages)); }
+  b.push(`<button class="pgbtn" ${PAGE>=pages?'disabled':''} onclick="gotoPage(${PAGE+1})">›</button>`);
+  const sel=`<select class="pgsel" onchange="setPer(this.value)">${[30,50,100,150,200,500,1000].map(n=>`<option value="${n}" ${n===PER?'selected':''}>${n} / หน้า</option>`).join('')}</select>`;
+  return `<div class="pagebar"><div class="pgnums">${b.join('')}</div><div class="pgright"><span class="pginfo">ทั้งหมด ${total} · หน้า ${PAGE}/${pages}</span>${sel}</div></div>`;
+}
+function gotoPage(p){PAGE=p;render();try{document.querySelector('[data-sec="leads"], #list').scrollIntoView({block:'start'});}catch(e){}window.scrollTo(0,0);}
+function setPer(v){PER=Number(v)||30;PAGE=1;render();}
 async function api(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>({}));}
 function logCall(i,ev){ev&&ev.stopPropagation();const r=CURLIST[i];if(!r)return;api('/api/lead/call',{key:r.key}).then(j=>{if(!(j&&advToast(j.advanced)))toast('บันทึกการโทรแล้ว');reload();});/* ไม่ preventDefault ให้ tel: โทรออกได้ */}
 function openLead(i){ const r=CURLIST[i]; if(r) openLeadByKey(r.key); }
