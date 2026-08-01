@@ -1823,7 +1823,9 @@ app.get('/api/chat/messages', requireCrm, async (req, res) => {
     const j = await r.json().catch(() => null);
     const custPsid = (j && j.conv_from && j.conv_from.id) || (convId.indexOf('_') >= 0 ? convId.split('_').pop() : convId);
     const msgs = (j && Array.isArray(j.messages)) ? j.messages.map((m) => pkMsgNorm(m, custPsid)) : [];
-    msgs.reverse(); // API returns newest→oldest; UI shows oldest→newest
+    // oldest → newest (top → bottom, like Messenger). Sort by time so order is correct
+    // regardless of which direction the API happens to return.
+    msgs.sort((a, b) => (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0));
     const cust = (j && Array.isArray(j.customers) && j.customers[0]) || null;
     res.json({
       messages: msgs, conversationId: convId,
