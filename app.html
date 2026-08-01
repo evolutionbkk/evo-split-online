@@ -1240,7 +1240,7 @@ function renderSrc(j,target,compact){
   const aw=totRev>0?(a.revenue/totRev*100):0;
   h+='<div style="display:flex;height:14px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-bottom:16px"><div style="width:'+aw+'%;background:#3b82f6"></div><div style="flex:1;background:#10b981"></div></div>';
   // ----- แยกตามสินค้า -----
-  const prods=Object.entries(j.byProduct||{}).map(([n,v])=>({n,qty:v.qty,r:v.revenue})).sort((x,y)=>y.r-x.r);
+  const prods=Object.entries(j.byProduct||{}).map(([n,v])=>({n,qty:v.qty,r:v.revenue})).filter(p=>p.r>0).sort((x,y)=>y.r-x.r);
   if(prods.length){
     const showP=compact?prods.slice(0,6):prods;
     h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 8px">สินค้าที่ขายได้'+(compact&&prods.length>6?(' <span style="font-weight:400;color:#94a3b8">(แสดง 6 จาก '+prods.length+' รายการ)</span>'):'')+'</div>';
