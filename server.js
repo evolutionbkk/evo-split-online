@@ -1283,7 +1283,9 @@ app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
   if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
   const days = Math.min(120, Math.max(1, Number(req.query.days) || 30));
   if (!state.pancake) state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null };
-  const cutoff = Date.now() - days * 86400000;
+  // ?from=ISO imports orders updated on/after that exact moment (e.g. start of this month); else last N days.
+  const fromTs = req.query.from ? Date.parse(req.query.from) : NaN;
+  const cutoff = !isNaN(fromTs) ? fromTs : (Date.now() - days * 86400000);
   const seen = new Set(state.pancake.seen || []);
   const rows = [];
   let scanned = 0, pages = 0, inWindow = 0;
@@ -1476,10 +1478,20 @@ app.post('/api/reset', requireAuth, async (req, res) => {
 // are kept.) The daily auto-backup already snapshots the previous data for recovery.
 app.post('/api/clear', requireAuth, async (req, res) => {
   const before = state.assigned.length;
-  state = { assigned: [], maxRound: 0, onecall: state.onecall || [], pulls: [] };
+  const alsoOnecall = !!(req.body && req.body.onecall);
+  const ocBefore = (state.onecall || []).length;
+  // fresh baseline: forward-only Pancake import from this moment (or an explicit ?startAt)
+  const startAt = (req.body && req.body.startAt && !isNaN(Date.parse(req.body.startAt))) ? new Date(req.body.startAt).toISOString() : new Date().toISOString();
+  const ns = {
+    assigned: [], maxRound: 0, pulls: [],
+    onecall: alsoOnecall ? [] : (state.onecall || []),
+    pancake: { startedAt: startAt, seen: [], lastRun: null, lastAdded: 0, lastError: null },
+  };
+  if (state.evo && state.evo.token) ns.evo = state.evo; // keep Evolution connection
+  state = ns;
   state = await store.save(state);
-  console.log('[clear] wiped', before, 'leads → 0 (start from zero)');
-  res.json({ ok: true, cleared: before, total: 0 });
+  console.log('[clear] wiped', before, 'leads', alsoOnecall ? ('+ ' + ocBefore + ' calls') : '', '→ 0 (fresh start ' + startAt + ')');
+  res.json({ ok: true, cleared: before, clearedOnecall: alsoOnecall ? ocBefore : 0, startAt, total: 0 });
 });
 
 // ---------- exports ----------
