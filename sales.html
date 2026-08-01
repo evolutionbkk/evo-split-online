@@ -98,6 +98,23 @@
   .pgdot{color:#94a3b8;padding:0 4px}
   .pginfo{font-size:12.5px;color:#64748b}
   .pgsel{height:34px;padding:0 10px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:13px;background:#fff;cursor:pointer}
+  .lcards{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+  .lcard{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #eef2f7;border-radius:14px;padding:13px 18px;cursor:pointer;transition:box-shadow .15s,border-color .15s}
+  .lcard:hover{box-shadow:0 6px 18px rgba(15,23,42,.09);border-color:#dbe3ef}
+  .lc-av{flex:0 0 auto;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px}
+  .lc-main{flex:1;min-width:0}
+  .lc-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px}
+  .lc-name{font-weight:800;color:#0f172a;font-size:15px}
+  .lc-chip{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+  .lc-sub{font-size:12.5px;color:#64748b;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .lc-sub .tel{color:#1d4ed8;font-weight:700;display:inline-flex;align-items:center;gap:3px;text-decoration:none}
+  .lc-dot{color:#cbd5e1}
+  .lc-prod{font-size:12.5px;color:#334155;margin-top:4px;display:flex;align-items:center;gap:5px}
+  .lc-right{flex:0 0 auto;text-align:right;min-width:96px;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .lc-amt{font-weight:800;color:#166534;font-size:15px}
+  .lc-time{font-size:11.5px;color:#94a3b8}
+  .lc-stale{font-size:11.5px;color:#b91c1c;font-weight:700;display:inline-flex;align-items:center;gap:3px}
+  @media(max-width:560px){.lcard{gap:11px;padding:12px 14px}.lc-av{width:38px;height:38px;font-size:15px}.lc-right{min-width:78px}}
   .ltbl td.prog{text-align:center;color:#475569;font-weight:600;white-space:nowrap}
   .ltbl td.linec{text-align:center}
   .ltbl td.notec{color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
@@ -398,34 +415,36 @@ function render(){
     const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
     const sg=srcGroup(r);
     const STCOL={new:'#2563eb',contacting:'#0891b2',interested:'#7c3aed',followup:'#0e7490',won:'#16a34a',lost:'#b91c1c'};
-    const stItems=[];
-    if(r.step)stItems.push({t:r.step,c:'#7c3aed'});
-    stItems.push({t:sm.label,c:STCOL[r.leadStatus||'new']||'#334155'});
-    stItems.push(sg==='mkt'?{t:'FB',c:'#9d174b'}:{t:'E-commerce',c:'#1e40af'});
-    if(r.vip&&(r.vip.key==='gold'||r.vip.key==='silver'))stItems.push({t:r.vip.label,c:r.vip.color});
-    if(r.realCalls>0)stItems.push({t:'โทรแล้ว '+r.realCalls+(r.realTalkCalls?(' · คุย '+r.realTalkCalls):''),c:'#166534'});
-    if(!r.archived&&r.stage>0)stItems.push({t:'มือ 2',c:'#854d0e'});
-    if(isStale(r)){const d=daysIdle(r);stItems.push({t:'ค้าง '+d+' วัน',c:'#b91c1c'});}
-    const stCell=stItems.map(x=>`<div style="color:${x.c};font-weight:600;font-size:12px;line-height:1.65;white-space:nowrap">• ${esc(x.t)}</div>`).join('');
-    const im=optMeta(INTEREST,r.interest);
-    const interestCell=im?`<span class="badge ${im.badge}">${im.label}</span>`:'<span class="dash">–</span>';
-    const cr=optLabel(CALL_RESULTS,r.callResult), na=optLabel(NEXT_ACTIONS,r.nextAction);
-    const ordCell=(r.product||r.orderAmount>0)
-      ? `${r.product?('<span title="'+esc(r.product)+'">'+esc(r.product)+'</span>'):''}${r.orderAmount>0?('<div style="color:#166534;font-weight:700;margin-top:2px">฿'+fmtBaht(r.orderAmount)+'</div>'):''}`
-      : '<span class="dash">–</span>';
-    return `<tr class="lrow ${kc}" onclick="openLead(${i})">
-      <td class="num">${offset+i+1}</td>
-      <td class="codecell">${esc(r.code)}</td>
-      <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
-      <td class="notec ordc">${ordCell}</td>
-      <td><a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',14)}${esc(r.phone)}</a></td>
-      <td class="stc">${stCell}</td>
-      <td class="codec">${r.closer?esc(r.closer):'<span class="dash">–</span>'}</td>
-      <td class="codec">${r.nextAppt?esc(fmtShort(r.nextAppt)):'<span class="dash">–</span>'}</td>
-      <td class="codec">${r.lastCallAt?esc(fmtShort(r.lastCallAt)):'<span class="dash">–</span>'}</td>
-    </tr>`;
+    const scol=STCOL[r.leadStatus||'new']||'#334155';
+    const initial=((r.name||'?').trim().charAt(0)||'?').toUpperCase();
+    const chip=(t,c)=>`<span class="lc-chip" style="background:${c}1a;color:${c}">${esc(t)}</span>`;
+    const chips=[];
+    if(r.step)chips.push(chip(r.step,'#7c3aed'));
+    chips.push(chip(sm.label,scol));
+    if(r.vip&&(r.vip.key==='gold'||r.vip.key==='silver'))chips.push(chip(r.vip.label,r.vip.color));
+    if(!r.archived&&r.stage>0)chips.push(chip('มือ 2','#854d0e'));
+    const amt=r.orderAmount>0?('฿'+fmtBaht(r.orderAmount)):'';
+    const rtime=r.nextAppt?('นัด '+fmtShort(r.nextAppt)):(r.lastCallAt?('โทรล่าสุด '+fmtShort(r.lastCallAt)):'');
+    const staleTxt=isStale(r)?('ค้าง '+daysIdle(r)+' วัน'):'';
+    const sub=[`<a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',13)}${esc(r.phone)}</a>`,
+      esc(r.code), (sg==='mkt'?'FB':'E-commerce')];
+    if(r.closer)sub.push('ปิดโดย '+esc(r.closer));
+    if(r.realCalls>0)sub.push('โทรแล้ว '+r.realCalls+(r.realTalkCalls?(' · คุย '+r.realTalkCalls):''));
+    return `<div class="lcard ${kc}" onclick="openLead(${i})" style="border-left:4px solid ${scol}">
+      <div class="lc-av" style="background:${scol}">${esc(initial)}</div>
+      <div class="lc-main">
+        <div class="lc-top"><span class="lc-name">${esc(r.name)||'(ไม่มีชื่อ)'}</span>${chips.join('')}</div>
+        <div class="lc-sub">${sub.join('<span class="lc-dot">·</span>')}</div>
+        ${r.product?`<div class="lc-prod">${ic('inbox',12)}${esc(r.product)}</div>`:''}
+      </div>
+      <div class="lc-right">
+        ${amt?`<div class="lc-amt">${amt}</div>`:''}
+        ${rtime?`<div class="lc-time">${esc(rtime)}</div>`:''}
+        ${staleTxt?`<div class="lc-stale">${ic('clock',11)}${staleTxt}</div>`:''}
+      </div>
+    </div>`;
   }).join('');
-  box.innerHTML=`<div class="tblwrap"><table class="ltbl"><thead><tr><th class="num">#</th><th>รหัสลูกค้า</th><th>ชื่อ-นามสกุล</th><th>สินค้าที่สั่งซื้อ / ราคา</th><th>เบอร์โทร</th><th>สถานะลูกค้า</th><th>ปิดการขายโดย</th><th>นัดถัดไป</th><th>โทรล่าสุด</th></tr></thead><tbody>${rows}</tbody></table></div>`+pageBar(total,pages);
+  box.innerHTML=`<div class="lcards">${rows}</div>`+pageBar(total,pages);
 }
 function pageNumBtn(n){return `<button class="pgbtn ${n===PAGE?'on':''}" onclick="gotoPage(${n})">${n}</button>`;}
 function pageBar(total,pages){
