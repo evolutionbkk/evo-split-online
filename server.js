@@ -1248,6 +1248,23 @@ app.post('/api/pancake/pull', requireAuth, async (req, res) => {
   const out = await pancakePull();
   res.json({ ok: !out.err, added: out.added, error: out.err || null });
 });
+// TEMP PROBE: inspect an order's staff-related fields to find "พนักงานยืนยัน/ปิดการขาย".
+app.get('/api/pancake/_staff', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
+  const phone = digitsOnly(req.query.phone || '');
+  try {
+    const os = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=3' + (phone ? ('&search=' + encodeURIComponent(phone)) : ''))).json();
+    const o = (os.data || [])[0] || {};
+    const nameOf = (x) => (x && typeof x === 'object') ? (x.name || x.full_name || x.fb_name || ('OBJ{' + Object.keys(x).join(',') + '}')) : x;
+    const sh = Array.isArray(o.status_history) ? o.status_history : [];
+    res.json({
+      assigning_seller: nameOf(o.assigning_seller), creator: nameOf(o.creator), marketer: nameOf(o.marketer),
+      pke_mkter: o.pke_mkter, last_editor: sh.length ? sh[sh.length - 1] : null,
+      statusHistoryKeys: sh[0] ? Object.keys(sh[0]) : [],
+      staffKeys: Object.keys(o).filter((k) => /seller|creator|market|assign|staff|editor|confirm|user/i.test(k)),
+    });
+  } catch (e) { res.json({ error: String(e) }); }
+});
 // One-time bounded backfill: import closed-sale orders from the last N hours (default 6, max 48),
 // then reset the baseline to now so the regular poll continues forward-only.
 app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
