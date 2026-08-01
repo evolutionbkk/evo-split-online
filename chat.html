@@ -31,8 +31,7 @@
   .body{flex:1;display:flex;min-height:0}
   /* ---- left: conversation list ---- */
   .left{width:352px;flex:0 0 352px;border-right:1px solid var(--line);background:#fff;display:flex;flex-direction:column;min-height:0}
-  .pages{display:flex;gap:7px;overflow-x:auto;padding:11px 12px;border-bottom:1px solid var(--line);scrollbar-width:none}
-  .pages::-webkit-scrollbar{display:none}
+  .pages{display:flex;flex-wrap:wrap;gap:7px;padding:11px 12px;border-bottom:1px solid var(--line);max-height:148px;overflow-y:auto}
   .pchip{flex:0 0 auto;border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:600;color:#334155;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:.15s}
   .pchip .dot{width:8px;height:8px;border-radius:50%;background:#94a3b8}
   .pchip.fb .dot{background:#1877f2}.pchip.line .dot{background:#06c755}.pchip.ig .dot{background:#e1306c}
@@ -143,7 +142,7 @@ let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDIN
 
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);}
 function plat(p){p=(p||'').toLowerCase();if(p.includes('face')||p.includes('fb'))return'fb';if(p.includes('line'))return'line';if(p.includes('insta')||p.includes('ig'))return'ig';return'';}
-function shortName(n){n=String(n||'');let s=n.split(/\s[-–—]\s/)[0].replace(/\s*\(.*$/,'').trim();if(s.length>20)s=s.slice(0,20).trim()+'…';return s;}
+function shortName(n){n=String(n||'');let s=n.split(/\s[-–—]\s/)[0].replace(/\s*\(.*$/,'').trim();s=s.replace(/^Yanhee\s+/i,'');if(s.length>16)s=s.slice(0,16).trim()+'…';return s||n;}
 function initial(n){n=(n||'').trim();return n?n[0].toUpperCase():'?';}
 function thTime(iso){if(!iso)return'';const d=new Date(iso);const now=new Date();const sameDay=d.toDateString()===now.toDateString();const p=(x)=>String(x).padStart(2,'0');if(sameDay)return p(d.getHours())+':'+p(d.getMinutes());const yes=new Date(now);yes.setDate(now.getDate()-1);if(d.toDateString()===yes.toDateString())return'เมื่อวาน';return p(d.getDate())+'/'+p(d.getMonth()+1);}
 function thDayLabel(iso){const d=new Date(iso);const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
