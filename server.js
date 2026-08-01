@@ -625,13 +625,19 @@ function pancakeCustomerAddress(c) {
   if (!addr) addr = pickPancakeAddr(c.shipping_address);
   return String(addr || '').slice(0, 500);
 }
+// Staff who owns/closed the sale in Pancake (the "พนักงานยืนยัน" column).
+function pancakeCloser(o) {
+  if (!o) return '';
+  const nm = (x) => (x && typeof x === 'object') ? String(x.name || x.full_name || '').trim() : '';
+  return (nm(o.assigning_seller) || nm(o.marketer) || nm(o.creator) || '').slice(0, 80);
+}
 function pancakeOrderToRow(o) {
   const phone = String((o.bill_phone_number || '') || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')).trim();
   const name = String((o.bill_full_name || '') || ((o.customer && o.customer.name) || '')).trim();
   const page = String((o.page && o.page.name) || o.order_sources_name || '').slice(0, 120);
   // Pancake stores money in the smallest unit (satang) → divide by 100 for THB.
   const amount = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
-  return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page, address: pancakeAddress(o) };
+  return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page, address: pancakeAddress(o), closer: pancakeCloser(o) };
 }
 async function pancakePull() {
   if (!PANCAKE_API_KEY) { return { added: 0, err: 'no_api_key' }; }
@@ -1248,23 +1254,6 @@ app.post('/api/pancake/pull', requireAuth, async (req, res) => {
   const out = await pancakePull();
   res.json({ ok: !out.err, added: out.added, error: out.err || null });
 });
-// TEMP PROBE: inspect an order's staff-related fields to find "พนักงานยืนยัน/ปิดการขาย".
-app.get('/api/pancake/_staff', requireAuth, async (req, res) => {
-  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
-  const phone = digitsOnly(req.query.phone || '');
-  try {
-    const os = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_size=3' + (phone ? ('&search=' + encodeURIComponent(phone)) : ''))).json();
-    const o = (os.data || [])[0] || {};
-    const nameOf = (x) => (x && typeof x === 'object') ? (x.name || x.full_name || x.fb_name || ('OBJ{' + Object.keys(x).join(',') + '}')) : x;
-    const sh = Array.isArray(o.status_history) ? o.status_history : [];
-    res.json({
-      assigning_seller: nameOf(o.assigning_seller), creator: nameOf(o.creator), marketer: nameOf(o.marketer),
-      pke_mkter: o.pke_mkter, last_editor: sh.length ? sh[sh.length - 1] : null,
-      statusHistoryKeys: sh[0] ? Object.keys(sh[0]) : [],
-      staffKeys: Object.keys(o).filter((k) => /seller|creator|market|assign|staff|editor|confirm|user/i.test(k)),
-    });
-  } catch (e) { res.json({ error: String(e) }); }
-});
 // One-time bounded backfill: import closed-sale orders from the last N hours (default 6, max 48),
 // then reset the baseline to now so the regular poll continues forward-only.
 app.post('/api/pancake/backfill', requireAuth, async (req, res) => {
@@ -1395,6 +1384,37 @@ app.post('/api/pancake/fill-address', requireAuth, async (req, res) => {
   if (filled) state = await store.save(state);
   res.json({ ok: true, filled, mapSize: map.size, fromOrders, fromCustomers });
 });
+// Enrich existing FB leads with "closed-sale staff" (assigning_seller) from Pancake orders.
+async function pancakeEnrichCloser() {
+  if (!PANCAKE_API_KEY) return { skipped: 'no_api_key' };
+  const map = new Map(); // phone -> closer name
+  let scanned = 0;
+  try {
+    for (let page = 1; page <= 30; page++) {
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const o of j.data) {
+        scanned++;
+        const cl = pancakeCloser(o);
+        const p = digitsOnly(o.bill_phone_number || (o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '');
+        if (p && cl && !map.has(p)) map.set(p, cl);
+      }
+      if (j.data.length < 100) break;
+    }
+  } catch (e) { return { error: String(e), scanned }; }
+  let updated = 0;
+  for (const r of state.assigned) {
+    if (r.archived) continue;
+    if (r.closer && String(r.closer).trim()) continue;
+    const cl = map.get(digitsOnly(r.phone));
+    if (cl) { r.closer = cl; updated++; }
+  }
+  state.closerEnrich = { lastRun: new Date().toISOString(), scanned, updated, mapSize: map.size };
+  if (updated) state = await store.save(state); else { try { state = await store.save(state); } catch (_) {} }
+  return { ok: true, scanned, updated, mapSize: map.size };
+}
+app.post('/api/pancake/enrich-closer', requireAuth, async (req, res) => { res.json(await pancakeEnrichCloser()); });
 // Enrich active leads with lifetime value (LTV) + succeed-order count from Pancake customers,
 // so every lead row can show a VIP badge. Scans customer pages once and maps by phone.
 async function pancakeEnrichVip() {
@@ -1607,5 +1627,7 @@ boot().then(() => {
     setInterval(() => { pancakeRefillAuto().catch(() => {}); }, 6 * 60 * 60 * 1000); // top up refill queue every 6h (works even if Teamlead is off)
     setTimeout(() => { pancakeEnrichVip().catch(() => {}); }, 150 * 1000);     // enrich LTV/VIP ~2.5 min after boot
     setInterval(() => { pancakeEnrichVip().catch(() => {}); }, 12 * 60 * 60 * 1000); // refresh LTV/VIP every 12h
+    setTimeout(() => { pancakeEnrichCloser().catch(() => {}); }, 180 * 1000);  // enrich closed-sale staff ~3 min after boot
+    setInterval(() => { pancakeEnrichCloser().catch(() => {}); }, 12 * 60 * 60 * 1000); // refresh closer every 12h
   }
 }).catch((e) => { console.error('boot failed', e); process.exit(1); });
