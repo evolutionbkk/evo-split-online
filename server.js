@@ -1225,20 +1225,6 @@ app.post('/api/pancake/refill/import', requireAuth, async (req, res) => {
 });
 // Turn the whole refill feature on/off, and optionally purge existing refill leads.
 // body: { off:true|false, purge:true } — off stops the auto-refill scheduler.
-// TEMP PROBE: reveal the chat conversation URL structure (host + path pattern), IDs masked.
-app.get('/api/pancake/_chatlink', requireAuth, async (req, res) => {
-  if (!PANCAKE_API_KEY) return res.json({ error: 'no_api_key' });
-  try {
-    const j = await (await fetch(PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/customers?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=1&page_size=10')).json();
-    const links = [];
-    for (const c of (j.data || [])) {
-      const cl = c.conversation_link || (c.pages_customers && c.pages_customers[0] && c.pages_customers[0].conversation_link) || '';
-      if (cl) { try { const u = new URL(cl); links.push(u.origin + u.pathname.replace(/\d{6,}/g, '<id>')); } catch (e) { links.push(String(cl).slice(0, 40)); } }
-    }
-    const c0 = (j.data || [])[0] || {};
-    res.json({ sampleLinkPatterns: [...new Set(links)].slice(0, 5), custKeysWithLink: Object.keys(c0).filter((k) => /conversation|page|fb|link/i.test(k)), pagesCustomersShape: (c0.pages_customers && c0.pages_customers[0]) ? Object.keys(c0.pages_customers[0]) : [] });
-  } catch (e) { res.json({ error: String(e) }); }
-});
 app.post('/api/pancake/refill-toggle', requireAuth, async (req, res) => {
   const off = !!(req.body && req.body.off);
   const purge = !!(req.body && req.body.purge);
