@@ -1163,27 +1163,33 @@ function srcQ(mode){
   return {from:from.toISOString(),to:to.toISOString(),label};
 }
 function srcSetRange(mode){SRC_MODE=mode;document.querySelectorAll('#srcRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===mode));const c=document.getElementById('srcCustom');if(c)c.style.display=mode==='custom'?'inline-flex':'none';if(mode!=='custom')srcLoad();}
+let SRC_REQ=0;
 async function srcLoad(){
   const q=srcQ(SRC_MODE);const body=document.getElementById('srcBody');if(!body)return;
+  const my=++SRC_REQ;
   body.innerHTML='<div style="padding:26px;text-align:center;color:#94a3b8">กำลังโหลดจาก Pancake…</div>';
   const lbl=document.getElementById('srcrangelbl');if(lbl)lbl.textContent=q.label;
   try{
     const j=await fetch('/api/admin/sales-source?from='+encodeURIComponent(q.from)+'&to='+encodeURIComponent(q.to),{credentials:'same-origin'}).then(r=>r.json());
+    if(my!==SRC_REQ)return; // a newer request superseded this one
     if(!j||!j.ok){body.innerHTML='<div style="padding:20px;color:#b91c1c">ดึงข้อมูลไม่สำเร็จ'+((j&&j.message)?': '+j.message:'')+'</div>';return;}
     renderSrc(j,'srcBody',false);
-  }catch(e){body.innerHTML='<div style="padding:20px;color:#b91c1c">เกิดข้อผิดพลาด: '+e+'</div>';}
+  }catch(e){if(my===SRC_REQ)body.innerHTML='<div style="padding:20px;color:#b91c1c">เกิดข้อผิดพลาด: '+e+'</div>';}
 }
 let SRC_OV_MODE='month';
 function srcOvSet(mode){SRC_OV_MODE=mode;document.querySelectorAll('#srcOvRange .kr[data-r]').forEach(b=>b.classList.toggle('on',b.dataset.r===mode));srcOvLoad();}
+let SRC_OV_REQ=0;
 async function srcOvLoad(){
   const q=srcQ(SRC_OV_MODE);const body=document.getElementById('srcOvBody');if(!body)return;
+  const my=++SRC_OV_REQ;
   body.innerHTML='<div style="padding:18px;text-align:center;color:#94a3b8">กำลังโหลดจาก Pancake…</div>';
   const lbl=document.getElementById('srcOvLbl');if(lbl)lbl.textContent=q.label;
   try{
     const j=await fetch('/api/admin/sales-source?from='+encodeURIComponent(q.from)+'&to='+encodeURIComponent(q.to),{credentials:'same-origin'}).then(r=>r.json());
+    if(my!==SRC_OV_REQ)return; // superseded by a newer click
     if(!j||!j.ok){body.innerHTML='<div style="padding:16px;color:#b91c1c">ดึงข้อมูลไม่สำเร็จ</div>';return;}
     renderSrc(j,'srcOvBody',true);
-  }catch(e){body.innerHTML='<div style="padding:16px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
+  }catch(e){if(my===SRC_OV_REQ)body.innerHTML='<div style="padding:16px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 function renderSrc(j,target,compact){
   target=target||'srcBody';
