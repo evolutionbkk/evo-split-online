@@ -64,6 +64,8 @@ async function boot() {
   if (!Array.isArray(state.pulls)) state.pulls = [];
   // Pancake baseline: set once, so we only forward orders CLOSED from now on (no 1,375 backfill).
   if (!state.pancake) { state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null }; bf = true; }
+  // Restore the persisted Evolution token so a server restart/redeploy doesn't drop the connection.
+  if (state.evo && state.evo.token) { evo.token = state.evo.token; evo.facility = state.evo.facility || evo.facility; evo.updatedAt = state.evo.updatedAt || null; }
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -548,13 +550,15 @@ app.post('/api/ingest', async (req, res) => {
 });
 
 // Browser script relays the current Evolution access token so the web app can pull on demand.
-app.post('/api/token', (req, res) => {
+app.post('/api/token', async (req, res) => {
   const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
   if (!keyOk) return res.status(401).json({ error: 'bad key' });
   const { token, facility } = req.body || {};
   if (token) evo.token = String(token);
   if (facility) evo.facility = String(facility);
   evo.updatedAt = new Date().toISOString();
+  // persist so the connection survives a server restart/redeploy
+  try { state.evo = { token: evo.token, facility: evo.facility, updatedAt: evo.updatedAt }; state = await store.save(state); } catch (_) {}
   res.json({ ok: true, hasToken: !!evo.token, tokenUpdatedAt: evo.updatedAt });
 });
 
