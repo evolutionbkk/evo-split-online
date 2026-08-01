@@ -86,7 +86,7 @@
   .ltbl td.nmc{font-weight:700;color:#0f172a;white-space:nowrap}
   .ltbl td.codec{color:var(--muted);font-size:12.5px;white-space:nowrap}
   .ltbl td.codecell{font-weight:700;color:#1d4ed8;white-space:nowrap;font-size:13px}
-  .ltbl td.stc{white-space:nowrap}
+  .ltbl td.stc{white-space:nowrap;vertical-align:top;padding-top:12px}
   .ltbl td.stc .badge{margin-right:4px}
   .ltbl td.prog{text-align:center;color:#475569;font-weight:600;white-space:nowrap}
   .ltbl td.linec{text-align:center}
@@ -377,14 +377,17 @@ function render(){
   const kc=ME.side==='K'?'k':'';
   const rows=list.map((r,i)=>{
     const sm=optMeta(LEAD_STATUS,r.leadStatus||'new')||LEAD_STATUS[0];
-    const flags=[];
     const sg=srcGroup(r);
-    if(sg==='mkt') flags.push(`<span class="badge" style="background:#fce7f3;color:#9d174b">${ic('inbox',12)}FB</span>`);
-    else flags.push(`<span class="badge" style="justify-content:center;min-width:104px;background:#dbeafe;color:#1e40af">E-commerce</span>`);
-    if(r.vip&&(r.vip.key==='gold'||r.vip.key==='silver'))flags.push(`<span class="badge" style="background:${r.vip.color}1a;color:${r.vip.color};font-weight:800">${ic('star',11)}${r.vip.label}</span>`);
-    if(r.realCalls>0)flags.push(`<span class="badge" style="background:#dcfce7;color:#166534">${ic('phone',12)}โทรแล้ว ${r.realCalls}${r.realTalkCalls?(' · คุย '+r.realTalkCalls):''}</span>`);
-    if(!r.archived&&r.stage>0)flags.push(`<span class="badge" style="background:#fef9c3;color:#854d0e">${ic('repeat',12)}มือ2</span>`);
-    if(isStale(r)){const d=daysIdle(r);flags.push(`<span class="badge" style="background:#fef2f2;color:#b91c1c">${ic('clock',12)}${d} วัน</span>`);}
+    const STCOL={new:'#2563eb',contacting:'#0891b2',interested:'#7c3aed',followup:'#0e7490',won:'#16a34a',lost:'#b91c1c'};
+    const stItems=[];
+    if(r.step)stItems.push({t:r.step,c:'#7c3aed'});
+    stItems.push({t:sm.label,c:STCOL[r.leadStatus||'new']||'#334155'});
+    stItems.push(sg==='mkt'?{t:'FB',c:'#9d174b'}:{t:'E-commerce',c:'#1e40af'});
+    if(r.vip&&(r.vip.key==='gold'||r.vip.key==='silver'))stItems.push({t:r.vip.label,c:r.vip.color});
+    if(r.realCalls>0)stItems.push({t:'โทรแล้ว '+r.realCalls+(r.realTalkCalls?(' · คุย '+r.realTalkCalls):''),c:'#166534'});
+    if(!r.archived&&r.stage>0)stItems.push({t:'มือ 2',c:'#854d0e'});
+    if(isStale(r)){const d=daysIdle(r);stItems.push({t:'ค้าง '+d+' วัน',c:'#b91c1c'});}
+    const stCell=stItems.map(x=>`<div style="color:${x.c};font-weight:600;font-size:12px;line-height:1.65;white-space:nowrap">• ${esc(x.t)}</div>`).join('');
     const im=optMeta(INTEREST,r.interest);
     const interestCell=im?`<span class="badge ${im.badge}">${im.label}</span>`:'<span class="dash">–</span>';
     const cr=optLabel(CALL_RESULTS,r.callResult), na=optLabel(NEXT_ACTIONS,r.nextAction);
@@ -397,7 +400,7 @@ function render(){
       <td class="nmc">${esc(r.name)||'(ไม่มีชื่อ)'}</td>
       <td class="notec ordc">${ordCell}</td>
       <td><a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',14)}${esc(r.phone)}</a></td>
-      <td class="stc">${r.step?`<span class="badge b-step">${esc(r.step)}</span>`:''}<span class="badge ${sm.badge}">${ic(sm.icon,12)}${sm.label}</span>${flags.join('')}</td>
+      <td class="stc">${stCell}</td>
       <td class="codec">${r.closer?esc(r.closer):'<span class="dash">–</span>'}</td>
       <td>${cr?esc(cr):'<span class="dash">–</span>'}</td>
       <td class="linec">${interestCell}</td>
