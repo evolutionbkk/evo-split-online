@@ -662,8 +662,10 @@ async function pancakePull() {
       const id = String(o.id || o.system_id);
       if (seen.has(id)) continue;
       if (PANCAKE_SKIP_STATUS.has(String(o.status))) continue; // not a closed sale (may close later)
-      const upd = Date.parse(o.updated_at || o.inserted_at || 0);
-      if (isFinite(upd) && upd < startedAt) continue;           // pre-existing history — don't backfill
+      // anchor on inserted_at (when the order was CREATED = sale closed), not updated_at —
+      // otherwise an OLD order that merely changed shipping/payment status today gets pulled in.
+      const ins = Date.parse(o.inserted_at || o.updated_at || 0);
+      if (isFinite(ins) && ins < startedAt) continue;           // created before baseline — not a new sale
       rows.push(pancakeOrderToRow(o));
       seen.add(id);
     }
@@ -1309,8 +1311,9 @@ app.post('/api/pancake/backfill-days', requireAuth, async (req, res) => {
       if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
       for (const o of j.data) {
         scanned++;
-        const upd = Date.parse(o.updated_at || o.inserted_at || 0);
-        if (!isFinite(upd) || upd < cutoff) continue;            // outside the N-day window
+        // anchor on inserted_at (order creation = sale closed), not updated_at
+        const ins = Date.parse(o.inserted_at || o.updated_at || 0);
+        if (!isFinite(ins) || ins < cutoff) continue;            // created outside the window
         inWindow++;
         if (PANCAKE_SKIP_STATUS.has(String(o.status))) continue; // not a closed sale
         const id = String(o.id || o.system_id);
@@ -1500,6 +1503,7 @@ app.post('/api/clear', requireAuth, async (req, res) => {
     pancake: { startedAt: startAt, seen: [], lastRun: null, lastAdded: 0, lastError: null },
   };
   if (state.evo && state.evo.token) ns.evo = state.evo; // keep Evolution connection
+  if (state.refillOff) ns.refillOff = true;            // keep refill turned off
   state = ns;
   state = await store.save(state);
   console.log('[clear] wiped', before, 'leads', alsoOnecall ? ('+ ' + ocBefore + ' calls') : '', '→ 0 (fresh start ' + startAt + ')');
