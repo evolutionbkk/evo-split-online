@@ -561,6 +561,9 @@ function targetBar(label,val,target,color,talk){
   </div>`;
 }
 const KLBL={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',custom:'ช่วงที่เลือก'};
+// Thai-day label (UTC+7) so "today" reads as one Thai date, not a UTC-split two-day span.
+function thDay(iso){const t=Date.parse(iso);if(isNaN(t))return '';const d=new Date(t+7*3600000);const p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+'/'+(d.getUTCFullYear()+543);}
+function thRange(from,to){const a=thDay(from),b=thDay(to);return a===b?a:(a+' → '+b);}
 const KSHORT={today:'วันนี้','7':'7 วัน','30':'30 วัน',custom:'ช่วงนี้'};
 function rangeFor(mode){
   const end=new Date();end.setHours(23,59,59,999);
@@ -623,7 +626,7 @@ async function loadKpi(){
       ktile(tPending,'Lead ค้าง / เกินกำหนด','warn')+
       ktile(tNot,'ยังไม่ได้โทรเลย','');
     document.getElementById('kpiCards').innerHTML=personCard('W',(j.names&&j.names.W)||'W',W)+personCard('K',(j.names&&j.names.K)||'K',K);
-    document.getElementById('krangelbl').textContent=(KLBL[KR.mode]||'')+' · '+j.from.slice(0,10)+' → '+j.to.slice(0,10);
+    document.getElementById('krangelbl').textContent=(KLBL[KR.mode]||'')+' · '+thRange(j.from,j.to);
     document.getElementById('kpiarch').textContent='ในถังนำออก '+(W.archived+K.archived)+' ราย · คัดออกถาวร '+(W.recycled+K.recycled)+' ราย';
     const oc=document.getElementById('konecall');
     if(KPI_ONECALL){oc.style.color='#166534';oc.style.background='#f0fdf4';oc.style.borderColor='#bbf7d0';oc.innerHTML=ic('check',13)+' เชื่อม OneCall แล้ว · อัปเดตล่าสุด '+(j.onecallUpdatedAt?fmt(j.onecallUpdatedAt):'-')+' · KPI “สายคุยจริง &gt;7 วิ” นับจากเวลาโทรจริง (กันกรอกมั่วตัวเลข)';}
@@ -676,7 +679,7 @@ function renderMgmt(j){
   document.getElementById('mgmtStats').innerHTML=
     `<div class="kt good" style="padding:11px 12px"><div class="n" style="font-size:20px">${wonRange}</div><div class="l">ดีลที่ปิดได้</div></div>`+
     `<div class="kt" style="padding:11px 12px"><div class="n" style="font-size:20px">${baht(Math.round(avgDeal))}</div><div class="l">เฉลี่ย/ดีล</div></div>`;
-  const rl=document.getElementById('mgmtrangelbl'); if(rl)rl.textContent='· '+j.from.slice(0,10)+' → '+j.to.slice(0,10);
+  const rl=document.getElementById('mgmtrangelbl'); if(rl)rl.textContent='· '+thRange(j.from,j.to);
 }
 // ===== Call analytics + charts (OneCall) =====
 // Independent date range for the analytics panel (daily / weekly / monthly / custom).
@@ -713,7 +716,7 @@ async function loadCallStats(q){
     const r=await fetch('/api/admin/callstats?'+q); if(!r.ok)return; const j=await r.json();
     document.getElementById('callmintalk').textContent=j.minTalk;
     const ANLBL={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',custom:'ช่วงที่เลือก'};
-    document.getElementById('callrangelbl').textContent='· '+(ANLBL[ANR.mode]||'')+(ANR.mode==='today'?'':(' ('+j.from.slice(0,10)+' → '+j.to.slice(0,10)+')'));
+    document.getElementById('callrangelbl').textContent='· '+(ANLBL[ANR.mode]||'')+(ANR.mode==='today'?'':(' ('+thRange(j.from,j.to)+')'));
     const nmW=(j.names&&j.names.W)||'W',nmK=(j.names&&j.names.K)||'K';
     document.getElementById('callSummaryBody').innerHTML=
       callRow('ทีมรวม','',j.summary.team)+
@@ -989,7 +992,7 @@ async function qaLoad(){
       <td style="text-align:right;font-weight:700">${f.dur}</td><td>${QA_ST(f.status)}</td>
       <td style="color:#b45309;font-size:12px">${esc(f.reason)}</td></tr>`).join('');
     document.getElementById('qaBody').innerHTML=rows||'<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:18px">ไม่มีสายที่ต้องฟังทวนในช่วงนี้ 👍</td></tr>';
-    document.getElementById('qaFoot').textContent='ช่วง '+j.from.slice(0,10)+' → '+j.to.slice(0,10)+' · flag เมื่อคุยนาน ≥'+j.longSec+' วิ แต่ยังไม่ปิด หรือคุยสั้น ≤4 วิกับลีดจริง · แสดงสูงสุด 200 (ทั้งหมด '+j.total+')';
+    document.getElementById('qaFoot').textContent='ช่วง '+thRange(j.from,j.to)+' · flag เมื่อคุยนาน ≥'+j.longSec+' วิ แต่ยังไม่ปิด หรือคุยสั้น ≤4 วิกับลีดจริง · แสดงสูงสุด 200 (ทั้งหมด '+j.total+')';
   }catch(e){}
 }
 function qaPlay(id,phone,dur){
