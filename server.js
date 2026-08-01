@@ -925,7 +925,16 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
   }
   // Match each OneCall to a lead by side|phone → attribute to Evolution vs Admin-Sales(manual)
   const leadSrc = new Map();
-  for (const r of state.assigned) { if (r.archived) continue; const p = digitsOnly(r.phone); if (p) leadSrc.set(r.sales + '|' + p, (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill') ? 'manual' : 'evolution'); }
+  // side-AGNOSTIC set of closed-sale/refill (FB) phones: a call to any of these is an FB call,
+  // credited to whoever made it — the 50/50 lead assignment is arbitrary, so W calling a
+  // closed-sale customer who happens to be assigned to K still counts as W's FB call.
+  const fbPhones = new Set();
+  for (const r of state.assigned) {
+    if (r.archived) continue; const p = digitsOnly(r.phone); if (!p) continue;
+    const isFb = (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill');
+    leadSrc.set(r.sales + '|' + p, isFb ? 'manual' : 'evolution');
+    if (isFb) fbPhones.add(p);
+  }
   const mkSets = () => ({ evo: new Set(), manual: new Set() });
   const calledR = { W: mkSets(), K: mkSets() }, calledT = { W: mkSets(), K: mkSets() };
   for (const c of (state.onecall || [])) {
@@ -940,15 +949,16 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
       if (inT) calledT[c.side][b].add(key);
     }
     // FB "T1+T2+T3" per-call KPI:
-    //  - from KPI_FB_MATCH_FROM onward: only calls to a CLOSED-SALE (Pancake) / refill lead on this side
+    //  - from KPI_FB_MATCH_FROM onward: a call to any CLOSED-SALE (Pancake) / refill customer
+    //    in the system (either side — credited to the caller)
     //  - before it (migration day): every real (>7s) call that isn't an Evolution website lead
     const fbCall = (t >= KPI_FB_MATCH_FROM)
-      ? (src === 'manual')
+      ? fbPhones.has(digitsOnly(c.phone))
       : (src !== 'evolution' && (c.dur || 0) > ONECALL_MIN_TALK);
     if (fbCall) { if (inR) A.callsManualRange++; if (inT) A.callsManualToday++; }
-    // per-call talks >7s, bucketed by source (or 'Other' if not a lead on this side)
+    // per-call talks >7s, bucketed: FB closed-sale (any side) / Evolution (same side) / Other (new number)
     if ((c.dur || 0) > ONECALL_MIN_TALK) {
-      const b = src === 'manual' ? 'Manual' : (src === 'evolution' ? 'Evo' : 'Other');
+      const b = fbPhones.has(digitsOnly(c.phone)) ? 'Manual' : (src === 'evolution' ? 'Evo' : 'Other');
       if (inR) { A.talk7Range++; A['talk7' + b + 'Range']++; }
       if (inT) { A.talk7Today++; A['talk7' + b + 'Today']++; }
     }
