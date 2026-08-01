@@ -103,6 +103,9 @@
     .body.thread .left{display:none}
     .body.thread .right{display:flex}
     .backMobile{display:inline-flex}
+    /* show every page — wrap instead of clipping off the right edge */
+    .pages{flex-wrap:wrap;overflow-x:visible;max-height:30vh;overflow-y:auto;gap:6px}
+    .pchip{padding:6px 11px;font-size:12.5px}
   }
 </style>
 </head>
@@ -140,6 +143,7 @@ let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDIN
 
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);}
 function plat(p){p=(p||'').toLowerCase();if(p.includes('face')||p.includes('fb'))return'fb';if(p.includes('line'))return'line';if(p.includes('insta')||p.includes('ig'))return'ig';return'';}
+function shortName(n){n=String(n||'');let s=n.split(/\s[-–—]\s/)[0].replace(/\s*\(.*$/,'').trim();if(s.length>20)s=s.slice(0,20).trim()+'…';return s;}
 function initial(n){n=(n||'').trim();return n?n[0].toUpperCase():'?';}
 function thTime(iso){if(!iso)return'';const d=new Date(iso);const now=new Date();const sameDay=d.toDateString()===now.toDateString();const p=(x)=>String(x).padStart(2,'0');if(sameDay)return p(d.getHours())+':'+p(d.getMinutes());const yes=new Date(now);yes.setDate(now.getDate()-1);if(d.toDateString()===yes.toDateString())return'เมื่อวาน';return p(d.getDate())+'/'+p(d.getMonth()+1);}
 function thDayLabel(iso){const d=new Date(iso);const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
@@ -161,7 +165,7 @@ function renderPages(){
   let h='<div class="pchip '+(CUR_PAGE===''?'on':'')+'" data-p=""><span class="dot"></span>ทั้งหมด</div>';
   for(const p of PAGES){
     const c=plat(p.platform);
-    h+='<div class="pchip '+c+' '+(CUR_PAGE===p.id?'on':'')+'" data-p="'+esc(p.id)+'"><span class="dot"></span>'+esc(p.name)+'<span class="cnt" style="display:none" data-cnt="'+esc(p.id)+'"></span></div>';
+    h+='<div class="pchip '+c+' '+(CUR_PAGE===p.id?'on':'')+'" data-p="'+esc(p.id)+'" title="'+esc(p.name)+'"><span class="dot"></span>'+esc(shortName(p.name))+'<span class="cnt" style="display:none" data-cnt="'+esc(p.id)+'"></span></div>';
   }
   el.innerHTML=h;
   el.querySelectorAll('.pchip').forEach(ch=>ch.onclick=()=>{CUR_PAGE=ch.dataset.p;renderPages();loadConvs(true);});
