@@ -231,6 +231,23 @@
     </div>
   </div>
 
+  <div class="panel" id="srcPanel" data-sec="source">
+    <h2><span data-ic="activity" data-sz="18"></span>ยอดขายตามแหล่งที่มา <span id="srcrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="desc">แยกยอดขายที่ปิดโดย <b style="color:#1d4ed8">แอดมิน (จากแชท FB · มีไอคอน)</b> กับ <b style="color:#047857">เทเลเซลล์ (โทรปิดเอง · ไม่มีไอคอน)</b> · อ้างอิงออเดอร์จริงจาก Pancake · ไม่นับออเดอร์ใหม่ที่ยังไม่ยืนยัน/ยกเลิก/คืน</div>
+    <div class="krange" id="srcRange" style="margin:6px 0 12px;flex-wrap:wrap">
+      <button class="kr" data-r="today" onclick="srcSetRange('today')">วันนี้</button>
+      <button class="kr on" data-r="month" onclick="srcSetRange('month')">เดือนนี้</button>
+      <button class="kr" data-r="7" onclick="srcSetRange('7')">7 วัน</button>
+      <button class="kr" data-r="30" onclick="srcSetRange('30')">30 วัน</button>
+      <button class="kr" data-r="custom" onclick="srcSetRange('custom')">เลือกวันเอง</button>
+      <span id="srcCustom" style="display:none;gap:6px;align-items:center">
+        <input type="date" id="srcFrom"> – <input type="date" id="srcTo">
+        <button class="b-b" style="padding:6px 12px" onclick="srcLoad()">ดู</button>
+      </span>
+    </div>
+    <div id="srcBody"><div style="padding:26px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
+  </div>
+
   <div class="panel" id="callPanel" data-sec="analytics">
     <h2><span data-ic="activity" data-sz="18"></span>วิเคราะห์การโทร (OneCall) <span id="callrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="desc">ภาพรวมสายที่โทรจริงจาก OneCall · เลือกช่วงเวลาได้เอง · <span style="color:#166534">คุยจริง = สายที่นานเกิน <b id="callmintalk">7</b> วิ</span></div>
@@ -1058,6 +1075,7 @@ async function doPancakePull(){
 // ===== Sidebar navigation =====
 const SECTIONS=[
   {k:'overview',label:'ภาพรวม',icon:'activity'},
+  {k:'source',label:'ยอดขายตามแหล่ง',icon:'activity'},
   {k:'leads',label:'ดึงรายชื่อเข้า',icon:'download'},
   {k:'refill',label:'ลูกค้าเดิม · ซื้อซ้ำ',icon:'refresh'},
   {k:'analytics',label:'วิเคราะห์การโทร',icon:'activity'},
@@ -1078,6 +1096,7 @@ function showSec(sec){
   if(sec==='analytics')anLoad();
   if(sec==='qa')qaLoad();
   if(sec==='dupes')loadDupes();
+  if(sec==='source')srcLoad();
   window.scrollTo(0,0);
 }
 // ===== Refill (ลูกค้าเดิมซื้อซ้ำ) =====
@@ -1115,6 +1134,59 @@ async function importRefill(){
   b.disabled=false;b.innerHTML=old;refresh();loadRefill(true);
 }
 fillIcons();
+// ===== ยอดขายตามแหล่งที่มา (Teamlead dashboard) =====
+let SRC_MODE='month';
+function srcThMid(y,m,d){return new Date(Date.UTC(y,m,d)-7*3600000);} // midnight Thai (UTC+7)
+function srcThDate(dObj){const d=new Date(dObj.getTime()+7*3600000);return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+(d.getUTCFullYear()+543);}
+function srcThDayShort(iso){const p=iso.split('-');return p[2]+'/'+p[1]+'/'+((+p[0])+543);}
+function srcQ(mode){
+  const now=Date.now();const th=new Date(now+7*3600000);
+  const y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
+  let from,to=new Date(now),label='';
+  if(mode==='today'){from=srcThMid(y,m,d);label='วันนี้ ('+srcThDate(from)+')';}
+  else if(mode==='7'){from=new Date(now-7*86400000);label='7 วันล่าสุด';}
+  else if(mode==='30'){from=new Date(now-30*86400000);label='30 วันล่าสุด';}
+  else if(mode==='custom'){const f=(document.getElementById('srcFrom')||{}).value,t=(document.getElementById('srcTo')||{}).value;from=f?new Date(f+'T00:00:00+07:00'):srcThMid(y,m,1);to=t?new Date(t+'T23:59:59+07:00'):new Date(now);label='กำหนดเอง';}
+  else {from=srcThMid(y,m,1);label='เดือนนี้ (ตั้งแต่ '+srcThDate(from)+')';}
+  return {from:from.toISOString(),to:to.toISOString(),label};
+}
+function srcSetRange(mode){SRC_MODE=mode;document.querySelectorAll('#srcRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===mode));const c=document.getElementById('srcCustom');if(c)c.style.display=mode==='custom'?'inline-flex':'none';if(mode!=='custom')srcLoad();}
+async function srcLoad(){
+  const q=srcQ(SRC_MODE);const body=document.getElementById('srcBody');if(!body)return;
+  body.innerHTML='<div style="padding:26px;text-align:center;color:#94a3b8">กำลังโหลดจาก Pancake…</div>';
+  const lbl=document.getElementById('srcrangelbl');if(lbl)lbl.textContent=q.label;
+  try{
+    const j=await fetch('/api/admin/sales-source?from='+encodeURIComponent(q.from)+'&to='+encodeURIComponent(q.to),{credentials:'same-origin'}).then(r=>r.json());
+    if(!j||!j.ok){body.innerHTML='<div style="padding:20px;color:#b91c1c">ดึงข้อมูลไม่สำเร็จ'+((j&&j.message)?': '+j.message:'')+'</div>';return;}
+    renderSrc(j);
+  }catch(e){body.innerHTML='<div style="padding:20px;color:#b91c1c">เกิดข้อผิดพลาด: '+e+'</div>';}
+}
+function renderSrc(j){
+  const bht=x=>'฿'+Math.round(x||0).toLocaleString();
+  const a=j.total.admin,t=j.total.telesales;
+  const totRev=a.revenue+t.revenue,totO=a.orders+t.orders;
+  const pct=x=>totRev>0?Math.round(x/totRev*100):0;
+  let h='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:8px">';
+  h+='<div class="card" style="border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#fff);padding:16px"><div style="font-size:13px;font-weight:700;color:#1d4ed8;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#1877f2;display:inline-block"></span>แอดมิน (จากแชท FB)</div><div style="font-size:26px;font-weight:800;color:#0f172a;margin-top:6px">'+bht(a.revenue)+'</div><div style="font-size:13px;color:#475569;margin-top:2px">'+a.orders+' ออเดอร์ · '+pct(a.revenue)+'% ของยอดรวม</div></div>';
+  h+='<div class="card" style="border:1px solid #a7f3d0;background:linear-gradient(135deg,#ecfdf5,#fff);padding:16px"><div style="font-size:13px;font-weight:700;color:#047857;display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#10b981;display:inline-block"></span>เทเลเซลล์ (โทรปิดเอง)</div><div style="font-size:26px;font-weight:800;color:#0f172a;margin-top:6px">'+bht(t.revenue)+'</div><div style="font-size:13px;color:#475569;margin-top:2px">'+t.orders+' ออเดอร์ · '+pct(t.revenue)+'% ของยอดรวม</div></div>';
+  h+='</div>';
+  h+='<div style="font-size:13px;color:#334155;margin:10px 2px 4px">ยอดขายรวม <b>'+bht(totRev)+'</b> · '+totO+' ออเดอร์</div>';
+  const aw=totRev>0?(a.revenue/totRev*100):0;
+  h+='<div style="display:flex;height:14px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-bottom:16px"><div style="width:'+aw+'%;background:#3b82f6"></div><div style="flex:1;background:#10b981"></div></div>';
+  const closers=Object.entries(j.byCloser||{}).map(([name,v])=>({name,o:v.admin.orders+v.telesales.orders,r:v.admin.revenue+v.telesales.revenue,ar:v.admin.revenue,tr:v.telesales.revenue})).sort((x,y)=>y.r-x.r);
+  h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 8px">พนักงานปิดการขาย</div>';
+  h+='<div class="tblwrap" style="margin-bottom:16px"><table style="min-width:520px"><thead><tr><th>พนักงาน</th><th style="text-align:center">ประเภทหลัก</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ยอดขาย</th></tr></thead><tbody>';
+  for(const c of closers){const type=c.ar>=c.tr?'<span style="color:#1d4ed8;font-weight:600">แอดมิน</span>':'<span style="color:#047857;font-weight:600">เทเลเซลล์</span>';h+='<tr><td>'+esc(c.name)+'</td><td style="text-align:center">'+type+'</td><td style="text-align:right">'+c.o+'</td><td style="text-align:right;font-weight:600">'+bht(c.r)+'</td></tr>';}
+  h+='</tbody></table></div>';
+  const days=Object.entries(j.byDay||{}).sort((x,y)=>y[0].localeCompare(x[0]));
+  if(days.length){
+    h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 8px">รายวัน</div>';
+    h+='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>วันที่</th><th style="text-align:right">แอดมิน</th><th style="text-align:right">เทเลเซลล์</th><th style="text-align:right">รวม</th></tr></thead><tbody>';
+    for(const [d,v] of days){const dr=v.admin.revenue+v.telesales.revenue;h+='<tr><td>'+srcThDayShort(d)+'</td><td style="text-align:right;color:#1d4ed8">'+bht(v.admin.revenue)+' <span style="color:#94a3b8">('+v.admin.orders+')</span></td><td style="text-align:right;color:#047857">'+bht(v.telesales.revenue)+' <span style="color:#94a3b8">('+v.telesales.orders+')</span></td><td style="text-align:right;font-weight:600">'+bht(dr)+'</td></tr>';}
+    h+='</tbody></table></div>';
+  }
+  document.getElementById('srcBody').innerHTML=h;
+}
 renderNav(); showSec('overview');
 refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000);
 </script>
