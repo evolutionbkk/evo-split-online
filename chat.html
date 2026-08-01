@@ -31,7 +31,9 @@
   .body{flex:1;display:flex;min-height:0}
   /* ---- left: conversation list ---- */
   .left{width:352px;flex:0 0 352px;border-right:1px solid var(--line);background:#fff;display:flex;flex-direction:column;min-height:0}
-  .pages{display:flex;flex-wrap:wrap;gap:7px;padding:11px 12px;border-bottom:1px solid var(--line);max-height:148px;overflow-y:auto}
+  .pages{padding:10px 12px;border-bottom:1px solid var(--line)}
+  .pages select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;font-weight:600;color:#0f172a;background:#f8fafc;outline:none;cursor:pointer}
+  .pages select:focus{border-color:var(--brand-2);background:#fff}
   .pchip{flex:0 0 auto;border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:6px 13px;font-size:13px;font-weight:600;color:#334155;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transition:.15s}
   .pchip .dot{width:8px;height:8px;border-radius:50%;background:#94a3b8}
   .pchip.fb .dot{background:#1877f2}.pchip.line .dot{background:#06c755}.pchip.ig .dot{background:#e1306c}
@@ -161,13 +163,16 @@ async function loadPages(){
 }
 function renderPages(){
   const el=$('#pages');
-  let h='<div class="pchip '+(CUR_PAGE===''?'on':'')+'" data-p=""><span class="dot"></span>ทั้งหมด</div>';
+  let opts='<option value="">📁 ทุกเพจ ('+PAGES.length+' เพจ)</option>';
   for(const p of PAGES){
-    const c=plat(p.platform);
-    h+='<div class="pchip '+c+' '+(CUR_PAGE===p.id?'on':'')+'" data-p="'+esc(p.id)+'" title="'+esc(p.name)+'"><span class="dot"></span>'+esc(shortName(p.name))+'<span class="cnt" style="display:none" data-cnt="'+esc(p.id)+'"></span></div>';
+    const pc=plat(p.platform);
+    const ic=pc==='line'?'🟢 ':(pc==='ig'?'🟣 ':'🔵 ');
+    opts+='<option value="'+esc(p.id)+'">'+ic+esc(p.name)+'</option>';
   }
-  el.innerHTML=h;
-  el.querySelectorAll('.pchip').forEach(ch=>ch.onclick=()=>{CUR_PAGE=ch.dataset.p;renderPages();loadConvs(true);});
+  el.innerHTML='<select id="pageSel" aria-label="เลือกเพจ">'+opts+'</select>';
+  const sel=$('#pageSel');
+  sel.value=CUR_PAGE;
+  sel.onchange=(e)=>{CUR_PAGE=e.target.value;loadConvs(true);};
 }
 function renderSetup(){
   $('#bodyWrap').innerHTML='<div style="flex:1;overflow:auto"><div class="setup">'+
