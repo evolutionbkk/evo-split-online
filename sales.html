@@ -498,6 +498,13 @@ function openLeadByKey(key){
       <button class="${(r.callCount||0)>=3?'on':''}" onclick="setCalls(3)">3</button>
       <button onclick="setCalls(0)" style="flex:0 0 auto;color:#6b7280;min-width:60px">ล้าง</button>
     </div>
+    <div class="sec" style="margin-top:16px">รอบติดตาม — T1 อัตโนมัติ (คุยจริง&gt;7วิ) · T2/T3 กดเอง</div>
+    <div class="lineseg" style="gap:8px">
+      <button class="${r.talked?'on':''}" style="cursor:default" title="คุยจริงเกิน 7 วิแล้ว = T1 (นับอัตโนมัติ)">T1${r.talked?' ✓':''}</button>
+      <button class="${(r.followStage||1)>=2?'on':''}" onclick="setTStage(2)">T2</button>
+      <button class="${(r.followStage||1)>=3?'on':''}" onclick="setTStage(3)">T3</button>
+      <button onclick="setTStage(1)" style="flex:0 0 auto;color:#6b7280;min-width:60px">ล้าง</button>
+    </div>
     <div class="sec" style="margin-top:16px">สถานะลูกค้า (Lead Status)</div>
     <div class="pchips g3">${stChips}</div>
     <div style="display:flex;gap:6px;font-size:11.5px;color:var(--muted);margin-top:6px">${ic('info',14)}<span>ครบ 3 ครั้งยังไม่ "ปิดการขาย" และไม่มีนัด → ส่งต่ออีกฝั่งอัตโนมัติ · มือ 2 ครบอีก = คัดออกถาวร (แอดมินกู้ได้)</span></div>
@@ -652,6 +659,7 @@ async function tapLine(v){
   if(j&&j.ok){ toast(nv==='added'?'ทำเครื่องหมายแอดไลน์แล้ว':(nv==='not_added'?'ยังไม่แอดไลน์':'ล้างสถานะไลน์')); reload();
     document.querySelectorAll('.lineseg button').forEach(b=>{}); openLeadByKey(CUR.key); }
 }
+async function setTStage(stage){ if(!CUR)return; const j=await api('/api/lead/tstage',{key:CUR.key,stage}); if(j&&j.ok){toast('อัปเดตรอบติดตาม T'+stage);await reload();if(CUR)openLeadByKey(CUR.key);} }
 async function saveNote(){ if(!CUR)return; const t=document.getElementById('note').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{note:t}}); if(j&&j.ok){toast('บันทึกหมายเหตุแล้ว');reload();} }
 function editAddr(){ const e=document.getElementById('addrEdit'),v=document.getElementById('addrView'),b=document.getElementById('addrEditBtn'); if(e)e.style.display='block'; if(v)v.style.display='none'; if(b)b.style.display='none'; const t=document.getElementById('addr'); if(t)t.focus(); }
 async function saveAddr(){ if(!CUR)return; const t=document.getElementById('addr').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{address:t}}); if(j&&j.ok){toast('บันทึกที่อยู่แล้ว');CUR.address=t;await reload();if(CUR)openLeadByKey(CUR.key);} }

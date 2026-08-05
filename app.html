@@ -154,6 +154,12 @@
     <div id="dayoffBox" style="display:flex;gap:12px;flex-wrap:wrap"></div>
   </div>
 
+  <div class="panel" data-sec="overview" id="tierPanel">
+    <h2><span data-ic="phone" data-sz="18"></span>การโทรติดตาม T1 / T2 / T3</h2>
+    <div class="desc"><b style="color:#1d4ed8">T1</b> = คุยจริงเกิน 7 วิ ครั้งแรกของลูกค้า (นับอัตโนมัติจาก OneCall) · <b style="color:#b45309">T2</b>/<b style="color:#047857">T3</b> = เซลล์กดเปลี่ยนสถานะติดตามเอง · เฉพาะรายชื่อที่แอดมินปิดการขายให้</div>
+    <div id="tierBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
+  </div>
+
   <div class="panel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
     <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
@@ -469,6 +475,19 @@ async function refresh(){
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
   LAST={W:s.W,K:s.K}; renderTables();
   DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff();
+  loadTiers();
+}
+async function loadTiers(){
+  const box=document.getElementById('tierBox'); if(!box)return;
+  try{
+    const j=await fetch('/api/admin/followup-tiers',{credentials:'same-origin'}).then(r=>r.json());
+    if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
+    const nm=j.names||{W:'W',K:'K'};const t=j.tiers||{};
+    let h='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>เซลล์</th><th style="text-align:center">รายชื่อทั้งหมด</th><th style="text-align:center">T1 · คุยจริง</th><th style="text-align:center">T2</th><th style="text-align:center">T3</th></tr></thead><tbody>';
+    for(const side of ['W','K']){const v=t[side]||{T1:0,T2:0,T3:0,leads:0};h+='<tr><td>'+esc(nm[side]||side)+'</td><td style="text-align:center;color:#64748b">'+v.leads+'</td><td style="text-align:center;font-weight:800;color:#1d4ed8;font-size:16px">'+v.T1+'</td><td style="text-align:center;font-weight:800;color:#b45309;font-size:16px">'+v.T2+'</td><td style="text-align:center;font-weight:800;color:#047857;font-size:16px">'+v.T3+'</td></tr>';}
+    h+='</tbody></table></div>';
+    box.innerHTML=h;
+  }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 let DAYOFF={W:false,K:false};
 const SNAME={W:'Namwhan (W)',K:'Khem (K)'};

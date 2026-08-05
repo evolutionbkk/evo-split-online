@@ -353,6 +353,7 @@ function leadView(r, ocMap) {
     history: (r.history || []).slice(-40),
     archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
+    talked: !!(oc && oc.talk > 0), followStage: r.followStage || 1, t2At: r.t2At || null, t3At: r.t3At || null,
     updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
     lastActivity: r.updatedAt || r.receivedAt || null,
   };
@@ -505,6 +506,45 @@ app.post('/api/lead/restore', requireCrm, async (req, res) => {
   pushHist(rec, 'restore', '', whoami(req));
   state = await store.save(state);
   res.json({ ok: true });
+});
+
+// ----- Follow-up tiers T1/T2/T3 -----
+// T1 = auto (a real >7s call to the lead, counted once per customer — see followupTiers()).
+// T2/T3 = the salesperson manually advances the follow-up round here.
+app.post('/api/lead/tstage', requireCrm, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  const stage = parseInt(req.body && req.body.stage, 10);
+  if (![1, 2, 3].includes(stage)) return res.status(400).json({ error: 'bad_stage' });
+  const by = whoami(req); const now = new Date().toISOString();
+  rec.followStage = stage;
+  rec.t2At = stage >= 2 ? (rec.t2At || now) : null;
+  rec.t3At = stage >= 3 ? (rec.t3At || now) : null;
+  rec.updatedAt = now; rec.updatedBy = by;
+  pushHist(rec, 'tstage', 'T' + stage, by);
+  state = await store.save(state);
+  res.json({ ok: true, lead: leadView(rec) });
+});
+// Teamlead report: per-salesperson T1/T2/T3 counts over the admin-handed leads.
+function followupTiers() {
+  const ocMap = onecallStatsMap();
+  const blank = () => ({ T1: 0, T2: 0, T3: 0, leads: 0 });
+  const out = { W: blank(), K: blank() };
+  for (const r of state.assigned) {
+    if (r.archived) continue;
+    if (r.sales !== 'W' && r.sales !== 'K') continue;
+    if (['evolution', 'refill'].includes(r.source || 'evolution')) continue; // only admin-handed (closed-sale / manual)
+    const o = out[r.sales]; o.leads++;
+    const oc = ocMap.get(r.sales + '|' + digitsOnly(r.phone));
+    if (oc && oc.talk > 0) o.T1++;                 // T1: talked >7s at least once (per customer)
+    const fs = r.followStage || 1;
+    if (fs >= 2) o.T2++;                            // T2: sales marked round 2
+    if (fs >= 3) o.T3++;                            // T3: sales marked round 3
+  }
+  return out;
+}
+app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
+  res.json({ ok: true, names: SALES_NAMES, tiers: followupTiers() });
 });
 
 // ----- Cross-source duplicate detection: same phone in 2+ ACTIVE leads -----
