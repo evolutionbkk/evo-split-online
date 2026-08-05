@@ -662,6 +662,7 @@ function setKRange(m){
 }
 const kbaht=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
 function ktile(n,l,cls){return `<div class="kt ${cls||''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;}
+let KPI_TIERS={W:{T1:0,T2:0,T3:0},K:{T1:0,T2:0,T3:0}};
 function personCard(side,name,a){
   const conv=a.total?Math.round(a.status.won/a.total*100):0;
   const lbl=KSHORT[KR.mode]||'ช่วงนี้';
@@ -678,9 +679,13 @@ function personCard(side,name,a){
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
       <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
       ${targetBar('Evolution', a.calledEvoToday, KPI_TARGETS.evo, '#2563eb', a.talk7EvoToday)}
-      ${targetBar('FB + Follow up (T1·T2·T3)', a.callsManualToday, KPI_TARGETS.manual, '#7c3aed', KPI_FB_LEGACY?null:a.talk7ManualToday)}
+      ${(()=>{const tr=KPI_TIERS[side]||{T1:0,T2:0,T3:0};return `<div style="font-size:11.5px;color:#475569;margin:4px 0 4px">การโทรติดตาม (แยก T1 / T2 / T3)</div><div style="display:flex;gap:8px;margin-bottom:2px">
+        <div style="flex:1;text-align:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:6px 4px"><div style="font-size:18px;font-weight:800;color:#1d4ed8">${tr.T1||0}</div><div style="font-size:11px;color:#475569">T1 · คุยจริง</div></div>
+        <div style="flex:1;text-align:center;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 4px"><div style="font-size:18px;font-weight:800;color:#b45309">${tr.T2||0}</div><div style="font-size:11px;color:#475569">T2</div></div>
+        <div style="flex:1;text-align:center;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:6px 4px"><div style="font-size:18px;font-weight:800;color:#047857">${tr.T3||0}</div><div style="font-size:11px;color:#475569">T3</div></div>
+      </div>`;})()}
       <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Evolution <b>${a.calledEvoRange}</b> ราย · FB <b>${a.callsManualRange}</b> สาย${KPI_FB_LEGACY?' <span style="color:#b45309">(นับสายที่โทรจริงทั้งหมด — ช่วงย้ายระบบ)</span>':' ปิดการขาย <span style="color:#94a3b8">· เบอร์ทักใหม่ '+a.talk7OtherRange+' สาย (ไม่นับ KPI)</span>'}</div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Evolution ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}FB นับ<b>ต่อสาย</b> รวม T1+T2+T3 (เป้า 15 = 5+5+5) · เริ่มนับแบบตรงลีดตั้งแต่ 30/07/2569 (พฤหัส)</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Evolution ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}T1 = คุยจริง&gt;7วิ ครั้งแรกของลูกค้า (นับอัตโนมัติ) · T2/T3 = เซลล์กดเปลี่ยนรอบเอง · แยกกันไม่รวม</div>
     </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
@@ -706,6 +711,7 @@ async function loadKpi(){
       ktile(tWon,'ปิดการขายวันนี้','good')+
       ktile(tPending,'Lead ค้าง / เกินกำหนด','warn')+
       ktile(tNot,'ยังไม่ได้โทรเลย','');
+    try{const tj=await fetch('/api/admin/followup-tiers',{credentials:'same-origin'}).then(r=>r.json());if(tj&&tj.ok&&tj.tiers)KPI_TIERS=tj.tiers;}catch(_){}
     document.getElementById('kpiCards').innerHTML=personCard('W',(j.names&&j.names.W)||'W',W)+personCard('K',(j.names&&j.names.K)||'K',K);
     document.getElementById('krangelbl').textContent=(KLBL[KR.mode]||'')+' · '+thRange(j.from,j.to);
     document.getElementById('kpiarch').textContent='ในถังนำออก '+(W.archived+K.archived)+' ราย · คัดออกถาวร '+(W.recycled+K.recycled)+' ราย';
