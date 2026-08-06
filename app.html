@@ -484,7 +484,7 @@ async function loadTiers(){
     if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
     const nm=j.names||{W:'W',K:'K'};const t=j.tiers||{};
     const SRCS=[['fbpage','FB Page','#1d4ed8'],['marketplace','Marketplace','#0e7490']];
-    let h='<div class="tblwrap"><table style="min-width:560px"><thead><tr><th>เซลล์</th><th>แหล่ง</th><th style="text-align:center">รายชื่อ</th><th style="text-align:center">T1 · คุยจริง</th><th style="text-align:center">T2</th><th style="text-align:center">T3</th></tr></thead><tbody>';
+    let h='<div class="tblwrap"><table style="min-width:560px"><thead><tr><th>เซลล์</th><th>แหล่ง</th><th style="text-align:center">รายชื่อ</th><th style="text-align:center">T1</th><th style="text-align:center">T2</th><th style="text-align:center">T3</th></tr></thead><tbody>';
     for(const side of ['W','K']){
       SRCS.forEach(([k,label,col],idx)=>{
         const v=(t[side]&&t[side][k])||{T1:0,T2:0,T3:0,leads:0};
