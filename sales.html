@@ -498,12 +498,11 @@ function openLeadByKey(key){
       <button class="${(r.callCount||0)>=3?'on':''}" onclick="setCalls(3)">3</button>
       <button onclick="setCalls(0)" style="flex:0 0 auto;color:#6b7280;min-width:60px">ล้าง</button>
     </div>
-    <div class="sec" style="margin-top:16px">รอบติดตาม — T1 อัตโนมัติ (คุยจริง&gt;7วิ) · T2/T3 กดเอง</div>
+    <div class="sec" style="margin-top:16px">รอบติดตาม — T1 อัตโนมัติ (คุยจริง&gt;7วิ) · T2/T3 กดเอง · เขียว = รอบปัจจุบัน</div>
     <div class="lineseg" style="gap:8px">
-      <button class="${r.talked?'on':''}" style="cursor:default" title="คุยจริงเกิน 7 วิแล้ว = T1 (นับอัตโนมัติ)">T1${r.talked?' ✓':''}</button>
-      <button class="${(r.followStage||1)>=2?'on':''}" onclick="setTStage(2)">T2</button>
-      <button class="${(r.followStage||1)>=3?'on':''}" onclick="setTStage(3)">T3</button>
-      <button onclick="setTStage(1)" style="flex:0 0 auto;color:#6b7280;min-width:60px">ล้าง</button>
+      <button class="${(r.followStage||1)===1?'on':''}" onclick="setTStage(1)" title="รอบที่ 1${r.talked?' · คุยจริงแล้ว':' · ยังไม่คุยเกิน 7 วิ'}">T1${r.talked?' ✓':''}</button>
+      <button class="${(r.followStage||1)===2?'on':''}" onclick="setTStage(2)">T2</button>
+      <button class="${(r.followStage||1)===3?'on':''}" onclick="setTStage(3)">T3</button>
     </div>
     <div class="sec" style="margin-top:16px">สถานะลูกค้า (Lead Status)</div>
     <div class="pchips g3">${stChips}</div>
