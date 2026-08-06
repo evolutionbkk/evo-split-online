@@ -529,12 +529,15 @@ app.post('/api/lead/tstage', requireCrm, async (req, res) => {
 function followupTiers() {
   const ocMap = onecallStatsMap();
   const blank = () => ({ T1: 0, T2: 0, T3: 0, leads: 0 });
-  const out = { W: blank(), K: blank() };
+  const mk = () => ({ fbpage: blank(), marketplace: blank() });
+  const out = { W: mk(), K: mk() };
   for (const r of state.assigned) {
     if (r.archived) continue;
     if (r.sales !== 'W' && r.sales !== 'K') continue;
-    if (['evolution', 'refill'].includes(r.source || 'evolution')) continue; // only admin-handed (closed-sale / manual)
-    const o = out[r.sales]; o.leads++;
+    const src = r.source || 'evolution';
+    // แหล่งกระจายข้อมูล: FB Page = แอดมินปิดการขาย (pancake/manual/refill) · Marketplace = เว็บ Evolution
+    const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
+    const o = out[r.sales][grp]; o.leads++;
     const oc = ocMap.get(r.sales + '|' + digitsOnly(r.phone));
     if (oc && oc.talk > 0) o.T1++;                 // T1: talked >7s at least once (per customer)
     const fs = r.followStage || 1;
