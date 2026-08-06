@@ -292,8 +292,10 @@ function fmtBaht(n){return (Number(n)||0).toLocaleString('en-US',{maximumFractio
 
 let ME={role:'',side:''},ACTIVE=[],ARCHIVED=[],FILTER='new',CURLIST=[],CUR=null,SRC='all';
 let PAGE=1,PER=30,LAST_SIG='';
-// แหล่งที่มาของลีด: Marketplace = Facebook/Pancake (source pancake/manual) · E-commerce = เว็บ Evolution (ที่เหลือ)
+// แหล่งกระจายข้อมูล: FB Page = Facebook/Pancake (admin ปิดการขาย · source pancake/manual/refill) · Marketplace = เว็บ Evolution
 function srcGroup(r){return (r.source==='pancake'||r.source==='manual'||r.source==='refill')?'mkt':'ecom';}
+function srcLabel(g){return g==='mkt'?'FB Page':'Marketplace';}
+function srcColor(g){return g==='mkt'?'#1877f2':'#0e7490';}
 function setSrc(s){SRC=s;render();}
 function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),1600);}
 function fmtShort(v){if(!v)return'';try{const d=new Date(v),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return'';}}
@@ -381,7 +383,7 @@ function renderChips(){
 }
 function setFilter(f){FILTER=f;render();}
 function renderSrcSeg(all,ecom,mkt){
-  const segs=[['all','ทั้งหมด',all,'#334155'],['ecom','E-commerce (Evolution)',ecom,'#2563eb'],['mkt','Marketplace (Facebook)',mkt,'#db2777']];
+  const segs=[['all','ทั้งหมด',all,'#334155'],['mkt','FB Page',mkt,'#1877f2'],['ecom','Marketplace',ecom,'#0e7490']];
   document.getElementById('srcseg').innerHTML=segs.map(([k,l,n,col])=>{
     const on=SRC===k;
     return `<button onclick="setSrc('${k}')" style="flex:1;min-width:130px;display:flex;align-items:center;justify-content:center;gap:7px;padding:11px 10px;border-radius:12px;border:1.5px solid ${on?col:'#e2e8f0'};background:${on?col:'#fff'};color:${on?'#fff':'#334155'};font-weight:700;font-size:13.5px;cursor:pointer"><span>${l}</span><b style="background:${on?'rgba(255,255,255,.25)':'#f1f5f9'};color:${on?'#fff':col};border-radius:8px;padding:1px 8px;font-size:12px">${n}</b></button>`;
@@ -419,6 +421,7 @@ function render(){
     const initial=((r.name||'?').trim().charAt(0)||'?').toUpperCase();
     const chip=(t,c)=>`<span class="lc-chip" style="background:${c}1a;color:${c}">${esc(t)}</span>`;
     const chips=[];
+    chips.push(chip(srcLabel(sg),srcColor(sg)));
     if(r.step)chips.push(chip(r.step,'#7c3aed'));
     chips.push(chip(sm.label,scol));
     if(r.vip&&(r.vip.key==='gold'||r.vip.key==='silver'))chips.push(chip(r.vip.label,r.vip.color));
@@ -427,7 +430,7 @@ function render(){
     const rtime=r.nextAppt?('นัด '+fmtShort(r.nextAppt)):(r.lastCallAt?('โทรล่าสุด '+fmtShort(r.lastCallAt)):'');
     const staleTxt=isStale(r)?('ค้าง '+daysIdle(r)+' วัน'):'';
     const sub=[`<a class="tel" href="tel:${esc(r.phone)}" onclick="logCall(${i},event)">${ic('phone',13)}${esc(r.phone)}</a>`,
-      esc(r.code), (sg==='mkt'?'FB':'E-commerce')];
+      esc(r.code)];
     if(r.closer)sub.push('ปิดโดย '+esc(r.closer));
     if(r.realCalls>0)sub.push('โทรแล้ว '+r.realCalls+(r.realTalkCalls?(' · คุย '+r.realTalkCalls):''));
     return `<div class="lcard ${kc}" onclick="openLead(${i})" style="border-left:4px solid ${scol}">
@@ -730,7 +733,7 @@ function renderOverview(){
     </div>
     <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:8px">แหล่งที่มา</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${chip('E-commerce (Evolution)',ecom,'#1e40af')}${chip('Marketplace (Facebook)',mkt,'#9d174b')}${chip('· ในนั้นเป็นลูกค้าเดิม/refill',refill,'#db2777')}
+      ${chip('FB Page',mkt,'#1d4ed8')}${chip('Marketplace',ecom,'#0e7490')}${chip('· ในนั้นเป็นลูกค้าเดิม/refill',refill,'#db2777')}
     </div>`;
 }
 function daysSinceOrder(r){
