@@ -2039,6 +2039,13 @@ app.post('/api/chat/read', requireCrm, async (req, res) => {
   } catch (e) { res.json({ ok: false }); }
 });
 
+// Serve the Evolution connector userscript so it installs in one click
+// (Tampermonkey intercepts URLs ending in .user.js and shows its Install page).
+app.get('/connect.user.js', (req, res) => {
+  res.type('application/javascript; charset=utf-8');
+  res.sendFile(path.join(__dirname, 'connect.user.js'));
+});
+
 app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.length }));
 
 boot().then(() => {
