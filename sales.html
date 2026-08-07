@@ -422,7 +422,7 @@ function render(){
     const chip=(t,c)=>`<span class="lc-chip" style="background:${c}1a;color:${c}">${esc(t)}</span>`;
     const chips=[];
     chips.push(chip(srcLabel(sg),srcColor(sg)));
-    if(r.step)chips.push(chip(r.step,'#7c3aed'));
+    {const _sn={T1:1,T2:2,T3:3}[r.step]||0;const _cur=Math.max(_sn,r.followStage||0);if(_cur)chips.push(chip('T'+_cur,'#7c3aed'));}
     chips.push(chip(sm.label,scol));
     if(r.vip&&(r.vip.key==='gold'||r.vip.key==='silver'))chips.push(chip(r.vip.label,r.vip.color));
     if(!r.archived&&r.stage>0)chips.push(chip('มือ 2','#854d0e'));
