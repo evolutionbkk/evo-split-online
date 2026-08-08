@@ -20,6 +20,15 @@ const SALES = {
 };
 // Admin Sales (Lyla): distributes FB-chat leads to Telesales; does NOT see the team's CRM/KPI.
 const ADMINSALES = { user: process.env.ADMINSALES_USER || 'adminsales', pass: process.env.ADMINSALES_PASS || '' };
+// Chat admins (team that replies to FB/Line chats): each person their own login, so the reply log
+// shows who answered. Set CHAT_USERS in Railway as JSON: [{"user":"laila","pass":"...","name":"ไลลา"},...]
+let CHAT_USERS = [];
+try {
+  const raw = JSON.parse(process.env.CHAT_USERS || '[]');
+  if (Array.isArray(raw)) CHAT_USERS = raw
+    .map((u) => ({ user: String((u && u.user) || '').trim(), pass: String((u && u.pass) || ''), name: String((u && u.name) || (u && u.user) || '').trim() }))
+    .filter((u) => u.user && u.pass);
+} catch (_) { console.warn('[warn] CHAT_USERS is not valid JSON — expected [{"user","pass","name"}]'); }
 
 if (!ADMIN_PASS) console.warn('[warn] ADMIN_PASS is not set — set it in Railway Variables before going live.');
 if (!INGEST_KEY) console.warn('[warn] INGEST_KEY is not set — the browser script cannot push data until you set one.');
@@ -136,6 +145,21 @@ function requireCrm(req, res, next) {
   if (s.role !== 'admin' && s.role !== 'sales') return apiPath(req) ? res.status(403).json({ error: 'forbidden' }) : res.redirect('/distribute');
   next();
 }
+// requireChat = Teamlead (admin) OR a dedicated Chat admin (chatadmin). Telesales/Admin-Sales BLOCKED.
+function requireChat(req, res, next) {
+  const s = readSession(req);
+  if (!s) return apiPath(req) ? res.status(401).json({ error: 'unauthorized' }) : res.redirect('/login');
+  req.session = s;
+  if (s.role !== 'admin' && s.role !== 'chatadmin') return apiPath(req) ? res.status(403).json({ error: 'forbidden' }) : res.redirect('/sales');
+  next();
+}
+// Friendly name of the logged-in user (for the reply log / notes "by" field).
+function sessName(req) {
+  const s = req.session || {};
+  if (s.role === 'chatadmin') { const c = CHAT_USERS.find((x) => x.user === s.u); return (c && c.name) || s.u || 'แชท'; }
+  if (s.role === 'admin') return 'แอดมิน (' + (s.u || 'admin') + ')';
+  return s.u || (s.side || '');
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -157,7 +181,8 @@ app.use('/api/onecall/token', corsForScript);
 
 // ---------- auth routes ----------
 app.get('/login', (req, res) => {
-  if (isAuthed(req)) return res.redirect('/');
+  const s = readSession(req);
+  if (s) { const d = s.role === 'admin' ? '/' : (s.role === 'adminsales' ? '/distribute' : (s.role === 'chatadmin' ? '/inbox' : '/sales')); return res.redirect(d); }
   res.sendFile(path.join(__dirname, 'login.html'));
 });
 app.post('/login', (req, res) => {
@@ -167,9 +192,10 @@ app.post('/login', (req, res) => {
   else if (SALES.W.pass && safeEq(username, SALES.W.user) && safeEq(password, SALES.W.pass)) { role = 'sales'; side = 'W'; user = SALES.W.user; }
   else if (SALES.K.pass && safeEq(username, SALES.K.user) && safeEq(password, SALES.K.pass)) { role = 'sales'; side = 'K'; user = SALES.K.user; }
   else if (ADMINSALES.pass && safeEq(username, ADMINSALES.user) && safeEq(password, ADMINSALES.pass)) { role = 'adminsales'; user = ADMINSALES.user; }
+  else { for (const c of CHAT_USERS) { if (safeEq(username, c.user) && safeEq(password, c.pass)) { role = 'chatadmin'; user = c.user; break; } } }
   if (role) {
     res.setHeader('Set-Cookie', `sess=${makeToken(user, role, side)}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax; Secure`);
-    const dest = role === 'admin' ? '/' : (role === 'adminsales' ? '/distribute' : '/sales');
+    const dest = role === 'admin' ? '/' : (role === 'adminsales' ? '/distribute' : (role === 'chatadmin' ? '/inbox' : '/sales'));
     return res.redirect(dest);
   }
   res.status(401).sendFile(path.join(__dirname, 'login.html'));
@@ -416,7 +442,7 @@ function leadFor(req, key) {
 }
 function whoami(req) { return req.session.role === 'admin' ? 'admin' : req.session.side; }
 
-app.get('/api/me', requireLogin, (req, res) => res.json({ role: req.session.role, side: req.session.side || null, user: req.session.u }));
+app.get('/api/me', requireLogin, (req, res) => res.json({ role: req.session.role, side: req.session.side || null, user: req.session.u, name: sessName(req) }));
 
 app.get('/api/leads', requireCrm, async (req, res) => {
   await runSweep();
@@ -1993,8 +2019,8 @@ function pkChatTemplates() {
   return state.chatTemplates;
 }
 
-app.get('/api/chat/templates', requireAuth, (req, res) => res.json({ templates: pkChatTemplates(), statuses: PK_CHAT_STATUSES }));
-app.post('/api/chat/templates', requireAuth, async (req, res) => {
+app.get('/api/chat/templates', requireChat, (req, res) => res.json({ templates: pkChatTemplates(), statuses: PK_CHAT_STATUSES }));
+app.post('/api/chat/templates', requireChat, async (req, res) => {
   const arr = Array.isArray(req.body && req.body.templates) ? req.body.templates : null;
   if (!arr) return res.status(400).json({ error: 'bad_request' });
   const clean = arr.map((t, i) => ({ id: String((t && t.id) || ('t' + (i + 1))), text: String((t && t.text) || '').slice(0, 1000).trim() }))
@@ -2003,37 +2029,37 @@ app.post('/api/chat/templates', requireAuth, async (req, res) => {
   res.json({ ok: true, templates: clean });
 });
 
-app.get('/api/chat/meta', requireAuth, (req, res) => {
+app.get('/api/chat/meta', requireChat, (req, res) => {
   const id = String(req.query.conversation_id || '');
   res.json({ statuses: PK_CHAT_STATUSES, meta: pkChatMeta()[id] || null });
 });
-app.post('/api/chat/meta', requireAuth, async (req, res) => {
+app.post('/api/chat/meta', requireChat, async (req, res) => {
   const { conversation_id, status, note } = req.body || {};
   const id = String(conversation_id || ''); if (!id) return res.status(400).json({ error: 'bad_request' });
   const meta = pkChatMeta(); const cur = meta[id] || {};
   if (status !== undefined) cur.status = PK_CHAT_STATUS_KEYS.includes(String(status)) ? String(status) : '';
   if (note !== undefined) cur.note = String(note || '').slice(0, 1000);
-  cur.updatedAt = new Date().toISOString(); cur.by = String((req.session && req.session.u) || whoami(req));
+  cur.updatedAt = new Date().toISOString(); cur.by = sessName(req);
   meta[id] = cur; state.chatMeta = meta; state = await store.save(state);
   res.json({ ok: true, meta: cur });
 });
 
-app.get('/api/chat/log', requireAuth, (req, res) => {
+app.get('/api/chat/log', requireChat, (req, res) => {
   const lim = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
   const log = pkChatLog();
   res.json({ log: log.slice(-lim).reverse(), total: log.length });
 });
 
-app.get('/inbox', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
+app.get('/inbox', requireChat, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
 
-app.get('/api/chat/pages', requireAuth, async (req, res) => {
+app.get('/api/chat/pages', requireChat, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ configured: false, pages: [] });
   const cs = await pkEnsurePages(req.query.refresh === '1');
   res.json({ configured: true, syncedAt: cs.syncedAt,
     pages: cs.pages.map((p) => ({ id: p.id, name: p.name, platform: p.platform, hasToken: !!cs.tokens[p.id] })) });
 });
 
-app.get('/api/chat/conversations', requireAuth, async (req, res) => {
+app.get('/api/chat/conversations', requireChat, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ error: 'not_configured', conversations: [] });
   const cs = await pkEnsurePages(false);
   const type = String(req.query.type || 'INBOX');
@@ -2055,7 +2081,7 @@ app.get('/api/chat/conversations', requireAuth, async (req, res) => {
   res.json({ conversations: convs, unread: convs.filter((c) => !c.seen).length });
 });
 
-app.get('/api/chat/messages', requireAuth, async (req, res) => {
+app.get('/api/chat/messages', requireChat, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ error: 'not_configured', messages: [] });
   const cs = await pkEnsurePages(false);
   const pageId = String(req.query.page_id || ''); const convId = String(req.query.conversation_id || '');
@@ -2081,7 +2107,7 @@ app.get('/api/chat/messages', requireAuth, async (req, res) => {
 });
 
 // Send a reply. NOTE: initiated by the human sales/admin user from the inbox UI.
-app.post('/api/chat/send', requireAuth, async (req, res) => {
+app.post('/api/chat/send', requireChat, async (req, res) => {
   if (!pkChatConfigured()) return res.status(400).json({ error: 'not_configured' });
   const cs = await pkEnsurePages(false);
   const { page_id, conversation_id, message } = req.body || {};
@@ -2091,12 +2117,20 @@ app.post('/api/chat/send', requireAuth, async (req, res) => {
     const u = PK_CHAT_HOST + '/api/public_api/v1/pages/' + encodeURIComponent(page_id) + '/conversations/' + encodeURIComponent(conversation_id) + '/messages?page_access_token=' + encodeURIComponent(tok);
     const r = await pkFetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ action: 'reply_inbox', message: String(message) }) }, page_id);
     const j = await r.json().catch(() => null);
-    if (j && (j.success || j.id)) return res.json({ ok: true, id: j.id || null });
+    if (j && (j.success || j.id)) {
+      try {
+        const log = pkChatLog();
+        log.push({ at: new Date().toISOString(), by: sessName(req), pageId: String(page_id), pageName: String((req.body && req.body.page_name) || ''), convId: String(conversation_id), custName: String((req.body && req.body.cust_name) || ''), message: String(message).slice(0, 2000) });
+        if (log.length > 3000) log.splice(0, log.length - 3000);
+        state.chatLog = log; state = await store.save(state);
+      } catch (_) {}
+      return res.json({ ok: true, id: j.id || null });
+    }
     return res.status(502).json({ ok: false, error: (j && j.message) || ('http_' + r.status) });
   } catch (e) { res.status(502).json({ ok: false, error: 'send_failed' }); }
 });
 
-app.post('/api/chat/read', requireAuth, async (req, res) => {
+app.post('/api/chat/read', requireChat, async (req, res) => {
   if (!pkChatConfigured()) return res.status(400).json({ error: 'not_configured' });
   const cs = await pkEnsurePages(false);
   const { page_id, conversation_id } = req.body || {};
