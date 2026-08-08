@@ -165,8 +165,8 @@
   </div>
 
   <div class="panel" data-sec="overview" id="chatKpiPanel">
-    <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (ไลลา · ยูกิ) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
-    <div class="desc">วัดจากการตอบแชทผ่านระบบ · <b>จำนวนแชท</b> = แชทที่ตอบ (ไม่นับซ้ำ) · <b>ตอบเฉลี่ย</b> = เวลาเฉลี่ยจากที่ลูกค้าทักถึงที่ตอบ · <b>ปิดการขาย</b> = แชทที่กดสถานะ "ปิดได้"</div>
+    <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (รายคน) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="desc">นับจาก Pancake · <b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุดในช่วงที่เลือก · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB (ยอดจริง)</div>
     <div class="krange" id="chatKpiRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center;gap:6px">
       <button class="kr" data-r="today" onclick="chatKpiSet('today')">วันนี้</button>
       <button class="kr" data-r="7" onclick="chatKpiSet('7')">7 วัน</button>
@@ -585,15 +585,16 @@ async function loadChatKpi(){
     if(ss&&ss.byCloser){for(const nm in ss.byCloser){const nk=nickName(nm);if(!nk)continue;const v=ss.byCloser[nm];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
     const ans=await chatAnswerCounts(from,to);
     const pancakeOk=!!(ss&&ss.byCloser);
-    let h='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชท</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย'+(pancakeOk?' (Pancake)':'')+'</th></tr></thead><tbody>';
-    for(const a of j.admins){
-      const cls=closedByNick[a.name]||0,rev=Math.round(revByNick[a.name]||0);
-      h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(a.name)+'</td>'+
-         '<td style="text-align:center;font-weight:800;font-size:16px">'+(ans[a.name]!=null?ans[a.name]:a.chats)+'</td>'+
-         '<td style="text-align:center;font-weight:700;color:'+(a.avgRespSec!=null&&a.avgRespSec<=300?'#166534':(a.avgRespSec!=null?'#b45309':'#94a3b8'))+'">'+fmtResp(a.avgRespSec)+'</td>'+
-         '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+(pancakeOk?(cls+(rev?'<div style="font-size:11px;font-weight:600;color:#15803d">฿'+rev.toLocaleString('en-US')+'</div>':'')):'—')+'</td></tr>';
+    const nicks=new Set([...Object.keys(ans),...Object.keys(closedByNick)]);
+    for(const a of (j.admins||[]))nicks.add(a.name);
+    const rows=[...nicks].map(n=>({name:n,chats:ans[n]||0,closed:closedByNick[n]||0,rev:Math.round(revByNick[n]||0)})).sort((x,y)=>(y.chats-x.chats)||(y.closed-x.closed));
+    let h='<div class="tblwrap"><table style="min-width:440px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชทที่ตอบ</th><th style="text-align:center">ปิดการขาย'+(pancakeOk?' (Pancake)':'')+'</th></tr></thead><tbody>';
+    for(const r of rows){
+      h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(r.name)+'</td>'+
+         '<td style="text-align:center;font-weight:800;font-size:16px">'+r.chats+'</td>'+
+         '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+(pancakeOk?(r.closed+(r.rev?'<div style="font-size:11px;font-weight:600;color:#15803d">฿'+r.rev.toLocaleString('en-US')+'</div>':'')):'—')+'</td></tr>';
     }
-    h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชท</b> = แชทที่แอดมินตอบล่าสุด (นับจาก Pancake) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake · <b>ตอบเฉลี่ย</b> = จากการตอบผ่านระบบนี้เท่านั้น (Pancake API ไม่เปิดให้ดึงเวลาตอบต่อคน)</div>';
+    h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุด (นับจาก Pancake ในช่วงที่เลือก) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake (ยอดจริง)</div>';
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
@@ -646,18 +647,20 @@ async function loadReport(){
     const closedByNick={},revByNick={};
     if(ss&&ss.byCloser){for(const k in ss.byCloser){const nk=nickName(k);if(!nk)continue;const v=ss.byCloser[k];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
     const ans2=await chatAnswerCounts(rg.from,rg.to);
+    const anicks=new Set([...Object.keys(ans2),...Object.keys(closedByNick)]);
+    for(const ad of ((chat&&chat.admins)||[]))anicks.add(ad.name);
+    const arows=[...anicks].map(n=>({name:n,chats:ans2[n]||0,closed:closedByNick[n]||0,rev:revByNick[n]||0,leave:leaveName[n]||0})).sort((x,y)=>(y.chats-x.chats)||(y.closed-x.closed));
     h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">💬 ทีมแอดมิน (ตอบแชท)</div>';
-    h+='<div class="tblwrap"><table style="min-width:600px"><thead><tr><th>แอดมิน</th><th style="text-align:center">แชทที่ตอบ</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
-    for(const ad of ((chat&&chat.admins)||[])){
-      h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(ad.name)+'</td>'+
-         '<td style="text-align:center;font-weight:800">'+(ans2[ad.name]!=null?ans2[ad.name]:ad.chats)+'</td>'+
-         '<td style="text-align:center">'+fmtResp(ad.avgRespSec)+'</td>'+
-         '<td style="text-align:center;font-weight:800;color:#166534">'+(closedByNick[ad.name]||0)+'</td>'+
-         '<td style="text-align:right;font-weight:700;color:#166534">'+bt(revByNick[ad.name]||0)+'</td>'+
-         '<td style="text-align:center;color:#b45309;font-weight:700">'+(leaveName[ad.name]||0)+'</td></tr>';
+    h+='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>แอดมิน</th><th style="text-align:center">แชทที่ตอบ</th><th style="text-align:center">ปิดการขาย</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
+    for(const r of arows){
+      h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(r.name)+'</td>'+
+         '<td style="text-align:center;font-weight:800">'+r.chats+'</td>'+
+         '<td style="text-align:center;font-weight:800;color:#166534">'+r.closed+'</td>'+
+         '<td style="text-align:right;font-weight:700;color:#166534">'+bt(r.rev)+'</td>'+
+         '<td style="text-align:center;color:#b45309;font-weight:700">'+r.leave+'</td></tr>';
     }
     h+='</tbody></table></div>';
-    h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">เซลล์: ปิดได้/ยอดขาย/คุยจริง = ในช่วงที่เลือก · T1/T2/T3 = ยอดสะสมปัจจุบัน · แอดมิน: แชท/ตอบเฉลี่ย = ตอบผ่านระบบ · ปิดการขาย = ออเดอร์ FB ใน Pancake · ลาเดือนนี้ = เดือนปัจจุบัน</div>';
+    h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">เซลล์: ปิดได้/ยอดขาย/คุยจริง = ในช่วงที่เลือก · T1/T2/T3 = ยอดสะสมปัจจุบัน · แอดมิน: แชทที่ตอบ + ปิดการขาย = จาก Pancake (ในช่วงที่เลือก) · ลาเดือนนี้ = เดือนปัจจุบัน</div>';
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดรายงานไม่สำเร็จ: '+esc(String(e))+'</div>';}
 }
