@@ -495,7 +495,6 @@ async function refresh(){
   LAST={W:s.W,K:s.K}; renderTables();
   DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff();
   loadTiers();
-  loadChatKpi();
 }
 async function loadTiers(){
   const box=document.getElementById('tierBox'); if(!box)return;
@@ -533,17 +532,25 @@ async function loadChatKpi(){
   const lbl={today:'วันนี้','30':'30 วันล่าสุด',month:'เดือนนี้'}[CHATKPI_MODE]||'';
   const lblEl=document.getElementById('chatKpiLbl');if(lblEl)lblEl.textContent=lbl;
   try{
-    const j=await fetch('/api/admin/chat-kpi?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json());
+    const [j,ss]=await Promise.all([
+      fetch('/api/admin/chat-kpi?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json()),
+      fetch('/api/admin/sales-source?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json()).catch(()=>null)
+    ]);
     if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
     if(!j.admins||!j.admins.length){box.innerHTML='<div style="padding:14px;color:#94a3b8">ยังไม่ได้ตั้งค่าบัญชีแอดมินแชท (CHAT_USERS)</div>';return;}
-    let h='<div class="tblwrap"><table style="min-width:460px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชท</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย</th></tr></thead><tbody>';
+    // ปิดการขายจริงจาก Pancake orders (ออเดอร์ที่ปิดจากแชท FB) แมตช์ชื่อเล่นไลลา/ยูกิ
+    const closedByNick={},revByNick={};
+    if(ss&&ss.byCloser){for(const nm in ss.byCloser){const nk=nickName(nm);if(!nk)continue;const v=ss.byCloser[nm];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
+    const pancakeOk=!!(ss&&ss.byCloser);
+    let h='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชท</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย'+(pancakeOk?' (Pancake)':'')+'</th></tr></thead><tbody>';
     for(const a of j.admins){
+      const cls=closedByNick[a.name]||0,rev=Math.round(revByNick[a.name]||0);
       h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(a.name)+'</td>'+
          '<td style="text-align:center;font-weight:800;font-size:16px">'+a.chats+'</td>'+
          '<td style="text-align:center;font-weight:700;color:'+(a.avgRespSec!=null&&a.avgRespSec<=300?'#166534':(a.avgRespSec!=null?'#b45309':'#94a3b8'))+'">'+fmtResp(a.avgRespSec)+'</td>'+
-         '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+a.closed+'</td></tr>';
+         '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+(pancakeOk?(cls+(rev?'<div style="font-size:11px;font-weight:600;color:#15803d">฿'+rev.toLocaleString('en-US')+'</div>':'')):'—')+'</td></tr>';
     }
-    h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px">นับเฉพาะแชทที่ตอบผ่านระบบ (เริ่มเก็บหลังเปิดใช้งาน) · "ปิดการขาย" นับจากที่แอดมินกดสถานะ "ปิดได้" ในแชท</div>';
+    h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชท/ตอบเฉลี่ย</b> = จากการตอบผ่านระบบ (เริ่มเก็บหลังเปิดใช้งาน) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake (ยอดจริง) · ความเร็วตอบละเอียดดูเพิ่มได้ในรายงาน Pancake</div>';
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
@@ -1358,7 +1365,7 @@ function renderSrc(j,target,compact){
 }
 function srcThDateTime(iso){const d=new Date((Date.parse(iso)||0)+7*3600000);const p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());}
 renderNav(); showSec('overview');
-refresh(); loadKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000);
+refresh(); loadKpi(); loadChatKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000); setInterval(loadChatKpi, 180000);
 </script>
 </body>
 </html>

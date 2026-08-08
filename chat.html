@@ -60,7 +60,7 @@
   .unreadDot{width:9px;height:9px;border-radius:50%;background:var(--brand);flex:0 0 auto}
   .ci-pg{font-size:11px;color:#94a3b8}
   /* ---- right: thread ---- */
-  .right{flex:1;display:flex;flex-direction:column;min-width:0;background:#eef2f9}
+  .right{flex:1;display:flex;flex-direction:column;min-width:0;background:#eef2f9;position:relative}
   .thead{background:#fff;border-bottom:1px solid var(--line);padding:11px 16px;display:flex;align-items:center;gap:12px;flex:0 0 auto}
   .thead .av{width:40px;height:40px;flex-basis:40px;font-size:15px}
   .thead .ti{flex:1;min-width:0}
@@ -113,6 +113,19 @@
   .hbtn:hover{background:rgba(255,255,255,.26)}
   .metabar{background:#fff;border-bottom:1px solid var(--line);padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:0 0 auto}
   .metabar .lbl{font-size:11.5px;color:#94a3b8;font-weight:700;margin-right:2px}
+  .toolbtn{background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer;display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;white-space:nowrap}
+  .toolbtn:hover{background:#f6f9ff;border-color:#c7d5ea}
+  .toolpanel{position:absolute;top:0;right:0;bottom:0;width:310px;max-width:86%;background:#fff;border-left:1px solid var(--line);box-shadow:-10px 0 30px rgba(0,0,0,.10);transform:translateX(100%);transition:transform .22s ease;z-index:25;display:flex;flex-direction:column}
+  .toolpanel.open{transform:translateX(0)}
+  .tp-h{padding:13px 16px;border-bottom:1px solid var(--line);font-weight:700;font-size:15px;display:flex;justify-content:space-between;align-items:center;flex:0 0 auto}
+  .tp-x{background:none;border:none;font-size:24px;color:#94a3b8;cursor:pointer;line-height:1}
+  .tp-body{padding:6px 16px 16px;overflow-y:auto;flex:1}
+  .tp-sec{font-size:12px;color:#94a3b8;font-weight:700;margin:16px 0 8px}
+  .tp-cust{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:13.5px;line-height:1.7}
+  .tp-cust .nm{font-weight:700;font-size:14.5px}
+  .tp-status{display:flex;flex-wrap:wrap;gap:7px}
+  .tp-note{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:inherit;font-size:13.5px;background:#f8fafc;resize:vertical;min-height:90px;outline:none}
+  .tp-note:focus{border-color:var(--brand-2);background:#fff}
   .gist{background:#fffbeb;border-bottom:1px solid #fde68a;color:#92400e;padding:7px 14px;font-size:12.5px;flex:0 0 auto;display:flex;gap:7px;align-items:baseline}
   .gist b{color:#b45309;font-weight:700;flex:0 0 auto}
   .gist span{color:#78350f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -292,8 +305,8 @@ function renderThreadShell(c){
       '<a class="back backMobile" href="#" onclick="closeThread();return false" style="color:#334155;font-weight:700;font-size:20px;padding:0 4px">‹</a>'+
       '<div class="av">'+esc(initial(c.name))+'<span class="pg '+pc+'"></span></div>'+
       '<div class="ti"><div class="tn">'+esc(c.name)+'</div><div class="tm" id="tmeta"><span>'+esc(c.pageName)+'</span>'+(c.phone?('<span>📞 <b>'+esc(c.phone)+'</b></span>'):'')+'</div></div>'+
+      '<button class="toolbtn" id="toolBtn" onclick="toggleTools()">⚙ เครื่องมือ</button>'+
     '</div>'+
-    '<div class="metabar" id="metabar"></div>'+
     '<div class="gist" id="chatGist" style="display:none"></div>'+
     '<div class="win" id="winNote" style="display:none">เลย 24 ชม.แล้ว — Facebook อาจไม่ให้ส่งข้อความปกติ</div>'+
     '<div class="msgs" id="msgs"><div class="loading"><div class="spin"></div></div></div>'+
@@ -302,6 +315,17 @@ function renderThreadShell(c){
       '<div class="reply">'+
         '<textarea id="rt" rows="1" placeholder="พิมพ์ข้อความ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)"></textarea>'+
         '<button class="sendbtn" id="sb" title="ส่ง"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="toolpanel" id="toolPanel">'+
+      '<div class="tp-h">ข้อมูล &amp; เครื่องมือ<button class="tp-x" onclick="toggleTools()">×</button></div>'+
+      '<div class="tp-body">'+
+        '<div class="tp-sec" style="margin-top:2px">ลูกค้า</div>'+
+        '<div class="tp-cust" id="tpCust"><div class="nm">'+esc(c.name)+'</div>'+(c.phone?('<div>📞 '+esc(c.phone)+'</div>'):'')+'<div style="color:#94a3b8;font-size:12.5px">'+esc(c.pageName)+'</div></div>'+
+        '<div class="tp-sec">สถานะแชท</div>'+
+        '<div class="tp-status" id="tpStatus"></div>'+
+        '<div class="tp-sec">โน้ตภายใน (ช่วยจำ)</div>'+
+        '<textarea id="noteta" class="tp-note" placeholder="สรุป/โน้ตเกี่ยวกับลูกค้ารายนี้ (เห็นเฉพาะแอดมิน)" onblur="saveNote()"></textarea>'+
       '</div>'+
     '</div>';
   const rt=$('#rt');
@@ -328,6 +352,15 @@ async function loadMsgs(showSpin){
       if(cu.ltv)h+='<span>ยอดรวม <b>฿'+Number(cu.ltv).toLocaleString()+'</b></span>';
       if((cu.ltv>=8000)||(cu.succeed>=6))h+='<span class="vip">VIP</span>';
       tm.innerHTML=h;
+    }
+    const tc=$('#tpCust');if(tc){
+      let ch='<div class="nm">'+esc(cu.name||cur.conv.name)+'</div>';
+      if(cu.phone)ch+='<div>📞 '+esc(cu.phone)+'</div>';
+      if(cu.orders)ch+='<div>ซื้อแล้ว <b>'+cu.orders+'</b> ครั้ง'+(cu.succeed?(' · สำเร็จ '+cu.succeed):'')+'</div>';
+      if(cu.ltv)ch+='<div>ยอดรวม <b>฿'+Number(cu.ltv).toLocaleString()+'</b></div>';
+      if((cu.ltv>=8000)||(cu.succeed>=6))ch+='<div style="margin-top:3px"><span class="vip">VIP</span></div>';
+      ch+='<div style="color:#94a3b8;font-size:12.5px;margin-top:3px">'+esc(cur.conv.pageName)+'</div>';
+      tc.innerHTML=ch;
     }
   }
   if(j.canInbox===false)$('#winNote')&&($('#winNote').style.display='block');
@@ -388,13 +421,12 @@ async function loadMeta(pageId,id){
   CUR_META=(j&&j.meta)?{status:j.meta.status||'',note:j.meta.note||''}:{status:'',note:''};
   renderMeta();
 }
+function toggleTools(){const p=$('#toolPanel');if(p)p.classList.toggle('open');}
 function renderMeta(){
-  const el=$('#metabar');if(!el)return;
-  let h='<span class="lbl">สถานะ:</span>';
-  for(const s of STATUSES){const on=CUR_META.status===s.k;h+='<button class="stchip'+(on?' on':'')+'" style="'+(on?('background:'+s.color):'')+'" onclick="setStatus(\''+s.k+'\')">'+esc(s.label)+'</button>';}
-  h+='<button class="notebtn" onclick="toggleNote()">📝 โน้ต'+(CUR_META.note?' •':'')+'</button>';
-  h+='<div class="notewrap" id="notewrap"><textarea id="noteta" placeholder="โน้ตภายในเกี่ยวกับลูกค้ารายนี้ (เห็นเฉพาะแอดมิน)" onblur="saveNote()">'+esc(CUR_META.note)+'</textarea></div>';
-  el.innerHTML=h;
+  const el=$('#tpStatus');
+  if(el){let h='';for(const s of STATUSES){const on=CUR_META.status===s.k;h+='<button class="stchip'+(on?' on':'')+'" style="'+(on?('background:'+s.color):'')+'" onclick="setStatus(\''+s.k+'\')">'+esc(s.label)+'</button>';}el.innerHTML=h;}
+  const ta=$('#noteta');if(ta&&document.activeElement!==ta)ta.value=CUR_META.note||'';
+  const tb=$('#toolBtn');if(tb){const st=stMeta(CUR_META.status);tb.innerHTML=st?('⚙ '+esc(st.label)):('⚙ เครื่องมือ'+(CUR_META.note?' <span style="color:#16a34a">●</span>':''));}
 }
 async function setStatus(k){
   if(!OPEN)return;
@@ -447,7 +479,7 @@ async function openLog(){
   $('#logBody').innerHTML=h;
 }
 function closeLog(){$('#logModal').classList.remove('show');}
-window.setStatus=setStatus;window.toggleNote=toggleNote;window.saveNote=saveNote;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;
+window.setStatus=setStatus;window.toggleNote=toggleNote;window.toggleTools=toggleTools;window.saveNote=saveNote;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;
 function startPolling(){clearInterval(POLL_C);POLL_C=setInterval(()=>loadConvs(false),15000);}
 $('#q').addEventListener('input',renderConvs);
 window.closeThread=closeThread;
