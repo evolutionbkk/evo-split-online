@@ -739,12 +739,6 @@ function personCard(side,name,a){
     <h3><span style="color:var(--${side.toLowerCase()})">Sales (${side}) · ${esc(name)}</span><span style="font-size:12px;color:var(--muted);font-weight:600">${a.total} ราย</span></h3>
     <div class="kbar"><span style="width:${conv}%"></span></div>
     <div style="font-size:12.5px;color:#166534;font-weight:700;margin-bottom:6px">Conversion ${conv}% · ปิดได้ ${a.status.won} · ยอดรวม ฿${kbaht(a.rev)}</div>
-    <div class="kmetric"><span>ใหม่ / ยังไม่โทร</span><span class="v">${a.status.new} / ${a.notCalled}</span></div>
-    <div class="kmetric"><span>กำลังติดต่อ / สนใจ</span><span class="v">${a.status.contacting} / ${a.status.interested}</span></div>
-    <div class="kmetric"><span>นัดติดตาม / รับต่อมือ2</span><span class="v">${a.status.followup} / ${a.hand2}</span></div>
-    <div class="kmetric"><span>ปิดการขาย / ไม่ปิด</span><span class="v"><span style="color:#166534">${a.status.won}</span> / <span style="color:#b42318">${a.status.lost}</span></span></div>
-    <div class="kmetric"><span style="display:inline-flex;align-items:center">Lead ค้าง / เกินกำหนด<span class="hlp" tabindex="0">?<span class="tip">ลูกค้าที่<b>ยังไม่ปิดการขาย</b> และยังไม่ตัดว่าไม่เอา แต่<b>เลยวันนัดแล้ว</b> หรือ<b>เงียบหาย ไม่ได้โทร/อัปเดตนานเกิน 3 วัน</b> · เลขยิ่งเยอะ = มีลูกค้าที่ลืมตามเยอะ ควรรีบตามให้ทัน</span></span></span><span class="v" style="color:#b45309">${a.pending}</span></div>
-    <div class="kmetric"><span>สายที่โทร (${lbl})</span><span class="v">${a.callsRange}</span></div>
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
       <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
       ${targetBar('Marketplace', a.calledEvoToday, KPI_TARGETS.evo, '#0e7490', a.talk7EvoToday)}

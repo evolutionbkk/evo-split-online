@@ -161,6 +161,16 @@
   .logitem .lt{font-size:11.5px;color:#94a3b8;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:3px}
   .logitem .lt b{color:#334155}
   .logitem .lmsg{font-size:13.5px;color:#0f172a;white-space:pre-wrap;word-break:break-word}
+  .filterbar{display:flex;gap:6px;padding:8px 12px 6px;border-bottom:1px solid var(--line);overflow-x:auto;flex-wrap:nowrap}
+  .fchip{flex:0 0 auto;border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:.12s}
+  .fchip:hover{border-color:#c7d5ea}
+  .fchip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .fchip .fc{background:#e2e8f0;color:#475569;border-radius:999px;font-size:10.5px;padding:0 6px;min-width:16px;text-align:center;font-weight:700}
+  .fchip.on .fc{background:rgba(255,255,255,.28);color:#fff}
+  .fchip.wait{border-color:#fecaca}.fchip.wait.on{background:#ef4444;border-color:#ef4444}
+  .waitTag{font-size:10px;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+  .copybtn{background:#eef2f9;border:1px solid var(--line);border-radius:7px;padding:2px 8px;font-size:11.5px;font-weight:700;color:#334155;cursor:pointer;margin-left:6px}
+  .copybtn:hover{background:#e2e8f0}
 </style>
 </head>
 <body>
@@ -180,6 +190,7 @@
     <div class="left">
       <div class="pages" id="pages"></div>
       <div class="search"><input id="q" placeholder="ค้นหาชื่อ / เบอร์ / ข้อความ…" autocomplete="off"></div>
+      <div class="filterbar" id="filterBar"></div>
       <div class="clist" id="clist"><div class="loading"><div class="spin"></div></div></div>
     </div>
     <div class="right" id="right">
@@ -203,7 +214,8 @@
 <script>
 const $=(s,r)=>(r||document).querySelector(s);
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDING=false, TPLS=[], STATUSES=[], CUR_META={status:'',note:''}, CUR_MSGS=[];
+let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDING=false, TPLS=[], STATUSES=[], CUR_META={status:'',note:''}, CUR_MSGS=[], FILTER='all', LAST_UNREPLIED=-1, SOUND_ON=true;
+const isUnreplied=(c)=>!c.lastByPage;
 
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);}
 function plat(p){p=(p||'').toLowerCase();if(p.includes('face')||p.includes('fb'))return'fb';if(p.includes('line'))return'line';if(p.includes('insta')||p.includes('ig'))return'ig';return'';}
@@ -256,15 +268,34 @@ async function loadConvs(showSpin){
   const j=await jget(u);
   if(!j)return;
   CONVS=j.conversations||[];
+  renderFilterBar();
   renderConvs();
-  const tot=CONVS.length, un=CONVS.filter(c=>!c.seen).length;
+  const tot=CONVS.length, un=CONVS.filter(c=>!c.seen).length, wait=CONVS.filter(isUnreplied).length;
   $('#totBadge').textContent=tot+' แชท'+(un?(' · '+un+' ใหม่'):'');
+  document.title=(wait?('('+wait+') '):'')+'แชท — ตอบลูกค้า';
+  if(LAST_UNREPLIED>=0&&wait>LAST_UNREPLIED&&SOUND_ON)beep();
+  LAST_UNREPLIED=wait;
 }
 function filterConvs(){
   const q=($('#q').value||'').trim().toLowerCase();
-  if(!q)return CONVS;
-  return CONVS.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.snippet||'').toLowerCase().includes(q));
+  let list=CONVS;
+  if(FILTER==='wait')list=list.filter(isUnreplied);
+  else if(FILTER==='interested')list=list.filter(c=>c.status==='interested');
+  else if(FILTER==='closed')list=list.filter(c=>c.status==='closed');
+  if(q)list=list.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.snippet||'').toLowerCase().includes(q));
+  return list;
 }
+function renderFilterBar(){
+  const el=$('#filterBar');if(!el)return;
+  const wait=CONVS.filter(isUnreplied).length;
+  const interested=CONVS.filter(c=>c.status==='interested').length;
+  const closed=CONVS.filter(c=>c.status==='closed').length;
+  const chips=[['all','ทั้งหมด',CONVS.length,''],['wait','⏳ ยังไม่ตอบ',wait,'wait'],['interested','สนใจ',interested,''],['closed','ปิดได้',closed,'']];
+  el.innerHTML=chips.map(a=>'<button class="fchip '+a[3]+(FILTER===a[0]?' on':'')+'" onclick="setFilter(\''+a[0]+'\')">'+a[1]+'<span class="fc">'+a[2]+'</span></button>').join('');
+}
+function setFilter(f){FILTER=f;renderFilterBar();renderConvs();}
+function beep(){try{const c=new (window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0.0001,c.currentTime);g.gain.exponentialRampToValueAtTime(0.15,c.currentTime+0.01);g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.25);o.start();o.stop(c.currentTime+0.26);}catch(e){}}
+function copyText(t){try{navigator.clipboard.writeText(String(t));toast('คัดลอกแล้ว');}catch(e){toast('คัดลอกไม่ได้');}}
 function renderConvs(){
   const list=filterConvs();
   const el=$('#clist');
@@ -274,7 +305,7 @@ function renderConvs(){
     const pc=plat(c.platform);
     h+='<div class="citem '+(!c.seen?'unread':'')+' '+(OPEN&&OPEN.id===c.id&&OPEN.pageId===c.pageId?'on':'')+'" data-id="'+esc(c.id)+'" data-pg="'+esc(c.pageId)+'">'+
       '<div class="av">'+esc(initial(c.name))+'<span class="pg '+pc+'"></span></div>'+
-      '<div class="ci-main"><div class="ci-top"><span class="ci-name">'+esc(c.name)+'</span>'+stTag(c.status)+'<span class="ci-time" style="margin-left:auto">'+esc(thTime(c.updatedAt))+'</span></div>'+
+      '<div class="ci-main"><div class="ci-top"><span class="ci-name">'+esc(c.name)+'</span>'+stTag(c.status)+(isUnreplied(c)?'<span class="waitTag">รอตอบ</span>':'')+'<span class="ci-time" style="margin-left:auto">'+esc(thTime(c.updatedAt))+'</span></div>'+
       '<div class="ci-snip">'+(c.lastByPage?'<span style="color:#94a3b8">คุณ: </span>':'')+esc(c.snippet||(c.phone?('📞 '+c.phone):'[รูป/ไฟล์]'))+'</div>'+
       '<div class="ci-pg">'+esc(c.pageName)+(c.phone?(' · '+esc(c.phone)):'')+'</div></div>'+
       (!c.seen?'<div class="unreadDot"></div>':'')+
@@ -356,7 +387,7 @@ async function loadMsgs(showSpin){
     }
     const tc=$('#tpCust');if(tc){
       let ch='<div class="nm">'+esc(cu.name||cur.conv.name)+'</div>';
-      if(cu.phone)ch+='<div>📞 '+esc(cu.phone)+'</div>';
+      if(cu.phone)ch+='<div>📞 '+esc(cu.phone)+'<button class="copybtn" onclick="copyText(\''+esc(cu.phone)+'\')">คัดลอก</button></div>';
       if(cu.orders)ch+='<div>ซื้อแล้ว <b>'+cu.orders+'</b> ครั้ง'+(cu.succeed?(' · สำเร็จ '+cu.succeed):'')+'</div>';
       if(cu.ltv)ch+='<div>ยอดรวม <b>฿'+Number(cu.ltv).toLocaleString()+'</b></div>';
       if((cu.ltv>=8000)||(cu.succeed>=6))ch+='<div style="margin-top:3px"><span class="vip">VIP</span></div>';
@@ -454,7 +485,9 @@ function renderTpls(){
 }
 function insertTpl(id){
   const t=TPLS.find(x=>x.id===id);if(!t)return;const rt=$('#rt');if(!rt)return;
-  rt.value=(rt.value?rt.value+' ':'')+t.text;rt.focus();rt.dispatchEvent(new Event('input'));
+  const nm=(OPEN&&OPEN.conv&&OPEN.conv.name)?String(OPEN.conv.name).split(/\s+/)[0]:'';
+  const txt=t.text.replace(/\{ชื่อ\}|\{name\}/g,nm||'ลูกค้า'); // เติมชื่อลูกค้าอัตโนมัติ
+  rt.value=(rt.value?rt.value+' ':'')+txt;rt.focus();rt.dispatchEvent(new Event('input'));
 }
 function openTpl(){
   let h='';TPLS.forEach(t=>{h+='<div class="tplrow"><textarea>'+esc(t.text)+'</textarea><button class="del" onclick="this.parentNode.remove()">ลบ</button></div>';});
@@ -483,7 +516,7 @@ async function openLog(){
   $('#logBody').innerHTML=h;
 }
 function closeLog(){$('#logModal').classList.remove('show');}
-window.setStatus=setStatus;window.toggleNote=toggleNote;window.toggleTools=toggleTools;window.saveNote=saveNote;window.saveAmount=saveAmount;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;
+window.setStatus=setStatus;window.toggleNote=toggleNote;window.toggleTools=toggleTools;window.saveNote=saveNote;window.saveAmount=saveAmount;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;window.setFilter=setFilter;window.copyText=copyText;
 function startPolling(){clearInterval(POLL_C);POLL_C=setInterval(()=>loadConvs(false),15000);}
 $('#q').addEventListener('input',renderConvs);
 window.closeThread=closeThread;
