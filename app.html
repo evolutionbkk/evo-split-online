@@ -539,7 +539,7 @@ async function loadTiers(){
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 // ===== Admin chat KPI (ไลลา · ยูกิ) =====
-let CHATKPI_MODE='30', CHATKPI_CUSTOM=null;
+let CHATKPI_MODE='30', CHATKPI_CUSTOM=null, CHATKPI_REQ=0;
 function chatKpiRangeFor(m){
   if(m==='custom'&&CHATKPI_CUSTOM)return CHATKPI_CUSTOM;
   const end=new Date();end.setHours(23,59,59,999);
@@ -570,6 +570,7 @@ async function chatAnswerCounts(from,to){
 }
 async function loadChatKpi(){
   const box=document.getElementById('chatKpiBox');if(!box)return;
+  const req=++CHATKPI_REQ;
   const{from,to}=chatKpiRangeFor(CHATKPI_MODE);
   const lbl={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',month:'เดือนนี้',custom:'ช่วงที่เลือก'}[CHATKPI_MODE]||'';
   const lblEl=document.getElementById('chatKpiLbl');if(lblEl)lblEl.textContent=lbl;
@@ -595,6 +596,7 @@ async function loadChatKpi(){
          '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+(pancakeOk?(r.closed+(r.rev?'<div style="font-size:11px;font-weight:600;color:#15803d">฿'+r.rev.toLocaleString('en-US')+'</div>':'')):'—')+'</td></tr>';
     }
     h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุด (นับจาก Pancake ในช่วงที่เลือก) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake (ยอดจริง)</div>';
+    if(req!==CHATKPI_REQ)return; // มีการสลับช่วงใหม่แล้ว — ทิ้งผลเก่า
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
