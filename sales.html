@@ -379,7 +379,12 @@ function renderBuckets(){
   document.getElementById('buckets').innerHTML=BUCKETS.map(b=>`<div class="bkt ${b.cls} ${FILTER===b.f?'on':''}" onclick="setFilter('${b.f}')"><span class="bn">${cnt(b.f)}</span><span class="bl">${ic(b.icon,14)}${b.label}</span></div>`).join('');
 }
 function renderChips(){
-  document.getElementById('chips').innerHTML=FILTER_GROUPS.map(g=>`<div class="fgroup"><div class="flabel">${ic(g.icon,14)}<span>${g.label}</span></div><div class="frow">${g.items.map(([f,l])=>`<div class="chip ${FILTER===f?'on':''}" onclick="setFilter('${f}')"><span>${l}</span><b>${cnt(f)}</b></div>`).join('')}</div></div>`).join('');
+  // ดูง่ายขึ้น: ซ่อนชิปที่เป็น 0 (เว้น "ทั้งหมด" กับตัวที่กำลังเลือก) และซ่อนกลุ่มที่ว่างทั้งกลุ่ม
+  document.getElementById('chips').innerHTML=FILTER_GROUPS.map(g=>{
+    const items=g.items.filter(([f,l])=>f==='all'||FILTER===f||cnt(f)>0);
+    if(!items.length)return '';
+    return `<div class="fgroup"><div class="flabel">${ic(g.icon,14)}<span>${g.label}</span></div><div class="frow">${items.map(([f,l])=>`<div class="chip ${FILTER===f?'on':''}" onclick="setFilter('${f}')"><span>${l}</span><b>${cnt(f)}</b></div>`).join('')}</div></div>`;
+  }).join('');
 }
 function setFilter(f){FILTER=f;render();}
 function renderSrcSeg(all,ecom,mkt){

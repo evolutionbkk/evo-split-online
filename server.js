@@ -2050,6 +2050,41 @@ function pkChatTemplates() {
   return state.chatTemplates;
 }
 
+app.get('/api/chat/today-summary', requireChat, async (req, res) => {
+  if (!pkChatConfigured()) return res.json({ tot: 0, wait: 0, ans: 0 });
+  let cs;
+  try { cs = await pkEnsurePages(false); } catch (_) { return res.json({ tot: 0, wait: 0, ans: 0 }); }
+  const TZ = 7 * 3600000;
+  const nowTh = new Date(Date.now() + TZ);
+  const startTh = Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
+  const pms = (s) => { s = String(s || ''); if (!s) return NaN; if (!/([Zz]|[+-]\d\d:?\d\d)$/.test(s)) s = s.replace(' ', 'T') + 'Z'; return Date.parse(s); };
+  let tot = 0, wait = 0;
+  await Promise.all(cs.pages.map(async (p) => {
+    const tok = cs.tokens[p.id]; if (!tok) return;
+    let last = null;
+    for (let guard = 0; guard < 80; guard++) {
+      let u = PK_CHAT_HOST + '/api/public_api/v2/pages/' + encodeURIComponent(p.id) + '/conversations?page_access_token=' + encodeURIComponent(tok) + '&type=INBOX&order_by=updated_at';
+      if (last) u += '&last_conversation_id=' + encodeURIComponent(last);
+      let arr = [];
+      try { const r = await pkFetch(u, {}, p.id); const j = await r.json().catch(() => null); arr = (j && Array.isArray(j.conversations)) ? j.conversations : []; } catch (_) { break; }
+      if (!arr.length) break;
+      let stop = false;
+      for (const c of arr) {
+        const t = pms(c.updated_at || c.inserted_at);
+        if (isNaN(t)) continue;
+        if (t < startTh) { stop = true; break; }
+        tot++;
+        const lsb = c.last_sent_by || {};
+        if (!(lsb.admin_id || lsb.uid || lsb.admin_name)) wait++;
+      }
+      if (stop) break;
+      last = arr[arr.length - 1] && arr[arr.length - 1].id;
+      if (!last) break;
+    }
+  }));
+  res.json({ tot, wait, ans: tot - wait });
+});
+
 app.get('/api/chat/templates', requireChat, (req, res) => res.json({ templates: pkChatTemplates(), statuses: PK_CHAT_STATUSES }));
 app.post('/api/chat/templates', requireChat, async (req, res) => {
   const arr = Array.isArray(req.body && req.body.templates) ? req.body.templates : null;

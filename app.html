@@ -575,10 +575,11 @@ async function loadChatKpi(){
   const lbl={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',month:'เดือนนี้',custom:'ช่วงที่เลือก'}[CHATKPI_MODE]||'';
   const lblEl=document.getElementById('chatKpiLbl');if(lblEl)lblEl.textContent=lbl;
   try{
-    const [j,ss,cj]=await Promise.all([
+    const [j,ss,cj,tsum]=await Promise.all([
       fetch('/api/admin/chat-kpi?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json()),
       fetch('/api/admin/sales-source?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json()).catch(()=>null),
-      fetch('/api/chat/conversations',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>({conversations:[]}))
+      fetch('/api/chat/conversations',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>({conversations:[]})),
+      fetch('/api/chat/today-summary',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>null)
     ]);
     if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
     if(!j.admins||!j.admins.length){box.innerHTML='<div style="padding:14px;color:#94a3b8">ยังไม่ได้ตั้งค่าบัญชีแอดมินแชท (CHAT_USERS)</div>';return;}
@@ -589,7 +590,7 @@ async function loadChatKpi(){
     const _convs=(cj&&cj.conversations)||[];
     const _fT=Date.parse(from),_tT=Date.parse(to),ans={};
     for(const c of _convs){const nk=nickName(c.lastAdminName||'');if(!nk)continue;const t=parseUTC(c.updatedAt);if(isNaN(t)||t<_fT||t>_tT)continue;ans[nk]=(ans[nk]||0)+1;}
-    const _ov=(function(){const e=new Date();e.setHours(23,59,59,999);const s=new Date();s.setHours(0,0,0,0);const sT=s.getTime(),eT=e.getTime();let tot=0,wait=0;for(const c of _convs){const t=parseUTC(c.updatedAt);if(isNaN(t)||t<sT||t>eT)continue;tot++;if(!c.lastByPage)wait++;}return{tot,wait,ans:tot-wait};})();
+    const _ov=(tsum&&typeof tsum.tot==='number')?tsum:(function(){const e=new Date();e.setHours(23,59,59,999);const s=new Date();s.setHours(0,0,0,0);const sT=s.getTime(),eT=e.getTime();let tot=0,wait=0;for(const c of _convs){const t=parseUTC(c.updatedAt);if(isNaN(t)||t<sT||t>eT)continue;tot++;if(!c.lastByPage)wait++;}return{tot,wait,ans:tot-wait};})();
     const pancakeOk=!!(ss&&ss.byCloser);
     const nicks=new Set([...Object.keys(ans),...Object.keys(closedByNick)]);
     for(const a of (j.admins||[]))nicks.add(a.name);
