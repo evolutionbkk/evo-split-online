@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ภาพรวมของฉัน — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Sans Thai',system-ui,sans-serif;background:#f1f5f9;color:#0f172a;min-height:100vh}
+  .wrap{max-width:920px;margin:0 auto;padding:18px 16px 60px}
+  .head{background:linear-gradient(120deg,#1d4ed8,#2563eb);border-radius:20px;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;box-shadow:0 10px 30px rgba(37,99,235,.25)}
+  .head h1{color:#fff;font-size:20px;font-weight:800;display:flex;align-items:center;gap:9px}
+  .head .who{color:#dbeafe;font-size:13px;margin-top:2px}
+  .head .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .badge{background:rgba(255,255,255,.18);color:#fff;font-size:12.5px;font-weight:700;border-radius:10px;padding:6px 12px}
+  .lo{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+  .lo:hover{background:rgba(255,255,255,.28)}
+  .sec{margin-top:16px}
+  .hero{background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1px solid #dbeafe;border-radius:18px;padding:18px 20px}
+  .cta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:16px;background:linear-gradient(120deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:16px;padding:18px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(37,99,235,.3);text-decoration:none}
+  .cta:hover{filter:brightness(1.06)}
+  .tiles{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+  .tile{flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:15px 17px}
+  .tile .n{font-size:27px;font-weight:800;line-height:1.1}
+  .tile .l{font-size:12.5px;color:#64748b;margin-top:3px}
+  .note{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13.5px;color:#166534;font-weight:700}
+  .subbtns{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+  .sb{flex:1;min-width:150px;text-align:center;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;font-size:13.5px;font-weight:700;color:#334155;text-decoration:none;cursor:pointer}
+  .sb:hover{background:#f8fafc}
+  .spin{width:26px;height:26px;border:3px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:sp 1s linear infinite;margin:20px auto}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .muted{font-size:11px;color:#94a3b8;margin-top:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>📊 ภาพรวมของฉัน</h1>
+      <div class="who" id="who">แอดมินตอบแชท</div>
+    </div>
+    <div class="r">
+      <span class="badge" id="monthBadge">เดือนนี้</span>
+      <form method="POST" action="/logout" style="margin:0"><button class="lo">ออกจากระบบ</button></form>
+    </div>
+  </div>
+
+  <a class="cta" href="/inbox">💬 เข้าห้องแชท — ตอบลูกค้า →</a>
+
+  <div class="sec" id="kpi"><div class="spin"></div><div style="text-align:center;color:#94a3b8;font-size:12.5px">กำลังรวมยอดทั้งเดือน อาจใช้เวลาสักครู่…</div></div>
+
+  <div class="subbtns">
+    <a class="sb" href="/inbox">💬 ห้องแชท</a>
+  </div>
+  <div class="muted">ยอดขาย/ปิดการขาย ดึงจาก Pancake (ออเดอร์ที่คุณเป็นผู้ปิด) · จำนวนแชทนับจากคนที่ตอบล่าสุดเป็นคุณ</div>
+</div>
+<script>
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+async function jget(u){try{const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login';return null;}return await r.json();}catch(e){return null;}}
+async function load(){
+  const me=await jget('/api/me');
+  if(me&&me.name){document.getElementById('who').textContent=esc(me.name);}
+  const j=await jget('/api/chat/my-kpi');
+  const box=document.getElementById('kpi');
+  if(!j||!j.ok){box.innerHTML='<div style="padding:16px;color:#b91c1c;text-align:center">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชอีกครั้ง</div>';return;}
+  document.getElementById('monthBadge').textContent='เดือน '+(j.month||'');
+  const tgt=j.target||200000,rev=j.rev||0,left=Math.max(0,tgt-rev),pct=tgt?Math.min(100,Math.round(rev/tgt*100)):0;
+  const col=pct>=100?'#16a34a':(pct>=60?'#2563eb':'#f59e0b');
+  const tot=j.chatsTotal||0,ans=j.chatsAnswered||0,closed=j.closed||0;
+  box.innerHTML=`
+    <div class="hero">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div><div style="font-size:12.5px;color:#475569;font-weight:700">🎯 เป้ายอดขายเดือนนี้</div>
+          <div style="font-size:30px;font-weight:800;line-height:1.15">${baht(rev)} <span style="font-size:15px;color:#64748b;font-weight:700">/ ${baht(tgt)}</span></div></div>
+        <div style="text-align:right"><div style="font-size:12.5px;color:#475569;font-weight:700">ขาดอีก</div>
+          <div style="font-size:23px;font-weight:800;color:${left>0?'#b45309':'#16a34a'}">${left>0?baht(left):'ถึงเป้าแล้ว ✓'}</div></div>
+      </div>
+      <div style="height:14px;background:#e2e8f0;border-radius:8px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${col};transition:width .5s"></div></div>
+      <div style="font-size:12px;color:#64748b;margin-top:7px;font-weight:700">${pct}% ของเป้า · ปิดการขายจากแชท ${closed} ออเดอร์</div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="n" style="color:#2563eb">${ans}</div><div class="l">ตอบแชทเดือนนี้ (แชท)</div></div>
+      <div class="tile"><div class="n" style="color:#0f172a">${tot}</div><div class="l">ลูกค้าทักทั้งหมด (แชท)</div></div>
+      <div class="tile"><div class="n" style="color:#166534">${closed}</div><div class="l">ปิดการขายจากแชท (ออเดอร์)</div></div>
+    </div>
+    <div class="note">เดือนนี้คุณตอบไปแล้ว ${ans} แชท จากลูกค้าที่ทักเข้ามาทั้งหมด ${tot} แชท · ปิดการขายได้ ${closed} ออเดอร์ เป็นเงิน ${baht(rev)}</div>`;
+}
+load();
+</script>
+</body>
+</html>

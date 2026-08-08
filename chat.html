@@ -557,7 +557,7 @@ async function initMe(){
   if(!ME)return;
   const r=document.querySelector('.head .r');
   if(ME.name&&r){const s=document.createElement('span');s.className='badge';s.textContent='👤 '+ME.name;r.insertBefore(s,r.firstChild);}
-  if(ME.role==='chatadmin'){const back=document.querySelector('.head a.back');if(back){back.textContent='ออกจากระบบ';back.removeAttribute('href');back.style.cursor='pointer';back.onclick=()=>{const f=document.createElement('form');f.method='POST';f.action='/logout';document.body.appendChild(f);f.submit();};}}
+  if(ME.role==='chatadmin'){const back=document.querySelector('.head a.back');if(back){back.textContent='← ภาพรวมของฉัน';back.setAttribute('href','/me');}}
   loadMyStats();
 }
 function loadMyStats(){

@@ -710,7 +710,7 @@ function ovTile(n,l,color){return `<div style="flex:1;min-width:130px;background
 // ===== KPI เป้าหมายเดือนนี้ (ดึงจาก server, scope เดือนปัจจุบัน) =====
 async function loadMyKpi(){
   const box=document.getElementById('myKpi'); if(!box)return;
-  let j=null; try{ j=await fetch('/api/sales/my-kpi',{credentials:'same-origin'}).then(r=>r.json()); }catch(_){}
+  let j=null; try{ j=await fetch('/api/sales/my-kpi?side='+encodeURIComponent(ME.side||''),{credentials:'same-origin'}).then(r=>r.json()); }catch(_){}
   if(!j||!j.ok){box.innerHTML='';return;}
   const baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
   const tgt=j.target||100000, rev=j.rev||0, left=Math.max(0,tgt-rev), pct=tgt?Math.min(100,Math.round(rev/tgt*100)):0;

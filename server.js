@@ -185,7 +185,7 @@ app.use('/api/onecall/token', corsForScript);
 // ---------- auth routes ----------
 app.get('/login', (req, res) => {
   const s = readSession(req);
-  if (s) { const d = s.role === 'admin' ? '/' : (s.role === 'adminsales' ? '/distribute' : (s.role === 'chatadmin' ? '/inbox' : '/sales')); return res.redirect(d); }
+  if (s) { const d = s.role === 'admin' ? '/' : (s.role === 'adminsales' ? '/distribute' : (s.role === 'chatadmin' ? '/me' : '/sales')); return res.redirect(d); }
   res.sendFile(path.join(__dirname, 'login.html'));
 });
 app.post('/login', (req, res) => {
@@ -198,7 +198,7 @@ app.post('/login', (req, res) => {
   else { for (const c of CHAT_USERS) { if (safeEq(username, c.user) && safeEq(password, c.pass)) { role = 'chatadmin'; user = c.user; break; } } }
   if (role) {
     res.setHeader('Set-Cookie', `sess=${makeToken(user, role, side)}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax; Secure`);
-    const dest = role === 'admin' ? '/' : (role === 'adminsales' ? '/distribute' : (role === 'chatadmin' ? '/inbox' : '/sales'));
+    const dest = role === 'admin' ? '/' : (role === 'adminsales' ? '/distribute' : (role === 'chatadmin' ? '/me' : '/sales'));
     return res.redirect(dest);
   }
   res.status(401).sendFile(path.join(__dirname, 'login.html'));
@@ -2230,6 +2230,7 @@ app.get('/api/admin/chat-kpi', requireAuth, (req, res) => {
   res.json({ ok: true, from: new Date(from).toISOString(), to: new Date(to).toISOString(), admins });
 });
 
+app.get('/me', requireChat, (req, res) => res.sendFile(path.join(__dirname, 'me.html')));
 app.get('/inbox', requireChat, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
 
 app.get('/api/chat/pages', requireChat, async (req, res) => {
