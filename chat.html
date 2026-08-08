@@ -227,8 +227,11 @@ function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show')
 function plat(p){p=(p||'').toLowerCase();if(p.includes('face')||p.includes('fb'))return'fb';if(p.includes('line'))return'line';if(p.includes('insta')||p.includes('ig'))return'ig';return'';}
 function shortName(n){n=String(n||'');let s=n.split(/\s[-–—]\s/)[0].replace(/\s*\(.*$/,'').trim();s=s.replace(/^Yanhee\s+/i,'');if(s.length>16)s=s.slice(0,16).trim()+'…';return s||n;}
 function initial(n){n=(n||'').trim();return n?n[0].toUpperCase():'?';}
-function thTime(iso){if(!iso)return'';const d=new Date(iso);const now=new Date();const sameDay=d.toDateString()===now.toDateString();const p=(x)=>String(x).padStart(2,'0');if(sameDay)return p(d.getHours())+':'+p(d.getMinutes());const yes=new Date(now);yes.setDate(now.getDate()-1);if(d.toDateString()===yes.toDateString())return'เมื่อวาน';return p(d.getDate())+'/'+p(d.getMonth()+1);}
-function thDayLabel(iso){const d=new Date(iso);const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
+// Pancake ส่งเวลาแบบ UTC แต่ไม่มี timezone (เช่น 2026-08-08T05:47:46) → ต้องตีเป็น UTC แล้วแปลงเป็นเวลาไทย (+7) เอง
+function _ms(iso){if(!iso)return NaN;let s=String(iso).trim();if(!/([Zz]|[+-]\d\d:?\d\d)$/.test(s)){s=s.replace(' ','T')+'Z';}return Date.parse(s);}
+function _thd(iso){const t=_ms(iso);if(isNaN(t))return null;return new Date(t+7*3600000);} // อ่านค่าด้วย getUTC* = เวลาไทย
+function thTime(iso){const d=_thd(iso);if(!d)return'';const now=_thd(new Date().toISOString());const p=x=>String(x).padStart(2,'0');const sd=d.getUTCFullYear()===now.getUTCFullYear()&&d.getUTCMonth()===now.getUTCMonth()&&d.getUTCDate()===now.getUTCDate();if(sd)return p(d.getUTCHours())+':'+p(d.getUTCMinutes());const y=new Date(now.getTime()-86400000);if(d.getUTCFullYear()===y.getUTCFullYear()&&d.getUTCMonth()===y.getUTCMonth()&&d.getUTCDate()===y.getUTCDate())return'เมื่อวาน';return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1);}
+function thDayLabel(iso){const d=_thd(iso);if(!d)return'';const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getUTCDate()+' '+m[d.getUTCMonth()]+' '+(d.getUTCFullYear()+543);}
 
 async function jget(u){const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login';return null;}return r.json().catch(()=>null);}
 async function jpost(u,b){const r=await fetch(u,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json().catch(()=>null);}
@@ -478,7 +481,7 @@ function renderWindow(){
   const el=$('#fbwin');if(!el)return;
   let lastIn=null; for(let i=CUR_MSGS.length-1;i>=0;i--){ if(CUR_MSGS[i].dir==='in'&&CUR_MSGS[i].at){ lastIn=CUR_MSGS[i].at; break; } }
   if(!lastIn){el.style.display='none';return;}
-  const left=Date.parse(lastIn)+24*3600000-Date.now();
+  const left=_ms(lastIn)+24*3600000-Date.now();
   if(left<=0){ el.style.display='block'; el.className='fbwin over'; el.innerHTML='⛔ เลย 24 ชม.แล้ว — ตอบข้อความปกติไม่ได้ (ต้องใช้ข้อความที่ FB อนุญาต)'; return; }
   const hh=Math.floor(left/3600000), mm=Math.floor((left%3600000)/60000);
   el.style.display='block'; el.className='fbwin'+(left<3*3600000?' warn':'');
@@ -524,7 +527,7 @@ async function saveTpls(){
   if(j&&j.ok){TPLS=j.templates||[];renderTpls();closeTpl();toast('บันทึกข้อความสำเร็จรูปแล้ว');}else toast('บันทึกไม่สำเร็จ');
 }
 // ---- reply log ----
-function fullTime(iso){if(!iso)return'';const d=new Date(iso);const p=x=>String(x).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}
+function fullTime(iso){const d=_thd(iso);if(!d)return'';const p=x=>String(x).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());}
 async function openLog(){
   $('#logModal').classList.add('show');
   $('#logBody').innerHTML='<div class="loading"><div class="spin"></div></div>';
