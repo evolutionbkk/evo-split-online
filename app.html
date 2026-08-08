@@ -588,7 +588,7 @@ async function loadChatKpi(){
     const pancakeOk=!!(ss&&ss.byCloser);
     const nicks=new Set([...Object.keys(ans),...Object.keys(closedByNick)]);
     for(const a of (j.admins||[]))nicks.add(a.name);
-    const rows=[...nicks].map(n=>({name:n,chats:ans[n]||0,closed:closedByNick[n]||0,rev:Math.round(revByNick[n]||0)})).sort((x,y)=>(y.chats-x.chats)||(y.closed-x.closed));
+    const rows=[...nicks].filter(n=>!TELESALES_NICKS.includes(n)).map(n=>({name:n,chats:ans[n]||0,closed:closedByNick[n]||0,rev:Math.round(revByNick[n]||0)})).sort((x,y)=>(y.chats-x.chats)||(y.closed-x.closed));
     let h='<div class="tblwrap"><table style="min-width:440px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชทที่ตอบ</th><th style="text-align:center">ปิดการขาย'+(pancakeOk?' (Pancake)':'')+'</th></tr></thead><tbody>';
     for(const r of rows){
       h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(r.name)+'</td>'+
@@ -651,7 +651,7 @@ async function loadReport(){
     const ans2=await chatAnswerCounts(rg.from,rg.to);
     const anicks=new Set([...Object.keys(ans2),...Object.keys(closedByNick)]);
     for(const ad of ((chat&&chat.admins)||[]))anicks.add(ad.name);
-    const arows=[...anicks].map(n=>({name:n,chats:ans2[n]||0,closed:closedByNick[n]||0,rev:revByNick[n]||0,leave:leaveName[n]||0})).sort((x,y)=>(y.chats-x.chats)||(y.closed-x.closed));
+    const arows=[...anicks].filter(n=>!TELESALES_NICKS.includes(n)).map(n=>({name:n,chats:ans2[n]||0,closed:closedByNick[n]||0,rev:revByNick[n]||0,leave:leaveName[n]||0})).sort((x,y)=>(y.chats-x.chats)||(y.closed-x.closed));
     h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">💬 ทีมแอดมิน (ตอบแชท)</div>';
     h+='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>แอดมิน</th><th style="text-align:center">แชทที่ตอบ</th><th style="text-align:center">ปิดการขาย</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
     for(const r of arows){
@@ -860,6 +860,7 @@ function ktile(n,l,cls){return `<div class="kt ${cls||''}"><div class="n">${n}</
 const STAFF_NICK=[['chonlakarn','ไลลา'],['yuki','ยูกิ'],['ณิชาภา','ณชา'],['ขวัญเอ๊าะ','เขม'],['namwhan','หวาน'],['numwhan','หวาน'],['ชาเย็น','พี่โม']];
 function nickName(full){const s=String(full||'').toLowerCase();for(const kv of STAFF_NICK){if(s.includes(kv[0]))return kv[1];}return '';}
 function staffLabel(full){const n=nickName(full);return n?('<b>'+esc(n)+'</b> <span style="color:#94a3b8;font-weight:400;font-size:12px">'+esc(full)+'</span>'):esc(full);}
+const TELESALES_NICKS=['หวาน','เขม']; // ทีม Telesales (Namwhan/Khem) — ไม่นับในตารางแอดมินตอบแชท
 let KPI_TIERS={W:{},K:{}};
 function personCard(side,name,a){
   const conv=a.total?Math.round(a.status.won/a.total*100):0;
