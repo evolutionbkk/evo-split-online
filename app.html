@@ -539,7 +539,7 @@ async function loadTiers(){
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 // ===== Admin chat KPI (ไลลา · ยูกิ) =====
-let CHATKPI_MODE='30', CHATKPI_CUSTOM=null, CHATKPI_REQ=0;
+let CHATKPI_MODE='month', CHATKPI_CUSTOM=null, CHATKPI_REQ=0;
 function chatKpiRangeFor(m){
   if(m==='custom'&&CHATKPI_CUSTOM)return CHATKPI_CUSTOM;
   const end=new Date();end.setHours(23,59,59,999);
@@ -548,6 +548,8 @@ function chatKpiRangeFor(m){
   else if(m==='7'){start.setDate(start.getDate()-6);start.setHours(0,0,0,0);}
   else if(m==='month'){start.setDate(1);start.setHours(0,0,0,0);}
   else{start.setDate(start.getDate()-29);start.setHours(0,0,0,0);}
+  // ไม่ย้อนเดือนเก่า: ปุ่มสำเร็จรูป (7/30 วัน) ไม่ให้เริ่มก่อนวันที่ 1 ของเดือนนี้
+  const mS=new Date();mS.setDate(1);mS.setHours(0,0,0,0);if(start<mS)start.setTime(mS.getTime());
   return{from:start.toISOString(),to:end.toISOString()};
 }
 function chatKpiSet(m){CHATKPI_MODE=m;document.querySelectorAll('#chatKpiRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));const cu=document.getElementById('chatKpiCustom');if(cu)cu.style.display=(m==='custom')?'inline-flex':'none';if(m!=='custom')loadChatKpi();}
@@ -612,7 +614,7 @@ async function loadChatKpi(){
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 // ===== สรุปรายงานรายบุคคล (เซลล์ + แอดมิน) =====
-let REP_MODE='30', REP_CUSTOM=null;
+let REP_MODE='month', REP_CUSTOM=null;
 function repRangeFor(m){
   if(m==='custom'&&REP_CUSTOM)return REP_CUSTOM;
   const end=new Date();end.setHours(23,59,59,999);
@@ -621,6 +623,8 @@ function repRangeFor(m){
   else if(m==='7'){start.setDate(start.getDate()-6);start.setHours(0,0,0,0);}
   else if(m==='month'){start.setDate(1);start.setHours(0,0,0,0);}
   else{start.setDate(start.getDate()-29);start.setHours(0,0,0,0);}
+  // ไม่ย้อนเดือนเก่า: ปุ่มสำเร็จรูป (7/30 วัน) ไม่ให้เริ่มก่อนวันที่ 1 ของเดือนนี้
+  const mS=new Date();mS.setDate(1);mS.setHours(0,0,0,0);if(start<mS)start.setTime(mS.getTime());
   return{from:start.toISOString(),to:end.toISOString()};
 }
 function repSet(m){REP_MODE=m;document.querySelectorAll('#repRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));const cu=document.getElementById('repCustom');if(cu)cu.style.display=(m==='custom')?'inline-flex':'none';}
@@ -1423,6 +1427,8 @@ function srcQ(mode){
   else if(mode==='30'){from=new Date(now-30*86400000);label='30 วันล่าสุด';}
   else if(mode==='custom'){const f=(document.getElementById('srcFrom')||{}).value,t=(document.getElementById('srcTo')||{}).value;from=f?new Date(f+'T00:00:00+07:00'):srcThMid(y,m,1);to=t?new Date(t+'T23:59:59+07:00'):new Date(now);label='กำหนดเอง';}
   else {from=srcThMid(y,m,1);label='เดือนนี้ (ตั้งแต่ '+srcThDate(from)+')';}
+  // ไม่ย้อนเดือนเก่า: ปุ่มสำเร็จรูป (7/30 วัน) ไม่ให้เริ่มก่อนวันที่ 1 ของเดือนนี้
+  if(mode!=='custom'){const mS=srcThMid(y,m,1);if(from<mS)from=mS;}
   return {from:from.toISOString(),to:to.toISOString(),label};
 }
 function srcSetRange(mode){SRC_MODE=mode;document.querySelectorAll('#srcRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===mode));const c=document.getElementById('srcCustom');if(c)c.style.display=mode==='custom'?'inline-flex':'none';if(mode!=='custom')srcLoad();}
