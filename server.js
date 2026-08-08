@@ -754,6 +754,8 @@ const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 15; // FB + F
 const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
 const SALES_REV_TARGET = Number(process.env.SALES_REV_TARGET) || 100000; // เป้ายอดขายเซลล์ (เทเลเซลล์) ต่อคน/เดือน
 const ADMIN_REV_TARGET = Number(process.env.ADMIN_REV_TARGET) || 200000; // เป้ายอดขายแอดมิน (ตอบแชท) ต่อคน/เดือน
+const SALES_DAILY_TARGET = Number(process.env.SALES_DAILY_TARGET) || 3846; // เป้ายอดขายเซลล์ต่อคน/วัน
+const ADMIN_DAILY_TARGET = Number(process.env.ADMIN_DAILY_TARGET) || 7692; // เป้ายอดขายแอดมินต่อคน/วัน
 // FB KPI matching baseline: from this moment on, an FB call only counts if it's to a
 // closed-sale/refill lead in the system. Before it (migration day) we credit every real
 // (>7s) non-Evolution call, because the closed-sale list wasn't complete yet.
@@ -2143,7 +2145,7 @@ app.get('/api/sales/my-kpi', requireCrm, async (req, res) => {
   // "โทรไปแล้ว" = ลูกค้าที่โทรถึงจริง (จับคู่จาก OneCall) ในช่วงที่เลือก
   const called = (A.calledEvoRange || 0) + (A.calledManualRange || 0);
   res.json({
-    ok: true, side, name: (k.names && k.names[side]) || side, target: SALES_REV_TARGET,
+    ok: true, side, name: (k.names && k.names[side]) || side, target: SALES_REV_TARGET, dailyTarget: SALES_DAILY_TARGET,
     rev: Math.round(A.revRange || 0), won: A.wonRange || 0,
     total, called, notCalled: Math.max(0, total - called),
     from: k.from, to: k.to, month: rg.month,
@@ -2173,7 +2175,7 @@ app.get('/api/chat/my-kpi', requireChat, async (req, res) => {
     } catch (_) {}
   }
   res.json({
-    ok: true, name: myNick, target: ADMIN_REV_TARGET,
+    ok: true, name: myNick, target: ADMIN_REV_TARGET, dailyTarget: ADMIN_DAILY_TARGET,
     rev: Math.round(rev), closed, chatsAnswered, chatsTotal,
     from: rg.from, to: rg.to, month: rg.month,
   });

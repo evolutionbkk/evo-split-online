@@ -62,6 +62,13 @@ const baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits
 async function jget(u){try{const r=await fetch(u,{credentials:'same-origin'});if(r.status===401){location.href='/login';return null;}return await r.json();}catch(e){return null;}}
 let MODE='month',CUSTOM=null,CRAW={f:'',t:''},REQ=0;
 const RLBL={today:'วันนี้','7':'7 วันล่าสุด',month:'เดือนนี้',custom:'ช่วงที่เลือก'};
+function effTarget(mode,daily,monthly,from,to){
+  if(mode==='month')return{t:monthly,label:'เป้ายอดขายเดือนนี้'};
+  if(mode==='today')return{t:daily,label:'เป้ายอดขายวันนี้'};
+  if(mode==='7')return{t:daily*7,label:'เป้ายอดขาย 7 วัน'};
+  const d=Math.max(1,Math.round((Date.parse(to)-Date.parse(from))/86400000));
+  return{t:daily*d,label:'เป้ายอดขายช่วงนี้ ('+d+' วัน)'};
+}
 function rangeFor(){
   if(MODE==='custom'&&CUSTOM)return CUSTOM;
   const end=new Date();end.setHours(23,59,59,999);
@@ -96,13 +103,12 @@ async function load(){
   if(my!==REQ)return;
   if(!j||!j.ok){box.innerHTML='<div style="padding:16px;color:#b91c1c;text-align:center">โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชอีกครั้ง</div>';return;}
   document.getElementById('monthBadge').textContent=isMonth?('เดือน '+(j.month||'')):lbl;
-  const tgt=j.target||200000,rev=j.rev||0,left=Math.max(0,tgt-rev),pct=tgt?Math.min(100,Math.round(rev/tgt*100)):0;
+  const et=effTarget(MODE,j.dailyTarget||7692,j.target||200000,rg.from,rg.to);
+  const tgt=et.t,rev=j.rev||0,left=Math.max(0,tgt-rev),pct=tgt?Math.min(100,Math.round(rev/tgt*100)):0;
   const col=pct>=100?'#16a34a':(pct>=60?'#2563eb':'#f59e0b');
   const tot=j.chatsTotal||0,ans=j.chatsAnswered||0,closed=j.closed||0;
-  const revTitle=isMonth?'🎯 เป้ายอดขายเดือนนี้':('💰 ยอดขาย '+lbl);
-  const rightBox=isMonth
-    ? `<div style="text-align:right"><div style="font-size:12.5px;color:#475569;font-weight:700">ขาดอีก</div><div style="font-size:23px;font-weight:800;color:${left>0?'#b45309':'#16a34a'}">${left>0?baht(left):'ถึงเป้าแล้ว ✓'}</div></div>`
-    : `<div style="text-align:right"><div style="font-size:12.5px;color:#475569;font-weight:700">เทียบเป้าเดือน</div><div style="font-size:19px;font-weight:800;color:#2563eb">${pct}%</div></div>`;
+  const revTitle='🎯 '+et.label;
+  const rightBox=`<div style="text-align:right"><div style="font-size:12.5px;color:#475569;font-weight:700">ขาดอีก</div><div style="font-size:23px;font-weight:800;color:${left>0?'#b45309':'#16a34a'}">${left>0?baht(left):'ถึงเป้าแล้ว ✓'}</div></div>`;
   box.innerHTML=`
     <div class="hero">
       <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px">
@@ -111,7 +117,7 @@ async function load(){
         ${rightBox}
       </div>
       <div style="height:14px;background:#e2e8f0;border-radius:8px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${col};transition:width .5s"></div></div>
-      <div style="font-size:12px;color:#64748b;margin-top:7px;font-weight:700">${pct}% ของเป้าเดือน · ปิดการขายจากแชท ${closed} ออเดอร์</div>
+      <div style="font-size:12px;color:#64748b;margin-top:7px;font-weight:700">${pct}% ของเป้า${isMonth?'เดือน':(MODE==='today'?'วันนี้':'ช่วงนี้')} · ปิดการขายจากแชท ${closed} ออเดอร์</div>
     </div>
     <div class="tiles">
       <div class="tile"><div class="n" style="color:#2563eb">${ans}</div><div class="l">ตอบแชท ${lbl} (แชท)</div></div>
