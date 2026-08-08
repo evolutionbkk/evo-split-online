@@ -1985,20 +1985,19 @@ function pkMsgDir(m, custPsid) {
   if (custPsid) return 'out';   // known customer, and this isn't them → it's the page/bot side
   return 'in';                  // customer id unknown → safest default
 }
+// attachment types that are metadata (not visible content) — don't show as attachments
+const PK_META_ATT = new Set(['template', 'system_message', 'ad_click', 'replied_message', 'link', 'address', 'story_mention', 'story_reply', 'fallback']);
 function pkMsgNorm(m, custPsid) {
   const atts = (m.attachments || []).map((a) => {
     const url = a.url || a.link || (a.payload && (a.payload.url || a.payload.src)) || a.image_url || a.thumbnail_url || a.thumbnail || '';
     return { type: String(a.type || ''), url: String(url || ''), mime: String(a.mime_type || '') };
-  }).filter((a) => a.url || a.type);
+  }).filter((a) => a.url && !PK_META_ATT.has(a.type));
   let text = m.original_message;
   if (text == null || !String(text).trim()) text = pkStripHtml(m.message);
-  const sticker = String(m.sticker_url || m.sticker || (m.attachment && (m.attachment.sticker_url || m.attachment.url)) || '');
-  const out = {
+  return {
     id: String(m.id || ''), dir: pkMsgDir(m, custPsid), text: String(text || ''),
-    at: m.inserted_at || null, fromName: String((m.from && (m.from.name || m.from.admin_name)) || ''), atts, sticker,
+    at: m.inserted_at || null, fromName: String((m.from && (m.from.name || m.from.admin_name)) || ''), atts,
   };
-  if (!out.text && !atts.length && !sticker) out._dbg = JSON.stringify(m).slice(0, 500); // TEMP debug: inspect empty (sticker/emoji) messages
-  return out;
 }
 
 // ---------- Chat admin add-ons: per-conversation status/notes, quick-reply templates, reply audit log ----------

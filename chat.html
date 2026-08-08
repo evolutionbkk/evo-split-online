@@ -419,7 +419,7 @@ function renderMsgs(msgs,force){
     let inner='';
     for(const a of (m.atts||[])){
       const t=(a.type||'').toLowerCase();
-      if(t.includes('photo')||t.includes('image')||(a.mime||'').startsWith('image'))inner+='<img src="'+esc(a.url)+'" onclick="window.open(this.src)">';
+      if(t.includes('photo')||t.includes('image')||t.includes('sticker')||t.includes('gif')||(a.mime||'').startsWith('image'))inner+='<img src="'+esc(a.url)+'"'+(t.includes('sticker')?' style="max-width:120px"':'')+' onclick="window.open(this.src)">';
       else inner+='<a class="att-file" href="'+esc(a.url)+'" target="_blank">📎 '+esc(t||'ไฟล์')+'</a>';
     }
     if(m.text)inner+=esc(m.text);
