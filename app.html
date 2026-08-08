@@ -181,6 +181,24 @@
     <div id="chatKpiBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
 
+  <div class="panel" data-sec="overview" id="reportPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>สรุปรายงานรายบุคคล <span id="repLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="desc">ภาพรวมผลงานรายคน — ทีมเซลล์ (Telesales) + ทีมแอดมิน (ตอบแชท) · เลือกช่วงเวลาแล้วกด "โหลดรายงาน"</div>
+    <div class="krange" id="repRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center;gap:6px">
+      <button class="kr" data-r="today" onclick="repSet('today')">วันนี้</button>
+      <button class="kr" data-r="7" onclick="repSet('7')">7 วัน</button>
+      <button class="kr on" data-r="30" onclick="repSet('30')">30 วัน</button>
+      <button class="kr" data-r="month" onclick="repSet('month')">เดือนนี้</button>
+      <button class="kr" data-r="custom" onclick="repSet('custom')">กำหนดเอง</button>
+      <span id="repCustom" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:#475569">
+        <input type="date" id="rpFrom" onchange="repCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">ถึง<input type="date" id="rpTo" onchange="repCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
+        <span style="color:#94a3b8">|</span> เดือน <input type="month" id="rpMonth" onchange="repMonthGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
+      </span>
+      <button class="b-add" style="padding:6px 14px;font-weight:700" onclick="loadReport()"><span data-ic="download" data-sz="14"></span>โหลดรายงาน</button>
+    </div>
+    <div id="reportBox"><div style="padding:16px;text-align:center;color:#94a3b8">เลือกช่วงเวลาแล้วกด "โหลดรายงาน" เพื่อดูสรุปรายบุคคล</div></div>
+  </div>
+
   <div class="panel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
     <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
@@ -563,6 +581,69 @@ async function loadChatKpi(){
     h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชท/ตอบเฉลี่ย</b> = จากการตอบผ่านระบบ (เริ่มเก็บหลังเปิดใช้งาน) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake (ยอดจริง) · ความเร็วตอบละเอียดดูเพิ่มได้ในรายงาน Pancake</div>';
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
+}
+// ===== สรุปรายงานรายบุคคล (เซลล์ + แอดมิน) =====
+let REP_MODE='30', REP_CUSTOM=null;
+function repRangeFor(m){
+  if(m==='custom'&&REP_CUSTOM)return REP_CUSTOM;
+  const end=new Date();end.setHours(23,59,59,999);
+  const start=new Date();
+  if(m==='today')start.setHours(0,0,0,0);
+  else if(m==='7'){start.setDate(start.getDate()-6);start.setHours(0,0,0,0);}
+  else if(m==='month'){start.setDate(1);start.setHours(0,0,0,0);}
+  else{start.setDate(start.getDate()-29);start.setHours(0,0,0,0);}
+  return{from:start.toISOString(),to:end.toISOString()};
+}
+function repSet(m){REP_MODE=m;document.querySelectorAll('#repRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));const cu=document.getElementById('repCustom');if(cu)cu.style.display=(m==='custom')?'inline-flex':'none';}
+function repCustomGo(){const f=document.getElementById('rpFrom').value,t=document.getElementById('rpTo').value;if(!f||!t)return;REP_CUSTOM={from:new Date(f+'T00:00:00').toISOString(),to:new Date(t+'T23:59:59').toISOString()};REP_MODE='custom';loadReport();}
+function repMonthGo(){const mo=document.getElementById('rpMonth').value;if(!mo)return;const from=new Date(mo+'-01T00:00:00');const to=new Date(from.getFullYear(),from.getMonth()+1,0,23,59,59);REP_CUSTOM={from:from.toISOString(),to:to.toISOString()};REP_MODE='custom';loadReport();}
+async function loadReport(){
+  const box=document.getElementById('reportBox');if(!box)return;
+  box.innerHTML='<div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด… (ดึงข้อมูล Pancake อาจใช้เวลาสักครู่)</div>';
+  const rg=repRangeFor(REP_MODE);const q='?from='+encodeURIComponent(rg.from)+'&to='+encodeURIComponent(rg.to);
+  const le=document.getElementById('repLbl');if(le)le.textContent={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',month:'เดือนนี้',custom:'ช่วงที่เลือก'}[REP_MODE]||'';
+  try{
+    const [kpi,tiers,chat,ss,leaves]=await Promise.all([
+      fetch('/api/admin/kpi'+q,{credentials:'same-origin'}).then(r=>r.json()),
+      fetch('/api/admin/followup-tiers',{credentials:'same-origin'}).then(r=>r.json()),
+      fetch('/api/admin/chat-kpi'+q,{credentials:'same-origin'}).then(r=>r.json()),
+      fetch('/api/admin/sales-source'+q,{credentials:'same-origin'}).then(r=>r.json()).catch(()=>null),
+      fetch('/api/admin/leaves',{credentials:'same-origin'}).then(r=>r.json())
+    ]);
+    const nm=(kpi&&kpi.names)||{W:'Namwhan (W)',K:'Khem (K)'};
+    const leaveWho={},leaveName={};
+    for(const p of ((leaves&&leaves.people)||[])){leaveWho[p.who]=p.monthCount;leaveName[p.name]=p.monthCount;}
+    const bt=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+    let h='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">🧑‍💼 ทีมเซลล์ (Telesales)</div>';
+    h+='<div class="tblwrap" style="margin-bottom:18px"><table style="min-width:640px"><thead><tr><th>เซลล์</th><th style="text-align:center">ปิดได้</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">คุยจริง</th><th style="text-align:center">T1</th><th style="text-align:center">T2</th><th style="text-align:center">T3</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
+    for(const side of ['W','K']){
+      const a=(kpi&&kpi[side])||{};const t=((tiers&&tiers.tiers&&tiers.tiers[side]&&tiers.tiers[side].fbpage))||{T1:0,T2:0,T3:0};
+      h+='<tr><td style="font-weight:700;color:var(--'+side.toLowerCase()+')">'+esc(nm[side]||side)+'</td>'+
+         '<td style="text-align:center;font-weight:800;color:#166534">'+(a.wonRange||0)+'</td>'+
+         '<td style="text-align:right;font-weight:700;color:#166534">'+bt(a.revRange)+'</td>'+
+         '<td style="text-align:center">'+(a.talk7Range||0)+'</td>'+
+         '<td style="text-align:center;font-weight:700;color:#1d4ed8">'+(t.T1||0)+'</td>'+
+         '<td style="text-align:center;font-weight:700;color:#b45309">'+(t.T2||0)+'</td>'+
+         '<td style="text-align:center;font-weight:700;color:#047857">'+(t.T3||0)+'</td>'+
+         '<td style="text-align:center;color:#b45309;font-weight:700">'+(leaveWho[side]||0)+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
+    const closedByNick={},revByNick={};
+    if(ss&&ss.byCloser){for(const k in ss.byCloser){const nk=nickName(k);if(!nk)continue;const v=ss.byCloser[k];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
+    h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">💬 ทีมแอดมิน (ตอบแชท)</div>';
+    h+='<div class="tblwrap"><table style="min-width:600px"><thead><tr><th>แอดมิน</th><th style="text-align:center">แชทที่ตอบ</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
+    for(const ad of ((chat&&chat.admins)||[])){
+      h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(ad.name)+'</td>'+
+         '<td style="text-align:center;font-weight:800">'+ad.chats+'</td>'+
+         '<td style="text-align:center">'+fmtResp(ad.avgRespSec)+'</td>'+
+         '<td style="text-align:center;font-weight:800;color:#166534">'+(closedByNick[ad.name]||0)+'</td>'+
+         '<td style="text-align:right;font-weight:700;color:#166534">'+bt(revByNick[ad.name]||0)+'</td>'+
+         '<td style="text-align:center;color:#b45309;font-weight:700">'+(leaveName[ad.name]||0)+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
+    h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">เซลล์: ปิดได้/ยอดขาย/คุยจริง = ในช่วงที่เลือก · T1/T2/T3 = ยอดสะสมปัจจุบัน · แอดมิน: แชท/ตอบเฉลี่ย = ตอบผ่านระบบ · ปิดการขาย = ออเดอร์ FB ใน Pancake · ลาเดือนนี้ = เดือนปัจจุบัน</div>';
+    box.innerHTML=h;
+  }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดรายงานไม่สำเร็จ: '+esc(String(e))+'</div>';}
 }
 let DAYOFF={W:false,K:false};
 let LEAVES={month:'',people:[]};
