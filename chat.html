@@ -188,6 +188,7 @@
     </h1>
     <div class="r">
       <span class="badge" id="totBadge">—</span>
+      <button class="hbtn" onclick="openMyKpi()" title="ภาพรวม KPI ของฉัน เดือนนี้">📊 KPI ของฉัน</button>
       <button class="hbtn" onclick="openLog()" title="ประวัติการตอบแชท">📋 ประวัติการตอบ</button>
       <a class="back" href="/">← กลับ</a>
     </div>
@@ -215,6 +216,10 @@
 <div class="modal" id="logModal"><div class="box">
   <div class="mh"><h3>ประวัติการตอบแชท <span id="logCount" style="font-size:12px;color:#94a3b8;font-weight:400"></span></h3><button class="x" onclick="closeLog()">×</button></div>
   <div class="mb" id="logBody"><div class="loading"><div class="spin"></div></div></div>
+</div></div>
+<div class="modal" id="kpiModal"><div class="box">
+  <div class="mh"><h3>📊 KPI ของฉัน — เดือนนี้</h3><button class="x" onclick="closeMyKpi()">×</button></div>
+  <div class="mb" id="kpiBody"><div class="loading"><div class="spin"></div></div></div>
 </div></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -567,6 +572,40 @@ function loadMyStats(){
     s.textContent='📊 วันนี้ตอบ '+chats.size+' แชท';
   });
 }
+function closeMyKpi(){const m=document.getElementById('kpiModal');if(m)m.classList.remove('show');}
+async function openMyKpi(){
+  const m=document.getElementById('kpiModal'),box=document.getElementById('kpiBody');
+  if(m)m.classList.add('show');
+  if(box)box.innerHTML='<div class="loading"><div class="spin"></div></div><div style="text-align:center;color:#94a3b8;font-size:12.5px;margin-top:8px">กำลังรวมยอดทั้งเดือน อาจใช้เวลาสักครู่…</div>';
+  let j=null; try{ j=await jget('/api/chat/my-kpi'); }catch(_){}
+  if(!box)return;
+  if(!j||!j.ok){box.innerHTML='<div style="padding:18px;color:#ef4444">โหลดข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง</div>';return;}
+  const baht=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+  const tgt=j.target||200000, rev=j.rev||0, left=Math.max(0,tgt-rev), pct=tgt?Math.min(100,Math.round(rev/tgt*100)):0;
+  const barCol=pct>=100?'#16a34a':(pct>=60?'#2563eb':'#f59e0b');
+  const tot=j.chatsTotal||0, ans=j.chatsAnswered||0, closed=j.closed||0;
+  const tile=(n,l,c)=>`<div style="flex:1;min-width:120px;background:#0f172a;border:1px solid #1e293b;border-radius:13px;padding:13px 15px"><div style="font-size:25px;font-weight:800;color:${c||'#e2e8f0'};line-height:1.1">${n}</div><div style="font-size:12px;color:#94a3b8;margin-top:3px">${l}</div></div>`;
+  box.innerHTML=`
+    <div style="font-size:13px;color:#94a3b8;margin-bottom:12px">${esc(j.name||'')} · เดือน ${esc(j.month||'')}</div>
+    <div style="background:linear-gradient(135deg,#0b1220,#0e1a14);border:1px solid #1e293b;border-radius:15px;padding:16px 18px;margin-bottom:13px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:9px">
+        <div><div style="font-size:12px;color:#94a3b8;font-weight:700">🎯 เป้ายอดขายเดือนนี้</div>
+          <div style="font-size:27px;font-weight:800;color:#f1f5f9;line-height:1.15">${baht(rev)} <span style="font-size:14px;color:#94a3b8;font-weight:700">/ ${baht(tgt)}</span></div></div>
+        <div style="text-align:right"><div style="font-size:12px;color:#94a3b8;font-weight:700">ขาดอีก</div>
+          <div style="font-size:20px;font-weight:800;color:${left>0?'#fbbf24':'#4ade80'}">${left>0?baht(left):'ถึงเป้าแล้ว ✓'}</div></div>
+      </div>
+      <div style="height:12px;background:#1e293b;border-radius:8px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${barCol};transition:width .4s"></div></div>
+      <div style="font-size:11.5px;color:#94a3b8;margin-top:6px;font-weight:700">${pct}% ของเป้า</div>
+    </div>
+    <div style="display:flex;gap:11px;flex-wrap:wrap;margin-bottom:8px">
+      ${tile(ans,'ตอบแชทเดือนนี้ (แชท)','#60a5fa')}
+      ${tile(tot,'ลูกค้าทักทั้งหมด (แชท)','#e2e8f0')}
+      ${tile(closed,'ปิดการขายจากแชท (ออเดอร์)','#4ade80')}
+    </div>
+    <div style="background:#0b1220;border:1px solid #1e293b;border-radius:11px;padding:11px 13px;font-size:12.5px;color:#cbd5e1;font-weight:600">ตอบไปแล้ว ${ans} แชท จากที่ลูกค้าทักเข้ามาทั้งหมด ${tot} แชท เดือนนี้ · ปิดการขายได้ ${closed} ออเดอร์</div>
+    <div style="font-size:11px;color:#64748b;margin-top:10px">* ยอดขาย/ปิดการขาย ดึงจาก Pancake (ออเดอร์ที่คุณเป็นผู้ปิด) · จำนวนแชทนับจากคนที่ตอบล่าสุดเป็นคุณ</div>`;
+}
+window.openMyKpi=openMyKpi;window.closeMyKpi=closeMyKpi;
 initMe();
 loadPages();
 </script>

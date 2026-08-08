@@ -647,7 +647,23 @@ async function loadReport(){
     const leaveWho={},leaveName={};
     for(const p of ((leaves&&leaves.people)||[])){leaveWho[p.who]=p.monthCount;leaveName[p.name]=p.monthCount;}
     const bt=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
-    let h='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">🧑‍💼 ทีมเซลล์ (Telesales)</div>';
+    // ---- ยอดขายต่อคน vs เป้า (แอดมินจาก Pancake byCloser) ----
+    const closedByNick={},revByNick={};
+    if(ss&&ss.byCloser){for(const k in ss.byCloser){const nk=nickName(k);if(!nk)continue;const v=ss.byCloser[k];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
+    const sTgt=(kpi&&kpi.targets&&kpi.targets.salesMonthly)||100000;
+    const aTgt=(kpi&&kpi.targets&&kpi.targets.adminMonthly)||200000;
+    const prog=(name,rev,tgt,extra)=>{const p=tgt?Math.min(100,Math.round(rev/tgt*100)):0;const left=Math.max(0,tgt-rev);const col=p>=100?'#16a34a':(p>=60?'#2563eb':'#f59e0b');return '<div style="background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px 14px;min-width:240px;flex:1"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b style="color:#0f172a">'+esc(name)+'</b><span style="font-size:11.5px;color:#64748b">'+(extra||'')+'</span></div><div style="font-size:19px;font-weight:800;color:#0f172a;margin:3px 0 1px">'+bt(rev)+' <span style="font-size:12px;color:#94a3b8;font-weight:700">/ '+bt(tgt)+'</span></div><div style="height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden;margin:5px 0 4px"><div style="height:100%;width:'+p+'%;background:'+col+'"></div></div><div style="font-size:11.5px;color:#64748b;font-weight:700">'+p+'% · '+(left>0?('ขาดอีก '+bt(left)):'ถึงเป้าแล้ว ✓')+'</div></div>';};
+    let h='<div style="font-size:14px;font-weight:700;color:#334155;margin:2px 2px 4px">🎯 ความคืบหน้าเป้ายอดขายเดือนนี้ (รายคน)</div>';
+    h+='<div style="font-size:12px;color:#64748b;margin:0 2px 9px">เซลล์เป้า '+bt(sTgt)+'/คน · แอดมินเป้า '+bt(aTgt)+'/คน</div>';
+    h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:9px">';
+    for(const side of ['W','K']){const a=(kpi&&kpi[side])||{};h+=prog(nm[side]||side,Math.round(a.revRange||0),sTgt,'ปิด '+(a.wonRange||0)+' ราย');}
+    h+='</div>';
+    const aprogNicks=Object.keys(revByNick).filter(n=>!TELESALES_NICKS.includes(n));
+    for(const ad of ((chat&&chat.admins)||[]))if(!TELESALES_NICKS.includes(ad.name)&&!aprogNicks.includes(ad.name))aprogNicks.push(ad.name);
+    h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">';
+    for(const n of aprogNicks){h+=prog(n,Math.round(revByNick[n]||0),aTgt,'ปิด '+(closedByNick[n]||0)+' แชท');}
+    h+='</div>';
+    h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">🧑‍💼 ทีมเซลล์ (Telesales)</div>';
     h+='<div class="tblwrap" style="margin-bottom:18px"><table style="min-width:640px"><thead><tr><th>เซลล์</th><th style="text-align:center">ปิดได้</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">คุยจริง</th><th style="text-align:center">T1</th><th style="text-align:center">T2</th><th style="text-align:center">T3</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
     for(const side of ['W','K']){
       const a=(kpi&&kpi[side])||{};const t=((tiers&&tiers.tiers&&tiers.tiers[side]&&tiers.tiers[side].fbpage))||{T1:0,T2:0,T3:0};
@@ -661,8 +677,6 @@ async function loadReport(){
          '<td style="text-align:center;color:#b45309;font-weight:700">'+(leaveWho[side]||0)+'</td></tr>';
     }
     h+='</tbody></table></div>';
-    const closedByNick={},revByNick={};
-    if(ss&&ss.byCloser){for(const k in ss.byCloser){const nk=nickName(k);if(!nk)continue;const v=ss.byCloser[k];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
     const ans2=await chatAnswerCounts(rg.from,rg.to);
     const anicks=new Set([...Object.keys(ans2),...Object.keys(closedByNick)]);
     for(const ad of ((chat&&chat.admins)||[]))anicks.add(ad.name);
@@ -677,7 +691,7 @@ async function loadReport(){
          '<td style="text-align:center;color:#b45309;font-weight:700">'+r.leave+'</td></tr>';
     }
     h+='</tbody></table></div>';
-    h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">เซลล์: ปิดได้/ยอดขาย/คุยจริง = ในช่วงที่เลือก · T1/T2/T3 = ยอดสะสมปัจจุบัน · แอดมิน: แชทที่ตอบ + ปิดการขาย = จาก Pancake (ในช่วงที่เลือก) · ลาเดือนนี้ = เดือนปัจจุบัน</div>';
+    h+='<div style="font-size:11px;color:#94a3b8;margin-top:8px">เซลล์: ปิดได้/ยอดขาย/คุยจริง = ในช่วงที่เลือก · T1/T2/T3 = เฉพาะเดือนนี้ · แอดมิน: แชทที่ตอบ + ปิดการขาย = จาก Pancake (ในช่วงที่เลือก) · ลาเดือนนี้ = เดือนปัจจุบัน · เป้ายอดขาย: เซลล์ '+bt(sTgt)+'/คน · แอดมิน '+bt(aTgt)+'/คน</div>';
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดรายงานไม่สำเร็จ: '+esc(String(e))+'</div>';}
 }

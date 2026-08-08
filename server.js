@@ -160,6 +160,9 @@ function sessName(req) {
   if (s.role === 'admin') return 'แอดมิน (' + (s.u || 'admin') + ')';
   return s.u || (s.side || '');
 }
+// ชื่อเล่นพนักงาน (ตรงกับ STAFF_NICK ฝั่ง app.html) — ใช้แมตช์ชื่อผู้ปิดการขายจาก Pancake → ชื่อเล่น
+const STAFF_NICK = [['chonlakarn', 'ไลลา'], ['yuki', 'ยูกิ'], ['ณิชาภา', 'ณชา'], ['ขวัญเอ๊าะ', 'เขม'], ['namwhan', 'หวาน'], ['numwhan', 'หวาน'], ['ชาเย็น', 'พี่โม']];
+function nickName(full) { const s = String(full || '').toLowerCase(); for (const kv of STAFF_NICK) { if (s.includes(kv[0])) return kv[1]; } return ''; }
 
 const app = express();
 app.disable('x-powered-by');
@@ -749,6 +752,8 @@ const ONECALL_MAX = 60000;    // cap stored call records
 const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 50;     // Evolution database calls / day
 const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 15; // FB + Follow-up calls/day (T1+T2+T3 = 5+5+5, counted per call)
 const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
+const SALES_REV_TARGET = Number(process.env.SALES_REV_TARGET) || 100000; // เป้ายอดขายเซลล์ (เทเลเซลล์) ต่อคน/เดือน
+const ADMIN_REV_TARGET = Number(process.env.ADMIN_REV_TARGET) || 200000; // เป้ายอดขายแอดมิน (ตอบแชท) ต่อคน/เดือน
 // FB KPI matching baseline: from this moment on, an FB call only counts if it's to a
 // closed-sale/refill lead in the system. Before it (migration day) we credit every real
 // (>7s) non-Evolution call, because the closed-sale list wasn't complete yet.
@@ -1058,11 +1063,11 @@ app.get('/api/mysent', requireDistributor, (req, res) => {
 // Query: from, to (ISO). Real >7s talk time is filled by the OneCall integration (Phase 4).
 const SALES_NAMES = { W: 'Namwhan (น้ำหวาน)', K: 'Khem (เขม)' };
 function saleRev(r) { return (r.saleItems || []).reduce((s, i) => s + (Number(i.price) || 0), 0); }
-app.get('/api/admin/kpi', requireAuth, async (req, res) => {
+async function computeSalesKpi(fromQ, toQ) {
   await runSweep();
   const now = Date.now();
-  let to = req.query.to ? Date.parse(req.query.to) : now;
-  let from = req.query.from ? Date.parse(req.query.from) : (now - 6 * 86400000);
+  let to = fromQ != null && toQ != null ? Date.parse(toQ) : (toQ ? Date.parse(toQ) : now);
+  let from = fromQ ? Date.parse(fromQ) : (now - 6 * 86400000);
   if (isNaN(to)) to = now;
   if (isNaN(from)) from = to - 6 * 86400000;
   // "Today" boundaries in Thailand time (UTC+7, no DST) so the KPI day matches the sales team's day
@@ -1161,13 +1166,16 @@ app.get('/api/admin/kpi', requireAuth, async (req, res) => {
     A.calledEvoRange = calledR[sd].evo.size; A.calledManualRange = calledR[sd].manual.size;
     A.calledEvoToday = calledT[sd].evo.size; A.calledManualToday = calledT[sd].manual.size;
   }
-  res.json({
+  return {
     from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(),
     names: SALES_NAMES, W: sides.W, K: sides.K,
     onecall: (state.onecall || []).length > 0, onecallUpdatedAt: state.onecallUpdatedAt || null,
-    targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL, rev: KPI_TARGET_REV },
+    targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL, rev: KPI_TARGET_REV, salesMonthly: SALES_REV_TARGET, adminMonthly: ADMIN_REV_TARGET },
     kpiFbMatchFrom: new Date(KPI_FB_MATCH_FROM).toISOString(),
-  });
+  };
+}
+app.get('/api/admin/kpi', requireAuth, async (req, res) => {
+  res.json(await computeSalesKpi(req.query.from, req.query.to));
 });
 
 // OneCall call analytics for the dashboard charts: per-side totals, avg talk seconds,
@@ -1523,13 +1531,12 @@ function orderSource(o) {
   const channel = /face|insta|messenger|line|zalo|tiktok|shopee|lazada/.test(src);
   return (linked || channel) ? 'admin' : 'telesales';
 }
-app.get('/api/admin/sales-source', requireAuth, async (req, res) => {
-  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
-  const toTs = req.query.to ? Date.parse(req.query.to) : Date.now();
-  const fromTs = req.query.from ? Date.parse(req.query.from) : (toTs - 7 * 86400000);
+async function computePancakeSales(fromISO, toISO, all) {
+  const toTs = toISO ? Date.parse(toISO) : Date.now();
+  const fromTs = fromISO ? Date.parse(fromISO) : (toTs - 7 * 86400000);
   const from = isFinite(fromTs) ? fromTs : (Date.now() - 7 * 86400000);
   const to = isFinite(toTs) ? toTs : Date.now();
-  const skip = req.query.all === '1' ? new Set() : PANCAKE_SKIP_STATUS;
+  const skip = all ? new Set() : PANCAKE_SKIP_STATUS;
   const thDay = (iso) => new Date((Date.parse(iso) || 0) + 7 * 3600000).toISOString().slice(0, 10);
   const blank = () => ({ admin: { orders: 0, revenue: 0 }, telesales: { orders: 0, revenue: 0 } });
   const total = blank(); const byDay = {}; const byCloser = {}; const byPage = {};
@@ -1576,8 +1583,14 @@ app.get('/api/admin/sales-source', requireAuth, async (req, res) => {
       if (j.data.length < 100) break;
       if (allOlder && page > 1) break;
     }
-    res.json({ ok: true, from: new Date(from).toISOString(), to: new Date(to).toISOString(), scanned, counted, pages, total, byDay, byCloser, byPage, byProduct, orders, sample });
-  } catch (e) { res.status(500).json({ error: String(e), scanned, pages }); }
+    return { ok: true, from, to, scanned, counted, pages, total, byDay, byCloser, byPage, byProduct, orders, sample };
+  } catch (e) { return { error: String(e), scanned, pages }; }
+}
+app.get('/api/admin/sales-source', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
+  const r = await computePancakeSales(req.query.from, req.query.to, req.query.all === '1');
+  if (r.error) return res.status(500).json(r);
+  res.json(Object.assign({}, r, { from: new Date(r.from).toISOString(), to: new Date(r.to).toISOString() }));
 });
 // Customer 360: live profile from Pancake (LTV, order history, VIP tier, reorder cycle).
 // Sales can call this when opening a lead. Cached briefly per phone to spare the API.
@@ -2054,19 +2067,20 @@ function pkChatTemplates() {
   return state.chatTemplates;
 }
 
-app.get('/api/chat/today-summary', requireChat, async (req, res) => {
-  if (!pkChatConfigured()) return res.json({ tot: 0, wait: 0, ans: 0 });
-  let cs;
-  try { cs = await pkEnsurePages(false); } catch (_) { return res.json({ tot: 0, wait: 0, ans: 0 }); }
-  const TZ = 7 * 3600000;
-  const nowTh = new Date(Date.now() + TZ);
-  const startTh = Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
+// นับแชท INBOX ตั้งแต่ startMs (ms) จนถึงปัจจุบัน แบบไล่หน้าครบทุกหน้า (ไม่จำกัด 300)
+// คืน { tot, wait, byNick } — byNick = จำนวนแชทที่แต่ละคน (ชื่อเล่น) เป็นคนตอบล่าสุด
+const _convTallyCache = new Map(); // startMs -> { at, data }
+async function pkConvTally(startMs, maxGuard) {
+  const cached = _convTallyCache.get(startMs);
+  if (cached && (Date.now() - cached.at) < 5 * 60 * 1000) return cached.data;
+  const cs = await pkEnsurePages(false);
   const pms = (s) => { s = String(s || ''); if (!s) return NaN; if (!/([Zz]|[+-]\d\d:?\d\d)$/.test(s)) s = s.replace(' ', 'T') + 'Z'; return Date.parse(s); };
-  let tot = 0, wait = 0;
+  const guardMax = maxGuard || 120;
+  let tot = 0, wait = 0; const byNick = {};
   await Promise.all(cs.pages.map(async (p) => {
     const tok = cs.tokens[p.id]; if (!tok) return;
     let last = null;
-    for (let guard = 0; guard < 80; guard++) {
+    for (let guard = 0; guard < guardMax; guard++) {
       let u = PK_CHAT_HOST + '/api/public_api/v2/pages/' + encodeURIComponent(p.id) + '/conversations?page_access_token=' + encodeURIComponent(tok) + '&type=INBOX&order_by=updated_at';
       if (last) u += '&last_conversation_id=' + encodeURIComponent(last);
       let arr = [];
@@ -2076,17 +2090,75 @@ app.get('/api/chat/today-summary', requireChat, async (req, res) => {
       for (const c of arr) {
         const t = pms(c.updated_at || c.inserted_at);
         if (isNaN(t)) continue;
-        if (t < startTh) { stop = true; break; }
+        if (t < startMs) { stop = true; break; }
         tot++;
         const lsb = c.last_sent_by || {};
-        if (!(lsb.admin_id || lsb.uid || lsb.admin_name)) wait++;
+        const an = String(lsb.admin_name || '');
+        if (!(lsb.admin_id || lsb.uid || an)) { wait++; }
+        else if (an) { const nk = nickName(an) || an; byNick[nk] = (byNick[nk] || 0) + 1; }
       }
       if (stop) break;
       last = arr[arr.length - 1] && arr[arr.length - 1].id;
       if (!last) break;
     }
   }));
-  res.json({ tot, wait, ans: tot - wait });
+  const data = { tot, wait, byNick };
+  _convTallyCache.set(startMs, { at: Date.now(), data });
+  return data;
+}
+function thMonthStartMs() {
+  const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
+  return Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), 1, 0, 0, 0) - TZ;
+}
+function thTodayStartMs() {
+  const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
+  return Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
+}
+app.get('/api/chat/today-summary', requireChat, async (req, res) => {
+  if (!pkChatConfigured()) return res.json({ tot: 0, wait: 0, ans: 0 });
+  try { const r = await pkConvTally(thTodayStartMs(), 80); res.json({ tot: r.tot, wait: r.wait, ans: r.tot - r.wait }); }
+  catch (_) { res.json({ tot: 0, wait: 0, ans: 0 }); }
+});
+
+// Dashboard ภาพรวมของฉัน — เซลล์ (เทเลเซลล์) เห็นเฉพาะ KPI ของตัวเอง (เดือนนี้)
+app.get('/api/sales/my-kpi', requireCrm, async (req, res) => {
+  const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : 'W');
+  const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
+  const monthStart = new Date(Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), 1) - TZ).toISOString();
+  const k = await computeSalesKpi(monthStart, new Date().toISOString());
+  const A = k[side] || {};
+  res.json({
+    ok: true, side, name: (k.names && k.names[side]) || side, target: SALES_REV_TARGET,
+    rev: Math.round(A.revRange || 0), won: A.wonRange || 0,
+    total: A.total || 0, called: A.called || 0, notCalled: A.notCalled || 0,
+    callsToday: A.callsToday || 0, wonToday: A.wonToday || 0,
+    month: nowTh.getUTCFullYear() + '-' + String(nowTh.getUTCMonth() + 1).padStart(2, '0'),
+  });
+});
+
+// Dashboard ภาพรวมของฉัน — แอดมินตอบแชท เห็นเฉพาะ KPI ของตัวเอง (เดือนนี้)
+app.get('/api/chat/my-kpi', requireChat, async (req, res) => {
+  const myNick = sessName(req);   // ชื่อเล่นของแอดมินที่ล็อกอิน (ไลลา/ยูกิ)
+  const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
+  const monthStart = new Date(Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), 1) - TZ).toISOString();
+  let rev = 0, closed = 0;
+  if (PANCAKE_API_KEY) {
+    try {
+      const ps = await computePancakeSales(monthStart, new Date().toISOString(), false);
+      for (const nm in (ps.byCloser || {})) {
+        if (nickName(nm) === myNick) { rev += ps.byCloser[nm].admin.revenue || 0; closed += ps.byCloser[nm].admin.orders || 0; }
+      }
+    } catch (_) {}
+  }
+  let chatsTotal = 0, chatsAnswered = 0;
+  if (pkChatConfigured()) {
+    try { const t = await pkConvTally(thMonthStartMs(), 120); chatsTotal = t.tot; chatsAnswered = t.byNick[myNick] || 0; } catch (_) {}
+  }
+  res.json({
+    ok: true, name: myNick, target: ADMIN_REV_TARGET,
+    rev: Math.round(rev), closed, chatsAnswered, chatsTotal,
+    month: nowTh.getUTCFullYear() + '-' + String(nowTh.getUTCMonth() + 1).padStart(2, '0'),
+  });
 });
 
 app.get('/api/chat/templates', requireChat, (req, res) => res.json({ templates: pkChatTemplates(), statuses: PK_CHAT_STATUSES }));
