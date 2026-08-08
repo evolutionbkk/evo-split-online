@@ -90,6 +90,10 @@
   .kmetric{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid #f4f6fa}
   .kmetric:last-child{border-bottom:0}
   .kmetric .v{font-weight:700;color:#0f172a;white-space:nowrap}
+  .hlp{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#e2e8f0;color:#475569;font-size:10px;font-weight:800;margin-left:5px;cursor:help;vertical-align:middle;flex:0 0 auto}
+  .hlp .tip{position:absolute;bottom:135%;left:-6px;width:236px;max-width:70vw;background:#0f172a;color:#fff;font-size:11.5px;font-weight:500;line-height:1.55;padding:9px 11px;border-radius:9px;opacity:0;visibility:hidden;transition:opacity .15s;z-index:60;text-align:left;white-space:normal;box-shadow:0 8px 22px rgba(0,0,0,.28);pointer-events:none}
+  .hlp:hover .tip,.hlp:focus .tip{opacity:1;visibility:visible}
+  .hlp .tip::after{content:"";position:absolute;top:100%;left:10px;border:6px solid transparent;border-top-color:#0f172a}
   .kbar{height:8px;border-radius:5px;background:#eef2f8;overflow:hidden;margin:2px 0 7px}
   .kbar>span{display:block;height:100%;background:linear-gradient(90deg,#16a34a,#22c55e)}
   @media(max-width:720px){.ktoday{grid-template-columns:repeat(2,1fr)}}
@@ -680,7 +684,7 @@ function personCard(side,name,a){
     <div class="kmetric"><span>กำลังติดต่อ / สนใจ</span><span class="v">${a.status.contacting} / ${a.status.interested}</span></div>
     <div class="kmetric"><span>นัดติดตาม / รับต่อมือ2</span><span class="v">${a.status.followup} / ${a.hand2}</span></div>
     <div class="kmetric"><span>ปิดการขาย / ไม่ปิด</span><span class="v"><span style="color:#166534">${a.status.won}</span> / <span style="color:#b42318">${a.status.lost}</span></span></div>
-    <div class="kmetric"><span>Lead ค้าง / เกินกำหนด</span><span class="v" style="color:#b45309">${a.pending}</span></div>
+    <div class="kmetric"><span style="display:inline-flex;align-items:center">Lead ค้าง / เกินกำหนด<span class="hlp" tabindex="0">?<span class="tip">ลูกค้าที่<b>ยังไม่ปิดการขาย</b> และยังไม่ตัดว่าไม่เอา แต่<b>เลยวันนัดแล้ว</b> หรือ<b>เงียบหาย ไม่ได้โทร/อัปเดตนานเกิน 3 วัน</b> · เลขยิ่งเยอะ = มีลูกค้าที่ลืมตามเยอะ ควรรีบตามให้ทัน</span></span></span><span class="v" style="color:#b45309">${a.pending}</span></div>
     <div class="kmetric"><span>สายที่โทร (${lbl})</span><span class="v">${a.callsRange}</span></div>
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
       <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
