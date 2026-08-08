@@ -1986,13 +1986,19 @@ function pkMsgDir(m, custPsid) {
   return 'in';                  // customer id unknown → safest default
 }
 function pkMsgNorm(m, custPsid) {
-  const atts = (m.attachments || []).map((a) => ({ type: String(a.type || ''), url: String(a.url || a.link || ''), mime: String(a.mime_type || '') })).filter((a) => a.url);
+  const atts = (m.attachments || []).map((a) => {
+    const url = a.url || a.link || (a.payload && (a.payload.url || a.payload.src)) || a.image_url || a.thumbnail_url || a.thumbnail || '';
+    return { type: String(a.type || ''), url: String(url || ''), mime: String(a.mime_type || '') };
+  }).filter((a) => a.url || a.type);
   let text = m.original_message;
   if (text == null || !String(text).trim()) text = pkStripHtml(m.message);
-  return {
+  const sticker = String(m.sticker_url || m.sticker || (m.attachment && (m.attachment.sticker_url || m.attachment.url)) || '');
+  const out = {
     id: String(m.id || ''), dir: pkMsgDir(m, custPsid), text: String(text || ''),
-    at: m.inserted_at || null, fromName: String((m.from && (m.from.name || m.from.admin_name)) || ''), atts,
+    at: m.inserted_at || null, fromName: String((m.from && (m.from.name || m.from.admin_name)) || ''), atts, sticker,
   };
+  if (!out.text && !atts.length && !sticker) out._dbg = JSON.stringify(m).slice(0, 500); // TEMP debug: inspect empty (sticker/emoji) messages
+  return out;
 }
 
 // ---------- Chat admin add-ons: per-conversation status/notes, quick-reply templates, reply audit log ----------
