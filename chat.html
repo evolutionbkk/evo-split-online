@@ -113,6 +113,9 @@
   .hbtn:hover{background:rgba(255,255,255,.26)}
   .metabar{background:#fff;border-bottom:1px solid var(--line);padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:0 0 auto}
   .metabar .lbl{font-size:11.5px;color:#94a3b8;font-weight:700;margin-right:2px}
+  .gist{background:#fffbeb;border-bottom:1px solid #fde68a;color:#92400e;padding:7px 14px;font-size:12.5px;flex:0 0 auto;display:flex;gap:7px;align-items:baseline}
+  .gist b{color:#b45309;font-weight:700;flex:0 0 auto}
+  .gist span{color:#78350f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .stchip{border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer;transition:.12s}
   .stchip:hover{border-color:#c7d5ea}
   .stchip.on{color:#fff;border-color:transparent}
@@ -291,6 +294,7 @@ function renderThreadShell(c){
       '<div class="ti"><div class="tn">'+esc(c.name)+'</div><div class="tm" id="tmeta"><span>'+esc(c.pageName)+'</span>'+(c.phone?('<span>📞 <b>'+esc(c.phone)+'</b></span>'):'')+'</div></div>'+
     '</div>'+
     '<div class="metabar" id="metabar"></div>'+
+    '<div class="gist" id="chatGist" style="display:none"></div>'+
     '<div class="win" id="winNote" style="display:none">เลย 24 ชม.แล้ว — Facebook อาจไม่ให้ส่งข้อความปกติ</div>'+
     '<div class="msgs" id="msgs"><div class="loading"><div class="spin"></div></div></div>'+
     '<div class="composer">'+
@@ -315,6 +319,7 @@ async function loadMsgs(showSpin){
   if(!j||!OPEN||OPEN.id!==cur.id)return;
   CUR_MSGS=j.messages||[];
   renderMsgs(CUR_MSGS,showSpin);
+  renderGist();
   if(j.customer){
     const cu=j.customer;const tm=$('#tmeta');if(tm){
       let h='<span>'+esc(cur.conv.pageName)+'</span>';
@@ -347,6 +352,15 @@ function renderMsgs(msgs,force){
   }
   el.innerHTML=h||'<div class="empty"><div>ยังไม่มีข้อความ</div></div>';
   if(near||force)el.scrollTop=el.scrollHeight;
+}
+// snippet ช่วยจำ (ฟรี ไม่ใช้ AI): ดึงข้อความแรกที่ลูกค้าทักมา ให้เห็นว่าแชทนี้เริ่มคุยเรื่องอะไร
+function renderGist(){
+  const el=$('#chatGist');if(!el)return;
+  let first='';
+  for(const m of CUR_MSGS){ if(m.dir==='in'&&m.text&&m.text.trim()){ first=m.text.trim(); break; } }
+  if(!first){el.style.display='none';return;}
+  el.innerHTML='<b>💬 ลูกค้าเริ่มถาม:</b><span title="'+esc(first)+'">'+esc(first)+'</span>';
+  el.style.display='flex';
 }
 
 async function doSend(){
