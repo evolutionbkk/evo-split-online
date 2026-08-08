@@ -2137,7 +2137,7 @@ app.get('/api/chat/conversations', requireChat, async (req, res) => {
       const r = await pkFetch(u, {}, p.id);
       const j = await r.json().catch(() => null);
       const arr = (j && Array.isArray(j.conversations)) ? j.conversations : [];
-      return arr.map((c) => { const n = pkConvNorm(c, p.id, p.name, p.platform); if (c.last_sent_by) n._lsb = JSON.stringify(c.last_sent_by).slice(0, 200); const meta = pkChatMeta()[n.id]; if (meta) { n.status = meta.status || ''; n.hasNote = !!(meta.note && String(meta.note).trim()); n.claimedBy = meta.claimedBy || ''; } return n; });
+      return arr.map((c) => { const n = pkConvNorm(c, p.id, p.name, p.platform); n.lastAdminName = String((c.last_sent_by && c.last_sent_by.admin_name) || ''); const meta = pkChatMeta()[n.id]; if (meta) { n.status = meta.status || ''; n.hasNote = !!(meta.note && String(meta.note).trim()); n.claimedBy = meta.claimedBy || ''; } return n; });
     } catch (_) { return []; }
   }));
   let convs = [].concat(...results);

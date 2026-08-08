@@ -554,6 +554,20 @@ function chatKpiSet(m){CHATKPI_MODE=m;document.querySelectorAll('#chatKpiRange .
 function chatKpiCustomGo(){const f=document.getElementById('ckFrom').value,t=document.getElementById('ckTo').value;if(!f||!t)return;CHATKPI_CUSTOM={from:new Date(f+'T00:00:00').toISOString(),to:new Date(t+'T23:59:59').toISOString()};CHATKPI_MODE='custom';loadChatKpi();}
 function chatKpiMonthGo(){const mo=document.getElementById('ckMonth').value;if(!mo)return;const from=new Date(mo+'-01T00:00:00');const to=new Date(from.getFullYear(),from.getMonth()+1,0,23,59,59);CHATKPI_CUSTOM={from:from.toISOString(),to:to.toISOString()};CHATKPI_MODE='custom';loadChatKpi();}
 function fmtResp(s){if(s==null)return '—';s=Math.round(s);if(s<60)return s+' วิ';const mnt=Math.floor(s/60),sec=s%60;if(mnt<60)return mnt+' นาที'+(sec?' '+sec+' วิ':'');const hr=Math.floor(mnt/60);return hr+' ชม '+(mnt%60)+' นาที';}
+function parseUTC(s){s=String(s||'');if(!/([Zz]|[+-]\d\d:?\d\d)$/.test(s))s=s.replace(' ','T')+'Z';return Date.parse(s);}
+// นับ "แชทที่ตอบ" ต่อคน จาก Pancake: แชทที่แอดมิน (ชื่อเล่น) เป็นคนส่งข้อความล่าสุด และอัปเดตในช่วงเวลานั้น
+async function chatAnswerCounts(from,to){
+  try{
+    const cj=await fetch('/api/chat/conversations',{credentials:'same-origin'}).then(r=>r.json());
+    const fromT=Date.parse(from),toT=Date.parse(to),out={};
+    for(const c of (cj.conversations||[])){
+      const nk=nickName(c.lastAdminName||'');if(!nk)continue;
+      const t=parseUTC(c.updatedAt);if(isNaN(t)||t<fromT||t>toT)continue;
+      out[nk]=(out[nk]||0)+1;
+    }
+    return out;
+  }catch(e){return {};}
+}
 async function loadChatKpi(){
   const box=document.getElementById('chatKpiBox');if(!box)return;
   const{from,to}=chatKpiRangeFor(CHATKPI_MODE);
@@ -569,16 +583,17 @@ async function loadChatKpi(){
     // ปิดการขายจริงจาก Pancake orders (ออเดอร์ที่ปิดจากแชท FB) แมตช์ชื่อเล่นไลลา/ยูกิ
     const closedByNick={},revByNick={};
     if(ss&&ss.byCloser){for(const nm in ss.byCloser){const nk=nickName(nm);if(!nk)continue;const v=ss.byCloser[nm];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
+    const ans=await chatAnswerCounts(from,to);
     const pancakeOk=!!(ss&&ss.byCloser);
     let h='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชท</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย'+(pancakeOk?' (Pancake)':'')+'</th></tr></thead><tbody>';
     for(const a of j.admins){
       const cls=closedByNick[a.name]||0,rev=Math.round(revByNick[a.name]||0);
       h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(a.name)+'</td>'+
-         '<td style="text-align:center;font-weight:800;font-size:16px">'+a.chats+'</td>'+
+         '<td style="text-align:center;font-weight:800;font-size:16px">'+(ans[a.name]!=null?ans[a.name]:a.chats)+'</td>'+
          '<td style="text-align:center;font-weight:700;color:'+(a.avgRespSec!=null&&a.avgRespSec<=300?'#166534':(a.avgRespSec!=null?'#b45309':'#94a3b8'))+'">'+fmtResp(a.avgRespSec)+'</td>'+
          '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+(pancakeOk?(cls+(rev?'<div style="font-size:11px;font-weight:600;color:#15803d">฿'+rev.toLocaleString('en-US')+'</div>':'')):'—')+'</td></tr>';
     }
-    h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชท/ตอบเฉลี่ย</b> = จากการตอบผ่านระบบ (เริ่มเก็บหลังเปิดใช้งาน) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake (ยอดจริง) · ความเร็วตอบละเอียดดูเพิ่มได้ในรายงาน Pancake</div>';
+    h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชท</b> = แชทที่แอดมินตอบล่าสุด (นับจาก Pancake) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake · <b>ตอบเฉลี่ย</b> = จากการตอบผ่านระบบนี้เท่านั้น (Pancake API ไม่เปิดให้ดึงเวลาตอบต่อคน)</div>';
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
@@ -630,11 +645,12 @@ async function loadReport(){
     h+='</tbody></table></div>';
     const closedByNick={},revByNick={};
     if(ss&&ss.byCloser){for(const k in ss.byCloser){const nk=nickName(k);if(!nk)continue;const v=ss.byCloser[k];closedByNick[nk]=(closedByNick[nk]||0)+((v.admin&&v.admin.orders)||0);revByNick[nk]=(revByNick[nk]||0)+((v.admin&&v.admin.revenue)||0);}}
+    const ans2=await chatAnswerCounts(rg.from,rg.to);
     h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">💬 ทีมแอดมิน (ตอบแชท)</div>';
     h+='<div class="tblwrap"><table style="min-width:600px"><thead><tr><th>แอดมิน</th><th style="text-align:center">แชทที่ตอบ</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
     for(const ad of ((chat&&chat.admins)||[])){
       h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(ad.name)+'</td>'+
-         '<td style="text-align:center;font-weight:800">'+ad.chats+'</td>'+
+         '<td style="text-align:center;font-weight:800">'+(ans2[ad.name]!=null?ans2[ad.name]:ad.chats)+'</td>'+
          '<td style="text-align:center">'+fmtResp(ad.avgRespSec)+'</td>'+
          '<td style="text-align:center;font-weight:800;color:#166534">'+(closedByNick[ad.name]||0)+'</td>'+
          '<td style="text-align:right;font-weight:700;color:#166534">'+bt(revByNick[ad.name]||0)+'</td>'+
