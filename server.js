@@ -2034,7 +2034,7 @@ app.get('/api/chat/meta', requireChat, (req, res) => {
   res.json({ statuses: PK_CHAT_STATUSES, meta: pkChatMeta()[id] || null });
 });
 app.post('/api/chat/meta', requireChat, async (req, res) => {
-  const { conversation_id, status, note } = req.body || {};
+  const { conversation_id, status, note, amount } = req.body || {};
   const id = String(conversation_id || ''); if (!id) return res.status(400).json({ error: 'bad_request' });
   const meta = pkChatMeta(); const cur = meta[id] || {};
   if (status !== undefined) {
@@ -2042,6 +2042,7 @@ app.post('/api/chat/meta', requireChat, async (req, res) => {
     if (cur.status === 'closed') { cur.closedBy = sessName(req); cur.closedAt = new Date().toISOString(); } // ปิดการขาย: ใครปิด + เมื่อไหร่ (ใช้ทำ KPI)
   }
   if (note !== undefined) cur.note = String(note || '').slice(0, 1000);
+  if (amount !== undefined) { let a = Number(amount); if (!isFinite(a) || a < 0) a = 0; cur.closedAmount = Math.round(a * 100) / 100; }
   cur.updatedAt = new Date().toISOString(); cur.by = sessName(req);
   meta[id] = cur; state.chatMeta = meta; state = await store.save(state);
   res.json({ ok: true, meta: cur });

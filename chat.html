@@ -288,7 +288,7 @@ async function openConv(pageId,id){
   const c=CONVS.find(x=>x.id===id&&x.pageId===pageId);
   if(!c)return;
   OPEN={id,pageId,conv:c};
-  CUR_META={status:c.status||'',note:''};
+  CUR_META={status:c.status||'',note:'',amount:''};
   renderConvs();
   $('#bodyWrap').classList.add('thread');
   renderThreadShell(c);
@@ -324,6 +324,7 @@ function renderThreadShell(c){
         '<div class="tp-cust" id="tpCust"><div class="nm">'+esc(c.name)+'</div>'+(c.phone?('<div>📞 '+esc(c.phone)+'</div>'):'')+'<div style="color:#94a3b8;font-size:12.5px">'+esc(c.pageName)+'</div></div>'+
         '<div class="tp-sec">สถานะแชท</div>'+
         '<div class="tp-status" id="tpStatus"></div>'+
+        '<div id="tpPrice"></div>'+
         '<div class="tp-sec">โน้ตภายใน (ช่วยจำ)</div>'+
         '<textarea id="noteta" class="tp-note" placeholder="สรุป/โน้ตเกี่ยวกับลูกค้ารายนี้ (เห็นเฉพาะแอดมิน)" onblur="saveNote()"></textarea>'+
       '</div>'+
@@ -418,16 +419,19 @@ function stTag(k){const m=stMeta(k);return m?'<span class="ci-st" style="backgro
 async function loadMeta(pageId,id){
   const j=await jget('/api/chat/meta?conversation_id='+encodeURIComponent(id));
   if(!OPEN||OPEN.id!==id)return;
-  CUR_META=(j&&j.meta)?{status:j.meta.status||'',note:j.meta.note||''}:{status:'',note:''};
+  CUR_META=(j&&j.meta)?{status:j.meta.status||'',note:j.meta.note||'',amount:(j.meta.closedAmount!=null?j.meta.closedAmount:'')}:{status:'',note:'',amount:''};
   renderMeta();
 }
 function toggleTools(){const p=$('#toolPanel');if(p)p.classList.toggle('open');}
 function renderMeta(){
   const el=$('#tpStatus');
   if(el){let h='';for(const s of STATUSES){const on=CUR_META.status===s.k;h+='<button class="stchip'+(on?' on':'')+'" style="'+(on?('background:'+s.color):'')+'" onclick="setStatus(\''+s.k+'\')">'+esc(s.label)+'</button>';}el.innerHTML=h;}
+  const pe=$('#tpPrice');
+  if(pe){ if(CUR_META.status==='closed'){ const v=(CUR_META.amount!=null&&CUR_META.amount!=='')?CUR_META.amount:''; pe.innerHTML='<div class="tp-sec" style="color:#166534">💰 ยอดปิดการขาย (บาท)</div><input id="closeAmt" class="tp-note" style="min-height:auto;padding:9px 11px" type="number" min="0" inputmode="decimal" placeholder="เช่น 990" value="'+esc(v)+'" onblur="saveAmount()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'; } else pe.innerHTML=''; }
   const ta=$('#noteta');if(ta&&document.activeElement!==ta)ta.value=CUR_META.note||'';
   const tb=$('#toolBtn');if(tb){const st=stMeta(CUR_META.status);tb.innerHTML=st?('⚙ '+esc(st.label)):('⚙ เครื่องมือ'+(CUR_META.note?' <span style="color:#16a34a">●</span>':''));}
 }
+async function saveAmount(){ if(!OPEN)return; const el=$('#closeAmt'); if(!el)return; let v=parseFloat(el.value); if(!isFinite(v)||v<0)v=0; CUR_META.amount=v; await jpost('/api/chat/meta',{conversation_id:OPEN.id,amount:v}); toast('บันทึกยอด ฿'+v.toLocaleString()); }
 async function setStatus(k){
   if(!OPEN)return;
   const nk=CUR_META.status===k?'':k;
@@ -479,7 +483,7 @@ async function openLog(){
   $('#logBody').innerHTML=h;
 }
 function closeLog(){$('#logModal').classList.remove('show');}
-window.setStatus=setStatus;window.toggleNote=toggleNote;window.toggleTools=toggleTools;window.saveNote=saveNote;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;
+window.setStatus=setStatus;window.toggleNote=toggleNote;window.toggleTools=toggleTools;window.saveNote=saveNote;window.saveAmount=saveAmount;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;
 function startPolling(){clearInterval(POLL_C);POLL_C=setInterval(()=>loadConvs(false),15000);}
 $('#q').addEventListener('input',renderConvs);
 window.closeThread=closeThread;
