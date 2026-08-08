@@ -2037,7 +2037,10 @@ app.post('/api/chat/meta', requireChat, async (req, res) => {
   const { conversation_id, status, note } = req.body || {};
   const id = String(conversation_id || ''); if (!id) return res.status(400).json({ error: 'bad_request' });
   const meta = pkChatMeta(); const cur = meta[id] || {};
-  if (status !== undefined) cur.status = PK_CHAT_STATUS_KEYS.includes(String(status)) ? String(status) : '';
+  if (status !== undefined) {
+    cur.status = PK_CHAT_STATUS_KEYS.includes(String(status)) ? String(status) : '';
+    if (cur.status === 'closed') { cur.closedBy = sessName(req); cur.closedAt = new Date().toISOString(); } // ปิดการขาย: ใครปิด + เมื่อไหร่ (ใช้ทำ KPI)
+  }
   if (note !== undefined) cur.note = String(note || '').slice(0, 1000);
   cur.updatedAt = new Date().toISOString(); cur.by = sessName(req);
   meta[id] = cur; state.chatMeta = meta; state = await store.save(state);
@@ -2048,6 +2051,32 @@ app.get('/api/chat/log', requireChat, (req, res) => {
   const lim = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
   const log = pkChatLog();
   res.json({ log: log.slice(-lim).reverse(), total: log.length });
+});
+
+// Teamlead KPI for the chat admins (only the people in CHAT_USERS): จำนวนแชท · ความเร็วตอบ · ปิดการขาย
+app.get('/api/admin/chat-kpi', requireAuth, (req, res) => {
+  const now = Date.now();
+  let to = req.query.to ? Date.parse(req.query.to) : now;
+  let from = req.query.from ? Date.parse(req.query.from) : (now - 29 * 86400000);
+  if (isNaN(to)) to = now; if (isNaN(from)) from = to - 29 * 86400000;
+  const names = CHAT_USERS.map((c) => c.name);
+  const agg = {};
+  for (const nm of names) agg[nm] = { name: nm, chats: new Set(), replies: 0, respTotal: 0, respCount: 0, closed: 0 };
+  for (const e of pkChatLog()) {
+    const t = Date.parse(e.at); if (isNaN(t) || t < from || t > to) continue;
+    const a = agg[e.by]; if (!a) continue;
+    a.replies++; if (e.convId) a.chats.add(e.convId);
+    if (typeof e.respSec === 'number') { a.respTotal += e.respSec; a.respCount++; }
+  }
+  const meta = pkChatMeta();
+  for (const id of Object.keys(meta)) {
+    const m = meta[id]; if (!m || m.status !== 'closed' || !m.closedBy) continue;
+    const t = m.closedAt ? Date.parse(m.closedAt) : NaN;
+    if (isNaN(t) || t < from || t > to) continue;
+    const a = agg[m.closedBy]; if (a) a.closed++;
+  }
+  const admins = names.map((nm) => { const a = agg[nm]; return { name: nm, chats: a.chats.size, replies: a.replies, avgRespSec: a.respCount ? Math.round(a.respTotal / a.respCount) : null, closed: a.closed }; });
+  res.json({ ok: true, from: new Date(from).toISOString(), to: new Date(to).toISOString(), admins });
 });
 
 app.get('/inbox', requireChat, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
@@ -2120,7 +2149,12 @@ app.post('/api/chat/send', requireChat, async (req, res) => {
     if (j && (j.success || j.id)) {
       try {
         const log = pkChatLog();
-        log.push({ at: new Date().toISOString(), by: sessName(req), pageId: String(page_id), pageName: String((req.body && req.body.page_name) || ''), convId: String(conversation_id), custName: String((req.body && req.body.cust_name) || ''), message: String(message).slice(0, 2000) });
+        // response time = seconds between the customer's last message and this reply (only when
+        // replying directly to a customer message; frontend sends in_at only in that case)
+        let respSec = null;
+        const inAt = req.body && req.body.in_at;
+        if (inAt) { const d = (Date.now() - Date.parse(inAt)) / 1000; if (isFinite(d) && d >= 0 && d <= 3 * 86400) respSec = Math.round(d); }
+        log.push({ at: new Date().toISOString(), by: sessName(req), pageId: String(page_id), pageName: String((req.body && req.body.page_name) || ''), convId: String(conversation_id), custName: String((req.body && req.body.cust_name) || ''), message: String(message).slice(0, 2000), respSec });
         if (log.length > 3000) log.splice(0, log.length - 3000);
         state.chatLog = log; state = await store.save(state);
       } catch (_) {}

@@ -187,7 +187,7 @@
 <script>
 const $=(s,r)=>(r||document).querySelector(s);
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDING=false, TPLS=[], STATUSES=[], CUR_META={status:'',note:''};
+let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDING=false, TPLS=[], STATUSES=[], CUR_META={status:'',note:''}, CUR_MSGS=[];
 
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);}
 function plat(p){p=(p||'').toLowerCase();if(p.includes('face')||p.includes('fb'))return'fb';if(p.includes('line'))return'line';if(p.includes('insta')||p.includes('ig'))return'ig';return'';}
@@ -313,7 +313,8 @@ async function loadMsgs(showSpin){
   const cur=OPEN;
   const j=await jget('/api/chat/messages?page_id='+encodeURIComponent(cur.pageId)+'&conversation_id='+encodeURIComponent(cur.id));
   if(!j||!OPEN||OPEN.id!==cur.id)return;
-  renderMsgs(j.messages||[],showSpin);
+  CUR_MSGS=j.messages||[];
+  renderMsgs(CUR_MSGS,showSpin);
   if(j.customer){
     const cu=j.customer;const tm=$('#tmeta');if(tm){
       let h='<span>'+esc(cur.conv.pageName)+'</span>';
@@ -357,7 +358,8 @@ async function doSend(){
   const el=$('#msgs');
   if(el){el.insertAdjacentHTML('beforeend','<div class="bubble out" style="opacity:.55">'+esc(txt)+'</div><div class="bmeta out">กำลังส่ง…</div>');el.scrollTop=el.scrollHeight;}
   rt.value='';rt.style.height='auto';
-  const j=await jpost('/api/chat/send',{page_id:cur.pageId,conversation_id:cur.id,message:txt,page_name:cur.conv.pageName,cust_name:cur.conv.name});
+  const _last=CUR_MSGS[CUR_MSGS.length-1];const _inAt=(_last&&_last.dir==='in')?_last.at:null; // ตอบตรงข้อความลูกค้า → วัดเวลาตอบ
+  const j=await jpost('/api/chat/send',{page_id:cur.pageId,conversation_id:cur.id,message:txt,page_name:cur.conv.pageName,cust_name:cur.conv.name,in_at:_inAt});
   SENDING=false;$('#sb').disabled=false;
   if(j&&j.ok){await loadMsgs(false);loadConvs(false);}
   else{toast('ส่งไม่สำเร็จ: '+((j&&j.error)||'error'));rt.value=txt;await loadMsgs(false);}

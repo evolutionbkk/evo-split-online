@@ -164,6 +164,17 @@
     <div id="tierBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
 
+  <div class="panel" data-sec="overview" id="chatKpiPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (ไลลา · ยูกิ) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="desc">วัดจากการตอบแชทผ่านระบบ · <b>จำนวนแชท</b> = แชทที่ตอบ (ไม่นับซ้ำ) · <b>ตอบเฉลี่ย</b> = เวลาเฉลี่ยจากที่ลูกค้าทักถึงที่ตอบ · <b>ปิดการขาย</b> = แชทที่กดสถานะ "ปิดได้"</div>
+    <div class="krange" id="chatKpiRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center">
+      <button class="kr" data-r="today" onclick="chatKpiSet('today')">วันนี้</button>
+      <button class="kr on" data-r="30" onclick="chatKpiSet('30')">30 วัน</button>
+      <button class="kr" data-r="month" onclick="chatKpiSet('month')">เดือนนี้</button>
+    </div>
+    <div id="chatKpiBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
+  </div>
+
   <div class="panel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
     <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
@@ -484,6 +495,7 @@ async function refresh(){
   LAST={W:s.W,K:s.K}; renderTables();
   DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff();
   loadTiers();
+  loadChatKpi();
 }
 async function loadTiers(){
   const box=document.getElementById('tierBox'); if(!box)return;
@@ -500,6 +512,38 @@ async function loadTiers(){
       });
     }
     h+='</tbody></table></div>';
+    box.innerHTML=h;
+  }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
+}
+// ===== Admin chat KPI (ไลลา · ยูกิ) =====
+let CHATKPI_MODE='30';
+function chatKpiRangeFor(m){
+  const end=new Date();end.setHours(23,59,59,999);
+  const start=new Date();
+  if(m==='today')start.setHours(0,0,0,0);
+  else if(m==='month'){start.setDate(1);start.setHours(0,0,0,0);}
+  else{start.setDate(start.getDate()-29);start.setHours(0,0,0,0);}
+  return{from:start.toISOString(),to:end.toISOString()};
+}
+function chatKpiSet(m){CHATKPI_MODE=m;document.querySelectorAll('#chatKpiRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));loadChatKpi();}
+function fmtDur(s){if(s==null)return '—';s=Math.round(s);if(s<60)return s+' วิ';const mnt=Math.floor(s/60),sec=s%60;if(mnt<60)return mnt+' น'+(sec?' '+sec+' วิ':'');const hr=Math.floor(mnt/60);return hr+' ชม '+(mnt%60)+' น';}
+async function loadChatKpi(){
+  const box=document.getElementById('chatKpiBox');if(!box)return;
+  const{from,to}=chatKpiRangeFor(CHATKPI_MODE);
+  const lbl={today:'วันนี้','30':'30 วันล่าสุด',month:'เดือนนี้'}[CHATKPI_MODE]||'';
+  const lblEl=document.getElementById('chatKpiLbl');if(lblEl)lblEl.textContent=lbl;
+  try{
+    const j=await fetch('/api/admin/chat-kpi?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json());
+    if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
+    if(!j.admins||!j.admins.length){box.innerHTML='<div style="padding:14px;color:#94a3b8">ยังไม่ได้ตั้งค่าบัญชีแอดมินแชท (CHAT_USERS)</div>';return;}
+    let h='<div class="tblwrap"><table style="min-width:460px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชท</th><th style="text-align:center">ตอบเฉลี่ย</th><th style="text-align:center">ปิดการขาย</th></tr></thead><tbody>';
+    for(const a of j.admins){
+      h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(a.name)+'</td>'+
+         '<td style="text-align:center;font-weight:800;font-size:16px">'+a.chats+'</td>'+
+         '<td style="text-align:center;font-weight:700;color:'+(a.avgRespSec!=null&&a.avgRespSec<=300?'#166534':(a.avgRespSec!=null?'#b45309':'#94a3b8'))+'">'+fmtDur(a.avgRespSec)+'</td>'+
+         '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+a.closed+'</td></tr>';
+    }
+    h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px">นับเฉพาะแชทที่ตอบผ่านระบบ (เริ่มเก็บหลังเปิดใช้งาน) · "ปิดการขาย" นับจากที่แอดมินกดสถานะ "ปิดได้" ในแชท</div>';
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
