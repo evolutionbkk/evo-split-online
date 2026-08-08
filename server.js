@@ -348,11 +348,11 @@ app.post('/api/admin/adminleave', requireAuth, async (req, res) => {
 // ---------- lead CRM (per-salesperson status tracking) ----------
 const UNREACH_REASONS = ['ไม่สะดวกคุย', 'ไม่รับสาย', 'ปิดเครื่อง', 'พบช่องทางอื่นที่ถูกกว่า', 'สะดวกสั่งซื้อช่องทางอื่น'];
 const REACH_STATUS = ['not_ready', 'appointment', 'closed'];
-const ARCH_REASONS = ['unreachable', 'bad_data', 'duplicate'];
+const ARCH_REASONS = ['unreachable', 'bad_data', 'duplicate', 'stopped'];
 // New CRM taxonomy (replaces the old reachStatus/contact model in the UI; legacy fields kept for back-compat)
 const LEAD_STATUS_KEYS = ['new', 'contacting', 'interested', 'followup', 'won', 'lost'];
 const CALL_RESULT_KEYS = ['no_answer', 'connected', 'hung_up', 'wrong_number'];
-const INTEREST_KEYS = ['hot', 'warm', 'cold'];
+const INTEREST_KEYS = ['hot', 'warm', 'cold', 'churned'];
 const NEXT_ACTION_KEYS = ['callback', 'send_info', 'meeting'];
 const LOST_REASONS = ['ราคาแพง', 'ซื้อที่อื่น', 'ไม่มีงบ', 'ติดต่อไม่ได้', 'ไม่สนใจ', 'อื่นๆ'];
 // Sale line items captured when a lead is Won: [{name, price}]
@@ -406,7 +406,9 @@ function leadView(r, ocMap) {
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
-    archived: !!r.archived, archiveReason: r.archiveReason || '', archivedAt: r.archivedAt || null,
+    trackingNo: r.trackingNo || '',
+    handoffs: (r.handoffs || []).slice(-20),
+    archived: !!r.archived, archiveReason: r.archiveReason || '', archiveNote: r.archiveNote || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
     talked: !!(oc && oc.talk > 0), followStage: r.followStage || 1, t2At: r.t2At || null, t3At: r.t3At || null,
     updatedAt: r.updatedAt || null, updatedBy: r.updatedBy || '',
@@ -448,6 +450,8 @@ function lastActivityMs(rec) {
   const la = rec.updatedAt || rec.receivedAt; if (!la) return null;
   const t = Date.parse(la); return isNaN(t) ? null : t;
 }
+// เกณฑ์ "Lead ค้าง / เกินกำหนด" แยกช่องทาง: Facebook/Pancake (pancake/manual/refill) = 2 วัน · Marketplace (evolution) = 5 วัน
+function overdueDays(rec) { const s = rec.source || 'evolution'; return (s === 'pancake' || s === 'manual' || s === 'refill') ? 2 : 5; }
 // Safety net: auto-advance leads untouched for STALE_DAYS (skip closed & future appointments).
 async function runSweep() {
   const now = Date.now(); let changed = false;
@@ -486,6 +490,37 @@ app.get('/api/leads', requireCrm, async (req, res) => {
   });
 });
 
+// ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
+const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่ปิด', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', name: 'แก้ชื่อลูกค้า', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', restore: 'กู้คืน' };
+app.get('/api/admin/activity', requireAuth, (req, res) => {
+  const limit = Math.min(600, Math.max(20, parseInt(req.query.limit, 10) || 250));
+  const activity = [], transfers = [];
+  for (const r of state.assigned) {
+    const cust = r.name || '(ไม่มีชื่อ)', phone = r.phone || '', side = r.sales || '', source = r.source || 'evolution';
+    for (const h of (r.history || [])) activity.push({ at: h.at, k: h.k, kLabel: HIST_LABEL[h.k] || h.k, v: h.v || '', by: h.by || '', cust, phone, side, source });
+    for (const hf of (r.handoffs || [])) transfers.push({ at: hf.at, from: hf.from, to: hf.to, cust, phone, source });
+  }
+  activity.sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0));
+  transfers.sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0));
+  res.json({ ok: true, activity: activity.slice(0, limit), transfers: transfers.slice(0, limit), totalActivity: activity.length, totalTransfers: transfers.length });
+});
+// ---- Teamlead: ลูกค้าฝั่งแอดมิน (ผู้ที่ปิดการขายผ่านแชท FB จาก Pancake) — 60 วันล่าสุด ----
+app.get('/api/admin/chat-customers', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.json({ ok: true, customers: [], note: 'no_api_key' });
+  const to = new Date().toISOString(), from = new Date(Date.now() - 60 * 86400000).toISOString();
+  const ps = await computePancakeSales(from, to, false);
+  if (ps.error) return res.json({ ok: true, customers: [], note: 'error' });
+  const byKey = new Map();
+  for (const o of (ps.orders || [])) {
+    const key = (o.custPhone || o.custName || o.code || '').trim(); if (!key) continue;
+    const prev = byKey.get(key);
+    if (!prev || (Date.parse(o.at) || 0) > (Date.parse(prev.at) || 0)) byKey.set(key, o);
+  }
+  const customers = [...byKey.values()].map((o) => ({ name: o.custName || '(ไม่มีชื่อ)', phone: o.custPhone || '', amount: o.amount || 0, closer: nickName(o.closer) || o.closer || '', at: o.at, product: o.product || '', page: o.page || '' }))
+    .sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0));
+  res.json({ ok: true, customers, from, to });
+});
+
 app.post('/api/lead/call', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
@@ -506,7 +541,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   const p = (req.body && req.body.patch) || {};
   const by = whoami(req);
   // snapshot for the activity timeline
-  const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length };
+  const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length, trackingNo: rec.trackingNo || '' };
   // new CRM taxonomy
   if ('leadStatus' in p) rec.leadStatus = LEAD_STATUS_KEYS.includes(p.leadStatus) ? p.leadStatus : rec.leadStatus;
   if ('callResult' in p) rec.callResult = (p.callResult === '' || CALL_RESULT_KEYS.includes(p.callResult)) ? p.callResult : rec.callResult;
@@ -524,6 +559,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
   if ('address' in p) rec.address = String(p.address || '').slice(0, 500);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
+  if ('trackingNo' in p) rec.trackingNo = String(p.trackingNo || '').trim().slice(0, 60);
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = by;
   // log each meaningful change to the timeline
   if (recStatus(rec) !== b0.leadStatus) pushHist(rec, 'status', rec.leadStatus, by);
@@ -537,6 +573,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ((rec.address || '') !== b0.address) pushHist(rec, 'address', '', by);
   if ((rec.callCount || 0) !== b0.callCount) pushHist(rec, 'calls', rec.callCount, by);
   if ((rec.saleItems || []).length !== b0.saleN) pushHist(rec, 'sale', (rec.saleItems || []).length, by);
+  if ((rec.trackingNo || '') !== b0.trackingNo) pushHist(rec, 'tracking', rec.trackingNo, by);
   // Note: field edits do NOT auto-recycle — only real call logs (/api/lead/call) and the stale sweep do.
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec), advanced: null });
@@ -545,10 +582,15 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
 app.post('/api/lead/archive', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
+  const reason = ARCH_REASONS.includes(req.body && req.body.reason) ? req.body.reason : 'bad_data';
+  const note = String((req.body && req.body.note) || '').trim().slice(0, 200);
+  // "เลิกติดตาม" (stopped) บังคับต้องมีเหตุผล
+  if (reason === 'stopped' && !note) return res.status(400).json({ error: 'reason_required', message: 'กรุณาระบุเหตุผลที่เลิกติดตาม' });
   rec.archived = true;
-  rec.archiveReason = ARCH_REASONS.includes(req.body && req.body.reason) ? req.body.reason : 'bad_data';
+  rec.archiveReason = reason;
+  rec.archiveNote = note;
   rec.archivedAt = new Date().toISOString(); rec.updatedAt = rec.archivedAt; rec.updatedBy = whoami(req);
-  pushHist(rec, 'archive', rec.archiveReason, whoami(req));
+  pushHist(rec, 'archive', reason + (note ? (' · ' + note) : ''), whoami(req));
   state = await store.save(state);
   res.json({ ok: true });
 });
@@ -1087,7 +1129,7 @@ async function computeSalesKpi(fromQ, toQ) {
     talk7EvoToday: 0, talk7ManualToday: 0, talk7OtherToday: 0,
     calledEvoRange: 0, calledManualRange: 0, calledEvoToday: 0, calledManualToday: 0,
     callsManualRange: 0, callsManualToday: 0,
-    archived: 0, recycled: 0,
+    archived: 0, recycled: 0, todaySales: [],
   });
   const sides = { W: blank(), K: blank() };
   for (const r of state.assigned) {
@@ -1103,7 +1145,7 @@ async function computeSalesKpi(fromQ, toQ) {
     if (st !== 'won' && st !== 'lost') {
       let overdue = false;
       if (st === 'followup' && r.nextAppt) { const t = Date.parse(r.nextAppt); if (!isNaN(t) && t < now) overdue = true; }
-      if (!overdue) { const la = lastActivityMs(r); if (la != null && (now - la) >= 3 * 86400000) overdue = true; }
+      if (!overdue) { const la = lastActivityMs(r); if (la != null && (now - la) >= overdueDays(r) * 86400000) overdue = true; }
       if (overdue) A.pending++;
     }
     // calls in range / today (self-logged taps; real talk time comes from OneCall)
@@ -1116,7 +1158,7 @@ async function computeSalesKpi(fromQ, toQ) {
       if (h.v === 'lost' && t >= from && t <= to) lostThis = true;
     }
     if (wonThis) { A.wonRange++; A.revRange += saleRev(r); }
-    if (wonTod) A.wonToday++;
+    if (wonTod) { A.wonToday++; A.todaySales.push({ name: r.name || '(ไม่มีชื่อ)', amount: Math.round(saleRev(r)), items: (r.saleItems || []).map((it) => ({ name: it.name, price: it.price })), product: r.product || '' }); }
     if (lostThis) A.lostRange++;
     if (r.receivedAt) { const t = Date.parse(r.receivedAt); if (!isNaN(t) && t >= from && t <= to) A.newRange++; }
   }
@@ -1579,7 +1621,11 @@ async function computePancakeSales(fromISO, toISO, all) {
           const bp = byProduct[nm] = byProduct[nm] || { qty: 0, revenue: 0, lines: 0 };
           bp.qty += q; bp.revenue += pr; bp.lines++;
         }
-        if (orders.length < 300) orders.push({ code: 'PC' + (o.system_id || o.id), at: o.inserted_at, amount: rev, product: pancakeItems(o), qty: o.total_quantity || 0, closer, src, page: pg, status_name: o.status_name || '' });
+        if (orders.length < 300) {
+          const custPhone = String((o.bill_phone_number || '') || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')).trim();
+          const custName = String((o.bill_full_name || '') || ((o.customer && o.customer.name) || '')).trim();
+          orders.push({ code: 'PC' + (o.system_id || o.id), at: o.inserted_at, amount: rev, product: pancakeItems(o), qty: o.total_quantity || 0, closer, src, page: pg, status_name: o.status_name || '', custName, custPhone });
+        }
         if (sample.length < 12) sample.push({ id: o.id, src, sources_name: o.order_sources_name || null, has_conv: !!o.conversation_id, closer, rev, status: o.status });
       }
       if (j.data.length < 100) break;

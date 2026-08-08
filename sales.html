@@ -70,7 +70,7 @@
   .b-new{background:#eef2ff;color:#3730a3}.b-un{background:#fef2f2;color:#b42318}.b-nr{background:#e0f2fe;color:#075985}
   .b-ap{background:#e0f2fe;color:#075985}.b-cl{background:#dcfce7;color:#166534}.b-reached{background:#ecfdf5;color:#047857}
   .b-line{background:#e7f9ee;color:#15803d}.b-arch{background:#f1f5f9;color:#64748b}
-  .i-hot{background:#fee2e2;color:#b91c1c}.i-warm{background:#ffedd5;color:#9a3412}.i-cold{background:#e0f2fe;color:#075985}
+  .i-hot{background:#fee2e2;color:#b91c1c}.i-warm{background:#ffedd5;color:#9a3412}.i-cold{background:#e0f2fe;color:#075985}.i-churned{background:#f1f5f9;color:#475569}
   .empty{text-align:center;color:var(--muted);padding:34px;background:#fff;border:1px dashed var(--line);border-radius:16px;box-shadow:var(--shadow-sm)}
   .tblwrap{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto}
   .ltbl{width:max-content;min-width:100%;border-collapse:collapse;font-size:14px}
@@ -264,7 +264,7 @@ const LEAD_STATUS=[
   {k:'interested',label:'สนใจ',icon:'star',chip:'',badge:'b-reached'},
   {k:'followup',label:'นัดติดตาม',icon:'calendar',chip:'s-followup',badge:'b-nr'},
   {k:'won',label:'ปิดการขาย',icon:'checkCircle',chip:'s-won',badge:'b-cl'},
-  {k:'lost',label:'ไม่ปิดการขาย',icon:'xCircle',chip:'s-lost',badge:'b-un'}
+  {k:'lost',label:'ไม่สนใจ',icon:'xCircle',chip:'s-lost',badge:'b-un'}
 ];
 const CALL_RESULTS=[
   {k:'connected',label:'ติดต่อได้',icon:'phone'},
@@ -275,7 +275,8 @@ const CALL_RESULTS=[
 const INTEREST=[
   {k:'hot',label:'มาก (100%)',chip:'i-hot',badge:'i-hot'},
   {k:'warm',label:'ปานกลาง (50%)',chip:'i-warm',badge:'i-warm'},
-  {k:'cold',label:'ต่ำ (25%)',chip:'i-cold',badge:'i-cold'}
+  {k:'cold',label:'ต่ำ (25%)',chip:'i-cold',badge:'i-cold'},
+  {k:'churned',label:'เลิกใช้แล้ว (0%)',chip:'i-churned',badge:'i-churned'}
 ];
 const NEXT_ACTIONS=[
   {k:'callback',label:'โทรกลับ',icon:'phone'},
@@ -315,9 +316,10 @@ function histLabel(e){
     case 'address':return{ic:'pencil',txt:'อัปเดตที่อยู่ลูกค้า'};
     case 'sale':return{ic:'plus',txt:'อัปเดตสินค้า/ยอดขาย ('+(v||0)+' รายการ)'};
     case 'calls':return{ic:'phone',txt:'ปรับจำนวนโทรเป็น '+(v||0)};
-    case 'archive':return{ic:'trash',txt:'นำออก'+(v==='unreachable'?' (เบอร์ติดต่อไม่ได้)':(v==='recycled_out'?' (คัดออกถาวร)':' (ข้อมูลเสีย)'))};
+    case 'archive':{ if(v.indexOf('stopped')===0){const note=v.replace(/^stopped\s*·?\s*/,'');return{ic:'xCircle',txt:'เลิกติดตาม'+(note?': '+note:'')};} return{ic:'trash',txt:'นำออก'+(v==='unreachable'?' (เบอร์ติดต่อไม่ได้)':(v==='recycled_out'?' (คัดออกถาวร)':' (ข้อมูลเสีย)'))}; }
     case 'restore':return{ic:'undo',txt:'กู้คืนกลับรายชื่อ'};
     case 'transfer':return{ic:'repeat',txt:'ส่งต่อให้ '+(v||'')};
+    case 'tracking':return{ic:'inbox',txt:v?('ใส่เลขพัสดุ: '+v):'ล้างเลขพัสดุ'};
     case 'recycle':return{ic:'trash',txt:'คัดออกถาวร (วนครบ)'};
     default:return{ic:'dot',txt:e.k};
   }
@@ -335,7 +337,8 @@ function advToast(adv){
   return false;
 }
 function daysIdle(r){if(!r.lastActivity)return 0;const d=Date.parse(r.lastActivity);if(isNaN(d))return 0;return Math.floor((Date.now()-d)/86400000);}
-function isStale(r){const st=r.leadStatus||'new';if(r.archived||st==='won')return false;if(st==='followup'&&r.nextAppt){const t=Date.parse(r.nextAppt);if(!isNaN(t)&&t>Date.now())return false;}return daysIdle(r)>=3;}
+function overdueDays(r){const s=r.source||'evolution';return (s==='pancake'||s==='manual'||s==='refill')?2:5;}
+function isStale(r){const st=r.leadStatus||'new';if(r.archived||st==='won')return false;if(st==='followup'&&r.nextAppt){const t=Date.parse(r.nextAppt);if(!isNaN(t)&&t>Date.now())return false;}return daysIdle(r)>=overdueDays(r);}
 function isToday(v){if(!v)return false;const d=new Date(v);if(isNaN(d))return false;const n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
 function wonToday(r){if(r.archived||(r.leadStatus||'new')!=='won')return false;const h=r.history||[];for(let i=h.length-1;i>=0;i--){if(h[i].k==='status'&&h[i].v==='won')return isToday(h[i].at);}return isToday(r.lastActivity);}
 function isOverdue(r){const st=r.leadStatus||'new';if(r.archived||st==='won'||st==='lost')return false;if(st==='followup'&&r.nextAppt){const t=Date.parse(r.nextAppt);if(!isNaN(t)&&t<Date.now())return true;}return isStale(r);}
@@ -356,6 +359,7 @@ function pass(r,f){
     case 'hot':return !r.archived&&r.interest==='hot';
     case 'warm':return !r.archived&&r.interest==='warm';
     case 'cold':return !r.archived&&r.interest==='cold';
+    case 'churned':return !r.archived&&r.interest==='churned';
     case 'hand2':return !r.archived&&(r.stage||0)>0;
     case 'line_added':return !r.archived&&r.line==='added';
     case 'line_not':return !r.archived&&r.line!=='added';
@@ -366,8 +370,8 @@ function pass(r,f){
 function cnt(f){const pool=f==='archived'?ARCHIVED:ACTIVE;return pool.filter(r=>pass(r,f)).length;}
 const FILTER_GROUPS=[
   {icon:'inbox',label:'งานที่ต้องทำ',items:[['todo','ต้องติดตาม'],['new','ใหม่'],['followup','นัดติดตาม'],['stale','ค้างนาน']]},
-  {icon:'activity',label:'สถานะลูกค้า',items:[['all','ทั้งหมด'],['contacting','กำลังติดต่อ'],['interested','สนใจ'],['won','ปิดการขาย'],['lost','ไม่ปิดการขาย'],['hand2','รับต่อมือ2'],['archived','นำออกแล้ว']]},
-  {icon:'star',label:'ความสนใจ',items:[['hot','มาก'],['warm','ปานกลาง'],['cold','ต่ำ']]}
+  {icon:'activity',label:'สถานะลูกค้า',items:[['all','ทั้งหมด'],['contacting','กำลังติดต่อ'],['interested','สนใจ'],['won','ปิดการขาย'],['lost','ไม่สนใจ'],['hand2','รับต่อมือ2'],['archived','นำออกแล้ว']]},
+  {icon:'star',label:'ความสนใจ',items:[['hot','มาก'],['warm','ปานกลาง'],['cold','ต่ำ'],['churned','เลิกใช้แล้ว']]}
 ];
 const BUCKETS=[
   {f:'new',label:'ลูกค้าใหม่',icon:'inbox',cls:''},
@@ -489,7 +493,7 @@ function openLeadByKey(key){
   const inChips=INTEREST.map(o=>`<button class="pchip ${o.chip} ${r.interest===o.k?'on':''}" onclick="setField('interest','${o.k}')">${ic('star',15)}${o.label}</button>`).join('');
   const naChips=NEXT_ACTIONS.map(o=>`<button class="pchip ${r.nextAction===o.k?'on':''}" onclick="setField('nextAction','${o.k}')">${ic(o.icon,15)}${o.label}</button>`).join('');
   const lostChips=LOST_REASONS.map(x=>`<button class="pchip ${r.lostReason===x?'on':''}" onclick="setField('lostReason','${x}')">${x}</button>`).join('');
-  const lostSection=(r.leadStatus==='lost')?`<div class="sec" style="margin-top:16px">เหตุผลที่ไม่ปิดการขาย</div><div class="pchips g3">${lostChips}</div>`:'';
+  const lostSection=(r.leadStatus==='lost')?`<div class="sec" style="margin-top:16px">เหตุผลที่ไม่สนใจ</div><div class="pchips g3">${lostChips}</div>`:'';
   const wonSection=(r.leadStatus==='won')?buildWonSection(r):'';
   let fval=''; try{const base=r.nextAppt?new Date(r.nextAppt):(()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(10,0,0,0);return d;})();const p=n=>String(n).padStart(2,'0');fval=base.getFullYear()+'-'+p(base.getMonth()+1)+'-'+p(base.getDate())+'T'+p(base.getHours())+':'+p(base.getMinutes());}catch(e){}
   s.innerHTML=`<button class="closeX" onclick="closeSheet()">${ic('x',16)}</button>
@@ -535,6 +539,12 @@ function openLeadByKey(key){
     </div>` : `
     <textarea id="addr" rows="2" placeholder="บ้านเลขที่ / ถนน / ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์…"></textarea>
     <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveAddr()">บันทึกที่อยู่</button>`}
+    <div class="sec" style="margin-top:16px">เลขพัสดุ (Tracking) ${r.trackingNo?'<span style="font-size:11px;color:#166534;font-weight:600">· 📦 มีเลขพัสดุแล้ว</span>':''}</div>
+    <div style="display:flex;gap:8px">
+      <input id="trackNo" placeholder="กรอก/วางเลขพัสดุ เช่น TH1234567890" value="${esc(r.trackingNo||'')}" style="flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px">
+      <button class="act b-save" style="flex:0 0 auto;padding:0 18px" onclick="saveTrack()">บันทึก</button>
+    </div>
+    ${r.trackingNo?`<div style="font-size:12.5px;color:#166534;margin-top:6px;font-weight:600">📦 พัสดุ: ${esc(r.trackingNo)}</div>`:'<div style="font-size:11.5px;color:#94a3b8;margin-top:5px">ใส่เลขพัสดุหลังส่งของ เพื่อบันทึกลงประวัติลูกค้า</div>'}
     <div class="sec" style="margin-top:16px">หมายเหตุการสนทนา</div>
     <textarea id="note" rows="3" placeholder="บันทึกรายละเอียดการคุย…">${esc(r.note)}</textarea>
     <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveNote()">บันทึกหมายเหตุ</button>
@@ -543,7 +553,12 @@ function openLeadByKey(key){
     <div style="margin-top:16px;border-top:1px solid #eef2f7;padding-top:14px">
       <button class="act" style="width:100%;background:#fff7ed;color:#9a3412;border:1px solid #fdba74" onclick="doAdvance()">${(r.stage||0)===0?(ic('repeat',16)+'ส่งต่อให้ '+(r.sales==='W'?'K':'W')+' เลย (ไม่รอครบ 3 รอบ)'):(ic('trash',16)+'คัดออกถาวรเลย')}</button>
     </div>
-    <div class="rm"><div class="sec">นำออก (ย้ายไปถัง กู้คืนได้)</div>
+    <div class="rm"><div class="sec">เลิกติดตามลูกค้ารายนี้</div>
+      <div style="font-size:11.5px;color:#94a3b8;margin:-2px 0 6px">ระบุเหตุผลที่เลิกติดตาม (บังคับใส่) — จะบันทึกลงประวัติลูกค้า</div>
+      <textarea id="stopReason" rows="2" placeholder="เช่น ลูกค้าแจ้งไม่สะดวกให้ติดต่ออีก / ซื้อกับที่อื่นแล้ว / ปิดกิจการ…" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px;box-sizing:border-box"></textarea>
+      <button class="act" style="width:100%;margin-top:8px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca" onclick="doStopFollow()">${ic('xCircle',16)}เลิกติดตาม (ต้องมีเหตุผล)</button>
+    </div>
+    <div class="rm" style="margin-top:12px"><div class="sec">นำออก (ย้ายไปถัง กู้คืนได้)</div>
       <div class="grid"><button onclick="doArchive('unreachable')">${ic('trash',15)}เบอร์ติดต่อไม่ได้</button><button onclick="doArchive('bad_data')">${ic('trash',15)}ข้อมูลไม่ครบ/เสีย</button></div></div>`;
   document.getElementById('mbg').classList.add('on');
   loadCust360(r.phone);
@@ -670,6 +685,7 @@ async function setTStage(stage){ if(!CUR)return; const j=await api('/api/lead/ts
 async function saveNote(){ if(!CUR)return; const t=document.getElementById('note').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{note:t}}); if(j&&j.ok){toast('บันทึกหมายเหตุแล้ว');reload();} }
 function editAddr(){ const e=document.getElementById('addrEdit'),v=document.getElementById('addrView'),b=document.getElementById('addrEditBtn'); if(e)e.style.display='block'; if(v)v.style.display='none'; if(b)b.style.display='none'; const t=document.getElementById('addr'); if(t)t.focus(); }
 async function saveAddr(){ if(!CUR)return; const t=document.getElementById('addr').value; const j=await api('/api/lead/update',{key:CUR.key,patch:{address:t}}); if(j&&j.ok){toast('บันทึกที่อยู่แล้ว');CUR.address=t;await reload();if(CUR)openLeadByKey(CUR.key);} }
+async function saveTrack(){ if(!CUR)return; const t=document.getElementById('trackNo').value.trim(); const j=await api('/api/lead/update',{key:CUR.key,patch:{trackingNo:t}}); if(j&&j.ok){toast(t?'บันทึกเลขพัสดุแล้ว':'ล้างเลขพัสดุแล้ว');CUR.trackingNo=t;await reload();if(CUR)openLeadByKey(CUR.key);} }
 function editName(){
   if(!CUR)return; const h=document.getElementById('h3name'); if(!h)return;
   h.innerHTML=`<input id="cname" value="${esc(CUR.name)}" placeholder="ชื่อลูกค้า"><button class="act b-save" style="padding:8px 12px" onclick="saveName()">${ic('check',16)}</button><button class="act b-cancel" style="padding:8px 12px" onclick="openLeadByKey(CUR.key)">${ic('x',16)}</button>`;
@@ -682,6 +698,7 @@ async function saveName(){
   if(j&&j.ok){ const nk=(j.lead&&j.lead.key)||CUR.key; toast('บันทึกชื่อลูกค้าแล้ว'); await reload(); openLeadByKey(nk); }
 }
 async function doArchive(reason){ if(!CUR)return; if(!confirm('ย้ายไปถัง "นำออกแล้ว"? (กู้คืนได้)'))return; const j=await api('/api/lead/archive',{key:CUR.key,reason}); if(j&&j.ok){toast('นำออกแล้ว');closeSheet();reload();} }
+async function doStopFollow(){ if(!CUR)return; const el=document.getElementById('stopReason'); const note=(el?el.value:'').trim(); if(!note){toast('⚠️ กรุณาระบุเหตุผลที่เลิกติดตามก่อน');if(el)el.focus();return;} const j=await api('/api/lead/archive',{key:CUR.key,reason:'stopped',note}); if(j&&j.ok){toast('เลิกติดตามแล้ว · บันทึกเหตุผลลงประวัติ');closeSheet();reload();} else {toast((j&&j.message)||'บันทึกไม่สำเร็จ');} }
 async function doRestore(){ if(!CUR)return; const j=await api('/api/lead/restore',{key:CUR.key}); if(j&&j.ok){toast('กู้คืนแล้ว');closeSheet();reload();} }
 async function doAdvance(){
   if(!CUR)return;

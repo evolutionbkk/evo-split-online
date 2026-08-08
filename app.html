@@ -158,12 +158,6 @@
     <div id="dayoffBox" style="display:flex;gap:12px;flex-wrap:wrap"></div>
   </div>
 
-  <div class="panel" data-sec="overview" id="tierPanel">
-    <h2><span data-ic="phone" data-sz="18"></span>การโทรติดตาม T1 / T2 / T3</h2>
-    <div class="desc"><b style="color:#1d4ed8">T1</b> = คุยจริงเกิน 7 วิ ครั้งแรกของลูกค้า (นับอัตโนมัติจาก OneCall) · <b style="color:#b45309">T2</b>/<b style="color:#047857">T3</b> = เซลล์กดเปลี่ยนสถานะติดตามเอง · เฉพาะรายชื่อที่แอดมินปิดการขายให้</div>
-    <div id="tierBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
-  </div>
-
   <div class="panel" data-sec="overview" id="chatKpiPanel">
     <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (รายคน) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="desc">นับจาก Pancake · <b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุดในช่วงที่เลือก · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB (ยอดจริง)</div>
@@ -424,6 +418,17 @@
     <div id="qaFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
   </div>
 
+  <div class="panel" data-sec="activity">
+    <h2><span data-ic="refresh" data-sz="18"></span>ประวัติการเคลื่อนไหวของเซลล์ &amp; การโอนลูกค้า</h2>
+    <div class="desc">ดึงจากไทม์ไลน์ของลูกค้าทุกราย · <b>การเคลื่อนไหว</b> = ทุกครั้งที่เซลล์โทร/เปลี่ยนสถานะ/ปิดการขาย/ใส่เลขพัสดุ/เลิกติดตาม ฯลฯ · <b>การโอน</b> = การส่งต่อลูกค้าระหว่าง W ↔ K</div>
+    <div style="display:flex;gap:8px;margin:2px 0 12px">
+      <button class="kr on" id="actTabMove" onclick="actTab('move')" style="cursor:pointer">🔄 การเคลื่อนไหว</button>
+      <button class="kr" id="actTabXfer" onclick="actTab('xfer')" style="cursor:pointer">↔️ การโอนลูกค้า</button>
+      <button class="b-b" onclick="loadActivity()" style="padding:6px 12px;margin-left:auto"><span data-ic="refresh" data-sz="14"></span>รีเฟรช</button>
+    </div>
+    <div id="actBody"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
+  </div>
+
   <div class="panel" data-sec="dupes">
     <h2><span data-ic="alert" data-sz="18"></span>ตรวจเบอร์ซ้ำในระบบ</h2>
     <div class="desc">เบอร์เดียวกันที่เป็นลูกค้ามากกว่า 1 รายการ (คนละแหล่ง/คนละเซลล์) — กันโทรซ้ำ · ระบบจะเก็บรายการที่ดีที่สุด (ปิดการขาย/คุยเยอะ) แล้วนำที่ซ้ำออก<div style="margin-top:4px;color:#166534">รายชื่อใหม่ที่ดึงเข้ามาระบบกันเบอร์ซ้ำอัตโนมัติอยู่แล้ว — หน้านี้ไว้เก็บกวาดของเดิม</div></div>
@@ -450,6 +455,12 @@
       <div class="col-head"><span>Sales (K)</span><span class="cnt" id="hk">– ราย</span></div>
       <div class="tblwrap"><table><thead><tr><th class="num">#</th><th>รหัสสมาชิก</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทรศัพท์</th><th>รอบที่ดึง</th></tr></thead><tbody id="tk"></tbody></table></div>
     </div>
+  </div>
+
+  <div class="panel" data-sec="customers" style="margin-top:16px">
+    <h2><span data-ic="activity" data-sz="18"></span>ลูกค้าจากฝั่งแอดมิน (ปิดการขายผ่านแชท FB) <span class="cnt" id="adminCustCnt" style="font-size:12px;color:#6b7280;font-weight:400">– ราย</span></h2>
+    <div class="desc">ลูกค้าที่ทีมแอดมินปิดการขายผ่านแชท FB — ดึงจาก Pancake (60 วันล่าสุด) · ส่วนตารางด้านบนคือลูกค้าที่แบ่งให้เทเลเซลล์ (W/K)</div>
+    <div id="adminCustBody"><div style="padding:14px;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
   </div>
 </div>
@@ -518,25 +529,6 @@ async function refresh(){
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
   LAST={W:s.W,K:s.K}; renderTables();
   DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff(); loadLeaves();
-  loadTiers();
-}
-async function loadTiers(){
-  const box=document.getElementById('tierBox'); if(!box)return;
-  try{
-    const j=await fetch('/api/admin/followup-tiers',{credentials:'same-origin'}).then(r=>r.json());
-    if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
-    const nm=j.names||{W:'W',K:'K'};const t=j.tiers||{};
-    const SRCS=[['fbpage','FB Page','#1d4ed8']];
-    let h='<div class="tblwrap"><table style="min-width:560px"><thead><tr><th>เซลล์</th><th>แหล่ง</th><th style="text-align:center">รายชื่อ</th><th style="text-align:center">T1</th><th style="text-align:center">T2</th><th style="text-align:center">T3</th></tr></thead><tbody>';
-    for(const side of ['W','K']){
-      SRCS.forEach(([k,label,col],idx)=>{
-        const v=(t[side]&&t[side][k])||{T1:0,T2:0,T3:0,leads:0};
-        h+='<tr'+(idx===0?' style="border-top:2px solid #e6ecf5"':'')+'><td>'+(idx===0?esc(nm[side]||side):'')+'</td><td><span style="color:'+col+';font-weight:600">'+label+'</span></td><td style="text-align:center;color:#64748b">'+v.leads+'</td><td style="text-align:center;font-weight:800;color:#1d4ed8;font-size:16px">'+v.T1+'</td><td style="text-align:center;font-weight:800;color:#b45309;font-size:16px">'+v.T2+'</td><td style="text-align:center;font-weight:800;color:#047857;font-size:16px">'+v.T3+'</td></tr>';
-      });
-    }
-    h+='</tbody></table></div>';
-    box.innerHTML=h;
-  }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 // ===== Admin chat KPI (ไลลา · ยูกิ) =====
 let CHATKPI_MODE='month', CHATKPI_CUSTOM=null, CHATKPI_REQ=0;
@@ -894,6 +886,15 @@ let KPI_TIERS={W:{},K:{}};
 function personCard(side,name,a){
   const conv=a.total?Math.round(a.status.won/a.total*100):0;
   const lbl=KSHORT[KR.mode]||'ช่วงนี้';
+  const ts=a.todaySales||[];
+  const tsTotal=ts.reduce((s,o)=>s+(o.amount||0),0);
+  const tsHtml=ts.length
+    ? '<div style="margin-top:4px;border-top:1px dashed #e2e8f0;padding-top:6px">'
+      +'<div style="font-size:11.5px;color:#475569;font-weight:700;margin-bottom:4px">🧾 ออเดอร์วันนี้ · '+ts.length+' ออเดอร์ · รวม ฿'+kbaht(tsTotal)+'</div>'
+      +ts.map(o=>{const prod=(o.items&&o.items.length)?o.items.map(it=>esc(it.name)).filter(Boolean).join(', '):esc(o.product||'');
+        return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#334155;padding:2px 0"><span>'+esc(o.name||'')+(prod?' <span style="color:#94a3b8">· '+prod+'</span>':'')+'</span><b style="color:#166534;white-space:nowrap">฿'+kbaht(o.amount||0)+'</b></div>';}).join('')
+      +'</div>'
+    : '<div style="font-size:11.5px;color:#94a3b8;margin-top:4px">ยังไม่มีออเดอร์วันนี้</div>';
   return `<div class="kperson">
     <h3><span style="color:var(--${side.toLowerCase()})">Sales (${side}) · ${esc(name)}</span><span style="font-size:12px;color:var(--muted);font-weight:600">${a.total} ราย</span></h3>
     <div class="kbar"><span style="width:${conv}%"></span></div>
@@ -911,6 +912,7 @@ function personCard(side,name,a){
     </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
+    ${tsHtml}
   </div>`;
 }
 async function loadKpi(){
@@ -1372,6 +1374,7 @@ const SECTIONS=[
   {k:'refill',label:'ลูกค้าเดิม · ซื้อซ้ำ',icon:'refresh'},
   {k:'analytics',label:'วิเคราะห์การโทร',icon:'activity'},
   {k:'calllog',label:'ประวัติการโทร',icon:'phone'},
+  {k:'activity',label:'การเคลื่อนไหว · การโอน',icon:'refresh'},
   {k:'qa',label:'คุณภาพการโทร',icon:'check'},
   {k:'dupes',label:'ตรวจเบอร์ซ้ำ',icon:'alert'},
   {k:'customers',label:'รายชื่อลูกค้า',icon:'search'},
@@ -1390,7 +1393,54 @@ function showSec(sec){
   if(sec==='dupes')loadDupes();
   if(sec==='source')srcLoad();
   if(sec==='overview')srcOvLoad();
+  if(sec==='activity')loadActivity();
+  if(sec==='customers')loadChatCustomers();
   window.scrollTo(0,0);
+}
+// ===== ประวัติการเคลื่อนไหว + การโอนลูกค้า (Teamlead) =====
+let ACT_DATA=null, ACT_TAB='move';
+function actTab(t){ACT_TAB=t;const m=document.getElementById('actTabMove'),x=document.getElementById('actTabXfer');if(m)m.classList.toggle('on',t==='move');if(x)x.classList.toggle('on',t==='xfer');renderActivity();}
+function actWhen(at){try{const d=new Date(at),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String((d.getFullYear()+543)%100).padStart(2,'0')+' '+p(d.getHours())+':'+p(d.getMinutes());}catch(e){return '';}}
+function actWho(by){if(by==='admin')return 'แอดมิน';if(by==='ระบบ'||by==='system')return 'ระบบ';if(by==='W')return 'Sales W';if(by==='K')return 'Sales K';return by||'';}
+function actSrcBadge(s){const fb=(s==='pancake'||s==='manual'||s==='refill');return '<span style="font-size:10px;padding:1px 6px;border-radius:6px;background:'+(fb?'#eff6ff;color:#1d4ed8':'#ecfeff;color:#0e7490')+';font-weight:700">'+(fb?'FB':'Mkt')+'</span>';}
+async function loadActivity(){
+  const box=document.getElementById('actBody'); if(!box)return;
+  box.innerHTML='<div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div>';
+  try{ACT_DATA=await fetch('/api/admin/activity',{credentials:'same-origin'}).then(r=>r.json());}catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
+  renderActivity();
+}
+function renderActivity(){
+  const box=document.getElementById('actBody'); if(!box||!ACT_DATA)return;
+  if(ACT_TAB==='move'){
+    const a=ACT_DATA.activity||[];
+    if(!a.length){box.innerHTML='<div style="padding:16px;color:#94a3b8">ยังไม่มีการเคลื่อนไหว</div>';return;}
+    let h='<div style="font-size:12px;color:#64748b;margin-bottom:8px">แสดง '+a.length+' รายการล่าสุด (ทั้งหมด '+(ACT_DATA.totalActivity||a.length)+')</div>';
+    h+='<div class="tblwrap"><table style="min-width:660px"><thead><tr><th>เวลา</th><th>ลูกค้า</th><th style="text-align:center">ฝั่ง</th><th>การเคลื่อนไหว</th><th>โดย</th></tr></thead><tbody>';
+    for(const e of a){h+='<tr><td style="white-space:nowrap;color:#64748b;font-size:12px">'+esc(actWhen(e.at))+'</td><td><b>'+esc(e.cust)+'</b><div style="font-size:11px;color:#94a3b8">'+esc(e.phone)+' '+actSrcBadge(e.source)+'</div></td><td style="text-align:center;font-weight:700;color:var(--'+String(e.side).toLowerCase()+')">'+esc(e.side)+'</td><td>'+esc(e.kLabel)+(e.v?(' <span style="color:#475569">· '+esc(e.v)+'</span>'):'')+'</td><td style="font-size:12px;color:#475569">'+esc(actWho(e.by))+'</td></tr>';}
+    h+='</tbody></table></div>';box.innerHTML=h;
+  }else{
+    const t=ACT_DATA.transfers||[];
+    if(!t.length){box.innerHTML='<div style="padding:16px;color:#94a3b8">ยังไม่มีการโอนลูกค้า</div>';return;}
+    let h='<div style="font-size:12px;color:#64748b;margin-bottom:8px">แสดง '+t.length+' รายการล่าสุด (ทั้งหมด '+(ACT_DATA.totalTransfers||t.length)+')</div>';
+    h+='<div class="tblwrap"><table style="min-width:520px"><thead><tr><th>เวลา</th><th>ลูกค้า</th><th style="text-align:center">โอน</th><th style="text-align:center">แหล่ง</th></tr></thead><tbody>';
+    for(const e of t){h+='<tr><td style="white-space:nowrap;color:#64748b;font-size:12px">'+esc(actWhen(e.at))+'</td><td><b>'+esc(e.cust)+'</b><div style="font-size:11px;color:#94a3b8">'+esc(e.phone)+'</div></td><td style="text-align:center;font-weight:700"><span style="color:var(--'+String(e.from).toLowerCase()+')">'+esc(e.from)+'</span> → <span style="color:var(--'+String(e.to).toLowerCase()+')">'+esc(e.to)+'</span></td><td style="text-align:center">'+actSrcBadge(e.source)+'</td></tr>';}
+    h+='</tbody></table></div>';box.innerHTML=h;
+  }
+}
+// ===== ลูกค้าฝั่งแอดมิน (Pancake) =====
+async function loadChatCustomers(){
+  const box=document.getElementById('adminCustBody'); if(!box||box.dataset.loaded)return;
+  box.innerHTML='<div style="padding:14px;color:#94a3b8">กำลังดึงลูกค้าฝั่งแอดมินจาก Pancake…</div>';
+  try{const j=await fetch('/api/admin/chat-customers',{credentials:'same-origin'}).then(r=>r.json());
+    if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
+    const cs=j.customers||[];box.dataset.loaded='1';
+    const cnt=document.getElementById('adminCustCnt');if(cnt)cnt.textContent=cs.length+' ราย';
+    if(!cs.length){box.innerHTML='<div style="padding:14px;color:#94a3b8">ไม่พบลูกค้าฝั่งแอดมิน (60 วันล่าสุด)</div>';return;}
+    const bt=n=>'฿'+(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
+    let h='<div class="tblwrap"><table style="min-width:640px"><thead><tr><th class="num">#</th><th>ชื่อลูกค้า</th><th>เบอร์โทร</th><th style="text-align:right">ยอดล่าสุด</th><th>แอดมิน</th><th>วันที่</th></tr></thead><tbody>';
+    cs.forEach((c,i)=>{h+='<tr><td class="num">'+(i+1)+'</td><td>'+esc(c.name)+'</td><td>'+esc(c.phone||'—')+'</td><td style="text-align:right;color:#166534;font-weight:600">'+bt(c.amount)+'</td><td>'+esc(c.closer||'—')+'</td><td style="font-size:12px;color:#64748b;white-space:nowrap">'+esc(actWhen(c.at))+'</td></tr>';});
+    h+='</tbody></table></div>';box.innerHTML=h;
+  }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 // ===== Refill (ลูกค้าเดิมซื้อซ้ำ) =====
 let REFILL_DATA={candidates:[]};
