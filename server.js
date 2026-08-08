@@ -2046,7 +2046,7 @@ app.get('/api/chat/conversations', requireAuth, async (req, res) => {
       const r = await pkFetch(u, {}, p.id);
       const j = await r.json().catch(() => null);
       const arr = (j && Array.isArray(j.conversations)) ? j.conversations : [];
-      return arr.map((c) => pkConvNorm(c, p.id, p.name, p.platform));
+      return arr.map((c) => { const n = pkConvNorm(c, p.id, p.name, p.platform); const meta = pkChatMeta()[n.id]; if (meta) { n.status = meta.status || ''; n.hasNote = !!(meta.note && String(meta.note).trim()); } return n; });
     } catch (_) { return []; }
   }));
   let convs = [].concat(...results);

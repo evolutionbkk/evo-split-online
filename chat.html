@@ -108,6 +108,43 @@
     .pages{flex-wrap:wrap;overflow-x:visible;max-height:30vh;overflow-y:auto;gap:6px}
     .pchip{padding:6px 11px;font-size:12.5px}
   }
+  /* ---- admin add-ons: status/notes, templates, reply log ---- */
+  .hbtn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .hbtn:hover{background:rgba(255,255,255,.26)}
+  .metabar{background:#fff;border-bottom:1px solid var(--line);padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;flex:0 0 auto}
+  .metabar .lbl{font-size:11.5px;color:#94a3b8;font-weight:700;margin-right:2px}
+  .stchip{border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:600;color:#475569;cursor:pointer;transition:.12s}
+  .stchip:hover{border-color:#c7d5ea}
+  .stchip.on{color:#fff;border-color:transparent}
+  .notebtn{margin-left:auto;font-size:12.5px;color:#2563eb;font-weight:700;cursor:pointer;background:none;border:none;display:inline-flex;align-items:center;gap:4px}
+  .notewrap{width:100%;margin-top:7px;display:none}
+  .notewrap.show{display:block}
+  .notewrap textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:8px 11px;font:inherit;font-size:13.5px;background:#f8fafc;resize:vertical;min-height:44px;outline:none}
+  .notewrap textarea:focus{border-color:var(--brand-2);background:#fff}
+  .ci-st{font-size:10px;font-weight:700;border-radius:5px;padding:1px 6px;margin-left:6px;color:#fff;vertical-align:middle;white-space:nowrap}
+  .composer{flex:0 0 auto;background:#fff;border-top:1px solid var(--line)}
+  .tplbar{display:flex;gap:7px;overflow-x:auto;padding:9px 14px 2px}
+  .tpl{flex:0 0 auto;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid #dbe4f2;background:#f0f6ff;color:#1d4ed8;border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:500;cursor:pointer;transition:.12s}
+  .tpl:hover{background:#dbeafe}
+  .tpl.mng{background:#f1f5f9;color:#475569;border-color:var(--line);font-weight:700}
+  .composer .reply{border-top:0}
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:80;padding:16px}
+  .modal.show{display:flex}
+  .modal .box{background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal .mh{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .modal .mh h3{margin:0;font-size:16px}
+  .modal .mh .x{cursor:pointer;font-size:24px;color:#94a3b8;line-height:1;background:none;border:none}
+  .modal .mb{padding:14px 18px;overflow-y:auto}
+  .modal .mf{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:9px;justify-content:flex-end}
+  .btn{border:none;border-radius:10px;padding:9px 16px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+  .btn.pri{background:var(--brand);color:#fff}.btn.sec{background:#eef2f9;color:#334155}
+  .tplrow{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start}
+  .tplrow textarea{flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 11px;font:inherit;font-size:13.5px;background:#f8fafc;resize:vertical;min-height:38px;outline:none}
+  .tplrow .del{flex:0 0 auto;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:8px 11px;font-size:12.5px;cursor:pointer;font-weight:700}
+  .logitem{border-bottom:1px solid #f1f5f9;padding:10px 2px}
+  .logitem .lt{font-size:11.5px;color:#94a3b8;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:3px}
+  .logitem .lt b{color:#334155}
+  .logitem .lmsg{font-size:13.5px;color:#0f172a;white-space:pre-wrap;word-break:break-word}
 </style>
 </head>
 <body>
@@ -119,6 +156,7 @@
     </h1>
     <div class="r">
       <span class="badge" id="totBadge">—</span>
+      <button class="hbtn" onclick="openLog()" title="ประวัติการตอบแชท">📋 ประวัติการตอบ</button>
       <a class="back" href="/">← กลับ</a>
     </div>
   </div>
@@ -136,11 +174,20 @@
     </div>
   </div>
 </div>
+<div class="modal" id="tplModal"><div class="box">
+  <div class="mh"><h3>จัดการข้อความสำเร็จรูป</h3><button class="x" onclick="closeTpl()">×</button></div>
+  <div class="mb" id="tplEdit"></div>
+  <div class="mf"><button class="btn sec" onclick="addTplRow()">+ เพิ่มข้อความ</button><button class="btn pri" onclick="saveTpls()">บันทึก</button></div>
+</div></div>
+<div class="modal" id="logModal"><div class="box">
+  <div class="mh"><h3>ประวัติการตอบแชท <span id="logCount" style="font-size:12px;color:#94a3b8;font-weight:400"></span></h3><button class="x" onclick="closeLog()">×</button></div>
+  <div class="mb" id="logBody"><div class="loading"><div class="spin"></div></div></div>
+</div></div>
 <div class="toast" id="toast"></div>
 <script>
 const $=(s,r)=>(r||document).querySelector(s);
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDING=false;
+let PAGES=[], CUR_PAGE='', CONVS=[], OPEN=null, POLL_C=null, POLL_M=null, SENDING=false, TPLS=[], STATUSES=[], CUR_META={status:'',note:''};
 
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2200);}
 function plat(p){p=(p||'').toLowerCase();if(p.includes('face')||p.includes('fb'))return'fb';if(p.includes('line'))return'line';if(p.includes('insta')||p.includes('ig'))return'ig';return'';}
@@ -156,6 +203,7 @@ async function loadPages(){
   const j=await jget('/api/chat/pages');
   if(!j)return;
   if(!j.configured){renderSetup();return;}
+  const t=await jget('/api/chat/templates');if(t){TPLS=t.templates||[];STATUSES=t.statuses||[];}
   PAGES=j.pages||[];
   renderPages();
   await loadConvs(true);
@@ -210,7 +258,7 @@ function renderConvs(){
     const pc=plat(c.platform);
     h+='<div class="citem '+(!c.seen?'unread':'')+' '+(OPEN&&OPEN.id===c.id&&OPEN.pageId===c.pageId?'on':'')+'" data-id="'+esc(c.id)+'" data-pg="'+esc(c.pageId)+'">'+
       '<div class="av">'+esc(initial(c.name))+'<span class="pg '+pc+'"></span></div>'+
-      '<div class="ci-main"><div class="ci-top"><span class="ci-name">'+esc(c.name)+'</span><span class="ci-time">'+esc(thTime(c.updatedAt))+'</span></div>'+
+      '<div class="ci-main"><div class="ci-top"><span class="ci-name">'+esc(c.name)+'</span>'+stTag(c.status)+'<span class="ci-time" style="margin-left:auto">'+esc(thTime(c.updatedAt))+'</span></div>'+
       '<div class="ci-snip">'+(c.lastByPage?'<span style="color:#94a3b8">คุณ: </span>':'')+esc(c.snippet||(c.phone?('📞 '+c.phone):'[รูป/ไฟล์]'))+'</div>'+
       '<div class="ci-pg">'+esc(c.pageName)+(c.phone?(' · '+esc(c.phone)):'')+'</div></div>'+
       (!c.seen?'<div class="unreadDot"></div>':'')+
@@ -224,9 +272,11 @@ async function openConv(pageId,id){
   const c=CONVS.find(x=>x.id===id&&x.pageId===pageId);
   if(!c)return;
   OPEN={id,pageId,conv:c};
+  CUR_META={status:c.status||'',note:''};
   renderConvs();
   $('#bodyWrap').classList.add('thread');
   renderThreadShell(c);
+  loadMeta(pageId,id);
   await loadMsgs(true);
   // mark read locally + server
   if(!c.seen){c.seen=true;jpost('/api/chat/read',{page_id:pageId,conversation_id:id});}
@@ -240,16 +290,21 @@ function renderThreadShell(c){
       '<div class="av">'+esc(initial(c.name))+'<span class="pg '+pc+'"></span></div>'+
       '<div class="ti"><div class="tn">'+esc(c.name)+'</div><div class="tm" id="tmeta"><span>'+esc(c.pageName)+'</span>'+(c.phone?('<span>📞 <b>'+esc(c.phone)+'</b></span>'):'')+'</div></div>'+
     '</div>'+
+    '<div class="metabar" id="metabar"></div>'+
     '<div class="win" id="winNote" style="display:none">เลย 24 ชม.แล้ว — Facebook อาจไม่ให้ส่งข้อความปกติ</div>'+
     '<div class="msgs" id="msgs"><div class="loading"><div class="spin"></div></div></div>'+
-    '<div class="reply">'+
-      '<textarea id="rt" rows="1" placeholder="พิมพ์ข้อความ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)"></textarea>'+
-      '<button class="sendbtn" id="sb" title="ส่ง"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></button>'+
+    '<div class="composer">'+
+      '<div class="tplbar" id="tplbar"></div>'+
+      '<div class="reply">'+
+        '<textarea id="rt" rows="1" placeholder="พิมพ์ข้อความ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)"></textarea>'+
+        '<button class="sendbtn" id="sb" title="ส่ง"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></button>'+
+      '</div>'+
     '</div>';
   const rt=$('#rt');
   rt.oninput=()=>{rt.style.height='auto';rt.style.height=Math.min(rt.scrollHeight,130)+'px';};
   rt.onkeydown=(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}};
   $('#sb').onclick=doSend;
+  renderMeta();renderTpls();
 }
 function closeThread(){$('#bodyWrap').classList.remove('thread');clearInterval(POLL_M);OPEN=null;renderConvs();}
 
@@ -302,12 +357,81 @@ async function doSend(){
   const el=$('#msgs');
   if(el){el.insertAdjacentHTML('beforeend','<div class="bubble out" style="opacity:.55">'+esc(txt)+'</div><div class="bmeta out">กำลังส่ง…</div>');el.scrollTop=el.scrollHeight;}
   rt.value='';rt.style.height='auto';
-  const j=await jpost('/api/chat/send',{page_id:cur.pageId,conversation_id:cur.id,message:txt});
+  const j=await jpost('/api/chat/send',{page_id:cur.pageId,conversation_id:cur.id,message:txt,page_name:cur.conv.pageName,cust_name:cur.conv.name});
   SENDING=false;$('#sb').disabled=false;
   if(j&&j.ok){await loadMsgs(false);loadConvs(false);}
   else{toast('ส่งไม่สำเร็จ: '+((j&&j.error)||'error'));rt.value=txt;await loadMsgs(false);}
 }
 
+// ---- status + notes ----
+function stMeta(k){return STATUSES.find(s=>s.k===k)||null;}
+function stTag(k){const m=stMeta(k);return m?'<span class="ci-st" style="background:'+m.color+'">'+esc(m.label)+'</span>':'';}
+async function loadMeta(pageId,id){
+  const j=await jget('/api/chat/meta?conversation_id='+encodeURIComponent(id));
+  if(!OPEN||OPEN.id!==id)return;
+  CUR_META=(j&&j.meta)?{status:j.meta.status||'',note:j.meta.note||''}:{status:'',note:''};
+  renderMeta();
+}
+function renderMeta(){
+  const el=$('#metabar');if(!el)return;
+  let h='<span class="lbl">สถานะ:</span>';
+  for(const s of STATUSES){const on=CUR_META.status===s.k;h+='<button class="stchip'+(on?' on':'')+'" style="'+(on?('background:'+s.color):'')+'" onclick="setStatus(\''+s.k+'\')">'+esc(s.label)+'</button>';}
+  h+='<button class="notebtn" onclick="toggleNote()">📝 โน้ต'+(CUR_META.note?' •':'')+'</button>';
+  h+='<div class="notewrap" id="notewrap"><textarea id="noteta" placeholder="โน้ตภายในเกี่ยวกับลูกค้ารายนี้ (เห็นเฉพาะแอดมิน)" onblur="saveNote()">'+esc(CUR_META.note)+'</textarea></div>';
+  el.innerHTML=h;
+}
+async function setStatus(k){
+  if(!OPEN)return;
+  const nk=CUR_META.status===k?'':k;
+  CUR_META.status=nk;renderMeta();
+  const conv=CONVS.find(x=>x.id===OPEN.id&&x.pageId===OPEN.pageId);if(conv)conv.status=nk;renderConvs();
+  await jpost('/api/chat/meta',{conversation_id:OPEN.id,status:nk});
+}
+function toggleNote(){const w=$('#notewrap');if(!w)return;w.classList.toggle('show');const t=$('#noteta');if(w.classList.contains('show')&&t)t.focus();}
+async function saveNote(){
+  if(!OPEN)return;const t=$('#noteta');if(!t)return;const v=t.value;
+  if(v===CUR_META.note)return;CUR_META.note=v;
+  await jpost('/api/chat/meta',{conversation_id:OPEN.id,note:v});toast('บันทึกโน้ตแล้ว');
+}
+// ---- quick-reply templates ----
+function renderTpls(){
+  const el=$('#tplbar');if(!el)return;let h='';
+  for(const t of TPLS)h+='<div class="tpl" title="'+esc(t.text)+'" onclick="insertTpl(\''+esc(t.id)+'\')">'+esc(t.text)+'</div>';
+  h+='<div class="tpl mng" onclick="openTpl()">⚙ จัดการ</div>';
+  el.innerHTML=h;
+}
+function insertTpl(id){
+  const t=TPLS.find(x=>x.id===id);if(!t)return;const rt=$('#rt');if(!rt)return;
+  rt.value=(rt.value?rt.value+' ':'')+t.text;rt.focus();rt.dispatchEvent(new Event('input'));
+}
+function openTpl(){
+  let h='';TPLS.forEach(t=>{h+='<div class="tplrow"><textarea>'+esc(t.text)+'</textarea><button class="del" onclick="this.parentNode.remove()">ลบ</button></div>';});
+  $('#tplEdit').innerHTML=h||'<div style="color:#94a3b8;font-size:13px">ยังไม่มีข้อความ กด "เพิ่มข้อความ"</div>';
+  $('#tplModal').classList.add('show');
+}
+function closeTpl(){$('#tplModal').classList.remove('show');}
+function addTplRow(){$('#tplEdit').insertAdjacentHTML('beforeend','<div class="tplrow"><textarea placeholder="พิมพ์ข้อความสำเร็จรูป…"></textarea><button class="del" onclick="this.parentNode.remove()">ลบ</button></div>');const rows=$('#tplEdit').querySelectorAll('textarea');if(rows.length)rows[rows.length-1].focus();}
+async function saveTpls(){
+  const texts=[...$('#tplEdit').querySelectorAll('textarea')].map(t=>t.value.trim()).filter(Boolean);
+  const j=await jpost('/api/chat/templates',{templates:texts.map((t,i)=>({id:'t'+(i+1),text:t}))});
+  if(j&&j.ok){TPLS=j.templates||[];renderTpls();closeTpl();toast('บันทึกข้อความสำเร็จรูปแล้ว');}else toast('บันทึกไม่สำเร็จ');
+}
+// ---- reply log ----
+function fullTime(iso){if(!iso)return'';const d=new Date(iso);const p=x=>String(x).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}
+async function openLog(){
+  $('#logModal').classList.add('show');
+  $('#logBody').innerHTML='<div class="loading"><div class="spin"></div></div>';
+  const j=await jget('/api/chat/log?limit=300');
+  if(!j){$('#logBody').innerHTML='<div style="color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
+  $('#logCount').textContent='('+(j.total||0)+' ครั้ง)';
+  const log=j.log||[];
+  if(!log.length){$('#logBody').innerHTML='<div style="color:#94a3b8;font-size:13.5px;padding:10px 0">ยังไม่มีประวัติการตอบ</div>';return;}
+  let h='';
+  for(const e of log)h+='<div class="logitem"><div class="lt"><b>'+esc(e.by||'แอดมิน')+'</b><span>'+esc(fullTime(e.at))+'</span>'+(e.custName?'<span>→ '+esc(e.custName)+'</span>':'')+(e.pageName?'<span>· '+esc(e.pageName)+'</span>':'')+'</div><div class="lmsg">'+esc(e.message)+'</div></div>';
+  $('#logBody').innerHTML=h;
+}
+function closeLog(){$('#logModal').classList.remove('show');}
+window.setStatus=setStatus;window.toggleNote=toggleNote;window.saveNote=saveNote;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;
 function startPolling(){clearInterval(POLL_C);POLL_C=setInterval(()=>loadConvs(false),15000);}
 $('#q').addEventListener('input',renderConvs);
 window.closeThread=closeThread;
