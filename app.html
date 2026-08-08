@@ -526,7 +526,7 @@ function chatKpiRangeFor(m){
   return{from:start.toISOString(),to:end.toISOString()};
 }
 function chatKpiSet(m){CHATKPI_MODE=m;document.querySelectorAll('#chatKpiRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));loadChatKpi();}
-function fmtDur(s){if(s==null)return '—';s=Math.round(s);if(s<60)return s+' วิ';const mnt=Math.floor(s/60),sec=s%60;if(mnt<60)return mnt+' น'+(sec?' '+sec+' วิ':'');const hr=Math.floor(mnt/60);return hr+' ชม '+(mnt%60)+' น';}
+function fmtResp(s){if(s==null)return '—';s=Math.round(s);if(s<60)return s+' วิ';const mnt=Math.floor(s/60),sec=s%60;if(mnt<60)return mnt+' นาที'+(sec?' '+sec+' วิ':'');const hr=Math.floor(mnt/60);return hr+' ชม '+(mnt%60)+' นาที';}
 async function loadChatKpi(){
   const box=document.getElementById('chatKpiBox');if(!box)return;
   const{from,to}=chatKpiRangeFor(CHATKPI_MODE);
@@ -540,7 +540,7 @@ async function loadChatKpi(){
     for(const a of j.admins){
       h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(a.name)+'</td>'+
          '<td style="text-align:center;font-weight:800;font-size:16px">'+a.chats+'</td>'+
-         '<td style="text-align:center;font-weight:700;color:'+(a.avgRespSec!=null&&a.avgRespSec<=300?'#166534':(a.avgRespSec!=null?'#b45309':'#94a3b8'))+'">'+fmtDur(a.avgRespSec)+'</td>'+
+         '<td style="text-align:center;font-weight:700;color:'+(a.avgRespSec!=null&&a.avgRespSec<=300?'#166534':(a.avgRespSec!=null?'#b45309':'#94a3b8'))+'">'+fmtResp(a.avgRespSec)+'</td>'+
          '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+a.closed+'</td></tr>';
     }
     h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px">นับเฉพาะแชทที่ตอบผ่านระบบ (เริ่มเก็บหลังเปิดใช้งาน) · "ปิดการขาย" นับจากที่แอดมินกดสถานะ "ปิดได้" ในแชท</div>';
