@@ -2043,6 +2043,10 @@ app.post('/api/chat/meta', requireChat, async (req, res) => {
   }
   if (note !== undefined) cur.note = String(note || '').slice(0, 1000);
   if (amount !== undefined) { let a = Number(amount); if (!isFinite(a) || a < 0) a = 0; cur.closedAmount = Math.round(a * 100) / 100; }
+  if (req.body && typeof req.body.claim !== 'undefined') { // รับผิดชอบแชท (claim) กันแอดมินตอบชนกัน
+    if (req.body.claim) { cur.claimedBy = sessName(req); cur.claimedAt = new Date().toISOString(); }
+    else { delete cur.claimedBy; delete cur.claimedAt; }
+  }
   cur.updatedAt = new Date().toISOString(); cur.by = sessName(req);
   meta[id] = cur; state.chatMeta = meta; state = await store.save(state);
   res.json({ ok: true, meta: cur });
@@ -2102,7 +2106,7 @@ app.get('/api/chat/conversations', requireChat, async (req, res) => {
       const r = await pkFetch(u, {}, p.id);
       const j = await r.json().catch(() => null);
       const arr = (j && Array.isArray(j.conversations)) ? j.conversations : [];
-      return arr.map((c) => { const n = pkConvNorm(c, p.id, p.name, p.platform); const meta = pkChatMeta()[n.id]; if (meta) { n.status = meta.status || ''; n.hasNote = !!(meta.note && String(meta.note).trim()); } return n; });
+      return arr.map((c) => { const n = pkConvNorm(c, p.id, p.name, p.platform); const meta = pkChatMeta()[n.id]; if (meta) { n.status = meta.status || ''; n.hasNote = !!(meta.note && String(meta.note).trim()); n.claimedBy = meta.claimedBy || ''; } return n; });
     } catch (_) { return []; }
   }));
   let convs = [].concat(...results);

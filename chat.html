@@ -171,6 +171,12 @@
   .waitTag{font-size:10px;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap}
   .copybtn{background:#eef2f9;border:1px solid var(--line);border-radius:7px;padding:2px 8px;font-size:11.5px;font-weight:700;color:#334155;cursor:pointer;margin-left:6px}
   .copybtn:hover{background:#e2e8f0}
+  .claimTag{font-size:10px;font-weight:700;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+  .fbwin{padding:6px 14px;font-size:12px;flex:0 0 auto;text-align:center;background:#eff6ff;color:#1e40af;border-bottom:1px solid #bfdbfe}
+  .fbwin.warn{background:#fffbeb;color:#92400e;border-bottom-color:#fde68a}
+  .fbwin.over{background:#fef2f2;color:#b91c1c;border-bottom-color:#fecaca}
+  .claimbtn{width:100%;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:10px;padding:9px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .claimbtn:hover{background:#dbeafe}
 </style>
 </head>
 <body>
@@ -305,7 +311,7 @@ function renderConvs(){
     const pc=plat(c.platform);
     h+='<div class="citem '+(!c.seen?'unread':'')+' '+(OPEN&&OPEN.id===c.id&&OPEN.pageId===c.pageId?'on':'')+'" data-id="'+esc(c.id)+'" data-pg="'+esc(c.pageId)+'">'+
       '<div class="av">'+esc(initial(c.name))+'<span class="pg '+pc+'"></span></div>'+
-      '<div class="ci-main"><div class="ci-top"><span class="ci-name">'+esc(c.name)+'</span>'+stTag(c.status)+(isUnreplied(c)?'<span class="waitTag">รอตอบ</span>':'')+'<span class="ci-time" style="margin-left:auto">'+esc(thTime(c.updatedAt))+'</span></div>'+
+      '<div class="ci-main"><div class="ci-top"><span class="ci-name">'+esc(c.name)+'</span>'+stTag(c.status)+(isUnreplied(c)?'<span class="waitTag">รอตอบ</span>':'')+(c.claimedBy?'<span class="claimTag">🙋'+esc(String(c.claimedBy).split(/\s+/)[0])+'</span>':'')+'<span class="ci-time" style="margin-left:auto">'+esc(thTime(c.updatedAt))+'</span></div>'+
       '<div class="ci-snip">'+(c.lastByPage?'<span style="color:#94a3b8">คุณ: </span>':'')+esc(c.snippet||(c.phone?('📞 '+c.phone):'[รูป/ไฟล์]'))+'</div>'+
       '<div class="ci-pg">'+esc(c.pageName)+(c.phone?(' · '+esc(c.phone)):'')+'</div></div>'+
       (!c.seen?'<div class="unreadDot"></div>':'')+
@@ -339,6 +345,7 @@ function renderThreadShell(c){
       '<button class="toolbtn" id="toolBtn" onclick="toggleTools()">⚙ เครื่องมือ</button>'+
     '</div>'+
     '<div class="gist" id="chatGist" style="display:none"></div>'+
+    '<div class="fbwin" id="fbwin" style="display:none"></div>'+
     '<div class="win" id="winNote" style="display:none">เลย 24 ชม.แล้ว — Facebook อาจไม่ให้ส่งข้อความปกติ</div>'+
     '<div class="msgs" id="msgs"><div class="loading"><div class="spin"></div></div></div>'+
     '<div class="composer">'+
@@ -353,6 +360,7 @@ function renderThreadShell(c){
       '<div class="tp-body">'+
         '<div class="tp-sec" style="margin-top:2px">ลูกค้า</div>'+
         '<div class="tp-cust" id="tpCust"><div class="nm">'+esc(c.name)+'</div>'+(c.phone?('<div>📞 '+esc(c.phone)+'</div>'):'')+'<div style="color:#94a3b8;font-size:12.5px">'+esc(c.pageName)+'</div></div>'+
+        '<div id="tpClaim" style="margin-top:10px"></div>'+
         '<div class="tp-sec">สถานะแชท</div>'+
         '<div class="tp-status" id="tpStatus"></div>'+
         '<div id="tpPrice"></div>'+
@@ -376,6 +384,7 @@ async function loadMsgs(showSpin){
   CUR_MSGS=j.messages||[];
   renderMsgs(CUR_MSGS,showSpin);
   renderGist();
+  renderWindow();
   if(j.customer){
     const cu=j.customer;const tm=$('#tmeta');if(tm){
       let h='<span>'+esc(cur.conv.pageName)+'</span>';
@@ -450,7 +459,7 @@ function stTag(k){const m=stMeta(k);return m?'<span class="ci-st" style="backgro
 async function loadMeta(pageId,id){
   const j=await jget('/api/chat/meta?conversation_id='+encodeURIComponent(id));
   if(!OPEN||OPEN.id!==id)return;
-  CUR_META=(j&&j.meta)?{status:j.meta.status||'',note:j.meta.note||'',amount:(j.meta.closedAmount!=null?j.meta.closedAmount:'')}:{status:'',note:'',amount:''};
+  CUR_META=(j&&j.meta)?{status:j.meta.status||'',note:j.meta.note||'',amount:(j.meta.closedAmount!=null?j.meta.closedAmount:''),claimedBy:j.meta.claimedBy||''}:{status:'',note:'',amount:'',claimedBy:''};
   renderMeta();
 }
 function toggleTools(){const p=$('#toolPanel');if(p)p.classList.toggle('open');}
@@ -459,8 +468,21 @@ function renderMeta(){
   if(el){let h='';for(const s of STATUSES){const on=CUR_META.status===s.k;h+='<button class="stchip'+(on?' on':'')+'" style="'+(on?('background:'+s.color):'')+'" onclick="setStatus(\''+s.k+'\')">'+esc(s.label)+'</button>';}el.innerHTML=h;}
   const pe=$('#tpPrice');
   if(pe){ if(CUR_META.status==='closed'){ const v=(CUR_META.amount!=null&&CUR_META.amount!=='')?CUR_META.amount:''; pe.innerHTML='<div class="tp-sec" style="color:#166534">💰 ยอดปิดการขาย (บาท)</div><input id="closeAmt" class="tp-note" style="min-height:auto;padding:9px 11px" type="number" min="0" inputmode="decimal" placeholder="เช่น 990" value="'+esc(v)+'" onblur="saveAmount()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'; } else pe.innerHTML=''; }
+  const ce=$('#tpClaim');
+  if(ce){ if(CUR_META.claimedBy){ ce.innerHTML='<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:9px 11px;font-size:12.5px;color:#065f46">🙋 ดูแลโดย <b>'+esc(CUR_META.claimedBy)+'</b><button class="copybtn" style="margin-left:8px" onclick="claimChat(false)">ปล่อย</button></div>'; } else { ce.innerHTML='<button class="claimbtn" onclick="claimChat(true)">🙋 รับผิดชอบแชทนี้</button>'; } }
   const ta=$('#noteta');if(ta&&document.activeElement!==ta)ta.value=CUR_META.note||'';
   const tb=$('#toolBtn');if(tb){const st=stMeta(CUR_META.status);tb.innerHTML=st?('⚙ '+esc(st.label)):('⚙ เครื่องมือ'+(CUR_META.note?' <span style="color:#16a34a">●</span>':''));}
+}
+async function claimChat(v){ if(!OPEN)return; CUR_META.claimedBy=v?((ME&&ME.name)||'ฉัน'):''; renderMeta(); const conv=CONVS.find(x=>x.id===OPEN.id&&x.pageId===OPEN.pageId); if(conv)conv.claimedBy=CUR_META.claimedBy; renderConvs(); await jpost('/api/chat/meta',{conversation_id:OPEN.id,claim:v}); toast(v?'รับผิดชอบแชทนี้แล้ว':'ปล่อยแชทแล้ว'); }
+function renderWindow(){
+  const el=$('#fbwin');if(!el)return;
+  let lastIn=null; for(let i=CUR_MSGS.length-1;i>=0;i--){ if(CUR_MSGS[i].dir==='in'&&CUR_MSGS[i].at){ lastIn=CUR_MSGS[i].at; break; } }
+  if(!lastIn){el.style.display='none';return;}
+  const left=Date.parse(lastIn)+24*3600000-Date.now();
+  if(left<=0){ el.style.display='block'; el.className='fbwin over'; el.innerHTML='⛔ เลย 24 ชม.แล้ว — ตอบข้อความปกติไม่ได้ (ต้องใช้ข้อความที่ FB อนุญาต)'; return; }
+  const hh=Math.floor(left/3600000), mm=Math.floor((left%3600000)/60000);
+  el.style.display='block'; el.className='fbwin'+(left<3*3600000?' warn':'');
+  el.innerHTML='⏳ ตอบฟรีได้อีก <b>'+hh+' ชม '+mm+' นาที</b> (หน้าต่าง 24 ชม. ของ FB)';
 }
 async function saveAmount(){ if(!OPEN)return; const el=$('#closeAmt'); if(!el)return; let v=parseFloat(el.value); if(!isFinite(v)||v<0)v=0; CUR_META.amount=v; await jpost('/api/chat/meta',{conversation_id:OPEN.id,amount:v}); toast('บันทึกยอด ฿'+v.toLocaleString()); }
 async function setStatus(k){
@@ -516,7 +538,8 @@ async function openLog(){
   $('#logBody').innerHTML=h;
 }
 function closeLog(){$('#logModal').classList.remove('show');}
-window.setStatus=setStatus;window.toggleNote=toggleNote;window.toggleTools=toggleTools;window.saveNote=saveNote;window.saveAmount=saveAmount;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;window.setFilter=setFilter;window.copyText=copyText;
+window.setStatus=setStatus;window.toggleNote=toggleNote;window.toggleTools=toggleTools;window.saveNote=saveNote;window.saveAmount=saveAmount;window.insertTpl=insertTpl;window.openTpl=openTpl;window.closeTpl=closeTpl;window.addTplRow=addTplRow;window.saveTpls=saveTpls;window.openLog=openLog;window.closeLog=closeLog;window.setFilter=setFilter;window.copyText=copyText;window.claimChat=claimChat;
+document.addEventListener('keydown',(e)=>{ if(!OPEN)return; if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.key>='1'&&e.key<='9'){ const idx=parseInt(e.key,10)-1; if(TPLS[idx]){ e.preventDefault(); insertTpl(TPLS[idx].id); } } });
 function startPolling(){clearInterval(POLL_C);POLL_C=setInterval(()=>loadConvs(false),15000);}
 $('#q').addEventListener('input',renderConvs);
 window.closeThread=closeThread;
@@ -527,6 +550,19 @@ async function initMe(){
   const r=document.querySelector('.head .r');
   if(ME.name&&r){const s=document.createElement('span');s.className='badge';s.textContent='👤 '+ME.name;r.insertBefore(s,r.firstChild);}
   if(ME.role==='chatadmin'){const back=document.querySelector('.head a.back');if(back){back.textContent='ออกจากระบบ';back.removeAttribute('href');back.style.cursor='pointer';back.onclick=()=>{const f=document.createElement('form');f.method='POST';f.action='/logout';document.body.appendChild(f);f.submit();};}}
+  loadMyStats();
+}
+function loadMyStats(){
+  if(!ME||!ME.name)return;
+  jget('/api/chat/log?limit=500').then(j=>{
+    if(!j||!j.log)return;
+    const today=new Date().toDateString();
+    const chats=new Set();
+    for(const e of j.log){ if(e.by!==ME.name)continue; if(new Date(e.at).toDateString()!==today)continue; if(e.convId)chats.add(e.convId); }
+    const r=document.querySelector('.head .r'); if(!r)return;
+    let s=document.getElementById('myStat'); if(!s){s=document.createElement('span');s.className='badge';s.id='myStat';r.insertBefore(s,r.firstChild);}
+    s.textContent='📊 วันนี้ตอบ '+chats.size+' แชท';
+  });
 }
 initMe();
 loadPages();
