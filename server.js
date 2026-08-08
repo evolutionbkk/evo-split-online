@@ -2069,9 +2069,10 @@ function pkChatTemplates() {
 
 // นับแชท INBOX ตั้งแต่ startMs (ms) จนถึงปัจจุบัน แบบไล่หน้าครบทุกหน้า (ไม่จำกัด 300)
 // คืน { tot, wait, byNick } — byNick = จำนวนแชทที่แต่ละคน (ชื่อเล่น) เป็นคนตอบล่าสุด
-const _convTallyCache = new Map(); // startMs -> { at, data }
-async function pkConvTally(startMs, maxGuard) {
-  const cached = _convTallyCache.get(startMs);
+const _convTallyCache = new Map(); // key -> { at, data }
+async function pkConvTally(startMs, maxGuard, endMs) {
+  const cacheKey = startMs + '_' + (endMs || 0);
+  const cached = _convTallyCache.get(cacheKey);
   if (cached && (Date.now() - cached.at) < 5 * 60 * 1000) return cached.data;
   const cs = await pkEnsurePages(false);
   const pms = (s) => { s = String(s || ''); if (!s) return NaN; if (!/([Zz]|[+-]\d\d:?\d\d)$/.test(s)) s = s.replace(' ', 'T') + 'Z'; return Date.parse(s); };
@@ -2090,6 +2091,7 @@ async function pkConvTally(startMs, maxGuard) {
       for (const c of arr) {
         const t = pms(c.updated_at || c.inserted_at);
         if (isNaN(t)) continue;
+        if (endMs && t > endMs) continue;             // ใหม่กว่าปลายช่วง — ข้าม (ยังไม่ถึงช่วงที่เลือก)
         if (t < startMs) { stop = true; break; }
         tot++;
         const lsb = c.last_sent_by || {};
@@ -2103,7 +2105,7 @@ async function pkConvTally(startMs, maxGuard) {
     }
   }));
   const data = { tot, wait, byNick };
-  _convTallyCache.set(startMs, { at: Date.now(), data });
+  _convTallyCache.set(cacheKey, { at: Date.now(), data });
   return data;
 }
 function thMonthStartMs() {
@@ -2120,35 +2122,42 @@ app.get('/api/chat/today-summary', requireChat, async (req, res) => {
   catch (_) { res.json({ tot: 0, wait: 0, ans: 0 }); }
 });
 
-// Dashboard ภาพรวมของฉัน — เซลล์ (เทเลเซลล์) เห็นเฉพาะ KPI ของตัวเอง (เดือนนี้)
-app.get('/api/sales/my-kpi', requireCrm, async (req, res) => {
-  const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : 'W');
+// ช่วงเวลาเริ่มต้น = เดือนนี้ (เขต Thai) ถ้าไม่ส่ง from/to มา
+function myKpiRange(req) {
   const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
   const monthStart = new Date(Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), 1) - TZ).toISOString();
-  const k = await computeSalesKpi(monthStart, new Date().toISOString());
+  const nowISO = new Date().toISOString();
+  let from = req.query.from ? String(req.query.from) : monthStart;
+  let to = req.query.to ? String(req.query.to) : nowISO;
+  if (isNaN(Date.parse(from))) from = monthStart;
+  if (isNaN(Date.parse(to))) to = nowISO;
+  return { from, to, month: nowTh.getUTCFullYear() + '-' + String(nowTh.getUTCMonth() + 1).padStart(2, '0') };
+}
+// Dashboard ภาพรวมของฉัน — เซลล์ (เทเลเซลล์) เห็นเฉพาะ KPI ของตัวเอง · เลือกช่วงเวลาได้
+app.get('/api/sales/my-kpi', requireCrm, async (req, res) => {
+  const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : 'W');
+  const rg = myKpiRange(req);
+  const k = await computeSalesKpi(rg.from, rg.to);
   const A = k[side] || {};
   const total = A.total || 0;
-  // "โทรไปแล้ว" = ลูกค้าที่โทรถึงจริง (จับคู่จาก OneCall) — เดือนนี้ / วันนี้
-  const calledMonth = (A.calledEvoRange || 0) + (A.calledManualRange || 0);
-  const calledToday = (A.calledEvoToday || 0) + (A.calledManualToday || 0);
+  // "โทรไปแล้ว" = ลูกค้าที่โทรถึงจริง (จับคู่จาก OneCall) ในช่วงที่เลือก
+  const called = (A.calledEvoRange || 0) + (A.calledManualRange || 0);
   res.json({
     ok: true, side, name: (k.names && k.names[side]) || side, target: SALES_REV_TARGET,
     rev: Math.round(A.revRange || 0), won: A.wonRange || 0,
-    total, called: calledMonth, notCalled: Math.max(0, total - calledMonth),
-    callsToday: calledToday, wonToday: A.wonToday || 0,
-    month: nowTh.getUTCFullYear() + '-' + String(nowTh.getUTCMonth() + 1).padStart(2, '0'),
+    total, called, notCalled: Math.max(0, total - called),
+    from: k.from, to: k.to, month: rg.month,
   });
 });
 
-// Dashboard ภาพรวมของฉัน — แอดมินตอบแชท เห็นเฉพาะ KPI ของตัวเอง (เดือนนี้)
+// Dashboard ภาพรวมของฉัน — แอดมินตอบแชท เห็นเฉพาะ KPI ของตัวเอง · เลือกช่วงเวลาได้
 app.get('/api/chat/my-kpi', requireChat, async (req, res) => {
   const myNick = sessName(req);   // ชื่อเล่นของแอดมินที่ล็อกอิน (ไลลา/ยูกิ)
-  const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
-  const monthStart = new Date(Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), 1) - TZ).toISOString();
+  const rg = myKpiRange(req);
   let rev = 0, closed = 0;
   if (PANCAKE_API_KEY) {
     try {
-      const ps = await computePancakeSales(monthStart, new Date().toISOString(), false);
+      const ps = await computePancakeSales(rg.from, rg.to, false);
       for (const nm in (ps.byCloser || {})) {
         if (nickName(nm) === myNick) { rev += ps.byCloser[nm].admin.revenue || 0; closed += ps.byCloser[nm].admin.orders || 0; }
       }
@@ -2156,12 +2165,17 @@ app.get('/api/chat/my-kpi', requireChat, async (req, res) => {
   }
   let chatsTotal = 0, chatsAnswered = 0;
   if (pkChatConfigured()) {
-    try { const t = await pkConvTally(thMonthStartMs(), 120); chatsTotal = t.tot; chatsAnswered = t.byNick[myNick] || 0; } catch (_) {}
+    try {
+      const fromMs = Date.parse(rg.from), toMs = Date.parse(rg.to);
+      const endMs = (Math.abs(toMs - Date.now()) < 90000) ? 0 : toMs;   // ปลายช่วง = ปัจจุบัน → ไม่ต้องจำกัดบน
+      const t = await pkConvTally(fromMs, 150, endMs);
+      chatsTotal = t.tot; chatsAnswered = t.byNick[myNick] || 0;
+    } catch (_) {}
   }
   res.json({
     ok: true, name: myNick, target: ADMIN_REV_TARGET,
     rev: Math.round(rev), closed, chatsAnswered, chatsTotal,
-    month: nowTh.getUTCFullYear() + '-' + String(nowTh.getUTCMonth() + 1).padStart(2, '0'),
+    from: rg.from, to: rg.to, month: rg.month,
   });
 });
 
