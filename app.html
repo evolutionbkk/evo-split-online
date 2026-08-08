@@ -135,7 +135,7 @@
   <div class="lastact" id="lastact"></div>
 
   <div class="cards" data-sec="overview">
-    <div class="card total"><div class="n" id="c-all">–</div><div class="l">รวมที่แบ่งแล้ว</div></div>
+    <div class="card total"><div class="n" id="c-all">–</div><div class="l">รวมที่แบ่งแล้ว</div><div class="l" id="c-all-split" style="margin-top:4px;font-size:11.5px;line-height:1.5"></div></div>
     <div class="card w"><div class="n" id="c-w">–</div><div class="l">Sales (W)</div></div>
     <div class="card k"><div class="n" id="c-k">–</div><div class="l">Sales (K)</div></div>
     <div class="card upd"><div class="n" id="c-upd">–</div><div class="l">อัปเดตล่าสุด</div></div>
@@ -476,6 +476,10 @@ async function refresh(){
   document.getElementById('c-all').textContent=s.total;
   document.getElementById('c-w').textContent=s.W.length;
   document.getElementById('c-k').textContent=s.K.length;
+  {const _all=[...(s.W||[]),...(s.K||[])];
+   const _fb=_all.filter(r=>r.source==='pancake'||r.source==='manual'||r.source==='refill').length;
+   const _mkt=_all.length-_fb;const _sp=document.getElementById('c-all-split');
+   if(_sp)_sp.innerHTML='🔵 FB Page <b>'+_fb+'</b> · 🟢 Marketplace <b>'+_mkt+'</b>';}
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
   LAST={W:s.W,K:s.K}; renderTables();
   DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff();
@@ -672,6 +676,10 @@ function setKRange(m){
 }
 const kbaht=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});
 function ktile(n,l,cls){return `<div class="kt ${cls||''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;}
+// ชื่อเล่นพนักงาน (จับคู่จากชื่อเต็มที่ Pancake ส่งมา) — ใช้แสดงกำกับในตารางพนักงานปิดการขาย
+const STAFF_NICK=[['chonlakarn','ไลลา'],['yuki','ยูกิ'],['ณิชาภา','ณชา'],['ขวัญเอ๊าะ','เขม'],['namwhan','หวาน'],['numwhan','หวาน'],['ชาเย็น','พี่โม']];
+function nickName(full){const s=String(full||'').toLowerCase();for(const kv of STAFF_NICK){if(s.includes(kv[0]))return kv[1];}return '';}
+function staffLabel(full){const n=nickName(full);return n?('<b>'+esc(n)+'</b> <span style="color:#94a3b8;font-weight:400;font-size:12px">'+esc(full)+'</span>'):esc(full);}
 let KPI_TIERS={W:{},K:{}};
 function personCard(side,name,a){
   const conv=a.total?Math.round(a.status.won/a.total*100):0;
@@ -689,11 +697,11 @@ function personCard(side,name,a){
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
       <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
       ${targetBar('Marketplace', a.calledEvoToday, KPI_TARGETS.evo, '#0e7490', a.talk7EvoToday)}
-      ${(()=>{const fb=(KPI_TIERS[side]||{}).fbpage||{T1:0,T2:0,T3:0};const T=KPI_TARGETS.tier||5;
-        return '<div style="font-size:11.5px;color:#475569;margin:6px 0 4px">การโทรติดตาม FB Page (T1 / T2 / T3)</div>'
-          +targetBar('T1', fb.T1||0, T, '#1d4ed8')
-          +targetBar('T2', fb.T2||0, T, '#b45309')
-          +targetBar('T3', fb.T3||0, T, '#047857');})()}
+      ${(()=>{const fb=(KPI_TIERS[side]||{}).fbpage||{};const T=KPI_TARGETS.tier||5;
+        return '<div style="font-size:11.5px;color:#475569;margin:6px 0 4px">การโทรติดตาม FB Page วันนี้ (T1 / T2 / T3)</div>'
+          +targetBar('T1', fb.T1d||0, T, '#1d4ed8')
+          +targetBar('T2', fb.T2d||0, T, '#b45309')
+          +targetBar('T3', fb.T3d||0, T, '#047857');})()}
       <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Marketplace <b>${a.calledEvoRange}</b> ราย · FB <b>${a.callsManualRange}</b> สาย${KPI_FB_LEGACY?' <span style="color:#b45309">(นับสายที่โทรจริงทั้งหมด — ช่วงย้ายระบบ)</span>':' ปิดการขาย <span style="color:#94a3b8">· เบอร์ทักใหม่ '+a.talk7OtherRange+' สาย (ไม่นับ KPI)</span>'}</div>
       <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Evolution ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}T1 = คุยจริง&gt;7วิ ครั้งแรกของลูกค้า (นับอัตโนมัติ) · T2/T3 = เซลล์กดเปลี่ยนรอบเอง · แยกกันไม่รวม</div>
     </div>`:''}
@@ -1286,7 +1294,7 @@ function renderSrc(j,target,compact){
   const closers=Object.entries(j.byCloser||{}).map(([name,v])=>({name,o:v.admin.orders+v.telesales.orders,r:v.admin.revenue+v.telesales.revenue,ar:v.admin.revenue,tr:v.telesales.revenue})).sort((x,y)=>y.r-x.r);
   h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 8px">พนักงานปิดการขาย</div>';
   h+='<div class="tblwrap" style="margin-bottom:16px"><table style="min-width:520px"><thead><tr><th>พนักงาน</th><th style="text-align:center">ประเภทหลัก</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ยอดขาย</th></tr></thead><tbody>';
-  for(const c of closers){const type=c.ar>=c.tr?'<span style="color:#1d4ed8;font-weight:600">แอดมิน</span>':'<span style="color:#047857;font-weight:600">เทเลเซลล์</span>';h+='<tr><td>'+esc(c.name)+'</td><td style="text-align:center">'+type+'</td><td style="text-align:right">'+c.o+'</td><td style="text-align:right;font-weight:600">'+bht(c.r)+'</td></tr>';}
+  for(const c of closers){const type=c.ar>=c.tr?'<span style="color:#1d4ed8;font-weight:600">แอดมิน</span>':'<span style="color:#047857;font-weight:600">เทเลเซลล์</span>';h+='<tr><td>'+staffLabel(c.name)+'</td><td style="text-align:center">'+type+'</td><td style="text-align:right">'+c.o+'</td><td style="text-align:right;font-weight:600">'+bht(c.r)+'</td></tr>';}
   h+='</tbody></table></div>';
   const days=Object.entries(j.byDay||{}).sort((x,y)=>y[0].localeCompare(x[0]));
   if(!compact&&days.length){

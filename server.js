@@ -528,7 +528,17 @@ app.post('/api/lead/tstage', requireCrm, async (req, res) => {
 // Teamlead report: per-salesperson T1/T2/T3 counts over the admin-handed leads.
 function followupTiers() {
   const ocMap = onecallStatsMap();
-  const blank = () => ({ T1: 0, T2: 0, T3: 0, leads: 0 });
+  const today = S.thaiDay();
+  // earliest >7s talk time per side|phone → used to know if the FIRST real talk (T1) happened TODAY
+  const firstTalk = new Map();
+  for (const c of (state.onecall || [])) {
+    if ((c.dur || 0) <= ONECALL_MIN_TALK) continue;
+    const key = c.side + '|' + digitsOnly(c.phone); const at = c.at || null; if (!at) continue;
+    const prev = firstTalk.get(key);
+    if (!prev || String(at) < String(prev)) firstTalk.set(key, at);
+  }
+  // T1/T2/T3 = cumulative (all-time) · T1d/T2d/T3d = achieved TODAY only (resets each Thai day)
+  const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, leads: 0 });
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
   for (const r of state.assigned) {
@@ -538,11 +548,16 @@ function followupTiers() {
     // แหล่งกระจายข้อมูล: FB Page = แอดมินปิดการขาย (pancake/manual/refill) · Marketplace = เว็บ Evolution
     const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
     const o = out[r.sales][grp]; o.leads++;
-    const oc = ocMap.get(r.sales + '|' + digitsOnly(r.phone));
-    if (oc && oc.talk > 0) o.T1++;                 // T1: talked >7s at least once (per customer)
+    const key = r.sales + '|' + digitsOnly(r.phone);
+    const oc = ocMap.get(key);
+    if (oc && oc.talk > 0) {                        // T1: talked >7s at least once (per customer)
+      o.T1++;
+      const ft = firstTalk.get(key);
+      if (ft && S.thaiDay(ft) === today) o.T1d++;   // first real talk happened today
+    }
     const fs = r.followStage || 1;
-    if (fs >= 2) o.T2++;                            // T2: sales marked round 2
-    if (fs >= 3) o.T3++;                            // T3: sales marked round 3
+    if (fs >= 2) { o.T2++; if (r.t2At && S.thaiDay(r.t2At) === today) o.T2d++; }  // T2 pressed today
+    if (fs >= 3) { o.T3++; if (r.t3At && S.thaiDay(r.t3At) === today) o.T3d++; }  // T3 pressed today
   }
   return out;
 }
@@ -1953,6 +1968,61 @@ function pkMsgNorm(m, custPsid) {
     at: m.inserted_at || null, fromName: String((m.from && (m.from.name || m.from.admin_name)) || ''), atts,
   };
 }
+
+// ---------- Chat admin add-ons: per-conversation status/notes, quick-reply templates, reply audit log ----------
+const PK_CHAT_STATUSES = [
+  { k: 'new', label: 'ใหม่', color: '#2563eb' },
+  { k: 'talking', label: 'กำลังคุย', color: '#0891b2' },
+  { k: 'interested', label: 'สนใจ', color: '#7c3aed' },
+  { k: 'closed', label: 'ปิดได้', color: '#16a34a' },
+  { k: 'handoff', label: 'โอนเซลล์', color: '#b45309' },
+  { k: 'nope', label: 'ไม่เอา', color: '#b91c1c' },
+];
+const PK_CHAT_STATUS_KEYS = PK_CHAT_STATUSES.map((s) => s.k);
+const PK_TEMPLATE_SEED = [
+  'สวัสดีค่ะ 🙏 สนใจสินค้าตัวไหนเป็นพิเศษไหมคะ',
+  'ตอนนี้มีโปรพิเศษอยู่นะคะ 😊 สนใจให้แอดมินแนะนำไหมคะ',
+  'สั่งซื้อได้เลยค่ะ รบกวนขอ ชื่อ-ที่อยู่-เบอร์โทร สำหรับจัดส่งค่ะ',
+  'จัดส่งฟรีทั่วประเทศ เก็บเงินปลายทางได้ค่ะ 📦',
+  'ขอบคุณมากค่ะ 🙏 เดี๋ยวทางร้านจัดส่งให้เลยนะคะ',
+];
+function pkChatMeta() { if (!state.chatMeta || typeof state.chatMeta !== 'object') state.chatMeta = {}; return state.chatMeta; }
+function pkChatLog() { if (!Array.isArray(state.chatLog)) state.chatLog = []; return state.chatLog; }
+function pkChatTemplates() {
+  if (!Array.isArray(state.chatTemplates)) state.chatTemplates = PK_TEMPLATE_SEED.map((t, i) => ({ id: 't' + (i + 1), text: t }));
+  return state.chatTemplates;
+}
+
+app.get('/api/chat/templates', requireAuth, (req, res) => res.json({ templates: pkChatTemplates(), statuses: PK_CHAT_STATUSES }));
+app.post('/api/chat/templates', requireAuth, async (req, res) => {
+  const arr = Array.isArray(req.body && req.body.templates) ? req.body.templates : null;
+  if (!arr) return res.status(400).json({ error: 'bad_request' });
+  const clean = arr.map((t, i) => ({ id: String((t && t.id) || ('t' + (i + 1))), text: String((t && t.text) || '').slice(0, 1000).trim() }))
+    .filter((t) => t.text).slice(0, 60);
+  state.chatTemplates = clean; state = await store.save(state);
+  res.json({ ok: true, templates: clean });
+});
+
+app.get('/api/chat/meta', requireAuth, (req, res) => {
+  const id = String(req.query.conversation_id || '');
+  res.json({ statuses: PK_CHAT_STATUSES, meta: pkChatMeta()[id] || null });
+});
+app.post('/api/chat/meta', requireAuth, async (req, res) => {
+  const { conversation_id, status, note } = req.body || {};
+  const id = String(conversation_id || ''); if (!id) return res.status(400).json({ error: 'bad_request' });
+  const meta = pkChatMeta(); const cur = meta[id] || {};
+  if (status !== undefined) cur.status = PK_CHAT_STATUS_KEYS.includes(String(status)) ? String(status) : '';
+  if (note !== undefined) cur.note = String(note || '').slice(0, 1000);
+  cur.updatedAt = new Date().toISOString(); cur.by = String((req.session && req.session.u) || whoami(req));
+  meta[id] = cur; state.chatMeta = meta; state = await store.save(state);
+  res.json({ ok: true, meta: cur });
+});
+
+app.get('/api/chat/log', requireAuth, (req, res) => {
+  const lim = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 200));
+  const log = pkChatLog();
+  res.json({ log: log.slice(-lim).reverse(), total: log.length });
+});
 
 app.get('/inbox', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
 
