@@ -1954,16 +1954,16 @@ function pkMsgNorm(m, custPsid) {
   };
 }
 
-app.get('/inbox', requireCrm, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
+app.get('/inbox', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
 
-app.get('/api/chat/pages', requireCrm, async (req, res) => {
+app.get('/api/chat/pages', requireAuth, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ configured: false, pages: [] });
   const cs = await pkEnsurePages(req.query.refresh === '1');
   res.json({ configured: true, syncedAt: cs.syncedAt,
     pages: cs.pages.map((p) => ({ id: p.id, name: p.name, platform: p.platform, hasToken: !!cs.tokens[p.id] })) });
 });
 
-app.get('/api/chat/conversations', requireCrm, async (req, res) => {
+app.get('/api/chat/conversations', requireAuth, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ error: 'not_configured', conversations: [] });
   const cs = await pkEnsurePages(false);
   const type = String(req.query.type || 'INBOX');
@@ -1985,7 +1985,7 @@ app.get('/api/chat/conversations', requireCrm, async (req, res) => {
   res.json({ conversations: convs, unread: convs.filter((c) => !c.seen).length });
 });
 
-app.get('/api/chat/messages', requireCrm, async (req, res) => {
+app.get('/api/chat/messages', requireAuth, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ error: 'not_configured', messages: [] });
   const cs = await pkEnsurePages(false);
   const pageId = String(req.query.page_id || ''); const convId = String(req.query.conversation_id || '');
@@ -2011,7 +2011,7 @@ app.get('/api/chat/messages', requireCrm, async (req, res) => {
 });
 
 // Send a reply. NOTE: initiated by the human sales/admin user from the inbox UI.
-app.post('/api/chat/send', requireCrm, async (req, res) => {
+app.post('/api/chat/send', requireAuth, async (req, res) => {
   if (!pkChatConfigured()) return res.status(400).json({ error: 'not_configured' });
   const cs = await pkEnsurePages(false);
   const { page_id, conversation_id, message } = req.body || {};
@@ -2026,7 +2026,7 @@ app.post('/api/chat/send', requireCrm, async (req, res) => {
   } catch (e) { res.status(502).json({ ok: false, error: 'send_failed' }); }
 });
 
-app.post('/api/chat/read', requireCrm, async (req, res) => {
+app.post('/api/chat/read', requireAuth, async (req, res) => {
   if (!pkChatConfigured()) return res.status(400).json({ error: 'not_configured' });
   const cs = await pkEnsurePages(false);
   const { page_id, conversation_id } = req.body || {};
