@@ -2127,11 +2127,15 @@ app.get('/api/sales/my-kpi', requireCrm, async (req, res) => {
   const monthStart = new Date(Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), 1) - TZ).toISOString();
   const k = await computeSalesKpi(monthStart, new Date().toISOString());
   const A = k[side] || {};
+  const total = A.total || 0;
+  // "โทรไปแล้ว" = ลูกค้าที่โทรถึงจริง (จับคู่จาก OneCall) — เดือนนี้ / วันนี้
+  const calledMonth = (A.calledEvoRange || 0) + (A.calledManualRange || 0);
+  const calledToday = (A.calledEvoToday || 0) + (A.calledManualToday || 0);
   res.json({
     ok: true, side, name: (k.names && k.names[side]) || side, target: SALES_REV_TARGET,
     rev: Math.round(A.revRange || 0), won: A.wonRange || 0,
-    total: A.total || 0, called: A.called || 0, notCalled: A.notCalled || 0,
-    callsToday: A.callsToday || 0, wonToday: A.wonToday || 0,
+    total, called: calledMonth, notCalled: Math.max(0, total - calledMonth),
+    callsToday: calledToday, wonToday: A.wonToday || 0,
     month: nowTh.getUTCFullYear() + '-' + String(nowTh.getUTCMonth() + 1).padStart(2, '0'),
   });
 });
