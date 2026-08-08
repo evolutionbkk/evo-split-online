@@ -296,6 +296,7 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
   let moved = 0;
   if (off) {
     state.dayoff[side] = today; // on leave for today only; resets on the next Thai day
+    leaveAdd(side, today);      // record the leave for the monthly count
     for (const a of state.assigned) {
       if (a.archived || a.sales !== side) continue;
       a.sales = other; a.dayoffMoved = side;
@@ -304,6 +305,7 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
     }
   } else {
     state.dayoff[side] = null; // cancel leave now → return the moved leads
+    leaveDel(side, today);     // un-record today's leave
     for (const a of state.assigned) {
       if (a.archived || a.dayoffMoved !== side) continue;
       a.sales = side; delete a.dayoffMoved;
@@ -314,6 +316,30 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
   state.updatedAt = now;
   state = await store.save(state);
   res.json({ ok: true, side, off, moved, dayoff: dof() });
+});
+
+// ---------- Leave tracking (วันลา) — sales + chat admins, monthly count ----------
+function pkLeaveLog() { if (!Array.isArray(state.leaveLog)) state.leaveLog = []; return state.leaveLog; }
+function leaveHas(who, date) { return pkLeaveLog().some((e) => e.who === who && e.date === date); }
+function leaveAdd(who, date) { if (!leaveHas(who, date)) pkLeaveLog().push({ who, date, at: new Date().toISOString() }); }
+function leaveDel(who, date) { state.leaveLog = pkLeaveLog().filter((e) => !(e.who === who && e.date === date)); }
+function leaveCountMonth(who, ym) { return pkLeaveLog().filter((e) => e.who === who && String(e.date).slice(0, 7) === ym).length; }
+function leaveSummary(ym) {
+  const today = S.thaiDay();
+  ym = ym || today.slice(0, 7);
+  const people = [{ who: 'W', name: (SALES_NAMES && SALES_NAMES.W) || 'Namwhan (W)', kind: 'sales' }, { who: 'K', name: (SALES_NAMES && SALES_NAMES.K) || 'Khem (K)', kind: 'sales' }];
+  for (const c of CHAT_USERS) people.push({ who: 'chat:' + c.user, name: c.name, kind: 'admin' });
+  return { month: ym, today, people: people.map((p) => ({ who: p.who, name: p.name, kind: p.kind, onToday: leaveHas(p.who, today), monthCount: leaveCountMonth(p.who, ym) })) };
+}
+app.get('/api/admin/leaves', requireAuth, (req, res) => res.json(leaveSummary(req.query.month)));
+app.post('/api/admin/adminleave', requireAuth, async (req, res) => {
+  const who = String((req.body && req.body.who) || '');
+  const on = !!(req.body && req.body.on);
+  if (!who.startsWith('chat:')) return res.status(400).json({ error: 'bad_who' });
+  const today = S.thaiDay();
+  if (on) leaveAdd(who, today); else leaveDel(who, today);
+  state = await store.save(state);
+  res.json({ ok: true, ...leaveSummary() });
 });
 
 // ---------- lead CRM (per-salesperson status tracking) ----------

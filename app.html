@@ -167,10 +167,16 @@
   <div class="panel" data-sec="overview" id="chatKpiPanel">
     <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (ไลลา · ยูกิ) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="desc">วัดจากการตอบแชทผ่านระบบ · <b>จำนวนแชท</b> = แชทที่ตอบ (ไม่นับซ้ำ) · <b>ตอบเฉลี่ย</b> = เวลาเฉลี่ยจากที่ลูกค้าทักถึงที่ตอบ · <b>ปิดการขาย</b> = แชทที่กดสถานะ "ปิดได้"</div>
-    <div class="krange" id="chatKpiRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center">
+    <div class="krange" id="chatKpiRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center;gap:6px">
       <button class="kr" data-r="today" onclick="chatKpiSet('today')">วันนี้</button>
+      <button class="kr" data-r="7" onclick="chatKpiSet('7')">7 วัน</button>
       <button class="kr on" data-r="30" onclick="chatKpiSet('30')">30 วัน</button>
       <button class="kr" data-r="month" onclick="chatKpiSet('month')">เดือนนี้</button>
+      <button class="kr" data-r="custom" onclick="chatKpiSet('custom')">กำหนดเอง</button>
+      <span id="chatKpiCustom" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:#475569">
+        <input type="date" id="ckFrom" onchange="chatKpiCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">ถึง<input type="date" id="ckTo" onchange="chatKpiCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
+        <span style="color:#94a3b8">|</span> เดือน <input type="month" id="ckMonth" onchange="chatKpiMonthGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
+      </span>
     </div>
     <div id="chatKpiBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
@@ -493,7 +499,7 @@ async function refresh(){
    if(_sp)_sp.innerHTML='🔵 FB Page <b>'+_fb+'</b> · 🟢 Marketplace <b>'+_mkt+'</b>';}
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
   LAST={W:s.W,K:s.K}; renderTables();
-  DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff();
+  DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff(); loadLeaves();
   loadTiers();
 }
 async function loadTiers(){
@@ -515,21 +521,25 @@ async function loadTiers(){
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 // ===== Admin chat KPI (ไลลา · ยูกิ) =====
-let CHATKPI_MODE='30';
+let CHATKPI_MODE='30', CHATKPI_CUSTOM=null;
 function chatKpiRangeFor(m){
+  if(m==='custom'&&CHATKPI_CUSTOM)return CHATKPI_CUSTOM;
   const end=new Date();end.setHours(23,59,59,999);
   const start=new Date();
   if(m==='today')start.setHours(0,0,0,0);
+  else if(m==='7'){start.setDate(start.getDate()-6);start.setHours(0,0,0,0);}
   else if(m==='month'){start.setDate(1);start.setHours(0,0,0,0);}
   else{start.setDate(start.getDate()-29);start.setHours(0,0,0,0);}
   return{from:start.toISOString(),to:end.toISOString()};
 }
-function chatKpiSet(m){CHATKPI_MODE=m;document.querySelectorAll('#chatKpiRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));loadChatKpi();}
+function chatKpiSet(m){CHATKPI_MODE=m;document.querySelectorAll('#chatKpiRange .kr').forEach(b=>b.classList.toggle('on',b.dataset.r===m));const cu=document.getElementById('chatKpiCustom');if(cu)cu.style.display=(m==='custom')?'inline-flex':'none';if(m!=='custom')loadChatKpi();}
+function chatKpiCustomGo(){const f=document.getElementById('ckFrom').value,t=document.getElementById('ckTo').value;if(!f||!t)return;CHATKPI_CUSTOM={from:new Date(f+'T00:00:00').toISOString(),to:new Date(t+'T23:59:59').toISOString()};CHATKPI_MODE='custom';loadChatKpi();}
+function chatKpiMonthGo(){const mo=document.getElementById('ckMonth').value;if(!mo)return;const from=new Date(mo+'-01T00:00:00');const to=new Date(from.getFullYear(),from.getMonth()+1,0,23,59,59);CHATKPI_CUSTOM={from:from.toISOString(),to:to.toISOString()};CHATKPI_MODE='custom';loadChatKpi();}
 function fmtResp(s){if(s==null)return '—';s=Math.round(s);if(s<60)return s+' วิ';const mnt=Math.floor(s/60),sec=s%60;if(mnt<60)return mnt+' นาที'+(sec?' '+sec+' วิ':'');const hr=Math.floor(mnt/60);return hr+' ชม '+(mnt%60)+' นาที';}
 async function loadChatKpi(){
   const box=document.getElementById('chatKpiBox');if(!box)return;
   const{from,to}=chatKpiRangeFor(CHATKPI_MODE);
-  const lbl={today:'วันนี้','30':'30 วันล่าสุด',month:'เดือนนี้'}[CHATKPI_MODE]||'';
+  const lbl={today:'วันนี้','7':'7 วันล่าสุด','30':'30 วันล่าสุด',month:'เดือนนี้',custom:'ช่วงที่เลือก'}[CHATKPI_MODE]||'';
   const lblEl=document.getElementById('chatKpiLbl');if(lblEl)lblEl.textContent=lbl;
   try{
     const [j,ss]=await Promise.all([
@@ -555,19 +565,36 @@ async function loadChatKpi(){
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
 }
 let DAYOFF={W:false,K:false};
+let LEAVES={month:'',people:[]};
 const SNAME={W:'Namwhan (W)',K:'Khem (K)'};
+function leaveOf(who){return (LEAVES.people||[]).find(p=>p.who===who)||{onToday:false,monthCount:0};}
+async function loadLeaves(){try{LEAVES=await fetch('/api/admin/leaves',{credentials:'same-origin'}).then(r=>r.json());renderDayoff();}catch(e){}}
+function leaveCard(name,off,cnt,onclick,sub){
+  return '<div style="flex:1;min-width:210px;border:1px solid '+(off?'#fecaca':'var(--line)')+';border-radius:12px;padding:12px 14px;background:'+(off?'#fef2f2':'#fff')+'">'
+    +'<div style="font-weight:700;color:#0f172a">'+esc(name)+'</div>'
+    +'<div style="font-size:11px;color:#94a3b8;margin:2px 0">'+sub+' · ลาเดือนนี้ <b style="color:#b45309">'+cnt+'</b> ครั้ง</div>'
+    +'<div style="font-size:12.5px;margin:3px 0 10px;color:'+(off?'#b91c1c':'#16a34a')+'">'+(off?'🌴 ลาวันนี้':'✓ ทำงานปกติ')+'</div>'
+    +'<button class="b-b" style="padding:7px 14px'+(off?';background:#ef4444':'')+'" onclick="'+onclick+'">'+(off?'ยกเลิกวันลา':'ลาวันนี้')+'</button>'
+    +'</div>';
+}
 function renderDayoff(){
   const box=document.getElementById('dayoffBox'); if(!box)return;
   let h='';
   for(const side of ['W','K']){
     const off=!!DAYOFF[side];
-    h+='<div style="flex:1;min-width:210px;border:1px solid '+(off?'#fecaca':'var(--line)')+';border-radius:12px;padding:12px 14px;background:'+(off?'#fef2f2':'#fff')+'">'
-      +'<div style="font-weight:700;color:#0f172a">'+SNAME[side]+'</div>'
-      +'<div style="font-size:12.5px;margin:3px 0 10px;color:'+(off?'#b91c1c':'#16a34a')+'">'+(off?'🌴 ลาวันนี้ — ย้ายรายชื่อไปให้อีกคนแล้ว':'✓ ทำงานปกติ')+'</div>'
-      +'<button class="b-b" style="padding:7px 14px'+(off?';background:#ef4444':'')+'" onclick="toggleDayoff(\''+side+'\','+(!off)+')">'+(off?'ยกเลิกวันลา':'ลาวันนี้')+'</button>'
-      +'</div>';
+    h+=leaveCard(SNAME[side],off,leaveOf(side).monthCount,'toggleDayoff(\''+side+'\','+(!off)+')','เซลล์ · ย้ายรายชื่อให้อีกคนอัตโนมัติ');
+  }
+  for(const p of (LEAVES.people||[]).filter(x=>x.kind==='admin')){
+    h+=leaveCard(p.name,p.onToday,p.monthCount,'toggleAdminLeave(\''+p.who+'\','+(!p.onToday)+')','แอดมินแชท · บันทึกวันลา');
   }
   box.innerHTML=h;
+}
+async function toggleAdminLeave(who,on){
+  const p=leaveOf(who);
+  if(!confirm((p.name||'แอดมิน')+(on?' ลาวันนี้ใช่ไหม?':' ยกเลิกวันลาวันนี้ใช่ไหม?')))return;
+  try{const j=await fetch('/api/admin/adminleave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({who,on})}).then(r=>r.json());
+    if(j&&j.ok){LEAVES=j;renderDayoff();document.getElementById('lastact').innerHTML=ic('check',14)+(p.name||'แอดมิน')+(on?' ลาวันนี้':' ยกเลิกวันลา');}
+  }catch(e){alert('เกิดข้อผิดพลาด: '+e);}
 }
 async function toggleDayoff(side,off){
   const name=SNAME[side];
