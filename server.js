@@ -491,7 +491,7 @@ app.get('/api/leads', requireCrm, async (req, res) => {
 });
 
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
-const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่ปิด', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', name: 'แก้ชื่อลูกค้า', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', restore: 'กู้คืน' };
+const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', name: 'แก้ชื่อลูกค้า', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', restore: 'กู้คืน' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
   const limit = Math.min(600, Math.max(20, parseInt(req.query.limit, 10) || 250));
   const activity = [], transfers = [];

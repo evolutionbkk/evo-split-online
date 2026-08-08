@@ -550,10 +550,7 @@ function openLeadByKey(key){
     <button class="act b-save" style="width:100%;margin-top:8px" onclick="saveNote()">บันทึกหมายเหตุ</button>
     <div class="sec" style="margin-top:18px">ประวัติการติดต่อ</div>
     ${buildTimeline(r)}
-    <div style="margin-top:16px;border-top:1px solid #eef2f7;padding-top:14px">
-      <button class="act" style="width:100%;background:#fff7ed;color:#9a3412;border:1px solid #fdba74" onclick="doAdvance()">${(r.stage||0)===0?(ic('repeat',16)+'ส่งต่อให้ '+(r.sales==='W'?'K':'W')+' เลย (ไม่รอครบ 3 รอบ)'):(ic('trash',16)+'คัดออกถาวรเลย')}</button>
-    </div>
-    <div class="rm"><div class="sec">เลิกติดตามลูกค้ารายนี้</div>
+    <div class="rm" style="margin-top:16px;border-top:1px solid #eef2f7;padding-top:14px"><div class="sec">เลิกติดตามลูกค้ารายนี้</div>
       <div style="font-size:11.5px;color:#94a3b8;margin:-2px 0 6px">ระบุเหตุผลที่เลิกติดตาม (บังคับใส่) — จะบันทึกลงประวัติลูกค้า</div>
       <textarea id="stopReason" rows="2" placeholder="เช่น ลูกค้าแจ้งไม่สะดวกให้ติดต่ออีก / ซื้อกับที่อื่นแล้ว / ปิดกิจการ…" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px;box-sizing:border-box"></textarea>
       <button class="act" style="width:100%;margin-top:8px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca" onclick="doStopFollow()">${ic('xCircle',16)}เลิกติดตาม (ต้องมีเหตุผล)</button>
