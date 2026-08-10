@@ -134,13 +134,13 @@
   <div class="sub">ฐานข้อมูลกลางออนไลน์ · เติมเฉพาะรายใหม่ต่อคิว ของเดิมไม่เปลี่ยนเซลล์ · บันทึกรอบ/วันที่</div>
   <div class="lastact" id="lastact"></div>
 
+  <div class="secdiv" data-sec="overview" style="margin:24px 2px 10px;padding:11px 16px;border-radius:12px;font-size:15px;font-weight:800;color:#0f172a;background:linear-gradient(135deg,#eef2f7,#f8fafc);border:1px solid #e2e8f0;border-left:5px solid #0f172a;display:flex;align-items:center;gap:8px">📊 สรุปภาพรวมยอดขายทั้งหมด</div>
   <div class="cards" data-sec="overview">
     <div class="card total"><div class="n" id="c-all">–</div><div class="l">รวมที่แบ่งแล้ว</div><div class="l" id="c-all-split" style="margin-top:4px;font-size:11.5px;line-height:1.5"></div></div>
     <div class="card w"><div class="n" id="c-w">–</div><div class="l">Sales (W)</div></div>
     <div class="card k"><div class="n" id="c-k">–</div><div class="l">Sales (K)</div></div>
     <div class="card upd"><div class="n" id="c-upd">–</div><div class="l">อัปเดตล่าสุด</div></div>
   </div>
-
   <div class="panel" data-sec="overview" id="srcOvPanel">
     <h2><span data-ic="activity" data-sz="18"></span>ยอดขายตามแหล่งที่มา <span id="srcOvLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="krange" id="srcOvRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center">
@@ -151,30 +151,21 @@
     </div>
     <div id="srcOvBody"><div style="padding:18px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
-
-  <div class="panel" data-sec="overview" id="dayoffPanel">
-    <h2><span data-ic="activity" data-sz="18"></span>วันลาของเซลล์ (วันนี้)</h2>
-    <div class="desc">กด "ลาวันนี้" เมื่อเซลล์คนไหนหยุด — รายชื่อที่ยังไม่ปิดจะย้ายไปให้อีกคน และรายชื่อใหม่วันนี้จะวิ่งไปหาคนที่ทำงาน · <b>ขึ้นวันใหม่ระบบคืนให้อัตโนมัติ ไม่ต้องกดยกเลิก</b></div>
-    <div id="dayoffBox" style="display:flex;gap:12px;flex-wrap:wrap"></div>
-  </div>
-
-  <div class="panel" data-sec="overview" id="chatKpiPanel">
-    <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (รายคน) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
-    <div class="desc">นับจาก Pancake · <b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุดในช่วงที่เลือก · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB (ยอดจริง)</div>
-    <div class="krange" id="chatKpiRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center;gap:6px">
-      <button class="kr" data-r="today" onclick="chatKpiSet('today')">วันนี้</button>
-      <button class="kr" data-r="7" onclick="chatKpiSet('7')">7 วัน</button>
-      <button class="kr on" data-r="30" onclick="chatKpiSet('30')">30 วัน</button>
-      <button class="kr" data-r="month" onclick="chatKpiSet('month')">เดือนนี้</button>
-      <button class="kr" data-r="custom" onclick="chatKpiSet('custom')">กำหนดเอง</button>
-      <span id="chatKpiCustom" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:#475569">
-        <input type="date" id="ckFrom" onchange="chatKpiCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">ถึง<input type="date" id="ckTo" onchange="chatKpiCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
-        <span style="color:#94a3b8">|</span> เดือน <input type="month" id="ckMonth" onchange="chatKpiMonthGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
-      </span>
+  <div class="panel" id="mgmtPanel" data-sec="overview">
+    <h2><span data-ic="activity" data-sz="18"></span>ภาพเชิงบริหาร — Funnel &amp; ยอดขาย <span id="mgmtrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="desc">กรวยการขาย (สถานะลีดปัจจุบัน) และยอดขายเทียบเป้าในช่วงที่เลือก · ดูว่าลีดหลุดตรงขั้นไหนเยอะ</div>
+    <div class="cols" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">กรวยการขาย (ทีมรวม)</div>
+        <div id="funnelBox"></div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">ยอดขาย (ช่วงที่เลือก)</div>
+        <div id="revBox"></div>
+        <div class="cards" id="mgmtStats" style="grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px"></div>
+      </div>
     </div>
-    <div id="chatKpiBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
-
   <div class="panel" data-sec="overview" id="reportPanel">
     <h2><span data-ic="activity" data-sz="18"></span>สรุปรายงานรายบุคคล <span id="repLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
     <div class="desc">ภาพรวมผลงานรายคน — ทีมเซลล์ (Telesales) + ทีมแอดมิน (ตอบแชท) · เลือกช่วงเวลาแล้วกด "โหลดรายงาน"</div>
@@ -192,6 +183,59 @@
     </div>
     <div id="reportBox"><div style="padding:16px;text-align:center;color:#94a3b8">เลือกช่วงเวลาแล้วกด "โหลดรายงาน" เพื่อดูสรุปรายบุคคล</div></div>
   </div>
+  <div class="secdiv" data-sec="overview" style="margin:24px 2px 10px;padding:11px 16px;border-radius:12px;font-size:15px;font-weight:800;color:#1d4ed8;background:linear-gradient(135deg,#eff6ff,#f8fbff);border:1px solid #bfdbfe;border-left:5px solid #1d4ed8;display:flex;align-items:center;gap:8px">🟦 ทีมแอดมิน — ตอบแชท (ปิดการขายจาก FB)</div>
+  <div class="panel" data-sec="overview" id="chatKpiPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (รายคน) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
+    <div class="desc">นับจาก Pancake · <b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุดในช่วงที่เลือก · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB (ยอดจริง)</div>
+    <div class="krange" id="chatKpiRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center;gap:6px">
+      <button class="kr" data-r="today" onclick="chatKpiSet('today')">วันนี้</button>
+      <button class="kr" data-r="7" onclick="chatKpiSet('7')">7 วัน</button>
+      <button class="kr on" data-r="30" onclick="chatKpiSet('30')">30 วัน</button>
+      <button class="kr" data-r="month" onclick="chatKpiSet('month')">เดือนนี้</button>
+      <button class="kr" data-r="custom" onclick="chatKpiSet('custom')">กำหนดเอง</button>
+      <span id="chatKpiCustom" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:#475569">
+        <input type="date" id="ckFrom" onchange="chatKpiCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">ถึง<input type="date" id="ckTo" onchange="chatKpiCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
+        <span style="color:#94a3b8">|</span> เดือน <input type="month" id="ckMonth" onchange="chatKpiMonthGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
+      </span>
+    </div>
+    <div id="chatKpiBox"><div style="padding:16px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
+  </div>
+  <div class="secdiv" data-sec="overview" style="margin:24px 2px 10px;padding:11px 16px;border-radius:12px;font-size:15px;font-weight:800;color:#047857;background:linear-gradient(135deg,#ecfdf5,#f7fefb);border:1px solid #a7f3d0;border-left:5px solid #047857;display:flex;align-items:center;gap:8px">🟩 ทีมเซลล์ (Telesales) — โทรปิดการขาย</div>
+  <div class="panel" data-sec="overview" id="dayoffPanel">
+    <h2><span data-ic="activity" data-sz="18"></span>วันลาของเซลล์ (วันนี้)</h2>
+    <div class="desc">กด "ลาวันนี้" เมื่อเซลล์คนไหนหยุด — รายชื่อที่ยังไม่ปิดจะย้ายไปให้อีกคน และรายชื่อใหม่วันนี้จะวิ่งไปหาคนที่ทำงาน · <b>ขึ้นวันใหม่ระบบคืนให้อัตโนมัติ ไม่ต้องกดยกเลิก</b></div>
+    <div id="dayoffBox" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+  </div>
+  <div class="panel" id="kpiPanel" data-sec="overview">
+    <h2><span data-ic="activity" data-sz="18"></span>Dashboard KPI — ภาพรวมทีม Telesales</h2>
+    <div class="desc">วัดผลงานเซลล์ Namwhan (W) &amp; Khem (K) · เลือกช่วงเวลาได้ · <span id="kpiarch"></span></div>
+    <div class="krange" id="krange">
+      <button class="kr on" data-r="today" onclick="setKRange('today')">วันนี้</button>
+      <button class="kr" data-r="7" onclick="setKRange('7')">7 วัน</button>
+      <button class="kr" data-r="30" onclick="setKRange('30')">30 วัน</button>
+      <button class="kr" data-r="custom" onclick="setKRange('custom')">กำหนดเอง</button>
+      <span id="kcustom" style="display:none;gap:6px;align-items:center">
+        <input type="date" id="kfrom"> – <input type="date" id="kto">
+        <button class="b-b" style="padding:7px 14px" onclick="loadKpi()">ดู</button>
+      </span>
+      <span id="krangelbl" style="font-size:12px;color:#6b7280;margin-left:auto"></span>
+    </div>
+    <div class="ktoday" id="ktoday"></div>
+    <div id="kpiCards" class="row" style="gap:14px;align-items:stretch;margin-top:2px"></div>
+    <div id="konecall" style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-top:12px"></div>
+    <div class="row" style="margin-top:8px;align-items:center;gap:10px">
+      <button class="b-g" onclick="doOnecallPull()" id="ocpullbtn" style="padding:8px 14px"><span data-ic="refresh" data-sz="15"></span>ดึง OneCall เดี๋ยวนี้</button>
+      <span id="ocstatus" style="font-size:12px;color:#6b7280"></span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W (Namwhan)</button></a>
+      <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง K (Khem)</button></a>
+    </div>
+  </div>
+
+
+
+
 
   <div class="panel" data-sec="leads">
     <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
@@ -244,48 +288,7 @@
     <div id="rfFoot" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
   </div>
 
-  <div class="panel" id="kpiPanel" data-sec="overview">
-    <h2><span data-ic="activity" data-sz="18"></span>Dashboard KPI — ภาพรวมทีม Telesales</h2>
-    <div class="desc">วัดผลงานเซลล์ Namwhan (W) &amp; Khem (K) · เลือกช่วงเวลาได้ · <span id="kpiarch"></span></div>
-    <div class="krange" id="krange">
-      <button class="kr on" data-r="today" onclick="setKRange('today')">วันนี้</button>
-      <button class="kr" data-r="7" onclick="setKRange('7')">7 วัน</button>
-      <button class="kr" data-r="30" onclick="setKRange('30')">30 วัน</button>
-      <button class="kr" data-r="custom" onclick="setKRange('custom')">กำหนดเอง</button>
-      <span id="kcustom" style="display:none;gap:6px;align-items:center">
-        <input type="date" id="kfrom"> – <input type="date" id="kto">
-        <button class="b-b" style="padding:7px 14px" onclick="loadKpi()">ดู</button>
-      </span>
-      <span id="krangelbl" style="font-size:12px;color:#6b7280;margin-left:auto"></span>
-    </div>
-    <div class="ktoday" id="ktoday"></div>
-    <div id="kpiCards" class="row" style="gap:14px;align-items:stretch;margin-top:2px"></div>
-    <div id="konecall" style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-top:12px"></div>
-    <div class="row" style="margin-top:8px;align-items:center;gap:10px">
-      <button class="b-g" onclick="doOnecallPull()" id="ocpullbtn" style="padding:8px 14px"><span data-ic="refresh" data-sz="15"></span>ดึง OneCall เดี๋ยวนี้</button>
-      <span id="ocstatus" style="font-size:12px;color:#6b7280"></span>
-    </div>
-    <div class="row" style="margin-top:12px">
-      <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W (Namwhan)</button></a>
-      <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง K (Khem)</button></a>
-    </div>
-  </div>
 
-  <div class="panel" id="mgmtPanel" data-sec="overview">
-    <h2><span data-ic="activity" data-sz="18"></span>ภาพเชิงบริหาร — Funnel &amp; ยอดขาย <span id="mgmtrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
-    <div class="desc">กรวยการขาย (สถานะลีดปัจจุบัน) และยอดขายเทียบเป้าในช่วงที่เลือก · ดูว่าลีดหลุดตรงขั้นไหนเยอะ</div>
-    <div class="cols" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start">
-      <div>
-        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">กรวยการขาย (ทีมรวม)</div>
-        <div id="funnelBox"></div>
-      </div>
-      <div>
-        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">ยอดขาย (ช่วงที่เลือก)</div>
-        <div id="revBox"></div>
-        <div class="cards" id="mgmtStats" style="grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px"></div>
-      </div>
-    </div>
-  </div>
 
   <div class="panel" id="srcPanel" data-sec="source">
     <h2><span data-ic="activity" data-sz="18"></span>ยอดขายตามแหล่งที่มา <span id="srcrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
