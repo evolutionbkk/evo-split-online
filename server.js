@@ -2177,8 +2177,14 @@ function thTodayStartMs() {
 }
 app.get('/api/chat/today-summary', requireChat, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ tot: 0, wait: 0, ans: 0 });
-  try { const r = await pkConvTally(thTodayStartMs(), 80); res.json({ tot: r.tot, wait: r.wait, ans: r.tot - r.wait }); }
-  catch (_) { res.json({ tot: 0, wait: 0, ans: 0 }); }
+  try {
+    // รับ from/to ตามช่วงที่เลือก · ถ้าไม่ส่งมา = วันนี้ (backward compatible)
+    let startMs = thTodayStartMs(), endMs = 0;
+    if (req.query.from) { const f = Date.parse(req.query.from); if (isFinite(f)) startMs = f; }
+    if (req.query.to) { const t = Date.parse(req.query.to); if (isFinite(t) && Math.abs(t - Date.now()) > 90000) endMs = t; }
+    const r = await pkConvTally(startMs, 200, endMs);
+    res.json({ tot: r.tot, wait: r.wait, ans: r.tot - r.wait });
+  } catch (_) { res.json({ tot: 0, wait: 0, ans: 0 }); }
 });
 
 // ช่วงเวลาเริ่มต้น = เดือนนี้ (เขต Thai) ถ้าไม่ส่ง from/to มา

@@ -576,7 +576,7 @@ async function loadChatKpi(){
       fetch('/api/admin/chat-kpi?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json()),
       fetch('/api/admin/sales-source?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json()).catch(()=>null),
       fetch('/api/chat/conversations',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>({conversations:[]})),
-      fetch('/api/chat/today-summary',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>null)
+      fetch('/api/chat/today-summary?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to),{credentials:'same-origin'}).then(r=>r.json()).catch(()=>null)
     ]);
     if(!j||!j.ok){box.innerHTML='<div style="padding:14px;color:#b91c1c">โหลดไม่สำเร็จ</div>';return;}
     if(!j.admins||!j.admins.length){box.innerHTML='<div style="padding:14px;color:#94a3b8">ยังไม่ได้ตั้งค่าบัญชีแอดมินแชท (CHAT_USERS)</div>';return;}
@@ -587,13 +587,13 @@ async function loadChatKpi(){
     const _convs=(cj&&cj.conversations)||[];
     const _fT=Date.parse(from),_tT=Date.parse(to),ans={};
     for(const c of _convs){const nk=nickName(c.lastAdminName||'');if(!nk)continue;const t=parseUTC(c.updatedAt);if(isNaN(t)||t<_fT||t>_tT)continue;ans[nk]=(ans[nk]||0)+1;}
-    const _ov=(tsum&&typeof tsum.tot==='number')?tsum:(function(){const e=new Date();e.setHours(23,59,59,999);const s=new Date();s.setHours(0,0,0,0);const sT=s.getTime(),eT=e.getTime();let tot=0,wait=0;for(const c of _convs){const t=parseUTC(c.updatedAt);if(isNaN(t)||t<sT||t>eT)continue;tot++;if(!c.lastByPage)wait++;}return{tot,wait,ans:tot-wait};})();
+    const _ov=(tsum&&typeof tsum.tot==='number')?tsum:(function(){let tot=0,wait=0;for(const c of _convs){const t=parseUTC(c.updatedAt);if(isNaN(t)||t<_fT||t>_tT)continue;tot++;if(!c.lastByPage)wait++;}return{tot,wait,ans:tot-wait};})();
     const pancakeOk=!!(ss&&ss.byCloser);
     const nicks=new Set([...Object.keys(ans),...Object.keys(closedByNick)]);
     for(const a of (j.admins||[]))nicks.add(a.name);
     const rows=[...nicks].filter(n=>!TELESALES_NICKS.includes(n)).map(n=>({name:n,chats:ans[n]||0,closed:closedByNick[n]||0,rev:Math.round(revByNick[n]||0)})).sort((x,y)=>(y.chats-x.chats)||(y.closed-x.closed));
     let h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
-      +'<div style="flex:1;min-width:130px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:11px;padding:11px 13px"><div style="font-size:12px;color:#1d4ed8;font-weight:700">📥 ลูกค้าทักวันนี้</div><div style="font-size:23px;font-weight:800;color:#0f172a;margin-top:2px">'+_ov.tot+' <span style="font-size:13px;font-weight:600;color:#475569">แชท</span></div></div>'
+      +'<div style="flex:1;min-width:130px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:11px;padding:11px 13px"><div style="font-size:12px;color:#1d4ed8;font-weight:700">📥 ลูกค้าทัก'+(CHATKPI_MODE==='today'?'วันนี้':'')+'</div><div style="font-size:23px;font-weight:800;color:#0f172a;margin-top:2px">'+_ov.tot+' <span style="font-size:13px;font-weight:600;color:#475569">แชท</span></div></div>'
       +'<div style="flex:1;min-width:130px;background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:11px 13px"><div style="font-size:12px;color:#c2410c;font-weight:700">⏳ ยังไม่ตอบ</div><div style="font-size:23px;font-weight:800;color:#0f172a;margin-top:2px">'+_ov.wait+' <span style="font-size:13px;font-weight:600;color:#475569">แชท</span></div></div>'
       +'<div style="flex:1;min-width:130px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:11px;padding:11px 13px"><div style="font-size:12px;color:#047857;font-weight:700">✅ ตอบแล้ว</div><div style="font-size:23px;font-weight:800;color:#0f172a;margin-top:2px">'+_ov.ans+' <span style="font-size:13px;font-weight:600;color:#475569">แชท</span></div></div>'
       +'</div>';
