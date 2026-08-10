@@ -597,16 +597,41 @@ async function loadChatKpi(){
       +'<div style="flex:1;min-width:130px;background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:11px 13px"><div style="font-size:12px;color:#c2410c;font-weight:700">⏳ ยังไม่ตอบ</div><div style="font-size:23px;font-weight:800;color:#0f172a;margin-top:2px">'+_ov.wait+' <span style="font-size:13px;font-weight:600;color:#475569">แชท</span></div></div>'
       +'<div style="flex:1;min-width:130px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:11px;padding:11px 13px"><div style="font-size:12px;color:#047857;font-weight:700">✅ ตอบแล้ว</div><div style="font-size:23px;font-weight:800;color:#0f172a;margin-top:2px">'+_ov.ans+' <span style="font-size:13px;font-weight:600;color:#475569">แชท</span></div></div>'
       +'</div>';
+    // เตรียมรายละเอียดออเดอร์ที่แต่ละแอดมินปิด (drill-down)
+    const _ordByNick={};
+    for(const o of ((ss&&ss.orders)||[])){if(o.src!=='admin')continue;const _nk=nickName(o.closer||'');if(!_nk)continue;(_ordByNick[_nk]=_ordByNick[_nk]||[]).push(o);}
+    window.CHATKPI_ORD={};
     h+='<div class="tblwrap"><table style="min-width:440px"><thead><tr><th>แอดมิน</th><th style="text-align:center">จำนวนแชทที่ตอบ</th><th style="text-align:center">ปิดการขาย'+(pancakeOk?' (Pancake)':'')+'</th></tr></thead><tbody>';
-    for(const r of rows){
+    rows.forEach((r,i)=>{
+      const _ords=(_ordByNick[r.name]||[]).slice().sort((x,y)=>(y.amount||0)-(x.amount||0));
+      window.CHATKPI_ORD[i]={name:r.name,closed:r.closed,ords:_ords};
+      const _clk=pancakeOk&&r.closed>0;
+      const _cell=pancakeOk?('<span'+(_clk?' onclick="chatKpiDrill('+i+')" style="cursor:pointer;border-bottom:1px dashed #16a34a"':'')+'>'+r.closed+(_clk?' <span style="font-size:11px;color:#16a34a">▾</span>':'')+'</span>'+(r.rev?'<div style="font-size:11px;font-weight:600;color:#15803d">฿'+r.rev.toLocaleString('en-US')+'</div>':'')):'—';
       h+='<tr><td style="font-weight:700;color:#1d4ed8">'+esc(r.name)+'</td>'+
          '<td style="text-align:center;font-weight:800;font-size:16px">'+r.chats+'</td>'+
-         '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+(pancakeOk?(r.closed+(r.rev?'<div style="font-size:11px;font-weight:600;color:#15803d">฿'+r.rev.toLocaleString('en-US')+'</div>':'')):'—')+'</td></tr>';
-    }
+         '<td style="text-align:center;font-weight:800;font-size:16px;color:#166534">'+_cell+'</td></tr>';
+      h+='<tr id="ckdrill_'+i+'" data-open="0" style="display:none"><td colspan="3" style="padding:0;background:#f8fafc"></td></tr>';
+    });
     h+='</tbody></table></div><div style="font-size:11.5px;color:#94a3b8;margin-top:6px"><b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุด (นับจาก Pancake ในช่วงที่เลือก) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake (ยอดจริง)</div>';
     if(req!==CHATKPI_REQ)return; // มีการสลับช่วงใหม่แล้ว — ทิ้งผลเก่า
     box.innerHTML=h;
   }catch(e){box.innerHTML='<div style="padding:14px;color:#b91c1c">เกิดข้อผิดพลาด</div>';}
+}
+function chatOrdDate(at){try{const d=new Date(at);const p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String((d.getFullYear()+543)%100).padStart(2,'0');}catch(e){return '';}}
+function chatKpiDrill(i){
+  const tr=document.getElementById('ckdrill_'+i);if(!tr)return;
+  if(tr.getAttribute('data-open')==='1'){tr.style.display='none';tr.setAttribute('data-open','0');return;}
+  const d=(window.CHATKPI_ORD&&window.CHATKPI_ORD[i])||{ords:[]};const ords=d.ords||[];
+  let hh='<div style="padding:10px 12px">';
+  hh+='<div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px">🧾 ออเดอร์ที่ '+esc(d.name||'')+' ปิดการขาย'+((ords.length&&d.closed&&ords.length<d.closed)?(' (แสดง '+ords.length+' จาก '+d.closed+')'):'')+'</div>';
+  if(!ords.length){hh+='<div style="font-size:12px;color:#94a3b8">ไม่มีรายละเอียดออเดอร์ในช่วงนี้</div>';}
+  else{
+    hh+='<div class="tblwrap"><table style="min-width:480px;font-size:12.5px"><thead><tr><th>ออเดอร์</th><th>สินค้า</th><th style="text-align:center">จำนวน</th><th style="text-align:right">ยอด</th><th>วันที่</th></tr></thead><tbody>';
+    for(const o of ords){hh+='<tr><td style="font-weight:600;white-space:nowrap">'+esc(o.code||'—')+'</td><td style="max-width:240px">'+esc(o.product||'—')+'</td><td style="text-align:center">'+(o.qty||'')+'</td><td style="text-align:right;color:#166534;font-weight:700;white-space:nowrap">฿'+Math.round(o.amount||0).toLocaleString('en-US')+'</td><td style="white-space:nowrap;color:#64748b">'+esc(chatOrdDate(o.at))+'</td></tr>';}
+    hh+='</tbody></table></div>';
+  }
+  hh+='</div>';
+  tr.firstChild.innerHTML=hh;tr.style.display='table-row';tr.setAttribute('data-open','1');
 }
 // ===== สรุปรายงานรายบุคคล (เซลล์ + แอดมิน) =====
 let REP_MODE='month', REP_CUSTOM=null;
