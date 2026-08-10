@@ -1585,6 +1585,10 @@ async function computePancakeSales(fromISO, toISO, all) {
   const blank = () => ({ admin: { orders: 0, revenue: 0 }, telesales: { orders: 0, revenue: 0 } });
   const total = blank(); const byDay = {}; const byCloser = {}; const byPage = {};
   const byProduct = {}; const orders = [];
+  // ลูกค้าใหม่ vs เก่า (จาก Pancake) แยกตามช่องทาง (admin/telesales) + แยกรายคน (ใครปิดเก่า/ใหม่ได้เท่าไร)
+  const custBlank = () => ({ orders: 0, revenue: 0 });
+  const newVsOld = { new: { admin: custBlank(), telesales: custBlank() }, old: { admin: custBlank(), telesales: custBlank() } };
+  const newOldByCloser = {};
   const sample = [];
   let scanned = 0, pages = 0, counted = 0;
   try {
@@ -1605,10 +1609,17 @@ async function computePancakeSales(fromISO, toISO, all) {
         const rev = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
         const src = orderSource(o);
         total[src].orders++; total[src].revenue += rev; counted++;
+        // ลูกค้าเก่า = เคยซื้อสำเร็จมาก่อน (succeed_order_count/order_count > 1) · ใหม่ = ซื้อครั้งแรก
+        const cst = o.customer || {};
+        const ocnt = Number(cst.succeed_order_count != null ? cst.succeed_order_count : (cst.order_count || 0)) || 0;
+        const grpNO = ocnt > 1 ? 'old' : 'new';
+        newVsOld[grpNO][src].orders++; newVsOld[grpNO][src].revenue += rev;
         const d = thDay(o.inserted_at || o.updated_at);
         (byDay[d] = byDay[d] || blank())[src].orders++; byDay[d][src].revenue += rev;
         const closer = pancakeCloser(o) || '—';
         (byCloser[closer] = byCloser[closer] || blank())[src].orders++; byCloser[closer][src].revenue += rev;
+        const noc = newOldByCloser[closer] = newOldByCloser[closer] || { new: custBlank(), old: custBlank() };
+        noc[grpNO].orders++; noc[grpNO].revenue += rev;
         const pg = (o.page && o.page.name) || o.account_name || '—';
         (byPage[pg] = byPage[pg] || blank())[src].orders++; byPage[pg][src].revenue += rev;
         // per-product breakdown (SKU/variation) — skip zero-price upsell placeholders in the money, keep the qty
@@ -1631,7 +1642,7 @@ async function computePancakeSales(fromISO, toISO, all) {
       if (j.data.length < 100) break;
       if (allOlder && page > 1) break;
     }
-    return { ok: true, from, to, scanned, counted, pages, total, byDay, byCloser, byPage, byProduct, orders, sample };
+    return { ok: true, from, to, scanned, counted, pages, total, byDay, byCloser, byPage, byProduct, orders, sample, newVsOld, newOldByCloser };
   } catch (e) { return { error: String(e), scanned, pages }; }
 }
 app.get('/api/admin/sales-source', requireAuth, async (req, res) => {

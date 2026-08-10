@@ -1547,6 +1547,26 @@ function renderSrc(j,target,compact){
   h+='<div style="font-size:13px;color:#334155;margin:10px 2px 4px">ยอดขายรวม <b>'+bht(totRev)+'</b> · '+totO+' ออเดอร์ · เฉลี่ย <b>'+bht(avg)+'</b>/ออเดอร์</div>';
   const aw=totRev>0?(a.revenue/totRev*100):0;
   h+='<div style="display:flex;height:14px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-bottom:16px"><div style="width:'+aw+'%;background:#3b82f6"></div><div style="flex:1;background:#10b981"></div></div>';
+  // ----- ลูกค้าใหม่ vs ลูกค้าเก่า (รายคน) -----
+  const _no=j.newVsOld;
+  if(_no){
+    const nu=_no.new,ol=_no.old;
+    const nuO=nu.admin.orders+nu.telesales.orders,nuR=nu.admin.revenue+nu.telesales.revenue;
+    const olO=ol.admin.orders+ol.telesales.orders,olR=ol.admin.revenue+ol.telesales.revenue;
+    h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:6px 2px 4px">👥 ปิดการขาย: ลูกค้าใหม่ vs ลูกค้าเก่า</div>';
+    h+='<div style="font-size:11.5px;color:#94a3b8;margin:0 2px 8px">เก่า = เคยซื้อสำเร็จมาก่อน · ใหม่ = ซื้อครั้งแรก (อ้างอิงยอดสะสมลูกค้าจาก Pancake)</div>';
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">';
+    h+='<div class="card" style="border:1px solid #fde68a;background:linear-gradient(135deg,#fffbeb,#fff);padding:14px"><div style="font-size:13px;font-weight:700;color:#b45309">🆕 ลูกค้าใหม่</div><div style="font-size:24px;font-weight:800;color:#0f172a;margin-top:4px">'+nuO+' <span style="font-size:13px;color:#64748b;font-weight:600">ออเดอร์</span></div><div style="font-size:13px;color:#166534;font-weight:600">'+bht(nuR)+'</div></div>';
+    h+='<div class="card" style="border:1px solid #c7d2fe;background:linear-gradient(135deg,#eef2ff,#fff);padding:14px"><div style="font-size:13px;font-weight:700;color:#4338ca">🔁 ลูกค้าเก่า</div><div style="font-size:24px;font-weight:800;color:#0f172a;margin-top:4px">'+olO+' <span style="font-size:13px;color:#64748b;font-weight:600">ออเดอร์</span></div><div style="font-size:13px;color:#166534;font-weight:600">'+bht(olR)+'</div></div>';
+    h+='</div>';
+    const _noc=j.newOldByCloser||{};
+    const norows=Object.entries(_noc).map(([name,v])=>({name,nu:v.new.orders,nur:v.new.revenue,ol:v.old.orders,olr:v.old.revenue})).filter(r=>(r.nu+r.ol)>0).sort((a,b)=>(b.nu+b.ol)-(a.nu+a.ol));
+    if(norows.length){
+      h+='<div class="tblwrap" style="margin-bottom:16px"><table style="min-width:540px"><thead><tr><th>พนักงานปิดการขาย</th><th style="text-align:center">ลูกค้าใหม่</th><th style="text-align:right">ยอดใหม่</th><th style="text-align:center">ลูกค้าเก่า</th><th style="text-align:right">ยอดเก่า</th></tr></thead><tbody>';
+      for(const r of norows)h+='<tr><td style="font-weight:600">'+_nmShort(r.name)+'</td><td style="text-align:center;font-weight:700;color:#b45309">'+r.nu+'</td><td style="text-align:right;color:#166534">'+bht(r.nur)+'</td><td style="text-align:center;font-weight:700;color:#4338ca">'+r.ol+'</td><td style="text-align:right;color:#166534">'+bht(r.olr)+'</td></tr>';
+      h+='</tbody></table></div>';
+    }
+  }
   // ----- แยกตามสินค้า -----
   const prods=Object.entries(j.byProduct||{}).map(([n,v])=>({n,qty:v.qty,r:v.revenue})).filter(p=>p.r>0).sort((x,y)=>y.r-x.r);
   if(prods.length){
