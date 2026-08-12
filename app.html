@@ -151,38 +151,6 @@
     </div>
     <div id="srcOvBody"><div style="padding:18px;text-align:center;color:#94a3b8">กำลังโหลด…</div></div>
   </div>
-  <div class="panel" id="mgmtPanel" data-sec="overview">
-    <h2><span data-ic="activity" data-sz="18"></span>ภาพเชิงบริหาร — Funnel &amp; ยอดขาย <span id="mgmtrangelbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
-    <div class="desc">กรวยการขาย (สถานะลีดปัจจุบัน) และยอดขายเทียบเป้าในช่วงที่เลือก · ดูว่าลีดหลุดตรงขั้นไหนเยอะ</div>
-    <div class="cols" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start">
-      <div>
-        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">กรวยการขาย (ทีมรวม)</div>
-        <div id="funnelBox"></div>
-      </div>
-      <div>
-        <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px">ยอดขาย (ช่วงที่เลือก)</div>
-        <div id="revBox"></div>
-        <div class="cards" id="mgmtStats" style="grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px"></div>
-      </div>
-    </div>
-  </div>
-  <div class="panel" data-sec="overview" id="reportPanel">
-    <h2><span data-ic="activity" data-sz="18"></span>สรุปรายงานรายบุคคล <span id="repLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
-    <div class="desc">ภาพรวมผลงานรายคน — ทีมเซลล์ (Telesales) + ทีมแอดมิน (ตอบแชท) · เลือกช่วงเวลาแล้วกด "โหลดรายงาน"</div>
-    <div class="krange" id="repRange" style="margin:2px 0 10px;flex-wrap:wrap;align-items:center;gap:6px">
-      <button class="kr" data-r="today" onclick="repSet('today')">วันนี้</button>
-      <button class="kr" data-r="7" onclick="repSet('7')">7 วัน</button>
-      <button class="kr on" data-r="30" onclick="repSet('30')">30 วัน</button>
-      <button class="kr" data-r="month" onclick="repSet('month')">เดือนนี้</button>
-      <button class="kr" data-r="custom" onclick="repSet('custom')">กำหนดเอง</button>
-      <span id="repCustom" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:#475569">
-        <input type="date" id="rpFrom" onchange="repCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">ถึง<input type="date" id="rpTo" onchange="repCustomGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
-        <span style="color:#94a3b8">|</span> เดือน <input type="month" id="rpMonth" onchange="repMonthGo()" style="padding:4px 7px;border:1px solid var(--line);border-radius:8px">
-      </span>
-      <button class="b-add" style="padding:6px 14px;font-weight:700" onclick="loadReport()"><span data-ic="download" data-sz="14"></span>โหลดรายงาน</button>
-    </div>
-    <div id="reportBox"><div style="padding:16px;text-align:center;color:#94a3b8">เลือกช่วงเวลาแล้วกด "โหลดรายงาน" เพื่อดูสรุปรายบุคคล</div></div>
-  </div>
   <div class="secdiv" data-sec="overview" style="margin:24px 2px 10px;padding:11px 16px;border-radius:12px;font-size:15px;font-weight:800;color:#1d4ed8;background:linear-gradient(135deg,#eff6ff,#f8fbff);border:1px solid #bfdbfe;border-left:5px solid #1d4ed8;display:flex;align-items:center;gap:8px">🟦 ทีมแอดมิน — ตอบแชท (ปิดการขายจาก FB)</div>
   <div class="panel" data-sec="overview" id="chatKpiPanel">
     <h2><span data-ic="activity" data-sz="18"></span>Admin ตอบแชท — KPI (รายคน) <span id="chatKpiLbl" style="font-size:12px;color:#6b7280;font-weight:400;margin-left:6px"></span></h2>
@@ -735,9 +703,6 @@ function renderDayoff(){
     const off=!!DAYOFF[side];
     h+=leaveCard(SNAME[side],off,leaveOf(side).monthCount,'toggleDayoff(\''+side+'\','+(!off)+')','เซลล์ · ย้ายรายชื่อให้อีกคนอัตโนมัติ');
   }
-  for(const p of (LEAVES.people||[]).filter(x=>x.kind==='admin')){
-    h+=leaveCard(p.name,p.onToday,p.monthCount,'toggleAdminLeave(\''+p.who+'\','+(!p.onToday)+')','แอดมินแชท · บันทึกวันลา');
-  }
   box.innerHTML=h;
 }
 async function toggleAdminLeave(who,on){
@@ -983,6 +948,7 @@ function funnelRow(label,val,base,color,pctOfPrev){
   </div>`;
 }
 function renderMgmt(j){
+  if(!document.getElementById('funnelBox'))return;
   const W=j.W,K=j.K; if(!W||!K)return;
   const st=s=>({new:s.status.new,contacting:s.status.contacting,interested:s.status.interested,followup:s.status.followup,won:s.status.won,lost:s.status.lost});
   const a=st(W),b=st(K);
