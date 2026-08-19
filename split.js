@@ -209,9 +209,105 @@ function applyManual(state, rows, opts) {
   return { added: parsed.length, addW, addK, dup, cut, round, date };
 }
 
+// ===== Teamlead manual distribution: holding pool → distribute by source/mode =====
+const isFbSource = (s) => (s === 'pancake' || s === 'manual' || s === 'refill');
+
+// Pull new leads into a HOLDING POOL without assigning them to a seller (sales=null, pooled=true).
+// Dedupe by member code + against any active/pooled phone. Preserves order context if present.
+// opts: { label, source, by }
+function applyNewPool(state, records, opts) {
+  opts = opts || {};
+  const source = opts.source || 'evolution';
+  const seen = new Set(state.assigned.map(keyOf));
+  const activePhones = new Set(state.assigned.filter((a) => !a.archived).map((a) => cleanPhone(a.phone)).filter(Boolean));
+  const nowIso = new Date().toISOString();
+  const date = (opts.label && String(opts.label).trim()) ? String(opts.label).trim() : todayTH();
+  let added = 0, dup = 0, cut = 0;
+  for (const r of (records || [])) {
+    const rec = { code: String((r && r.code) || '').trim(), name: String((r && r.name) || '').trim(), phone: cleanPhone(r && r.phone) };
+    if (!(rec.code || rec.name || rec.phone)) continue;
+    if (!isValid(rec.phone)) { cut++; continue; }
+    const k = keyOf(rec);
+    if (seen.has(k) || activePhones.has(rec.phone)) { dup++; continue; }
+    seen.add(k); activePhones.add(rec.phone);
+    let amt = Number(String((r && r.orderAmount != null ? r.orderAmount : (r && r.amount)) || '').toString().replace(/[^0-9.]/g, ''));
+    if (!isFinite(amt) || amt < 0) amt = 0;
+    state.assigned.push({
+      code: rec.code, name: rec.name, phone: rec.phone,
+      sales: null, pooled: true, source,
+      round: 0, date, exported: false, receivedAt: nowIso,
+      address: String((r && r.address) || '').slice(0, 500),
+      product: String((r && r.product) || '').slice(0, 200),
+      orderAmount: Math.round(amt * 100) / 100,
+      page: String((r && r.page) || '').slice(0, 120),
+      closer: String((r && r.closer) || '').slice(0, 120),
+      lastOrderAt: (r && r.lastOrderAt) || null,
+      ...(r && typeof r.ltv === 'number' ? { ltv: r.ltv } : {}),
+      ...(r && typeof r.succeedOrders === 'number' ? { succeedOrders: r.succeedOrders } : {}),
+      leadStatus: 'new', callCount: 0, calls: [],
+      history: [{ at: nowIso, by: opts.by || 'admin', k: 'pool', v: source }],
+    });
+    added++;
+  }
+  return { added, dup, cut };
+}
+
+// Count leads waiting in the pool, split by channel.
+function poolCounts(state) {
+  let mp = 0, fb = 0;
+  for (const a of state.assigned) {
+    if (!a.pooled || a.sales != null || a.archived) continue;
+    if (isFbSource(a.source)) fb++; else mp++;
+  }
+  return { mp, fb, total: mp + fb };
+}
+
+// Distribute pooled leads to sellers. opts:
+//   source: 'all'|'mp'|'fb'  (which channel to hand out)
+//   mode:   '50' (even split W/K) | 'one' (all to opts.side)
+//   side:   'W'|'K'  (for mode 'one')
+//   count:  number   (how many to hand out; default = all matching)
+//   off:    {W,K}    (a seller on leave takes nothing)
+//   by:     actor label
+function distributePool(state, opts) {
+  opts = opts || {};
+  const group = ['mp', 'fb', 'all'].includes(opts.source) ? opts.source : 'all';
+  const matchSrc = (a) => group === 'all' ? true : (group === 'fb' ? isFbSource(a.source) : !isFbSource(a.source));
+  const pool = state.assigned
+    .filter((a) => a.pooled && a.sales == null && !a.archived && matchSrc(a))
+    .sort((a, b) => String(a.receivedAt || '').localeCompare(String(b.receivedAt || '')));
+  let n = Number(opts.count);
+  if (!(n > 0)) n = pool.length;
+  n = Math.min(n, pool.length);
+  const batch = pool.slice(0, n);
+  const nowIso = new Date().toISOString();
+  const date = todayTH();
+  const off = opts.off || {};
+  const mode = opts.mode === 'one' ? 'one' : '50';
+  let oneSide = opts.side === 'K' ? 'K' : 'W';
+  if (mode === 'one') { const redir = offRedirect(off, oneSide); if (redir) oneSide = redir; }
+  const forced50 = (off.W && !off.K) ? 'K' : ((off.K && !off.W) ? 'W' : null);
+  let round = state.maxRound || 0;
+  if (batch.length) { round = (state.maxRound || 0) + 1; state.maxRound = Math.max(state.maxRound || 0, round); }
+  let toW = 0, toK = 0;
+  for (let i = 0; i < batch.length; i++) {
+    const a = batch[i];
+    let side;
+    if (mode === 'one') side = oneSide;
+    else if (forced50) side = forced50;
+    else side = (toW <= toK) ? 'W' : 'K'; // keep the running split even
+    a.sales = side; a.pooled = false; a.round = round; a.date = date;
+    a.exported = false; a.receivedAt = nowIso;
+    a.distributedBy = opts.by || 'Teamlead';
+    (a.history = a.history || []).push({ at: nowIso, by: opts.by || 'admin', k: 'distribute', v: side });
+    if (side === 'W') toW++; else toK++;
+  }
+  return { distributed: batch.length, toW, toK, round, date, remaining: pool.length - batch.length };
+}
+
 // active (non-archived) records for a side
 function listSide(state, side) { return state.assigned.filter((a) => a.sales === side && !a.archived); }
 // archived ("removed bin") records for a side
 function listArchived(state, side) { return state.assigned.filter((a) => a.sales === side && a.archived); }
 
-module.exports = { BASE_DATE, cleanPhone, isValid, roundName, keyOf, thaiDay, buildSeed, applyNew, applyManual, parseRows, listSide, listArchived };
+module.exports = { BASE_DATE, cleanPhone, isValid, roundName, keyOf, thaiDay, buildSeed, applyNew, applyManual, applyNewPool, poolCounts, distributePool, parseRows, listSide, listArchived };

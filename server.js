@@ -255,6 +255,8 @@ app.get('/api/state', requireAuth, async (req, res) => {
     K: S.listSide(state, 'K'),
     archivedCount: state.assigned.filter((a) => a.archived).length,
     dayoff: { W: !!(state.dayoff && state.dayoff.W), K: !!(state.dayoff && state.dayoff.K) },
+    dayoffType: state.dayoffType || { W: null, K: null },
+    pool: S.poolCounts(state),
   });
 });
 
@@ -289,8 +291,10 @@ async function reconcileDayoff() {
 app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
   const side = (req.body && req.body.side) === 'K' ? 'K' : ((req.body && req.body.side) === 'W' ? 'W' : null);
   const off = !!(req.body && req.body.off);
+  const type = (req.body && req.body.type === 'holiday') ? 'holiday' : 'leave'; // ลา (default) หรือ วันหยุด
   if (!side) return res.status(400).json({ error: 'bad_side' });
   if (!state.dayoff) state.dayoff = { W: null, K: null };
+  if (!state.dayoffType) state.dayoffType = { W: null, K: null };
   await reconcileDayoff();
   const other = side === 'W' ? 'K' : 'W';
   const today = S.thaiDay();
@@ -299,6 +303,7 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
   let moved = 0;
   if (off) {
     state.dayoff[side] = today; // on leave for today only; resets on the next Thai day
+    state.dayoffType[side] = type;
     leaveAdd(side, today);      // record the leave for the monthly count
     for (const a of state.assigned) {
       if (a.archived || a.sales !== side) continue;
@@ -308,6 +313,7 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
     }
   } else {
     state.dayoff[side] = null; // cancel leave now → return the moved leads
+    if (state.dayoffType) state.dayoffType[side] = null;
     leaveDel(side, today);     // un-record today's leave
     for (const a of state.assigned) {
       if (a.archived || a.dayoffMoved !== side) continue;
@@ -318,7 +324,7 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
   }
   state.updatedAt = now;
   state = await store.save(state);
-  res.json({ ok: true, side, off, moved, dayoff: dof() });
+  res.json({ ok: true, side, off, type, moved, dayoff: dof(), dayoffType: state.dayoffType });
 });
 
 // ---------- Leave tracking (วันลา) — sales + chat admins, monthly count ----------
@@ -870,7 +876,8 @@ function pancakeOrderToRow(o) {
   const amount = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
   return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page, address: pancakeAddress(o), closer: pancakeCloser(o) };
 }
-async function pancakePull() {
+async function pancakePull(opts) {
+  opts = opts || {};
   if (!PANCAKE_API_KEY) { return { added: 0, err: 'no_api_key' }; }
   if (!state.pancake) state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null };
   const seen = new Set(state.pancake.seen || []);
@@ -897,7 +904,9 @@ async function pancakePull() {
       seen.add(id);
     }
     if (rows.length) {
-      const sum = S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1', off: dof() });
+      const sum = opts.hold
+        ? S.applyNewPool(state, rows, { source: 'pancake', by: 'Pancake' })
+        : S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1', off: dof() });
       added = sum.added;
     }
     state.pancake.seen = Array.from(seen).slice(-8000);
@@ -1064,6 +1073,45 @@ app.post('/api/pull', requireAuth, async (req, res) => {
   } catch (e) {
     res.status(502).json({ error: 'pull_failed', message: 'ดึงจาก Evolution ไม่สำเร็จ: ' + String(e) });
   }
+});
+
+// ---------- Teamlead manual distribution: holding pool + distribute ----------
+// Pull Evolution (Marketplace) leads into the POOL without assigning. Teamlead hands them out later.
+app.post('/api/pull-hold', requireAuth, async (req, res) => {
+  if (!evo.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่ได้เชื่อมกับ Evolution — เปิดหน้าลูกค้าปลีก (สคริปต์) สักครั้งเพื่อส่ง token แล้วลองอีกครั้ง' });
+  try {
+    const r = await fetch(EVO_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(evoBody()) });
+    if (r.status === 401 || r.status === 403) return res.status(400).json({ error: 'token_expired', message: 'token หมดอายุ — เปิดหน้า Evolution ใหม่ แล้วกดอีกครั้ง' });
+    const j = await r.json();
+    const customers = mapItems(j);
+    const summary = S.applyNewPool(state, customers, { source: 'evolution', by: sessName(req) || 'Teamlead' });
+    state = await store.save(state);
+    res.json({ ok: true, summary, pulled: customers.length, pool: S.poolCounts(state) });
+  } catch (e) {
+    res.status(502).json({ error: 'pull_failed', message: 'ดึงจาก Evolution ไม่สำเร็จ: ' + String(e) });
+  }
+});
+// Pull Pancake (FB closed sales) into the pool.
+app.post('/api/pancake/pull-hold', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
+  const out = await pancakePull({ hold: true });
+  res.json({ ok: !out.err, added: out.added, error: out.err || null, pool: S.poolCounts(state) });
+});
+// Pool status (counts waiting, by channel) + who is on leave.
+app.get('/api/pool', requireAuth, (req, res) => {
+  res.json({ pool: S.poolCounts(state), dayoff: dof(), dayoffType: state.dayoffType || { W: null, K: null } });
+});
+// Distribute pooled leads to sellers. body:{ source:'all'|'mp'|'fb', mode:'50'|'one', side:'W'|'K', count }
+app.post('/api/distribute', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const summary = S.distributePool(state, {
+    source: b.source, mode: b.mode, side: b.side, count: b.count,
+    off: dof(), by: sessName(req) || 'Teamlead',
+  });
+  if (summary.toW) recordPull('W', summary.toW);
+  if (summary.toK) recordPull('K', summary.toK);
+  state = await store.save(state);
+  res.json({ ok: true, summary, pool: S.poolCounts(state), total: state.assigned.length });
 });
 
 // tells the UI whether a pull is possible

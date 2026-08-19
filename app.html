@@ -163,6 +163,8 @@
   .cards[data-sec].shown{display:grid}
   .cols[data-sec].shown{display:grid}
   .searchbar[data-sec].shown{display:flex}
+  [data-sec]:not(.shown){display:none!important}
+  .secdiv[data-sec].shown{display:flex!important}
   @media(max-width:900px){.side{position:static;height:auto;width:100%;flex-direction:column;box-shadow:none}.rail{width:100%;flex-direction:row;height:auto;padding:8px 10px}.rail .mk{margin-bottom:0}.rail .rsp{flex:1}.sbpanel{width:100%}.sbbody{max-height:none}.applayout .wrap{margin:0;padding:14px}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -273,8 +275,57 @@
 
 
 
+  <div class="panel" data-sec="leads" id="distPanel">
+    <h2><span data-ic="download" data-sz="18"></span>แบ่งรายชื่อลูกค้าให้เซลล์ (Teamlead)</h2>
+    <div class="desc">ดึงรายชื่อเข้า <b>“คลังพัก”</b> ก่อน แล้วเลือกแจกเอง — <b>เจาะจงคน + ระบุจำนวน</b> หรือ <b>50/50 เท่ากัน</b> · แยกตามแหล่ง Marketplace / FB (Pancake)</div>
+    <div class="cards" style="grid-template-columns:repeat(3,1fr);margin:4px 0 10px">
+      <div class="card"><div class="l">🛒 Marketplace (คลังพัก)</div><div class="n" id="poolMp" style="color:#0e9f6e">–</div></div>
+      <div class="card"><div class="l">💬 FB · Pancake (คลังพัก)</div><div class="n" id="poolFb" style="color:#1657cf">–</div></div>
+      <div class="card total"><div class="l">รวมรอแจกในคลัง</div><div class="n" id="poolTotal">–</div></div>
+    </div>
+    <div class="row" style="margin-top:2px">
+      <button class="b-g" id="pullHoldBtn" onclick="doPullHold()"><span data-ic="download" data-sz="15"></span>ดึง Marketplace เข้าคลัง</button>
+      <button class="b-g" id="pullFbHoldBtn" onclick="doPancakePullHold()"><span data-ic="download" data-sz="15"></span>ดึง FB เข้าคลัง</button>
+      <span class="hint" id="poolMsg" style="font-size:12.5px;color:#6b7280"></span>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:9px">แจกจากคลังพัก</div>
+    <div class="row" style="margin-top:0"><span style="font-size:12.5px;color:#475569;min-width:56px">แหล่ง:</span>
+      <div class="krange" id="distSrc" style="margin:0">
+        <button class="kr on" data-s="all" onclick="setDistSrc('all',this)">ทั้งหมด</button>
+        <button class="kr" data-s="mp" onclick="setDistSrc('mp',this)">🛒 Marketplace</button>
+        <button class="kr" data-s="fb" onclick="setDistSrc('fb',this)">💬 FB</button>
+      </div>
+    </div>
+    <div class="row"><span style="font-size:12.5px;color:#475569;min-width:56px">รูปแบบ:</span>
+      <div class="krange" id="distMode" style="margin:0">
+        <button class="kr on" data-m="50" onclick="setDistMode('50',this)">⚖️ 50/50 เท่ากัน</button>
+        <button class="kr" data-m="one" onclick="setDistMode('one',this)">👤 เจาะจงคน</button>
+      </div>
+    </div>
+    <div class="row" id="distOne" style="display:none"><span style="font-size:12.5px;color:#475569;min-width:56px">ให้:</span>
+      <select id="distSide" onchange="distPreview()" style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit">
+        <option value="W">Namwhan (W) · หวาน</option>
+        <option value="K">Khem (K) · เขม</option>
+      </select>
+      <span style="font-size:12.5px;color:#475569">จำนวน:</span>
+      <input type="text" id="distCount" oninput="distPreview()" placeholder="เว้นว่าง = ทั้งหมด" style="min-width:150px">
+    </div>
+    <div class="row" id="dist50count"><span style="font-size:12.5px;color:#475569;min-width:56px">จำนวน:</span>
+      <input type="text" id="distCount50" oninput="distPreview()" placeholder="เว้นว่าง = ทั้งหมด" style="min-width:150px">
+      <span class="hint" style="font-size:12px;color:#94a3b8">แบ่งครึ่งให้ หวาน/เขม อัตโนมัติ</span>
+    </div>
+    <div class="note" id="distPreview" style="margin:10px 0 0"></div>
+    <div class="row"><button class="b-add" id="distBtn" onclick="doDistribute()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>แจกรายชื่อทันที</button>
+      <span class="hint" id="distMsg" style="font-size:12.5px;color:#6b7280"></span></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 10px">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:3px">🗓️ วันลา / วันหยุด ของเซลล์ (วันนี้)</div>
+    <div class="desc" style="margin-bottom:9px">กดเมื่อเซลล์คนไหนหยุด — รายชื่อที่ยังไม่ปิดย้ายไปอีกคน และการแจก 50/50 จะวิ่งไปหาคนที่ทำงาน · <b>ขึ้นวันใหม่คืนอัตโนมัติ</b></div>
+    <div id="distDayoff" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+  </div>
+
   <div class="panel" data-sec="leads">
-    <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution</h2>
+    <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution (โหมดเดิม · แจก 50/50 อัตโนมัติ)</h2>
     <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
     <div class="row">
       <button class="b-add" id="pullBtn" onclick="doPull()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>ดึงรายชื่อ + แจก 50/50 อัตโนมัติ</button>
@@ -1505,6 +1556,7 @@ function showSec(sec){
   flyClose();popClose();
   document.querySelectorAll('[data-sec]').forEach(el=>el.classList.toggle('shown',el.dataset.sec===sec));
   renderNav();syncRail(sec);
+  if(sec==='leads')loadPool();
   if(sec==='refill'&&!REFILL_LOADED){REFILL_LOADED=true;loadRefill(false);}
   if(sec==='analytics')anLoad();
   if(sec==='qa')qaLoad();
@@ -1713,6 +1765,77 @@ function renderSrc(j,target,compact){
   document.getElementById(target).innerHTML=h;
 }
 function srcThDateTime(iso){const d=new Date((Date.parse(iso)||0)+7*3600000);const p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());}
+
+// ===== Teamlead manual distribution (คลังพัก → แจกเอง) =====
+let DIST={src:'all',mode:'50'},POOL={mp:0,fb:0,total:0},DOFF={W:false,K:false},DTYPE={W:null,K:null};
+function setDistSrc(s,btn){DIST.src=s;document.querySelectorAll('#distSrc .kr').forEach(x=>x.classList.remove('on'));btn.classList.add('on');distPreview();}
+function setDistMode(m,btn){DIST.mode=m;document.querySelectorAll('#distMode .kr').forEach(x=>x.classList.remove('on'));btn.classList.add('on');document.getElementById('distOne').style.display=m==='one'?'flex':'none';document.getElementById('dist50count').style.display=m==='one'?'none':'flex';distPreview();}
+function poolForSrc(){return DIST.src==='mp'?POOL.mp:(DIST.src==='fb'?POOL.fb:POOL.total);}
+function distPreview(){
+  const avail=poolForSrc();const srcLbl=DIST.src==='mp'?'Marketplace':(DIST.src==='fb'?'FB':'ทั้งหมด');
+  const pv=document.getElementById('distPreview');if(!pv)return;
+  if(!avail){pv.innerHTML='คลังพักแหล่ง <b>'+srcLbl+'</b> ว่าง — กด “ดึงเข้าคลัง” ก่อน';return;}
+  if(DIST.mode==='one'){
+    const raw=parseInt(document.getElementById('distCount').value,10);const n=(raw>0)?Math.min(raw,avail):avail;
+    const who=document.getElementById('distSide').selectedOptions[0].textContent.split(' ·')[0];
+    pv.innerHTML='จะแจก <b>'+n+' ราย</b> จาก <b>'+srcLbl+'</b> ให้ <b>'+who+'</b> คนเดียว (คลังเหลือ '+avail+')';
+  }else{
+    const raw=parseInt(document.getElementById('distCount50').value,10);const n=(raw>0)?Math.min(raw,avail):avail;
+    const w=Math.ceil(n/2),k=n-w;
+    pv.innerHTML='จะแจก <b>'+n+' ราย</b> จาก <b>'+srcLbl+'</b> แบบ 50/50 → หวาน '+w+' · เขม '+k+' (คลังเหลือ '+avail+')';
+  }
+}
+async function loadPool(){
+  try{const j=await fetch('/api/pool',{credentials:'same-origin'}).then(r=>r.json());
+    POOL=j.pool||{mp:0,fb:0,total:0};DOFF=j.dayoff||{W:false,K:false};DTYPE=j.dayoffType||{W:null,K:null};
+    const e=id=>document.getElementById(id);
+    if(e('poolMp')){e('poolMp').textContent=POOL.mp;e('poolFb').textContent=POOL.fb;e('poolTotal').textContent=POOL.total;}
+    renderDistDayoff();distPreview();
+  }catch(err){renderDistDayoff();distPreview();}
+}
+function renderDistDayoff(){
+  const box=document.getElementById('distDayoff');if(!box)return;
+  const one=(side,name)=>{const off=DOFF[side];const t=DTYPE[side];const tl=t==='holiday'?'วันหยุด':'ลา';
+    return '<div style="flex:1;min-width:230px;border:1px solid '+(off?'#fdba74':'var(--line)')+';border-radius:12px;padding:12px 14px;background:'+(off?'#fff7ed':'#fff')+'">'
+    +'<div style="font-weight:700;font-size:13.5px;margin-bottom:8px">'+name+(off?' <span style="font-size:11px;color:#b45309;font-weight:700">· '+tl+'วันนี้</span>':'')+'</div>'
+    +(off
+      ? '<button class="b-g" onclick="setDayoff(\''+side+'\',false)" style="padding:7px 12px;font-size:12.5px">↩︎ ยกเลิก'+tl+'</button>'
+      : '<div style="display:flex;gap:8px"><button class="b-warn" onclick="setDayoff(\''+side+'\',true,\'leave\')" style="padding:7px 12px;font-size:12.5px">ลาวันนี้</button>'
+        +'<button class="b-g" onclick="setDayoff(\''+side+'\',true,\'holiday\')" style="padding:7px 12px;font-size:12.5px">วันหยุดวันนี้</button></div>')
+    +'</div>';};
+  box.innerHTML=one('W','Namwhan (W) · หวาน')+one('K','Khem (K) · เขม');
+}
+async function setDayoff(side,off,type){
+  try{const j=await fetch('/api/admin/dayoff',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({side,off,type:type||'leave'})}).then(r=>r.json());
+    if(j.error){alert(j.message||j.error);return;}
+    await loadPool();refresh();
+  }catch(e){alert('ผิดพลาด: '+e);}
+}
+async function doPullHold(){const b=document.getElementById('pullHoldBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังดึง…';
+  try{const j=await fetch('/api/pull-hold',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:'{}'}).then(r=>r.json());
+    const m=document.getElementById('poolMsg');
+    if(j.error){m.textContent='❌ '+(j.message||j.error);}else{m.textContent='✅ ดึง Marketplace เข้าคลัง +'+(j.summary?j.summary.added:0)+' ราย (ซ้ำ '+(j.summary?j.summary.dup:0)+')';await loadPool();}
+  }catch(e){document.getElementById('poolMsg').textContent='❌ '+e;}
+  b.disabled=false;b.innerHTML=old;}
+async function doPancakePullHold(){const b=document.getElementById('pullFbHoldBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังดึง…';
+  try{const j=await fetch('/api/pancake/pull-hold',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:'{}'}).then(r=>r.json());
+    const m=document.getElementById('poolMsg');
+    if(j.error){m.textContent='❌ '+j.error;}else{m.textContent='✅ ดึง FB เข้าคลัง +'+(j.added||0)+' ราย';await loadPool();}
+  }catch(e){document.getElementById('poolMsg').textContent='❌ '+e;}
+  b.disabled=false;b.innerHTML=old;}
+async function doDistribute(){
+  const avail=poolForSrc();if(!avail){document.getElementById('distMsg').textContent='คลังพักว่าง — ดึงเข้าคลังก่อน';return;}
+  const body={source:DIST.src,mode:DIST.mode};
+  if(DIST.mode==='one'){body.side=document.getElementById('distSide').value;const c=parseInt(document.getElementById('distCount').value,10);if(c>0)body.count=c;}
+  else{const c=parseInt(document.getElementById('distCount50').value,10);if(c>0)body.count=c;}
+  const b=document.getElementById('distBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังแจก…';
+  try{const j=await fetch('/api/distribute',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)}).then(r=>r.json());
+    const s=j.summary||{};document.getElementById('distMsg').textContent='✅ แจกแล้ว '+(s.distributed||0)+' ราย (หวาน '+(s.toW||0)+' · เขม '+(s.toK||0)+') · คลังเหลือ '+(s.remaining||0);
+    document.getElementById('distCount').value='';document.getElementById('distCount50').value='';
+    await loadPool();refresh();if(typeof loadPulls==='function')loadPulls();
+  }catch(e){document.getElementById('distMsg').textContent='❌ '+e;}
+  b.disabled=false;b.innerHTML=old;}
+
 renderNav(); showSec('overview');
 refresh(); loadKpi(); loadChatKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000); setInterval(loadChatKpi, 180000);
 </script>
