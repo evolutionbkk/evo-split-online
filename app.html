@@ -289,35 +289,41 @@
       <span class="hint" id="poolMsg" style="font-size:12.5px;color:#6b7280"></span>
     </div>
     <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
-    <div style="font-weight:700;font-size:13.5px;margin-bottom:9px">แจกจากคลังพัก</div>
-    <div class="row" style="margin-top:0"><span style="font-size:12.5px;color:#475569;min-width:56px">แหล่ง:</span>
-      <div class="krange" id="distSrc" style="margin:0">
-        <button class="kr on" data-s="all" onclick="setDistSrc('all',this)">ทั้งหมด</button>
-        <button class="kr" data-s="mp" onclick="setDistSrc('mp',this)">🛒 Marketplace</button>
-        <button class="kr" data-s="fb" onclick="setDistSrc('fb',this)">💬 FB</button>
+    <div style="max-width:660px;border:1px solid var(--line);border-radius:14px;padding:15px 17px;background:#fbfcfe">
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:13px">⚙️ แจกจากคลังพัก</div>
+      <div style="display:grid;grid-template-columns:56px 1fr;gap:11px 12px;align-items:center">
+        <div style="font-size:12.5px;color:#475569;font-weight:600">แหล่ง</div>
+        <div class="krange" id="distSrc" style="margin:0">
+          <button class="kr on" data-s="all" onclick="setDistSrc('all',this)">ทั้งหมด</button>
+          <button class="kr" data-s="mp" onclick="setDistSrc('mp',this)">🛒 Marketplace</button>
+          <button class="kr" data-s="fb" onclick="setDistSrc('fb',this)">💬 FB</button>
+        </div>
+        <div style="font-size:12.5px;color:#475569;font-weight:600">รูปแบบ</div>
+        <div class="krange" id="distMode" style="margin:0">
+          <button class="kr on" data-m="50" onclick="setDistMode('50',this)">⚖️ 50/50 เท่ากัน</button>
+          <button class="kr" data-m="one" onclick="setDistMode('one',this)">👤 เจาะจงคน</button>
+        </div>
+        <div style="font-size:12.5px;color:#475569;font-weight:600">จำนวน</div>
+        <div>
+          <div id="dist50count" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="distCount50" oninput="distPreview()" placeholder="เว้นว่าง = ทั้งหมด" style="min-width:150px">
+            <span class="hint" style="font-size:12px;color:#94a3b8">แบ่งครึ่งให้ หวาน/เขม อัตโนมัติ</span>
+          </div>
+          <div id="distOne" style="display:none;gap:9px;align-items:center;flex-wrap:wrap">
+            <select id="distSide" onchange="distPreview()" style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit">
+              <option value="W">Namwhan (W) · หวาน</option>
+              <option value="K">Khem (K) · เขม</option>
+            </select>
+            <input type="text" id="distCount" oninput="distPreview()" placeholder="จำนวน" style="max-width:130px">
+          </div>
+        </div>
+      </div>
+      <div class="note" id="distPreview" style="margin:13px 0 0"></div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="b-add" id="distBtn" onclick="doDistribute()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>แจกรายชื่อทันที</button>
+        <span class="hint" id="distMsg" style="font-size:12.5px;color:#6b7280"></span>
       </div>
     </div>
-    <div class="row"><span style="font-size:12.5px;color:#475569;min-width:56px">รูปแบบ:</span>
-      <div class="krange" id="distMode" style="margin:0">
-        <button class="kr on" data-m="50" onclick="setDistMode('50',this)">⚖️ 50/50 เท่ากัน</button>
-        <button class="kr" data-m="one" onclick="setDistMode('one',this)">👤 เจาะจงคน</button>
-      </div>
-    </div>
-    <div class="row" id="distOne" style="display:none"><span style="font-size:12.5px;color:#475569;min-width:56px">ให้:</span>
-      <select id="distSide" onchange="distPreview()" style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit">
-        <option value="W">Namwhan (W) · หวาน</option>
-        <option value="K">Khem (K) · เขม</option>
-      </select>
-      <span style="font-size:12.5px;color:#475569">จำนวน:</span>
-      <input type="text" id="distCount" oninput="distPreview()" placeholder="เว้นว่าง = ทั้งหมด" style="min-width:150px">
-    </div>
-    <div class="row" id="dist50count"><span style="font-size:12.5px;color:#475569;min-width:56px">จำนวน:</span>
-      <input type="text" id="distCount50" oninput="distPreview()" placeholder="เว้นว่าง = ทั้งหมด" style="min-width:150px">
-      <span class="hint" style="font-size:12px;color:#94a3b8">แบ่งครึ่งให้ หวาน/เขม อัตโนมัติ</span>
-    </div>
-    <div class="note" id="distPreview" style="margin:10px 0 0"></div>
-    <div class="row"><button class="b-add" id="distBtn" onclick="doDistribute()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>แจกรายชื่อทันที</button>
-      <span class="hint" id="distMsg" style="font-size:12.5px;color:#6b7280"></span></div>
     <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 10px">
     <div style="font-weight:700;font-size:13.5px;margin-bottom:3px">🗓️ วันลา / วันหยุด ของเซลล์ (วันนี้)</div>
     <div class="desc" style="margin-bottom:9px">กดเมื่อเซลล์คนไหนหยุด — รายชื่อที่ยังไม่ปิดย้ายไปอีกคน และการแจก 50/50 จะวิ่งไปหาคนที่ทำงาน · <b>ขึ้นวันใหม่คืนอัตโนมัติ</b></div>
@@ -325,8 +331,8 @@
   </div>
 
   <div class="panel" data-sec="leads">
-    <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Evolution (โหมดเดิม · แจก 50/50 อัตโนมัติ)</h2>
-    <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Evolution แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
+    <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Marketplace (โหมดเดิม · แจก 50/50 อัตโนมัติ)</h2>
+    <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Marketplace แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
     <div class="row">
       <button class="b-add" id="pullBtn" onclick="doPull()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>ดึงรายชื่อ + แจก 50/50 อัตโนมัติ</button>
       <span class="hint" id="evostatus" style="font-size:12.5px;color:#6b7280"></span>
@@ -340,7 +346,7 @@
 
   <div class="note" data-sec="leads">
     <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก (นำเข้า manual กันซ้ำด้วยเบอร์) &nbsp;|&nbsp;
-    ต้องเปิดหน้า Evolution (ที่ติดตั้งสคริปต์) ค้างไว้สักครั้งเพื่อเชื่อม token ก่อนกดดึง
+    ต้องเปิดหน้า Marketplace (ที่ติดตั้งสคริปต์) ค้างไว้สักครั้งเพื่อเชื่อม token ก่อนกดดึง
   </div>
 
   <div class="panel" id="pancakePanel" data-sec="leads">
@@ -1021,7 +1027,7 @@ function personCard(side,name,a){
           +targetBar('T2', fb.T2d||0, T, '#b45309')
           +targetBar('T3', fb.T3d||0, T, '#047857');})()}
       <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Marketplace <b>${a.calledEvoRange}</b> ราย · FB <b>${a.callsManualRange}</b> สาย${KPI_FB_LEGACY?' <span style="color:#b45309">(นับสายที่โทรจริงทั้งหมด — ช่วงย้ายระบบ)</span>':' ปิดการขาย <span style="color:#94a3b8">· เบอร์ทักใหม่ '+a.talk7OtherRange+' สาย (ไม่นับ KPI)</span>'}</div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Evolution ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}T1 = คุยจริง&gt;7วิ ครั้งแรกของลูกค้า (นับอัตโนมัติ) · T2/T3 = เซลล์กดเปลี่ยนรอบเอง · แยกกันไม่รวม</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Marketplace ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}T1 = คุยจริง&gt;7วิ ครั้งแรกของลูกค้า (นับอัตโนมัติ) · T2/T3 = เซลล์กดเปลี่ยนรอบเอง · แยกกันไม่รวม</div>
     </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>
@@ -1297,14 +1303,14 @@ async function doPull(){
     const r=await fetch('/api/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     const j=await r.json();
     if(!r.ok){ document.getElementById('lastact').innerHTML=ic('alert',14)+(j.message||'ดึงไม่สำเร็จ'); }
-    else{ const su=j.summary||{}; const capMsg=(su.capped>0)?(' · <b style="color:#b45309">เต็มโควตาวันนี้ (100/วัน)</b> เหลืออีก '+su.capped+' รอพรุ่งนี้'):''; document.getElementById('lastact').innerHTML=ic('check',14)+'ดึงจาก Evolution '+j.pulled+' ราย → แจกใหม่ <b>'+su.added+'</b> (Namwhan '+su.addW+' / Khem '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>'+capMsg; }
+    else{ const su=j.summary||{}; const capMsg=(su.capped>0)?(' · <b style="color:#b45309">เต็มโควตาวันนี้ (100/วัน)</b> เหลืออีก '+su.capped+' รอพรุ่งนี้'):''; document.getElementById('lastact').innerHTML=ic('check',14)+'ดึงจาก Marketplace '+j.pulled+' ราย → แจกใหม่ <b>'+su.added+'</b> (Namwhan '+su.addW+' / Khem '+su.addK+') · ข้ามซ้ำ <b>'+su.dup+'</b> · เบอร์ไม่ผ่าน <b>'+su.cut+'</b>'+capMsg; }
   }catch(e){ document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e; }
   btn.disabled=false; btn.innerHTML=old; refresh(); loadPulls(); evoStatus();
 }
 async function evoStatus(){
   try{ const r=await fetch('/api/evo-status'); if(!r.ok)return; const s=await r.json();
     const el=document.getElementById('evostatus'); if(!el)return;
-    el.innerHTML = s.hasToken ? (ic('check',13)+'เชื่อมกับ Evolution แล้ว · token อัปเดต '+fmt(s.tokenUpdatedAt)) : (ic('alert',13)+'ยังไม่ได้เชื่อม — เปิดหน้า Evolution (ที่ติดตั้งสคริปต์) สักครั้งก่อนกดดึง');
+    el.innerHTML = s.hasToken ? (ic('check',13)+'เชื่อมกับ Marketplace แล้ว · token อัปเดต '+fmt(s.tokenUpdatedAt)) : (ic('alert',13)+'ยังไม่ได้เชื่อม — เปิดหน้า Marketplace (ที่ติดตั้งสคริปต์) สักครั้งก่อนกดดึง');
   }catch(e){}
 }
 // ===== Per-salesperson call history (OneCall) =====
@@ -1435,7 +1441,7 @@ async function loadDupes(){
 }
 function renderDupes(){
   const j=DUP_DATA,gs=j.groups||[],nm=s=>((j.names&&j.names[s])||s);
-  const srcLbl=s=>s==='pancake'?'FB ปิดการขาย':s==='refill'?'ซื้อซ้ำ':s==='manual'?'FB/manual':'Evolution';
+  const srcLbl=s=>s==='pancake'?'FB ปิดการขาย':s==='refill'?'ซื้อซ้ำ':s==='manual'?'FB/manual':'Marketplace';
   document.getElementById('dupInfo').innerHTML='พบเบอร์ซ้ำ <b>'+gs.length+'</b> เบอร์'+(gs.length?' · '+gs.reduce((s,g)=>s+g.leads.length-1,0)+' รายการที่ควรนำออก':'');
   document.getElementById('dedupAllBtn').style.display=gs.length?'':'none';
   if(!gs.length){document.getElementById('dupBody').innerHTML='<div style="text-align:center;color:#16a34a;padding:20px">'+ic('check',15)+' ไม่พบเบอร์ซ้ำในระบบ</div>';return;}
@@ -1475,10 +1481,13 @@ async function loadPancakeStatus(){
 }
 async function doPancakePull(){
   const b=document.getElementById('pcpullbtn');b.disabled=true;const old=b.innerHTML;b.innerHTML='กำลังซิงค์…';
-  try{const r=await fetch('/api/pancake/pull',{method:'POST'});const j=await r.json();
+  let ok=false;
+  try{const r=await fetch('/api/pancake/pull',{method:'POST'});const j=await r.json();ok=r.ok;
     document.getElementById('lastact').innerHTML=r.ok?(ic('check',14)+'ซิงค์ Pancake แล้ว · เพิ่มใหม่ <b>'+(j.added||0)+'</b> ราย'):(ic('alert',14)+(j.message||j.error||'ซิงค์ไม่สำเร็จ'));
   }catch(e){document.getElementById('lastact').innerHTML=ic('alert',14)+'ผิดพลาด: '+e;}
-  b.disabled=false;b.innerHTML=old;loadPancakeStatus();refresh();
+  loadPancakeStatus();refresh();
+  if(ok){b.innerHTML=ic('check',15)+'ซิงค์ข้อมูลเรียบร้อย';b.style.background='#16a34a';setTimeout(()=>{b.disabled=false;b.innerHTML=old;b.style.background='';},2600);}
+  else{b.disabled=false;b.innerHTML=old;}
 }
 // ===== Sidebar navigation =====
 const NAVGROUPS=[
