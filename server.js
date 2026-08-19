@@ -1091,11 +1091,34 @@ app.post('/api/pull-hold', requireAuth, async (req, res) => {
     res.status(502).json({ error: 'pull_failed', message: 'ดึงจาก Evolution ไม่สำเร็จ: ' + String(e) });
   }
 });
-// Pull Pancake (FB closed sales) into the pool.
+// Pull Pancake (Facebook closed sales) into the pool. Backfills the last N days (default 30) of
+// closed-sale orders and pools any whose phone isn't already an active/pooled lead (dedup by phone).
+// This lets the Teamlead see existing FB customers to distribute — not only forward-only new ones.
 app.post('/api/pancake/pull-hold', requireAuth, async (req, res) => {
   if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key', message: 'ยังไม่ได้ตั้ง PANCAKE_API_KEY' });
-  const out = await pancakePull({ hold: true });
-  res.json({ ok: !out.err, added: out.added, error: out.err || null, pool: S.poolCounts(state) });
+  const days = Math.min(120, Math.max(1, Number(req.body && req.body.days) || 30));
+  const cutoff = Date.now() - days * 86400000;
+  const rows = []; let scanned = 0;
+  try {
+    for (let page = 1; page <= 30; page++) {
+      const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=100';
+      const j = await (await fetch(url)).json().catch(() => null);
+      if (!j || j.success !== true || !Array.isArray(j.data) || !j.data.length) break;
+      for (const o of j.data) {
+        scanned++;
+        const ins = Date.parse(o.inserted_at || o.updated_at || 0);
+        if (!isFinite(ins) || ins < cutoff) continue;            // outside the window
+        if (PANCAKE_SKIP_STATUS.has(String(o.status))) continue; // not a closed sale
+        rows.push(pancakeOrderToRow(o));
+      }
+      if (j.data.length < 100) break;
+    }
+    const sum = S.applyNewPool(state, rows, { source: 'pancake', by: 'Pancake' });
+    state = await store.save(state);
+    res.json({ ok: true, added: sum.added, dup: sum.dup, scanned, candidates: rows.length, days, pool: S.poolCounts(state) });
+  } catch (e) {
+    res.status(500).json({ error: String(e), scanned });
+  }
 });
 // Pool status (counts waiting, by channel) + who is on leave.
 app.get('/api/pool', requireAuth, (req, res) => {

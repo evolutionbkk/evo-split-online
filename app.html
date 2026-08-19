@@ -279,29 +279,29 @@
 
   <div class="panel" data-sec="leads" id="distPanel">
     <h2><span data-ic="download" data-sz="18"></span>แบ่งรายชื่อลูกค้าให้เซลล์ (Teamlead)</h2>
-    <div class="desc">ทำงาน <b>2 ขั้น</b> — <b>① ดึงรายชื่อเข้า “คลังพัก”</b> → <b>② เลือกแจกให้เซลล์</b> (เจาะจงคน + ระบุจำนวน หรือ 50/50 เท่ากัน) · แยกแหล่ง 🛒 Marketplace / 💬 FB</div>
+    <div class="desc">ทำงาน <b>2 ขั้น</b> — <b>① ดึงรายชื่อลูกค้าเข้ามา (รอแจก)</b> → <b>② เลือกแจกให้เซลล์</b> (เจาะจงคน + ระบุจำนวน หรือ 50/50 เท่ากัน) · แยกแหล่ง 🛒 Marketplace / 💬 FB</div>
 
-    <div class="stepline"><span class="stepno">1</span> ดึงรายชื่อเข้าคลัง</div>
+    <div class="stepline"><span class="stepno">1</span> สถานะการแจกรายชื่อ</div>
     <div class="cards" style="grid-template-columns:repeat(3,1fr);margin:0 0 11px">
       <div class="card"><div class="l">🛒 Marketplace · รอแจก</div><div class="n" id="poolMp" style="color:#0e9f6e">–</div></div>
-      <div class="card"><div class="l">💬 FB (Pancake) · รอแจก</div><div class="n" id="poolFb" style="color:#1657cf">–</div></div>
-      <div class="card total"><div class="l">รวมในคลังพัก</div><div class="n" id="poolTotal">–</div></div>
+      <div class="card"><div class="l">💬 Facebook (Pancake) · รอแจก</div><div class="n" id="poolFb" style="color:#1657cf">–</div></div>
+      <div class="card total"><div class="l">รวมรายชื่อรอแจก</div><div class="n" id="poolTotal">–</div></div>
     </div>
     <div class="row" style="margin-top:0">
-      <button class="b-b" id="pullHoldBtn" onclick="doPullHold()"><span data-ic="download" data-sz="15"></span>ดึง Marketplace เข้าคลัง</button>
-      <button class="b-b" id="pullFbHoldBtn" onclick="doPancakePullHold()"><span data-ic="download" data-sz="15"></span>ดึง FB เข้าคลัง</button>
+      <button class="b-b" id="pullHoldBtn" onclick="doPullHold()"><span data-ic="download" data-sz="15"></span>เชื่อมต่อรายชื่อ Marketplace</button>
+      <button class="b-b" id="pullFbHoldBtn" onclick="doPancakePullHold()"><span data-ic="download" data-sz="15"></span>เชื่อมต่อรายชื่อ Facebook</button>
       <span class="hint" id="poolMsg" style="font-size:12.5px;color:#6b7280"></span>
     </div>
     <div class="note" style="margin:11px 0 0;font-size:12px;line-height:1.6">
       <div>🛒 <b>Marketplace</b> · <span id="evostatus">—</span></div>
       <div>💬 <b>FB (Pancake)</b> · <span id="pcstatus">—</span></div>
-      <div style="margin-top:6px;color:#64748b">FB ที่ปิดการขายเข้าคลังอัตโนมัติทุก 10 นาที · Marketplace กดปุ่มดึงเองเมื่อต้องการ (ต้องเปิดหน้า Marketplace ที่ติดตั้งสคริปต์ค้างไว้เพื่อเชื่อม token) · รับเบอร์ 10 หลัก 02/06/08/09 · กันซ้ำอัตโนมัติ</div>
+      <div style="margin-top:6px;color:#64748b">FB ที่ปิดการขายเข้ามาอัตโนมัติทุก 10 นาที · Marketplace กดปุ่มดึงเองเมื่อต้องการ (ต้องเปิดหน้า Marketplace ที่ติดตั้งสคริปต์ค้างไว้เพื่อเชื่อม token) · รับเบอร์ 10 หลัก 02/06/08/09 · กันซ้ำอัตโนมัติ</div>
     </div>
 
     <div class="stepline"><span class="stepno">2</span> แจกให้เซลล์</div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch">
     <div style="flex:1.25;min-width:340px;border:1px solid var(--line);border-radius:14px;padding:15px 17px;background:#fbfcfe">
-      <div style="font-weight:700;font-size:13.5px;margin-bottom:13px">⚙️ แจกจากคลังพัก</div>
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:13px">⚙️ เลือกแจกให้เซลล์</div>
       <div style="display:grid;grid-template-columns:56px 1fr;gap:11px 12px;align-items:center">
         <div style="font-size:12.5px;color:#475569;font-weight:600">แหล่ง</div>
         <div class="krange" id="distSrc" style="margin:0">
@@ -1768,7 +1768,7 @@ function renderSrc(j,target,compact){
 }
 function srcThDateTime(iso){const d=new Date((Date.parse(iso)||0)+7*3600000);const p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes());}
 
-// ===== Teamlead manual distribution (คลังพัก → แจกเอง) =====
+// ===== Teamlead manual distribution (รายชื่อรอแจก → แจกเอง) =====
 let DIST={src:'all',mode:'50'},POOL={mp:0,fb:0,total:0},DOFF={W:false,K:false},DTYPE={W:null,K:null};
 function setDistSrc(s,btn){DIST.src=s;document.querySelectorAll('#distSrc .kr').forEach(x=>x.classList.remove('on'));btn.classList.add('on');distPreview();}
 function setDistMode(m,btn){DIST.mode=m;document.querySelectorAll('#distMode .kr').forEach(x=>x.classList.remove('on'));btn.classList.add('on');document.getElementById('distOne').style.display=m==='one'?'flex':'none';document.getElementById('dist50count').style.display=m==='one'?'none':'flex';distPreview();}
@@ -1776,15 +1776,15 @@ function poolForSrc(){return DIST.src==='mp'?POOL.mp:(DIST.src==='fb'?POOL.fb:PO
 function distPreview(){
   const avail=poolForSrc();const srcLbl=DIST.src==='mp'?'Marketplace':(DIST.src==='fb'?'FB':'ทั้งหมด');
   const pv=document.getElementById('distPreview');if(!pv)return;
-  if(!avail){pv.innerHTML='คลังพักแหล่ง <b>'+srcLbl+'</b> ว่าง — กด “ดึงเข้าคลัง” ก่อน';return;}
+  if(!avail){pv.innerHTML='รายชื่อรอแจกแหล่ง <b>'+srcLbl+'</b> ว่าง — กด “ดึงรายชื่อ” ก่อน';return;}
   if(DIST.mode==='one'){
     const raw=parseInt(document.getElementById('distCount').value,10);const n=(raw>0)?Math.min(raw,avail):avail;
     const who=document.getElementById('distSide').selectedOptions[0].textContent.split(' ·')[0];
-    pv.innerHTML='จะแจก <b>'+n+' ราย</b> จาก <b>'+srcLbl+'</b> ให้ <b>'+who+'</b> คนเดียว (คลังเหลือ '+avail+')';
+    pv.innerHTML='จะแจก <b>'+n+' ราย</b> จาก <b>'+srcLbl+'</b> ให้ <b>'+who+'</b> คนเดียว (เหลือรอแจก '+avail+')';
   }else{
     const raw=parseInt(document.getElementById('distCount50').value,10);const n=(raw>0)?Math.min(raw,avail):avail;
     const w=Math.ceil(n/2),k=n-w;
-    pv.innerHTML='จะแจก <b>'+n+' ราย</b> จาก <b>'+srcLbl+'</b> แบบ 50/50 → หวาน '+w+' · เขม '+k+' (คลังเหลือ '+avail+')';
+    pv.innerHTML='จะแจก <b>'+n+' ราย</b> จาก <b>'+srcLbl+'</b> แบบ 50/50 → หวาน '+w+' · เขม '+k+' (เหลือรอแจก '+avail+')';
   }
 }
 async function loadPool(){
@@ -1804,7 +1804,7 @@ function renderDistSummary(){
       +'<div style="font-weight:700;font-size:13px;display:flex;justify-content:space-between"><span>'+name+'</span><span style="color:#1657cf">'+list.length+' ราย</span></div>'
       +'<div style="font-size:11.5px;color:#64748b;margin-top:3px">🛒 Marketplace '+m+' · 💬 FB '+f+'</div></div>';};
   box.innerHTML='<div style="background:#eef4fd;border:1px solid #dbe7fb;border-radius:10px;padding:10px 12px;margin-bottom:11px;font-size:12.5px;line-height:1.5">'
-    +'<b>คลังพักรอแจก</b><br>🛒 Marketplace <b>'+POOL.mp+'</b> · 💬 FB <b>'+POOL.fb+'</b> · รวม <b>'+POOL.total+'</b></div>'
+    +'<b>รายชื่อรอแจก</b><br>🛒 Marketplace <b>'+POOL.mp+'</b> · 💬 FB <b>'+POOL.fb+'</b> · รวม <b>'+POOL.total+'</b></div>'
     +'<div style="font-size:11.5px;color:#94a3b8;margin-bottom:7px;font-weight:600">เซลล์ถืออยู่ตอนนี้ (ยังไม่ปิด)</div>'
     +seller('Namwhan (W) · หวาน',W)+seller('Khem (K) · เขม',K)
     +'<a class="kr" style="text-decoration:none;cursor:pointer;display:inline-block;margin-top:4px;font-size:12px" onclick="showSec(\'overview\')">ดู KPI · โทร/ปิดการขาย →</a>';
@@ -1827,26 +1827,26 @@ async function setDayoff(side,off,type){
     await loadPool();refresh();
   }catch(e){alert('ผิดพลาด: '+e);}
 }
-async function doPullHold(){const b=document.getElementById('pullHoldBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังดึง…';
+async function doPullHold(){const b=document.getElementById('pullHoldBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังเชื่อมต่อ…';
   try{const j=await fetch('/api/pull-hold',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:'{}'}).then(r=>r.json());
     const m=document.getElementById('poolMsg');
-    if(j.error){m.textContent='❌ '+(j.message||j.error);}else{m.textContent='✅ ดึง Marketplace เข้าคลัง +'+(j.summary?j.summary.added:0)+' ราย (ซ้ำ '+(j.summary?j.summary.dup:0)+')';await loadPool();}
+    if(j.error){m.textContent='❌ '+(j.message||j.error);}else{m.textContent='✅ เชื่อมต่อ Marketplace · เพิ่มรายชื่อรอแจก +'+(j.summary?j.summary.added:0)+' ราย (ซ้ำ '+(j.summary?j.summary.dup:0)+')';await loadPool();}
   }catch(e){document.getElementById('poolMsg').textContent='❌ '+e;}
   b.disabled=false;b.innerHTML=old;}
-async function doPancakePullHold(){const b=document.getElementById('pullFbHoldBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังดึง…';
-  try{const j=await fetch('/api/pancake/pull-hold',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:'{}'}).then(r=>r.json());
+async function doPancakePullHold(){const b=document.getElementById('pullFbHoldBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังเชื่อมต่อ…';
+  try{const j=await fetch('/api/pancake/pull-hold',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({days:30})}).then(r=>r.json());
     const m=document.getElementById('poolMsg');
-    if(j.error){m.textContent='❌ '+j.error;}else{m.textContent='✅ ดึง FB เข้าคลัง +'+(j.added||0)+' ราย';await loadPool();}
+    if(j.error){m.textContent='❌ '+j.error;}else{m.textContent='✅ เชื่อมต่อ Facebook · เพิ่มรายชื่อรอแจก +'+(j.added||0)+' ราย'+(j.dup?(' (ซ้ำ '+j.dup+')'):'');await loadPool();}
   }catch(e){document.getElementById('poolMsg').textContent='❌ '+e;}
   b.disabled=false;b.innerHTML=old;}
 async function doDistribute(){
-  const avail=poolForSrc();if(!avail){document.getElementById('distMsg').textContent='คลังพักว่าง — ดึงเข้าคลังก่อน';return;}
+  const avail=poolForSrc();if(!avail){document.getElementById('distMsg').textContent='ยังไม่มีรายชื่อรอแจก — ดึงรายชื่อก่อน';return;}
   const body={source:DIST.src,mode:DIST.mode};
   if(DIST.mode==='one'){body.side=document.getElementById('distSide').value;const c=parseInt(document.getElementById('distCount').value,10);if(c>0)body.count=c;}
   else{const c=parseInt(document.getElementById('distCount50').value,10);if(c>0)body.count=c;}
   const b=document.getElementById('distBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังแจก…';
   try{const j=await fetch('/api/distribute',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)}).then(r=>r.json());
-    const s=j.summary||{};document.getElementById('distMsg').textContent='✅ แจกแล้ว '+(s.distributed||0)+' ราย (หวาน '+(s.toW||0)+' · เขม '+(s.toK||0)+') · คลังเหลือ '+(s.remaining||0);
+    const s=j.summary||{};document.getElementById('distMsg').textContent='✅ แจกแล้ว '+(s.distributed||0)+' ราย (หวาน '+(s.toW||0)+' · เขม '+(s.toK||0)+') · เหลือรอแจก '+(s.remaining||0);
     document.getElementById('distCount').value='';document.getElementById('distCount50').value='';
     await loadPool();refresh();if(typeof loadPulls==='function')loadPulls();
   }catch(e){document.getElementById('distMsg').textContent='❌ '+e;}
