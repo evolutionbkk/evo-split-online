@@ -158,6 +158,8 @@
   .sbpi.out{color:#dc2626;border-top:1px solid var(--line);margin-top:5px;padding-top:12px}
   .sbpi.out:hover{background:#fff3f4}
   .applayout .wrap{margin:0 0 0 316px;max-width:1200px;padding:22px 26px 48px}
+  .stepline{display:flex;align-items:center;gap:9px;font-weight:800;font-size:14.5px;color:var(--brand-deep);margin:20px 2px 12px}
+  .stepline .stepno{width:25px;height:25px;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800;flex:none;box-shadow:0 3px 8px rgba(37,99,235,.28)}
   [data-sec]{display:none}
   [data-sec].shown{display:block}
   .cards[data-sec].shown{display:grid}
@@ -277,19 +279,28 @@
 
   <div class="panel" data-sec="leads" id="distPanel">
     <h2><span data-ic="download" data-sz="18"></span>แบ่งรายชื่อลูกค้าให้เซลล์ (Teamlead)</h2>
-    <div class="desc">ดึงรายชื่อเข้า <b>“คลังพัก”</b> ก่อน แล้วเลือกแจกเอง — <b>เจาะจงคน + ระบุจำนวน</b> หรือ <b>50/50 เท่ากัน</b> · แยกตามแหล่ง Marketplace / FB (Pancake)</div>
-    <div class="cards" style="grid-template-columns:repeat(3,1fr);margin:4px 0 10px">
-      <div class="card"><div class="l">🛒 Marketplace (คลังพัก)</div><div class="n" id="poolMp" style="color:#0e9f6e">–</div></div>
-      <div class="card"><div class="l">💬 FB · Pancake (คลังพัก)</div><div class="n" id="poolFb" style="color:#1657cf">–</div></div>
-      <div class="card total"><div class="l">รวมรอแจกในคลัง</div><div class="n" id="poolTotal">–</div></div>
+    <div class="desc">ทำงาน <b>2 ขั้น</b> — <b>① ดึงรายชื่อเข้า “คลังพัก”</b> → <b>② เลือกแจกให้เซลล์</b> (เจาะจงคน + ระบุจำนวน หรือ 50/50 เท่ากัน) · แยกแหล่ง 🛒 Marketplace / 💬 FB</div>
+
+    <div class="stepline"><span class="stepno">1</span> ดึงรายชื่อเข้าคลัง</div>
+    <div class="cards" style="grid-template-columns:repeat(3,1fr);margin:0 0 11px">
+      <div class="card"><div class="l">🛒 Marketplace · รอแจก</div><div class="n" id="poolMp" style="color:#0e9f6e">–</div></div>
+      <div class="card"><div class="l">💬 FB (Pancake) · รอแจก</div><div class="n" id="poolFb" style="color:#1657cf">–</div></div>
+      <div class="card total"><div class="l">รวมในคลังพัก</div><div class="n" id="poolTotal">–</div></div>
     </div>
-    <div class="row" style="margin-top:2px">
-      <button class="b-g" id="pullHoldBtn" onclick="doPullHold()"><span data-ic="download" data-sz="15"></span>ดึง Marketplace เข้าคลัง</button>
-      <button class="b-g" id="pullFbHoldBtn" onclick="doPancakePullHold()"><span data-ic="download" data-sz="15"></span>ดึง FB เข้าคลัง</button>
+    <div class="row" style="margin-top:0">
+      <button class="b-b" id="pullHoldBtn" onclick="doPullHold()"><span data-ic="download" data-sz="15"></span>ดึง Marketplace เข้าคลัง</button>
+      <button class="b-b" id="pullFbHoldBtn" onclick="doPancakePullHold()"><span data-ic="download" data-sz="15"></span>ดึง FB เข้าคลัง</button>
       <span class="hint" id="poolMsg" style="font-size:12.5px;color:#6b7280"></span>
     </div>
-    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
-    <div style="max-width:660px;border:1px solid var(--line);border-radius:14px;padding:15px 17px;background:#fbfcfe">
+    <div class="note" style="margin:11px 0 0;font-size:12px;line-height:1.6">
+      <div>🛒 <b>Marketplace</b> · <span id="evostatus">—</span></div>
+      <div>💬 <b>FB (Pancake)</b> · <span id="pcstatus">—</span></div>
+      <div style="margin-top:6px;color:#64748b">FB ที่ปิดการขายเข้าคลังอัตโนมัติทุก 10 นาที · Marketplace กดปุ่มดึงเองเมื่อต้องการ (ต้องเปิดหน้า Marketplace ที่ติดตั้งสคริปต์ค้างไว้เพื่อเชื่อม token) · รับเบอร์ 10 หลัก 02/06/08/09 · กันซ้ำอัตโนมัติ</div>
+    </div>
+
+    <div class="stepline"><span class="stepno">2</span> แจกให้เซลล์</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch">
+    <div style="flex:1.25;min-width:340px;border:1px solid var(--line);border-radius:14px;padding:15px 17px;background:#fbfcfe">
       <div style="font-weight:700;font-size:13.5px;margin-bottom:13px">⚙️ แจกจากคลังพัก</div>
       <div style="display:grid;grid-template-columns:56px 1fr;gap:11px 12px;align-items:center">
         <div style="font-size:12.5px;color:#475569;font-weight:600">แหล่ง</div>
@@ -324,38 +335,20 @@
         <span class="hint" id="distMsg" style="font-size:12.5px;color:#6b7280"></span>
       </div>
     </div>
-    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 10px">
-    <div style="font-weight:700;font-size:13.5px;margin-bottom:3px">🗓️ วันลา / วันหยุด ของเซลล์ (วันนี้)</div>
-    <div class="desc" style="margin-bottom:9px">กดเมื่อเซลล์คนไหนหยุด — รายชื่อที่ยังไม่ปิดย้ายไปอีกคน และการแจก 50/50 จะวิ่งไปหาคนที่ทำงาน · <b>ขึ้นวันใหม่คืนอัตโนมัติ</b></div>
-    <div id="distDayoff" style="display:flex;gap:12px;flex-wrap:wrap"></div>
-  </div>
-
-  <div class="panel" data-sec="leads">
-    <h2><span data-ic="download" data-sz="18"></span>ดึงรายชื่อจาก Marketplace (โหมดเดิม · แจก 50/50 อัตโนมัติ)</h2>
-    <div class="desc">กดปุ่มเดียว ระบบดึงรายชื่อใหม่จาก Marketplace แล้ว<b>แจกให้ Namwhan (W) กับ Khem (K) เท่ากันอัตโนมัติทันที</b> · สูงสุด <b>50 ราย/คน/วัน</b> (รวม 100/วัน) ตาม KPI</div>
-    <div class="row">
-      <button class="b-add" id="pullBtn" onclick="doPull()" style="font-weight:700"><span data-ic="download" data-sz="15"></span>ดึงรายชื่อ + แจก 50/50 อัตโนมัติ</button>
-      <span class="hint" id="evostatus" style="font-size:12.5px;color:#6b7280"></span>
+    <div style="flex:1;min-width:280px;border:1px solid var(--line);border-radius:14px;padding:15px 17px;background:#fff">
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:12px">📊 สรุป &amp; ติดตามการแจก</div>
+      <div id="distSummary"><div style="color:#94a3b8;font-size:12.5px">กำลังโหลด…</div></div>
     </div>
-    <div class="desc" style="margin-top:12px;margin-bottom:4px"><b>บันทึกการดึงรายชื่อ</b> (วันที่ · จำนวนที่แจกให้แต่ละคน)</div>
-    <div class="card" style="box-shadow:none;border:1px solid var(--line)"><div class="tblwrap" style="max-height:320px"><table>
+    </div>
+    <div style="font-weight:700;font-size:13.5px;margin:20px 2px 4px">🗓️ วันลา / วันหยุด ของเซลล์ (วันนี้)</div>
+    <div class="desc" style="margin-bottom:9px">กดเมื่อเซลล์คนไหนหยุด — รายชื่อที่ยังไม่ปิดย้ายไปอีกคน และการแจก 50/50 จะวิ่งไปหาคนที่ทำงาน · เลือกได้ว่า <b>ลา</b> หรือ <b>วันหยุด</b> · <b>ขึ้นวันใหม่คืนอัตโนมัติ</b></div>
+    <div id="distDayoff" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+
+    <div style="font-weight:700;font-size:13.5px;margin:20px 2px 6px">📁 ประวัติการแจกรายชื่อ <span style="font-weight:400;color:#94a3b8;font-size:12px">(วันที่ · จำนวนที่แจกให้แต่ละคน)</span></div>
+    <div class="card" style="box-shadow:none;border:1px solid var(--line)"><div class="tblwrap" style="max-height:280px"><table>
       <thead><tr><th>วันที่</th><th style="text-align:right">Namwhan (W)</th><th style="text-align:right">Khem (K)</th><th style="text-align:right">รวม</th></tr></thead>
       <tbody id="pullsBody"></tbody>
     </table></div></div>
-  </div>
-
-  <div class="note" data-sec="leads">
-    <b>เกณฑ์เบอร์:</b> 10 หลัก ขึ้นต้น 02, 06, 08, 09 เท่านั้น &nbsp;|&nbsp; <b>กันซ้ำ:</b> ใช้รหัสสมาชิก (นำเข้า manual กันซ้ำด้วยเบอร์) &nbsp;|&nbsp;
-    ต้องเปิดหน้า Marketplace (ที่ติดตั้งสคริปต์) ค้างไว้สักครั้งเพื่อเชื่อม token ก่อนกดดึง
-  </div>
-
-  <div class="panel" id="pancakePanel" data-sec="leads">
-    <h2><span data-ic="download" data-sz="18"></span>เชื่อม Pancake — ออเดอร์ที่ปิดการขาย → ทีมเซลล์</h2>
-    <div class="desc">ระบบดึงออเดอร์ที่ <b>ปิดการขายแล้ว</b> จาก Pancake อัตโนมัติทุก 10 นาที → แจกให้ Namwhan/Khem 50/50 · กันซ้ำด้วยเบอร์ · นับเฉพาะออเดอร์ที่ปิดหลังเริ่มเชื่อม (ไม่ดึงย้อนหลัง)</div>
-    <div class="row" style="align-items:center;gap:10px">
-      <button class="b-add" id="pcpullbtn" onclick="doPancakePull()" style="padding:9px 16px"><span data-ic="refresh" data-sz="15"></span>ซิงค์ Pancake เดี๋ยวนี้</button>
-      <span id="pcstatus" style="font-size:12.5px;color:#6b7280"></span>
-    </div>
   </div>
 
   <div class="panel" id="refillPanel" data-sec="refill">
@@ -624,7 +617,7 @@ async function refresh(){
    const _mkt=_all.length-_fb;const _sp=document.getElementById('c-all-split');
    if(_sp)_sp.innerHTML='🔵 FB Page <b>'+_fb+'</b> · 🟢 Marketplace <b>'+_mkt+'</b>';}
   document.getElementById('c-upd').textContent=fmt(s.updatedAt);
-  LAST={W:s.W,K:s.K}; renderTables();
+  LAST={W:s.W,K:s.K}; renderTables(); if(document.getElementById('distSummary'))renderDistSummary();
   DAYOFF=s.dayoff||{W:false,K:false}; renderDayoff(); loadLeaves();
 }
 // ===== Admin chat KPI (ไลลา · ยูกิ) =====
@@ -1799,8 +1792,22 @@ async function loadPool(){
     POOL=j.pool||{mp:0,fb:0,total:0};DOFF=j.dayoff||{W:false,K:false};DTYPE=j.dayoffType||{W:null,K:null};
     const e=id=>document.getElementById(id);
     if(e('poolMp')){e('poolMp').textContent=POOL.mp;e('poolFb').textContent=POOL.fb;e('poolTotal').textContent=POOL.total;}
-    renderDistDayoff();distPreview();
-  }catch(err){renderDistDayoff();distPreview();}
+    renderDistDayoff();distPreview();renderDistSummary();
+  }catch(err){renderDistDayoff();distPreview();renderDistSummary();}
+}
+function renderDistSummary(){
+  const box=document.getElementById('distSummary');if(!box)return;
+  const W=(typeof LAST!=='undefined'&&LAST&&LAST.W)||[],K=(typeof LAST!=='undefined'&&LAST&&LAST.K)||[];
+  const fbOf=a=>a.filter(r=>r.source==='pancake'||r.source==='manual'||r.source==='refill').length;
+  const seller=(name,list)=>{const f=fbOf(list),m=list.length-f;
+    return '<div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px">'
+      +'<div style="font-weight:700;font-size:13px;display:flex;justify-content:space-between"><span>'+name+'</span><span style="color:#1657cf">'+list.length+' ราย</span></div>'
+      +'<div style="font-size:11.5px;color:#64748b;margin-top:3px">🛒 Marketplace '+m+' · 💬 FB '+f+'</div></div>';};
+  box.innerHTML='<div style="background:#eef4fd;border:1px solid #dbe7fb;border-radius:10px;padding:10px 12px;margin-bottom:11px;font-size:12.5px;line-height:1.5">'
+    +'<b>คลังพักรอแจก</b><br>🛒 Marketplace <b>'+POOL.mp+'</b> · 💬 FB <b>'+POOL.fb+'</b> · รวม <b>'+POOL.total+'</b></div>'
+    +'<div style="font-size:11.5px;color:#94a3b8;margin-bottom:7px;font-weight:600">เซลล์ถืออยู่ตอนนี้ (ยังไม่ปิด)</div>'
+    +seller('Namwhan (W) · หวาน',W)+seller('Khem (K) · เขม',K)
+    +'<a class="kr" style="text-decoration:none;cursor:pointer;display:inline-block;margin-top:4px;font-size:12px" onclick="showSec(\'overview\')">ดู KPI · โทร/ปิดการขาย →</a>';
 }
 function renderDistDayoff(){
   const box=document.getElementById('distDayoff');if(!box)return;

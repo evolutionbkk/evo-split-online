@@ -2471,8 +2471,8 @@ boot().then(() => {
   setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
   if (PANCAKE_API_KEY) {
-    setTimeout(() => { pancakePull().catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot
-    setInterval(() => { pancakePull().catch(() => {}); }, 10 * 60 * 1000);     // pull closed-sale orders every 10 min
+    setTimeout(() => { pancakePull({ hold: true }).catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot → holding pool (Teamlead distributes)
+    setInterval(() => { pancakePull({ hold: true }).catch(() => {}); }, 10 * 60 * 1000);     // pull closed-sale orders every 10 min → holding pool
     setTimeout(() => { pancakeRefillAuto().catch(() => {}); }, 90 * 1000);     // first auto-refill top-up ~1.5 min after boot
     setInterval(() => { pancakeRefillAuto().catch(() => {}); }, 6 * 60 * 60 * 1000); // top up refill queue every 6h (works even if Teamlead is off)
     setTimeout(() => { pancakeEnrichVip().catch(() => {}); }, 150 * 1000);     // enrich LTV/VIP ~2.5 min after boot
