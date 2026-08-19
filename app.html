@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>แบ่งรายชื่อลูกค้าให้เซลล์ — แอดมิน</title>
+<title>YANHEE E-COMMERCE · Teamlead — ศูนย์ควบคุมทีมเทเลเซลล์</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -99,33 +99,101 @@
   @media(max-width:720px){.ktoday{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
   .applayout{margin:0;max-width:none;padding:0}
-  .side{position:fixed;top:0;left:0;height:100vh;width:236px;flex:none;background:#0f172a;border-radius:0;padding:20px 14px;overflow-y:auto;box-shadow:2px 0 24px rgba(15,23,42,.10);z-index:20}
-  .side .brand{color:#fff;font-weight:800;font-size:15px;padding:4px 10px 14px;line-height:1.3;border-bottom:1px solid #1e293b;margin-bottom:10px}
-  .side .brand small{display:block;color:#94a3b8;font-weight:600;font-size:11.5px;margin-top:3px}
-  .side .nav{display:flex;flex-direction:column;gap:3px}
-  .side .nav button{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;text-align:left;background:transparent;border:none;color:#cbd5e1;font-size:14px;font-weight:600;padding:12px 12px;border-radius:10px;cursor:pointer;transition:background .15s}
-  .side .nav button>span:not(.rfn){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .side .nav button svg{flex:0 0 auto}
-  .side .nav button .ic{flex:none;width:18px}
-  .side .nav button:hover{background:#1e293b;color:#fff}
-  .side .nav button.on{background:#2563eb;color:#fff}
-  .side .nav button .rfb{margin-left:auto;background:#dc2626;color:#fff;font-size:11px;font-weight:700;border-radius:9px;padding:0 7px;min-width:18px;text-align:center}
-  .applayout .wrap{margin:0 0 0 236px;max-width:1200px;padding:22px 26px 48px}
+  /* ===== YANHEE E-COMMERCE · 3-tier sidebar ===== */
+  .side{position:fixed;top:0;left:0;height:100vh;display:flex;z-index:30;box-shadow:2px 0 22px rgba(15,23,42,.08)}
+  .rail{width:60px;flex:none;background:linear-gradient(180deg,#0b2350,#0a1c40);display:flex;flex-direction:column;align-items:center;padding:12px 0 10px;gap:2px}
+  .rail .mk{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#3f83f8,#1657cf);color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px;letter-spacing:-.5px;margin-bottom:10px;box-shadow:0 6px 14px rgba(11,35,80,.45)}
+  .rail .rb{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;color:#9fb2d4;cursor:pointer;position:relative;background:transparent;border:0;padding:0}
+  .rail .rb:hover{background:rgba(255,255,255,.09);color:#fff}
+  .rail .rb.on{background:#1657cf;color:#fff}
+  .rail .rsp{flex:1}
+  .rail .ava{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#3f83f8,#1657cf);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:8px;border:2px solid rgba(255,255,255,.25);cursor:pointer}
+  .sbpanel{width:256px;flex:none;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+  .sbpanel .hd{display:flex;align-items:center;gap:10px;padding:15px 14px 12px;border-bottom:1px solid var(--line)}
+  .sbpanel .hd .lg{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#173a76,#0b2350);color:#fff;display:grid;place-items:center;flex:none;font-weight:800;font-size:12px;letter-spacing:-.5px}
+  .sbpanel .hd b{display:block;font-size:13px;font-weight:800;color:var(--ink);letter-spacing:.2px}
+  .sbpanel .hd span{display:block;font-size:10.5px;color:#94a3b8;margin-top:1px}
+  .sbbody{flex:1;overflow-y:auto;padding:6px 12px 12px}
+  .sbgrp{font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#94a3b8;padding:14px 10px 6px}
+  .sbnv{position:relative;display:flex;align-items:center;gap:10px;width:100%;padding:10px 11px;border-radius:10px;font-size:13.5px;font-weight:600;color:#334155;text-align:left;background:transparent;border:0;cursor:pointer;min-height:40px;transition:.14s}
+  .sbnv:hover{background:#f2f6fb;color:var(--ink)}
+  .sbnv.on{background:#e8f0fe;color:#1657cf;font-weight:700}
+  .sbnv>span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sbnv .cv{flex:none;opacity:.4;transition:transform .18s}
+  .sbnv.act{background:#f2f6fb;color:var(--ink)}
+  .sbnv.act .cv{opacity:1;color:#1657cf;transform:translateX(2px)}
+  .sbnv .bd{flex:none;font-size:11px;font-weight:800;color:#94a3b8}
+  .sbnv.on .bd{color:#1657cf}
+  .sbnv .bd.hot{background:#1657cf;color:#fff !important;border-radius:99px;padding:1px 7px;font-size:10px}
+  .sbfoot{padding:8px 12px 12px;border-top:1px solid var(--line)}
+  .sbuser{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border-radius:11px;background:transparent;border:0;cursor:pointer}
+  .sbuser:hover{background:#f2f6fb}
+  .sbuser .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#3f83f8,#1657cf);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
+  .sbuser .wh{flex:1;min-width:0;text-align:left}
+  .sbuser .wh b{display:block;font-size:12.5px;font-weight:700;color:var(--ink)}
+  .sbuser .wh span{display:block;font-size:10.5px;color:#94a3b8}
+  /* tier 3 — floating filter card */
+  .sbfly{position:fixed;width:236px;background:#fff;border:1px solid #e0e6ee;border-radius:15px;box-shadow:var(--shadow-lg);padding:7px;z-index:40;opacity:0;transform:translateX(-8px);pointer-events:none;transition:.15s}
+  .sbfly.show{opacity:1;transform:none;pointer-events:auto}
+  .sbfly .fh{display:flex;align-items:center;gap:9px;padding:8px 10px 11px;border-bottom:1px solid var(--line);margin-bottom:5px}
+  .sbfly .fh .fi2{width:32px;height:32px;border-radius:9px;background:#e8f0fe;color:#1657cf;display:grid;place-items:center;flex:none;font-size:14px}
+  .sbfly .fh b{display:block;font-size:12.5px;font-weight:800;color:var(--ink)}
+  .sbfly .fh span{display:block;font-size:10px;color:#94a3b8;margin-top:1px}
+  .sbfi{display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;border-radius:10px;font-size:12.5px;font-weight:600;color:#334155;text-align:left;background:transparent;border:0;cursor:pointer;min-height:38px}
+  .sbfi>span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sbfi .fc{flex:none;font-size:11px;font-weight:800;color:#94a3b8}
+  .sbfi:hover{background:#f5f9fd;color:var(--ink)}
+  .sbfi.on{background:#e8f0fe;color:#1657cf}
+  .sbfi.on .fc{color:#1657cf}
+  /* user popup */
+  .sbpop{position:fixed;width:248px;background:#fff;border:1px solid #e0e6ee;border-radius:15px;box-shadow:var(--shadow-lg);padding:7px;z-index:44;opacity:0;transform:translateY(8px);pointer-events:none;transition:.16s}
+  .sbpop.show{opacity:1;transform:none;pointer-events:auto}
+  .sbpop .tp{display:flex;align-items:center;gap:10px;padding:9px 10px 12px;border-bottom:1px solid var(--line);margin-bottom:5px}
+  .sbpop .tp .av{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#3f83f8,#1657cf);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
+  .sbpop .tp b{display:block;font-size:12.5px;font-weight:800;color:var(--ink)}
+  .sbpop .tp span{display:block;font-size:10.5px;color:#94a3b8}
+  .sbpi{display:flex;align-items:center;gap:11px;width:100%;padding:10px 11px;border-radius:10px;font-size:12.5px;font-weight:600;color:#334155;text-align:left;background:transparent;border:0;cursor:pointer}
+  .sbpi svg{opacity:.7;flex:none}
+  .sbpi:hover{background:#f5f9fd;color:var(--ink)}
+  .sbpi.out{color:#dc2626;border-top:1px solid var(--line);margin-top:5px;padding-top:12px}
+  .sbpi.out:hover{background:#fff3f4}
+  .applayout .wrap{margin:0 0 0 316px;max-width:1200px;padding:22px 26px 48px}
   [data-sec]{display:none}
   [data-sec].shown{display:block}
   .cards[data-sec].shown{display:grid}
   .cols[data-sec].shown{display:grid}
   .searchbar[data-sec].shown{display:flex}
-  @media(max-width:900px){.side{position:static;height:auto;width:100%;box-shadow:none}.side .nav{flex-direction:row;flex-wrap:wrap}.side .nav button{width:auto;flex:1;min-width:130px;justify-content:flex-start}.applayout .wrap{margin:0;padding:14px}}
+  @media(max-width:900px){.side{position:static;height:auto;width:100%;flex-direction:column;box-shadow:none}.rail{width:100%;flex-direction:row;height:auto;padding:8px 10px}.rail .mk{margin-bottom:0}.rail .rsp{flex:1}.sbpanel{width:100%}.sbbody{max-height:none}.applayout .wrap{margin:0;padding:14px}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="applayout">
   <nav class="side">
-    <div class="brand">EVOLUTION · Teamlead<small>ศูนย์ควบคุมทีมเทเลเซลล์</small></div>
-    <div class="nav" id="navmenu"></div>
+    <div class="rail">
+      <div class="mk">YE</div>
+      <button class="rb on" title="ภาพรวม" onclick="railGo('overview',this)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></button>
+      <button class="rb" title="แบ่งรายชื่อลูกค้า" onclick="railGo('leads',this)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v6m0 0-3-3m3 3 3-3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 18h6"/></svg></button>
+      <button class="rb" title="รายชื่อลูกค้า" onclick="railGo('customers',this)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg></button>
+      <button class="rb" title="รายงานยอดขาย" onclick="railGo('source',this)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-7M21 19H3"/></svg></button>
+      <div class="rsp"></div>
+      <div class="ava" onclick="sbPop(event)">พม</div>
+    </div>
+    <aside class="sbpanel">
+      <div class="hd"><div class="lg">YE</div><div><b>YANHEE E-COMMERCE</b><span>Telesales Console</span></div></div>
+      <div class="sbbody" id="navmenu"></div>
+      <div class="sbfoot">
+        <button class="sbuser" onclick="sbPop(event)"><div class="av">พม</div><div class="wh"><b>พี่โม · Teamlead</b><span>ควบคุมทีมเทเลเซลล์</span></div></button>
+      </div>
+    </aside>
   </nav>
+  <div class="sbfly" id="sbfly"></div>
+  <div class="sbpop" id="sbpop">
+    <div class="tp"><div class="av">พม</div><div><b>พี่โม (Teamlead)</b><span>ศูนย์ควบคุมทีมเทเลเซลล์</span></div></div>
+    <button class="sbpi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>โปรไฟล์ผู้ใช้</button>
+    <button class="sbpi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>ตั้งค่าการใช้งาน</button>
+    <form method="POST" action="/logout" style="margin:0"><button class="sbpi out" type="submit" style="width:100%"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 17l5-5-5-5M20 12H9M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/></svg>ออกจากระบบ</button></form>
+  </div>
   <div class="wrap">
   <div class="top">
     <h1>แบ่งรายชื่อลูกค้าให้เซลล์ — Sales (W) &amp; Sales (K)</h1>
@@ -491,6 +559,7 @@ async function refresh(){
   const r=await fetch('/api/state'); if(r.status===401){location.href='/login';return;}
   const s=await r.json();
   document.getElementById('c-all').textContent=s.total;
+  window.__poolTotal=s.total;{const _h=document.getElementById('sbHot');if(_h)_h.textContent=s.total;}
   document.getElementById('c-w').textContent=s.W.length;
   document.getElementById('c-k').textContent=s.K.length;
   {const _all=[...(s.W||[]),...(s.K||[])];
@@ -1361,26 +1430,81 @@ async function doPancakePull(){
   b.disabled=false;b.innerHTML=old;loadPancakeStatus();refresh();
 }
 // ===== Sidebar navigation =====
-const SECTIONS=[
-  {k:'overview',label:'ภาพรวม',icon:'activity'},
-  {k:'source',label:'ยอดขายตามแหล่ง',icon:'activity'},
-  {k:'leads',label:'ดึงรายชื่อเข้า',icon:'download'},
-  {k:'refill',label:'ลูกค้าเดิม · ซื้อซ้ำ',icon:'refresh'},
-  {k:'analytics',label:'วิเคราะห์การโทร',icon:'activity'},
-  {k:'calllog',label:'ประวัติการโทร',icon:'phone'},
-  {k:'activity',label:'การเคลื่อนไหว · การโอน',icon:'refresh'},
-  {k:'qa',label:'คุณภาพการโทร',icon:'check'},
-  {k:'dupes',label:'ตรวจเบอร์ซ้ำ',icon:'alert'},
-  {k:'customers',label:'รายชื่อลูกค้า',icon:'search'},
+const NAVGROUPS=[
+  {title:'Dashboard',items:[
+    {k:'overview',label:'ภาพรวมทั้งหมด'},
+    {label:'ทีมแอดมิน',fly:{title:'ทีมแอดมิน',icon:'🟦',rows:[{label:'ภาพรวมทีมแอดมิน',sec:'overview'},{label:'โลลา (แอดมิน)',sec:'overview'},{label:'ยูกิ (แอดมิน)',sec:'overview'}]}},
+    {label:'ทีมเซลล์',fly:{title:'ทีมเซลล์',icon:'🟩',rows:[{label:'ภาพรวมทีมเซลล์',sec:'overview'},{label:'เขม (K)',sec:'overview'},{label:'หวาน (W)',sec:'overview'}]}},
+  ]},
+  {title:'Daily Routine',items:[
+    {k:'leads',label:'แบ่งรายชื่อลูกค้า',hot:true},
+    {k:'customers',label:'รายชื่อลูกค้าทั้งหมด'},
+    {k:'analytics',label:'ข้อมูลสรุปและวิเคราะห์'},
+  ]},
+  {title:'Report',items:[
+    {label:'ยอดขายทั้งหมด',fly:{title:'ยอดขายทั้งหมด',icon:'📊',rows:[{label:'ทุกช่องทาง',sec:'source'},{label:'🛒 Marketplace',sec:'source'},{label:'💬 FB (Pancake)',sec:'source'}]}},
+    {label:'ทีมเซลล์',fly:{title:'รายงานทีมเซลล์',icon:'👥',rows:[{label:'ภาพรวมทั้งทีม',sec:'analytics'},{label:'เขม (K)',sec:'analytics'},{label:'หวาน (W)',sec:'analytics'}]}},
+  ]},
 ];
 let CURSEC='overview',REFILL_LOADED=false;
+const ICO={
+ overview:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
+ admins:'<path d="M17 20a5 5 0 0 0-10 0"/><circle cx="12" cy="8" r="3.4"/>',
+ sellers:'<circle cx="9" cy="8" r="3.4"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 8h5M19.5 5.5v5"/>',
+ leads:'<path d="M12 3v6m0 0-3-3m3 3 3-3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 18h6"/>',
+ customers:'<circle cx="12" cy="8" r="3.6"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>',
+ analytics:'<path d="M4 19V9M10 19V5M16 19v-7M21 19H3"/><circle cx="18" cy="6" r="2.2"/>',
+ source:'<path d="M4 4v16h16"/><path d="M8 14l3-3 2.5 2.5L19 8"/>',
+};
+function svgIco(key){return '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICO[key]||ICO.overview)+'</svg>';}
+function iconKeyFor(it){if(it.k)return it.k;if(it.label&&it.label.indexOf('แอดมิน')>=0)return 'admins';if(it.label&&it.label.indexOf('ยอดขาย')>=0)return 'source';return 'sellers';}
 function renderNav(){
-  document.getElementById('navmenu').innerHTML=SECTIONS.map(s=>`<button class="${CURSEC===s.k?'on':''}" onclick="showSec('${s.k}')">${ic(s.icon,17)}<span>${s.label}</span></button>`).join('');
+  let h='';
+  NAVGROUPS.forEach((g,gi)=>{
+    h+='<div class="sbgrp">'+g.title+'</div>';
+    g.items.forEach((it,ii)=>{
+      const on=(it.k&&CURSEC===it.k)?' on':'';
+      const cv=it.fly?'<svg class="cv" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>':'';
+      const bd=it.hot?'<span class="bd hot" id="sbHot">·</span>':'';
+      h+='<button class="sbnv'+on+'" data-g="'+gi+'" data-i="'+ii+'" onclick="navItem('+gi+','+ii+',event)">'+svgIco(iconKeyFor(it))+'<span>'+it.label+'</span>'+bd+cv+'</button>';
+    });
+  });
+  document.getElementById('navmenu').innerHTML=h;
+  const _h=document.getElementById('sbHot');if(_h&&window.__poolTotal!=null)_h.textContent=window.__poolTotal;
 }
+function navItem(gi,ii,ev){
+  const it=NAVGROUPS[gi].items[ii];
+  if(it.fly){exp(document.querySelector('.sbnv[data-g="'+gi+'"][data-i="'+ii+'"]'),it.fly,ev);return;}
+  flyClose();popClose();showSec(it.k);
+}
+function railGo(sec,el){flyClose();popClose();showSec(sec);}
+function exp(btn,fly,ev){
+  if(ev)ev.stopPropagation();
+  const F=document.getElementById('sbfly');
+  const was=btn.classList.contains('act');
+  flyClose();popClose();
+  if(was)return;
+  let h='<div class="fh"><div class="fi2">'+(fly.icon||'📁')+'</div><div><b>'+fly.title+'</b><span>เลือกฟิลเตอร์ · '+fly.rows.length+' รายการ</span></div></div>';
+  fly.rows.forEach((r)=>{h+='<button class="sbfi" onclick="flyPick(\''+r.sec+'\',event)"><span>'+r.label+'</span>'+(r.count!=null?'<span class="fc">'+r.count+'</span>':'')+'</button>';});
+  F.innerHTML=h;
+  const br=btn.getBoundingClientRect();
+  F.style.left=(316+8)+'px';
+  F.classList.add('show');
+  const fh=F.offsetHeight;let top=br.top-6;top=Math.max(10,Math.min(top,window.innerHeight-fh-12));F.style.top=top+'px';
+  btn.classList.add('act');
+}
+function flyPick(sec,ev){if(ev)ev.stopPropagation();flyClose();showSec(sec);}
+function flyClose(){const F=document.getElementById('sbfly');if(F)F.classList.remove('show');document.querySelectorAll('.sbnv.act').forEach(x=>x.classList.remove('act'));}
+function sbPop(ev){if(ev)ev.stopPropagation();flyClose();const P=document.getElementById('sbpop');const open=P.classList.contains('show');popClose();if(open)return;P.style.left='72px';P.style.bottom='14px';P.style.top='auto';P.classList.add('show');}
+function popClose(){const P=document.getElementById('sbpop');if(P)P.classList.remove('show');}
+document.addEventListener('click',()=>{flyClose();popClose();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){flyClose();popClose();}});
+function syncRail(sec){const order=['overview','leads','customers','source'];const idx=order.indexOf(sec);document.querySelectorAll('.rail .rb').forEach((b,i)=>b.classList.toggle('on',i===idx));}
 function showSec(sec){
   CURSEC=sec;
+  flyClose();popClose();
   document.querySelectorAll('[data-sec]').forEach(el=>el.classList.toggle('shown',el.dataset.sec===sec));
-  renderNav();
+  renderNav();syncRail(sec);
   if(sec==='refill'&&!REFILL_LOADED){REFILL_LOADED=true;loadRefill(false);}
   if(sec==='analytics')anLoad();
   if(sec==='qa')qaLoad();
