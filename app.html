@@ -310,12 +310,15 @@
     <div class="row" style="margin-top:0">
       <button class="b-b" id="pullHoldBtn" onclick="doPullHold()"><span data-ic="download" data-sz="15"></span>เชื่อมต่อรายชื่อ Marketplace</button>
       <button class="b-b" id="pullFbHoldBtn" onclick="doPancakePullHold()"><span data-ic="download" data-sz="15"></span>เชื่อมต่อรายชื่อ Facebook</button>
+      <button class="b-b" id="bsUploadBtn" onclick="document.getElementById('bsFileInput').click()"><span data-ic="upload" data-sz="15"></span>อัปโหลดไฟล์ Big Seller (Laz)</button>
+      <input type="file" id="bsFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="doBigSellerUpload(this)">
       <span class="hint" id="poolMsg" style="font-size:12.5px;color:#6b7280"></span>
     </div>
     <div class="note" style="margin:11px 0 0;font-size:12px;line-height:1.6">
       <div>🛒 <b>Marketplace</b> · <span id="evostatus">—</span></div>
       <div>💬 <b>FB (Pancake)</b> · <span id="pcstatus">—</span></div>
       <div style="margin-top:6px;color:#64748b">FB ที่ปิดการขายเข้ามาอัตโนมัติทุก 10 นาที · Marketplace กดปุ่มดึงเองเมื่อต้องการ · รับเบอร์ 10 หลัก 02/06/08/09 · กันซ้ำอัตโนมัติ</div>
+      <div style="margin-top:6px;color:#64748b">🛒 <b>Big Seller (Laz)</b> · เบอร์ Lazada อยู่ในไฟล์ export เท่านั้น → ที่ Big Seller: จัดส่งแล้ว &gt; Lazada &gt; เลือกทั้งหมด &gt; ส่งออกทั้งหมด &gt; <b>เทมเพลต 003</b> แล้วกด “อัปโหลดไฟล์ Big Seller (Laz)” · เบอร์ที่ถูกปิดบังจะข้ามอัตโนมัติ</div>
       <div style="margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)">
         <a onclick="toggleEvoManual()" style="color:#1657cf;cursor:pointer;font-weight:700">🔑 เชื่อม Marketplace ด้วยตนเอง (วาง token) — ถ้าปุ่มดึงขึ้น token หมดอายุ</a>
         <div id="evoManual" style="display:none;margin-top:9px">
@@ -1921,6 +1924,30 @@ async function doPancakePullHold(){const b=document.getElementById('pullFbHoldBt
     if(j.error){m.textContent='❌ '+j.error;}else{m.textContent='✅ เชื่อมต่อ Facebook · เพิ่มรายชื่อรอแจก +'+(j.added||0)+' ราย'+(j.dup?(' (ซ้ำ '+j.dup+')'):'');await loadPool();}
   }catch(e){document.getElementById('poolMsg').textContent='❌ '+e;}
   b.disabled=false;b.innerHTML=old;}
+function loadSheetJS(){return new Promise((res,rej)=>{if(window.XLSX)return res();const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>res();s.onerror=()=>rej(new Error('โหลดตัวอ่านไฟล์ไม่สำเร็จ'));document.head.appendChild(s);});}
+async function doBigSellerUpload(inp){
+  const file=inp.files&&inp.files[0];if(!file)return;
+  const m=document.getElementById('poolMsg');const b=document.getElementById('bsUploadBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังอ่านไฟล์…';m.style.color='#6b7280';m.textContent='กำลังอ่านไฟล์ Big Seller…';
+  try{
+    await loadSheetJS();
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+    if(!aoa.length){m.textContent='❌ ไฟล์ว่าง';b.disabled=false;b.innerHTML=old;inp.value='';return;}
+    const hdr=aoa[0].map(h=>String(h).trim());
+    const col=(n)=>hdr.findIndex(h=>h.includes(n));
+    const ci={order:col('หมายเลขคำสั่งซื้อ'),name:col('ชื่อผู้รับ'),phone:col('เบอร์โทร'),prov:col('จังหวัด'),prod:col('ชื่อสินค้า')};
+    if(ci.phone<0){m.style.color='#b91c1c';m.textContent='❌ ไม่พบคอลัมน์ "เบอร์โทรศัพท์" — ต้อง export ด้วยเทมเพลต 003';b.disabled=false;b.innerHTML=old;inp.value='';return;}
+    const rows=[];
+    for(let i=1;i<aoa.length;i++){const r=aoa[i];if(!r||!r.length)continue;const phone=String(r[ci.phone]||'').trim();if(!phone)continue;rows.push({orderNo:String(r[ci.order]||''),name:String(r[ci.name]||''),phone,province:String(ci.prov>=0?r[ci.prov]:''||''),product:String(ci.prod>=0?r[ci.prod]:''||'')});}
+    b.textContent='กำลังดึงเข้าระบบ…';m.textContent='กำลังดึง '+rows.length+' รายชื่อเข้าคลัง…';
+    const j=await fetch('/api/bigseller/ingest',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({rows})}).then(r=>r.json());
+    if(j.error){m.style.color='#b91c1c';m.textContent='❌ '+(j.message||j.error);}
+    else{m.style.color='#0e9f6e';m.textContent='✅ Big Seller (Laz) · เพิ่มรายชื่อรอแจก +'+(j.added||0)+' ราย (ซ้ำ '+(j.dup||0)+' · เบอร์ปิดบังข้าม '+(j.masked||0)+')';await loadPool();}
+  }catch(e){m.style.color='#b91c1c';m.textContent='❌ '+e;}
+  b.disabled=false;b.innerHTML=old;inp.value='';
+}
 async function doDistribute(){
   const avail=poolForSrc();if(!avail){document.getElementById('distMsg').textContent='ยังไม่มีรายชื่อรอแจก — ดึงรายชื่อก่อน';return;}
   const body={source:DIST.src,mode:DIST.mode};
