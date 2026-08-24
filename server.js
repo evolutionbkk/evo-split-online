@@ -1225,6 +1225,41 @@ app.post('/api/pancake/pull-hold', requireAuth, async (req, res) => {
     res.status(500).json({ error: String(e), scanned });
   }
 });
+// ---------- BigSeller (Lazada) Marketplace leads via export template 003 ----------
+// Lazada masks buyer phones everywhere EXCEPT the order export (template 003), which contains the
+// real number. A browser helper (userscript) or the admin upload control parses that export
+// client-side and posts the rows here → pooled as Marketplace (Laz Big Seller). Source 'bigseller'
+// is NOT an FB source, so these count as Marketplace in the pool + distribution.
+function normBSPhone(raw) {
+  let d = String(raw == null ? '' : raw).replace(/\D/g, '');
+  if (d.startsWith('66')) d = '0' + d.slice(2);   // 66817161754 -> 0817161754  (country code, 0 dropped)
+  if (d.startsWith('00')) d = d.slice(1);          // 660817161754 -> 00817161754 -> 0817161754 (0 kept)
+  return d;
+}
+app.post('/api/bigseller/ingest', async (req, res) => {
+  const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
+  const adminOk = (readSession(req) || {}).role === 'admin';
+  if (!keyOk && !adminOk) return res.status(401).json({ error: 'bad key' });
+  const rows = (req.body && req.body.rows) || [];
+  if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'no_rows', message: 'ไม่มีข้อมูลในไฟล์' });
+  let masked = 0;
+  const mapped = [];
+  for (const r of rows) {
+    const phoneRaw = (r && (r.phone || r.mobile)) || '';
+    if (String(phoneRaw).includes('*')) { masked++; continue; }   // still-masked rows → skip (can't call)
+    mapped.push({
+      code: String((r && (r.orderNo || r.code)) || '').trim(),
+      name: String((r && r.name) || '').trim(),
+      phone: normBSPhone(phoneRaw),
+      address: String((r && (r.province || r.address)) || '').trim(),
+      product: String((r && r.product) || '').trim(),
+    });
+  }
+  const summary = S.applyNewPool(state, mapped, { source: 'bigseller', by: sessName(req) || 'BigSeller' });
+  state = await store.save(state);
+  res.json({ ok: true, received: rows.length, masked, added: summary.added, dup: summary.dup, invalid: summary.cut, pool: S.poolCounts(state) });
+});
+
 // Pool status (counts waiting, by channel) + who is on leave.
 app.get('/api/pool', requireAuth, (req, res) => {
   res.json({ pool: S.poolCounts(state), dayoff: dof(), dayoffType: state.dayoffType || { W: null, K: null } });
