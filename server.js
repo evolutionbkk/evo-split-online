@@ -990,7 +990,7 @@ const ONECALL_HOST = 'https://onecallvoicerecord.dtac.co.th';
 const ONECALL_USER = process.env.ONECALL_USER || '';   // OrkTrack login user (e.g. 66948880323)
 const ONECALL_PASS = process.env.ONECALL_PASS || '';   // OrkTrack login password
 let onecallAuth = { token: null, updatedAt: null, alive: false, lastPullAt: null, lastAdded: 0, lastError: null,
-  lastLoginAt: null, loginError: null, loginVia: null, autoLogin: !!(ONECALL_USER && ONECALL_PASS) };
+  lastLoginAt: null, loginError: null, loginVia: null, loginAttempts: null, autoLogin: !!(ONECALL_USER && ONECALL_PASS) };
 function onecallHeaders() { return { 'Authorization': onecallAuth.token, 'Accept': 'application/json', 'Content-Type': 'application/json' }; }
 if (!ONECALL_USER || !ONECALL_PASS) console.warn('[warn] ONECALL_USER/ONECALL_PASS not set — OneCall cannot auto-login; falling back to relayed token.');
 
@@ -1027,40 +1027,48 @@ async function onecallLogin(force) {
   _ocLastLoginTry = now;
   _ocLoginInFlight = (async () => {
     const basic = 'Basic ' + Buffer.from(ONECALL_USER + ':' + ONECALL_PASS).toString('base64');
+    const jsonBody = JSON.stringify({ username: ONECALL_USER, password: ONECALL_PASS, loginString: ONECALL_USER, user: ONECALL_USER });
+    // strategy: 'basic' = HTTP Basic header + empty body; 'json' = JSON credentials body, no auth header
     const attempts = [
-      { url: '/orktrack/rest/users/sessions', method: 'POST' },
-      { url: '/orktrack/rest/login', method: 'POST' },
-      { url: '/orktrack/rest/session', method: 'POST' },
-      { url: '/orktrack/rest/users/sessions', method: 'GET' },
+      { url: '/orktrack/rest/users/sessions', method: 'POST', mode: 'basic' },
+      { url: '/orktrack/rest/users/sessions', method: 'POST', mode: 'json' },
+      { url: '/orktrack/rest/login',          method: 'POST', mode: 'basic' },
+      { url: '/orktrack/rest/login',          method: 'POST', mode: 'json' },
+      { url: '/orktrack/rest/users/login',    method: 'POST', mode: 'json' },
+      { url: '/orktrack/rest/session',        method: 'POST', mode: 'basic' },
+      { url: '/orktrack/rest/users/sessions', method: 'GET',  mode: 'basic' },
+      { url: '/orktrack/rest/authenticate',   method: 'POST', mode: 'json' },
     ];
+    const diag = [];
     for (const a of attempts) {
       try {
+        const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        if (a.mode === 'basic') headers['Authorization'] = basic;
         const r = await fetch(ONECALL_HOST + a.url, {
           method: a.method,
-          headers: { 'Authorization': basic, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: a.method === 'POST' ? '{}' : undefined,
+          headers,
+          body: a.method === 'POST' ? (a.mode === 'json' ? jsonBody : '{}') : undefined,
+          redirect: 'manual',
         });
         const text = await r.text().catch(() => '');
-        if (r.ok) {
-          const tok = _extractOcToken(text, r.headers);
-          if (tok) {
-            onecallAuth.token = tok;
-            onecallAuth.updatedAt = new Date().toISOString();
-            onecallAuth.lastLoginAt = onecallAuth.updatedAt;
-            onecallAuth.alive = true;
-            onecallAuth.loginError = null;
-            onecallAuth.loginVia = a.method + ' ' + a.url;
-            console.log('[onecall] auto-login OK via', a.method, a.url);
-            return true;
-          }
-          onecallAuth.loginError = 'ok_but_no_token:' + a.url;
-          continue;
+        const tok = _extractOcToken(text, r.headers);
+        diag.push({ u: a.url, m: a.method, mode: a.mode, status: r.status, ct: (r.headers.get('content-type') || '').split(';')[0], len: text.length, tok: !!tok });
+        if ((r.ok || (r.status >= 300 && r.status < 400)) && tok) {
+          onecallAuth.token = tok;
+          onecallAuth.updatedAt = new Date().toISOString();
+          onecallAuth.lastLoginAt = onecallAuth.updatedAt;
+          onecallAuth.alive = true;
+          onecallAuth.loginError = null;
+          onecallAuth.loginVia = a.method + ' ' + a.url + ' (' + a.mode + ')';
+          onecallAuth.loginAttempts = diag;
+          console.log('[onecall] auto-login OK via', onecallAuth.loginVia);
+          return true;
         }
-        // 401 with Basic → wrong creds (stop, don't hammer); other → try next endpoint
-        if (r.status === 401 || r.status === 403) { onecallAuth.loginError = 'login_' + r.status; }
-      } catch (e) { onecallAuth.loginError = 'login_exc'; }
+      } catch (e) { diag.push({ u: a.url, m: a.method, mode: a.mode, err: String(e).slice(0, 40) }); }
     }
-    console.warn('[onecall] auto-login failed:', onecallAuth.loginError);
+    onecallAuth.loginAttempts = diag;
+    onecallAuth.loginError = 'no_endpoint_matched';
+    console.warn('[onecall] auto-login failed:', JSON.stringify(diag));
     return false;
   })();
   try { return await _ocLoginInFlight; } finally { _ocLoginInFlight = null; }
@@ -1131,6 +1139,7 @@ app.get('/api/onecall/status', requireAuth, (req, res) => {
     hasToken: !!onecallAuth.token, tokenUpdatedAt: onecallAuth.updatedAt, alive: onecallAuth.alive,
     lastPullAt: onecallAuth.lastPullAt, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError,
     autoLogin: onecallAuth.autoLogin, lastLoginAt: onecallAuth.lastLoginAt, loginError: onecallAuth.loginError, loginVia: onecallAuth.loginVia,
+    loginAttempts: onecallAuth.loginAttempts || null,
     total: (state.onecall || []).length,
   });
 });
@@ -1139,7 +1148,7 @@ app.post('/api/onecall/login', requireAuth, async (req, res) => {
   if (!ONECALL_USER || !ONECALL_PASS) return res.status(400).json({ error: 'no_credentials', message: 'ยังไม่ได้ตั้ง ONECALL_USER / ONECALL_PASS บน Railway' });
   const ok = await onecallLogin(true);
   if (ok) await onecallPull();
-  res.json({ ok, alive: onecallAuth.alive, loginVia: onecallAuth.loginVia, loginError: onecallAuth.loginError, lastLoginAt: onecallAuth.lastLoginAt, lastAdded: onecallAuth.lastAdded, total: (state.onecall || []).length });
+  res.json({ ok, alive: onecallAuth.alive, loginVia: onecallAuth.loginVia, loginError: onecallAuth.loginError, loginAttempts: onecallAuth.loginAttempts || null, lastLoginAt: onecallAuth.lastLoginAt, lastAdded: onecallAuth.lastAdded, total: (state.onecall || []).length });
 });
 app.post('/api/onecall/pull', requireAuth, async (req, res) => {
   if (!onecallAuth.token) { await onecallLogin(true); }   // no relayed token → log in with stored credentials
