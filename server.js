@@ -1136,6 +1136,28 @@ app.post('/api/distribute', requireAuth, async (req, res) => {
   state = await store.save(state);
   res.json({ ok: true, summary, pool: S.poolCounts(state), total: state.assigned.length });
 });
+// Time-range report for the distribute page: how many leads were PULLED (into the pool) and
+// DISTRIBUTED to sellers within [from,to], split by channel (MP/FB) and by seller (W/K).
+// Derived from each lead's history events ('pool' = pulled in, 'distribute' = handed to a seller).
+app.get('/api/dist-stats', requireAuth, (req, res) => {
+  const from = Date.parse(req.query.from) || 0;
+  const to = Date.parse(req.query.to) || Date.now();
+  const isFb = (s) => (s === 'pancake' || s === 'manual' || s === 'refill');
+  let pMp = 0, pFb = 0, dW = 0, dK = 0, dMp = 0, dFb = 0;
+  for (const a of state.assigned) {
+    const fb = isFb(a.source || 'evolution');
+    for (const h of (a.history || [])) {
+      const t = Date.parse(h.at); if (!(t >= from && t <= to)) continue;
+      if (h.k === 'pool') { if (fb) pFb++; else pMp++; }
+      else if (h.k === 'distribute') { if (h.v === 'K') dK++; else dW++; if (fb) dFb++; else dMp++; }
+    }
+  }
+  res.json({
+    from: new Date(from).toISOString(), to: new Date(to).toISOString(),
+    pulled: { mp: pMp, fb: pFb, total: pMp + pFb },
+    distributed: { W: dW, K: dK, total: dW + dK, mp: dMp, fb: dFb },
+  });
+});
 
 // tells the UI whether a pull is possible
 app.get('/api/evo-status', requireAuth, (req, res) => {
