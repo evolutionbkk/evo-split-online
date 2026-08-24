@@ -1142,6 +1142,18 @@ app.get('/api/evo-status', requireAuth, (req, res) => {
   res.json({ hasToken: !!evo.token, tokenUpdatedAt: evo.updatedAt, facility: evo.facility });
 });
 
+// Manually set the Marketplace (Evolution) access token — the logged-in Teamlead pastes the token
+// copied from the Evolution site. No userscript / ingest key needed (already authenticated to the app).
+app.post('/api/evo-token-set', requireAuth, async (req, res) => {
+  const token = String((req.body && req.body.token) || '').trim();
+  if (token.length < 20) return res.status(400).json({ error: 'bad_token', message: 'token ไม่ถูกต้อง — ก๊อปปี้ค่าจากหน้า Evolution มาให้ครบ' });
+  evo.token = token;
+  if (req.body && req.body.facility) evo.facility = String(req.body.facility);
+  evo.updatedAt = new Date().toISOString();
+  try { state.evo = { token: evo.token, facility: evo.facility, updatedAt: evo.updatedAt }; state = await store.save(state); } catch (_) {}
+  res.json({ ok: true, hasToken: true, tokenUpdatedAt: evo.updatedAt });
+});
+
 // Manual paste/upload from the admin UI
 app.post('/api/paste', requireAuth, async (req, res) => {
   const records = S.parseRows((req.body && req.body.text) || '');
