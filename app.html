@@ -1046,11 +1046,11 @@ function personCard(side,name,a){
     <div style="font-size:12.5px;color:#166534;font-weight:700;margin-bottom:6px">Conversion ${conv}% · ปิดได้ ${a.status.won} · ยอดรวม ฿${kbaht(a.rev)}</div>
     ${KPI_ONECALL?`<div style="margin:8px -8px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">
       <div style="font-size:12px;color:#166534;font-weight:700;margin-bottom:8px">📞 โทรลูกค้า · เป้าวันนี้ (จาก OneCall จริง)</div>
-      <div style="display:flex;gap:18px;align-items:baseline;margin-bottom:10px;padding-bottom:9px;border-bottom:1px dashed #bbf7d0">
-        <div><b style="font-size:24px;color:#166534">${a.callsToday||0}</b> <span style="font-size:12px;color:#475569">สายที่โทรวันนี้ (ทุกช่องทาง)</span></div>
-        <div><b style="font-size:24px;color:#0e7490">${a.talk7Today||0}</b> <span style="font-size:12px;color:#475569">คุยจริง &gt;7วิ</span></div>
+      <div style="margin-bottom:9px;padding-bottom:9px;border-bottom:1px dashed #bbf7d0">
+        <div style="margin-bottom:5px"><b style="font-size:25px;color:#166534">${a.talk7Today||0}</b> <span style="font-size:12px;color:#475569">สายคุยจริง &gt;7วิ วันนี้ (OneCall — สายจริงที่เซลล์คุย)</span></div>
+        <div style="font-size:11.5px;color:#475569">แยกตามแหล่ง: 🛒 Marketplace <b>${a.talk7EvoToday||0}</b> · 💬 FB <b>${a.talk7ManualToday||0}</b> · เบอร์ใหม่/อื่น ๆ <b>${a.talk7OtherToday||0}</b></div>
       </div>
-      <div style="font-size:11.5px;color:#94a3b8;margin-bottom:6px">แยกตามเป้า ↓</div>
+      <div style="font-size:11.5px;color:#94a3b8;margin-bottom:6px">เทียบเป้า ↓</div>
       ${targetBar('Marketplace', a.calledEvoToday, KPI_TARGETS.evo, '#0e7490', a.talk7EvoToday)}
       ${(()=>{const fb=(KPI_TIERS[side]||{}).fbpage||{};const T=KPI_TARGETS.tier||5;
         return '<div style="font-size:11.5px;color:#475569;margin:6px 0 4px">การโทรติดตาม FB Page วันนี้ (T1 / T2 / T3)</div>'

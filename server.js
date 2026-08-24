@@ -987,24 +987,108 @@ app.post('/api/onecall/ingest', async (req, res) => {
 // ----- server-side auto-pull: hold a relayed token, keep it alive, pull on a schedule -----
 // (so the OneCall page does NOT need to stay open — only re-opened when the token finally expires)
 const ONECALL_HOST = 'https://onecallvoicerecord.dtac.co.th';
-let onecallAuth = { token: null, updatedAt: null, alive: false, lastPullAt: null, lastAdded: 0, lastError: null };
+const ONECALL_USER = process.env.ONECALL_USER || '';   // OrkTrack login user (e.g. 66948880323)
+const ONECALL_PASS = process.env.ONECALL_PASS || '';   // OrkTrack login password
+let onecallAuth = { token: null, updatedAt: null, alive: false, lastPullAt: null, lastAdded: 0, lastError: null,
+  lastLoginAt: null, loginError: null, loginVia: null, autoLogin: !!(ONECALL_USER && ONECALL_PASS) };
 function onecallHeaders() { return { 'Authorization': onecallAuth.token, 'Accept': 'application/json', 'Content-Type': 'application/json' }; }
+if (!ONECALL_USER || !ONECALL_PASS) console.warn('[warn] ONECALL_USER/ONECALL_PASS not set — OneCall cannot auto-login; falling back to relayed token.');
+
+// Auto-login to OrkTrack with stored credentials → a fresh session token, so OneCall never needs a manual re-connect.
+// OrkTrack authenticates every /orktrack/rest/* call with an Authorization header; a session is created by
+// presenting HTTP Basic credentials, which returns a session token used (raw) as the Authorization header thereafter.
+let _ocLoginInFlight = null;
+let _ocLastLoginTry = 0;
+function _extractOcToken(bodyText, headers) {
+  // 1) token in a response header
+  for (const h of ['authorization', 'x-auth-token', 'token', 'x-session-token']) {
+    const v = headers && headers.get && headers.get(h);
+    if (v && String(v).length >= 20) return String(v).replace(/^Bearer\s+/i, '').trim();
+  }
+  // 2) token in JSON body (common field names)
+  try {
+    const j = JSON.parse(bodyText);
+    for (const k of ['token', 'sessionToken', 'authToken', 'session', 'sessionId', 'id', 'accessToken']) {
+      if (j && typeof j[k] === 'string' && j[k].length >= 20) return j[k];
+      if (j && j.data && typeof j.data[k] === 'string' && j.data[k].length >= 20) return j.data[k];
+    }
+  } catch (_) {
+    // 3) plain-text UUID body
+    const t = String(bodyText || '').trim();
+    if (/^[0-9a-fA-F-]{20,64}$/.test(t)) return t;
+  }
+  return null;
+}
+async function onecallLogin(force) {
+  if (!ONECALL_USER || !ONECALL_PASS) { onecallAuth.loginError = 'no_credentials'; return false; }
+  if (_ocLoginInFlight) return _ocLoginInFlight;          // coalesce concurrent logins
+  const now = Date.now();
+  if (!force && now - _ocLastLoginTry < 20 * 1000) return false;  // rate-limit retries
+  _ocLastLoginTry = now;
+  _ocLoginInFlight = (async () => {
+    const basic = 'Basic ' + Buffer.from(ONECALL_USER + ':' + ONECALL_PASS).toString('base64');
+    const attempts = [
+      { url: '/orktrack/rest/users/sessions', method: 'POST' },
+      { url: '/orktrack/rest/login', method: 'POST' },
+      { url: '/orktrack/rest/session', method: 'POST' },
+      { url: '/orktrack/rest/users/sessions', method: 'GET' },
+    ];
+    for (const a of attempts) {
+      try {
+        const r = await fetch(ONECALL_HOST + a.url, {
+          method: a.method,
+          headers: { 'Authorization': basic, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: a.method === 'POST' ? '{}' : undefined,
+        });
+        const text = await r.text().catch(() => '');
+        if (r.ok) {
+          const tok = _extractOcToken(text, r.headers);
+          if (tok) {
+            onecallAuth.token = tok;
+            onecallAuth.updatedAt = new Date().toISOString();
+            onecallAuth.lastLoginAt = onecallAuth.updatedAt;
+            onecallAuth.alive = true;
+            onecallAuth.loginError = null;
+            onecallAuth.loginVia = a.method + ' ' + a.url;
+            console.log('[onecall] auto-login OK via', a.method, a.url);
+            return true;
+          }
+          onecallAuth.loginError = 'ok_but_no_token:' + a.url;
+          continue;
+        }
+        // 401 with Basic → wrong creds (stop, don't hammer); other → try next endpoint
+        if (r.status === 401 || r.status === 403) { onecallAuth.loginError = 'login_' + r.status; }
+      } catch (e) { onecallAuth.loginError = 'login_exc'; }
+    }
+    console.warn('[onecall] auto-login failed:', onecallAuth.loginError);
+    return false;
+  })();
+  try { return await _ocLoginInFlight; } finally { _ocLoginInFlight = null; }
+}
 function ocStartDate(days) {
   const d = new Date(); d.setDate(d.getDate() - (days - 1)); d.setHours(0, 0, 0, 0);
   const p = (n) => String(n).padStart(2, '0');
   return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_000000';
 }
 async function onecallKeepalive() {
-  if (!onecallAuth.token) return false;
+  if (!onecallAuth.token) { return await onecallLogin(false); }   // no token yet → try to log in
   try {
     const r = await fetch(ONECALL_HOST + '/orktrack/rest/keepalive', { headers: onecallHeaders() });
-    if (r.status === 401 || r.status === 403) { onecallAuth.alive = false; onecallAuth.lastError = 'token_expired'; return false; }
+    if (r.status === 401 || r.status === 403) {
+      onecallAuth.alive = false; onecallAuth.lastError = 'token_expired';
+      // self-heal: log in again with stored credentials, then verify once
+      if (await onecallLogin(true)) {
+        const r2 = await fetch(ONECALL_HOST + '/orktrack/rest/keepalive', { headers: onecallHeaders() });
+        if (r2.ok) { onecallAuth.alive = true; onecallAuth.lastError = null; return true; }
+      }
+      return false;
+    }
     if (r.ok) { onecallAuth.alive = true; }
     return r.ok;
   } catch (e) { onecallAuth.lastError = 'keepalive_failed'; return false; }
 }
-async function onecallPull() {
-  if (!onecallAuth.token) return;
+async function onecallPull(_retried) {
+  if (!onecallAuth.token) { if (await onecallLogin(false)) { /* got a token, fall through */ } else return; }
   try {
     const sd = ocStartDate(2);
     let page = 1; const all = [];
@@ -1012,7 +1096,12 @@ async function onecallPull() {
       const url = ONECALL_HOST + '/orktrack/rest/recordings?range=custom&startdate=' + sd +
         '&sort=&page=' + page + '&pagesize=500&maxresults=-1&includetags=true&includemetadata=true&includeprograms=true';
       const r = await fetch(url, { headers: onecallHeaders() });
-      if (r.status === 401 || r.status === 403) { onecallAuth.alive = false; onecallAuth.lastError = 'token_expired'; return; }
+      if (r.status === 401 || r.status === 403) {
+        onecallAuth.alive = false; onecallAuth.lastError = 'token_expired';
+        // self-heal: log in again and retry the pull once
+        if (!_retried && await onecallLogin(true)) return onecallPull(true);
+        return;
+      }
       if (!r.ok) { onecallAuth.lastError = 'pull_http_' + r.status; return; }
       const j = await r.json();
       const objs = (j && j.objects) || [];
@@ -1041,13 +1130,22 @@ app.get('/api/onecall/status', requireAuth, (req, res) => {
   res.json({
     hasToken: !!onecallAuth.token, tokenUpdatedAt: onecallAuth.updatedAt, alive: onecallAuth.alive,
     lastPullAt: onecallAuth.lastPullAt, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError,
+    autoLogin: onecallAuth.autoLogin, lastLoginAt: onecallAuth.lastLoginAt, loginError: onecallAuth.loginError, loginVia: onecallAuth.loginVia,
     total: (state.onecall || []).length,
   });
 });
+// Admin: force an auto-login right now (uses ONECALL_USER/ONECALL_PASS) — verifies the "หายขาด" path works.
+app.post('/api/onecall/login', requireAuth, async (req, res) => {
+  if (!ONECALL_USER || !ONECALL_PASS) return res.status(400).json({ error: 'no_credentials', message: 'ยังไม่ได้ตั้ง ONECALL_USER / ONECALL_PASS บน Railway' });
+  const ok = await onecallLogin(true);
+  if (ok) await onecallPull();
+  res.json({ ok, alive: onecallAuth.alive, loginVia: onecallAuth.loginVia, loginError: onecallAuth.loginError, lastLoginAt: onecallAuth.lastLoginAt, lastAdded: onecallAuth.lastAdded, total: (state.onecall || []).length });
+});
 app.post('/api/onecall/pull', requireAuth, async (req, res) => {
-  if (!onecallAuth.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่มี token — เปิดหน้า OneCall (ที่ติดตั้ง userscript) สักครั้งเพื่อส่ง token เข้ามาก่อน' });
+  if (!onecallAuth.token) { await onecallLogin(true); }   // no relayed token → log in with stored credentials
+  if (!onecallAuth.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่มี token และ auto-login ไม่สำเร็จ — ตรวจ ONECALL_USER/ONECALL_PASS หรือเปิดหน้า OneCall (userscript) เพื่อส่ง token เข้ามา', loginError: onecallAuth.loginError });
   await onecallKeepalive(); await onecallPull();
-  res.json({ ok: true, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError, alive: onecallAuth.alive, total: (state.onecall || []).length });
+  res.json({ ok: true, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError, alive: onecallAuth.alive, loginVia: onecallAuth.loginVia, total: (state.onecall || []).length });
 });
 
 // Admin clicks "pull latest": the server fetches from Evolution using the relayed token.
@@ -2525,7 +2623,10 @@ app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.len
 boot().then(() => {
   app.listen(PORT, () => console.log('[server] listening on', PORT));
   setInterval(() => { runSweep().catch(() => {}); }, 60 * 60 * 1000); // hourly stale sweep
-  setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive
+  if (ONECALL_USER && ONECALL_PASS) {
+    setTimeout(() => { onecallLogin(true).then((ok) => { if (ok) onecallPull().catch(() => {}); }).catch(() => {}); }, 8 * 1000); // auto-login on boot → OneCall works unattended (no manual re-connect)
+  }
+  setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive (self-heals via auto-login on expiry)
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
   if (PANCAKE_API_KEY) {
     setTimeout(() => { pancakePull({ hold: true }).catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot → holding pool (Teamlead distributes)
