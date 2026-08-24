@@ -1030,14 +1030,11 @@ async function onecallLogin(force) {
     const jsonBody = JSON.stringify({ username: ONECALL_USER, password: ONECALL_PASS, loginString: ONECALL_USER, user: ONECALL_USER });
     // strategy: 'basic' = HTTP Basic header + empty body; 'json' = JSON credentials body, no auth header
     const attempts = [
-      { url: '/orktrack/rest/users/sessions', method: 'POST', mode: 'basic' },
-      { url: '/orktrack/rest/users/sessions', method: 'POST', mode: 'json' },
-      { url: '/orktrack/rest/login',          method: 'POST', mode: 'basic' },
-      { url: '/orktrack/rest/login',          method: 'POST', mode: 'json' },
-      { url: '/orktrack/rest/users/login',    method: 'POST', mode: 'json' },
-      { url: '/orktrack/rest/session',        method: 'POST', mode: 'basic' },
+      { url: '/orktrack/rest/users/sessions', method: 'PUT',  mode: 'basic' },
+      { url: '/orktrack/rest/users/sessions', method: 'PUT',  mode: 'json' },
+      { url: '/orktrack/rest/users/sessions', method: 'PATCH', mode: 'basic' },
+      { url: '/orktrack/rest/users/sessions', method: 'POST', mode: 'basic' },  // kept to read Allow header
       { url: '/orktrack/rest/users/sessions', method: 'GET',  mode: 'basic' },
-      { url: '/orktrack/rest/authenticate',   method: 'POST', mode: 'json' },
     ];
     const diag = [];
     for (const a of attempts) {
@@ -1052,7 +1049,8 @@ async function onecallLogin(force) {
         });
         const text = await r.text().catch(() => '');
         const tok = _extractOcToken(text, r.headers);
-        diag.push({ u: a.url, m: a.method, mode: a.mode, status: r.status, ct: (r.headers.get('content-type') || '').split(';')[0], len: text.length, tok: !!tok });
+        const snip = String(text || '').replace(/[A-Za-z0-9+/=_-]{20,}/g, '<L>').replace(/\s+/g, ' ').slice(0, 90);
+        diag.push({ u: a.url, m: a.method, mode: a.mode, status: r.status, allow: r.headers.get('allow') || null, ct: (r.headers.get('content-type') || '').split(';')[0], len: text.length, tok: !!tok, snip });
         if ((r.ok || (r.status >= 300 && r.status < 400)) && tok) {
           onecallAuth.token = tok;
           onecallAuth.updatedAt = new Date().toISOString();
