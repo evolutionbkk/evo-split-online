@@ -1209,6 +1209,23 @@ app.post('/api/pull', requireAuth, async (req, res) => {
   }
 });
 
+// Sync the FULL Evolution customer base into the Marketplace match-set (mpPhones) ONLY —
+// does NOT pool anyone as a lead. Lets the KPI credit OneCall calls to ANY Evolution customer as
+// Marketplace (so the "เบอร์ใหม่/อื่น ๆ" bucket shrinks when those are really Evolution customers).
+app.post('/api/evo/sync-mp', requireAuth, async (req, res) => {
+  if (!evo.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่ได้เชื่อม Evolution — วาง token ก่อน' });
+  try {
+    const r = await fetch(EVO_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(evoBody()) });
+    if (r.status === 401 || r.status === 403) return res.status(400).json({ error: 'token_expired', message: 'Evolution token หมดอายุ — เปิดหน้า Evolution แล้ววาง token ใหม่' });
+    if (!r.ok) return res.status(502).json({ error: 'evo_http_' + r.status });
+    const j = await r.json();
+    const customers = mapItems(j);
+    const added = addMpPhones(customers.map((c) => c.phone));
+    state = await store.save(state);
+    res.json({ ok: true, fetched: customers.length, addedToMatchSet: added, mpTotal: (state.mpPhones || []).length });
+  } catch (e) { res.status(502).json({ error: 'sync_failed', message: String(e) }); }
+});
+
 // ---------- Teamlead manual distribution: holding pool + distribute ----------
 // Pull Evolution (Marketplace) leads into the POOL without assigning. Teamlead hands them out later.
 app.post('/api/pull-hold', requireAuth, async (req, res) => {
