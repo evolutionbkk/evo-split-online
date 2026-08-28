@@ -807,7 +807,7 @@ async function loadReport(){
     for(const n of aprogNicks){h+=prog(n,Math.round(revByNick[n]||0),aTgt,'ปิด '+(closedByNick[n]||0)+' แชท');}
     h+='</div>';
     h+='<div style="font-size:14px;font-weight:700;color:#334155;margin:4px 2px 8px">🧑‍💼 ทีมเซลล์ (Telesales)</div>';
-    h+='<div class="tblwrap" style="margin-bottom:18px"><table style="min-width:640px"><thead><tr><th>เซลล์</th><th style="text-align:center">ปิดได้</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">คุยจริง</th><th style="text-align:center" title="คุยจริง >7วิ ครั้งแรกของลูกค้า (นับอัตโนมัติ)">T1 ⓘ</th><th style="text-align:center" title="ติดตามรอบ 2 (เซลล์กดเปลี่ยนรอบเอง)">T2 ⓘ</th><th style="text-align:center" title="ติดตามรอบ 3 (เซลล์กดเปลี่ยนรอบเอง)">T3 ⓘ</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
+    h+='<div class="tblwrap" style="margin-bottom:18px"><table style="min-width:640px"><thead><tr><th>เซลล์</th><th style="text-align:center">ปิดได้</th><th style="text-align:right">ยอดขาย</th><th style="text-align:center">คุยจริง</th><th style="text-align:center" title="ลูกค้า FB ที่คุยจริง >7วิ (นับทุกสายจาก OneCall · ไม่ซ้ำคน)">T1 ⓘ</th><th style="text-align:center" title="ติดตามรอบ 2 (เซลล์กดเปลี่ยนรอบเอง)">T2 ⓘ</th><th style="text-align:center" title="ติดตามรอบ 3 (เซลล์กดเปลี่ยนรอบเอง)">T3 ⓘ</th><th style="text-align:center">ลาเดือนนี้</th></tr></thead><tbody>';
     for(const side of ['W','K']){
       const a=(kpi&&kpi[side])||{};const t=((tiers&&tiers.tiers&&tiers.tiers[side]&&tiers.tiers[side].fbpage))||{T1:0,T2:0,T3:0};
       h+='<tr><td style="font-weight:700;color:var(--'+side.toLowerCase()+')">'+esc(nm[side]||side)+'</td>'+
@@ -1057,11 +1057,11 @@ function personCard(side,name,a){
       ${targetBar('Marketplace', a.calledEvoToday, KPI_TARGETS.evo, '#0e7490', a.talk7EvoToday)}
       ${(()=>{const fb=(KPI_TIERS[side]||{}).fbpage||{};const T=KPI_TARGETS.tier||5;
         return '<div style="font-size:11.5px;color:#475569;margin:6px 0 4px">การโทรติดตาม FB Page วันนี้ (T1 / T2 / T3)</div>'
-          +targetBar('T1 <span style="color:#94a3b8;font-weight:400">(คุยครั้งแรก)</span>', fb.T1d||0, T, '#1d4ed8')
+          +targetBar('T1 <span style="color:#94a3b8;font-weight:400">(คุย FB จริง)</span>', fb.T1d||0, T, '#1d4ed8')
           +targetBar('T2 <span style="color:#94a3b8;font-weight:400">(ตามรอบ 2)</span>', fb.T2d||0, T, '#b45309')
           +targetBar('T3 <span style="color:#94a3b8;font-weight:400">(ตามรอบ 3)</span>', fb.T3d||0, T, '#047857');})()}
       <div style="font-size:11.5px;color:#475569;margin-top:6px">ในช่วง (${lbl}): Marketplace <b>${a.calledEvoRange}</b> ราย · FB <b>${a.callsManualRange}</b> สาย${KPI_FB_LEGACY?' <span style="color:#b45309">(นับสายที่โทรจริงทั้งหมด — ช่วงย้ายระบบ)</span>':' ปิดการขาย <span style="color:#94a3b8">· เบอร์ทักใหม่ '+a.talk7OtherRange+' สาย (ไม่นับ KPI)</span>'}</div>
-      <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Marketplace ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}T1 = คุยจริง&gt;7วิ ครั้งแรกของลูกค้า (นับอัตโนมัติ) · T2/T3 = เซลล์กดเปลี่ยนรอบเอง · แยกกันไม่รวม</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">${KPI_FB_LEGACY?'ช่วงนี้นับ<b>สายคุยจริงที่ไม่ใช่ Marketplace ทั้งหมด</b> (วันย้ายระบบ) · ':'เซลล์นับเฉพาะรายชื่อที่ทีมแอดมิน<b>ปิดการขาย</b>แล้ว (Pancake) + ซื้อซ้ำ · '}T1 = ลูกค้า FB ที่คุยจริง&gt;7วิ วันนี้ (นับทุกสายจาก OneCall · ไม่ซ้ำคน) · T2/T3 = เซลล์กดเปลี่ยนรอบเอง</div>
     </div>`:''}
     <div class="kmetric"><span>ปิดได้ / รายใหม่ (${lbl})</span><span class="v">${a.wonRange} / ${a.newRange}</span></div>
     <div class="kmetric"><span>ยอดขาย (${lbl})</span><span class="v" style="color:#166534">฿${kbaht(a.revRange)}</span></div>

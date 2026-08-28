@@ -640,18 +640,23 @@ app.post('/api/lead/tstage', requireCrm, async (req, res) => {
 function followupTiers() {
   const today = S.thaiDay();
   const curMonth = today.slice(0, 7);   // เดือนปัจจุบัน (เขต Thai) — นับเฉพาะเดือนนี้ ไม่ย้อนเดือนเก่า
-  // earliest >7s talk time per side|phone (ใช้เช็ก T1d = คุยจริงครั้งแรกวันนี้)
-  // + เซ็ตของ key ที่ "คุยจริง >7 วิ ในเดือนนี้" (ใช้เป็น T1 เฉพาะเดือนนี้)
-  const firstTalk = new Map();
-  const talkedMonth = new Set();
+  // T1 = "สาย FB ที่โทรจริง" — นับลูกค้า FB (ไม่ซ้ำ) ที่เซลล์คุยจริง >7วิ โดยจับจากเบอร์ลูกค้า FB ทั้งคลัง
+  // (assigned FB leads + closed-sale/pancake buyers ทั้งหมด) แบบ side-agnostic — ไม่ต้องรอแจก ไม่ต้องเป็นครั้งแรก.
+  const fbSet = new Set();
+  for (const r of state.assigned) {
+    if (r.archived) continue; const p = digitsOnly(r.phone); if (!p) continue;
+    if (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill') fbSet.add(p);
+  }
+  for (const p of (state.fbPhones || [])) fbSet.add(p);
+  const t1Month = { W: new Set(), K: new Set() }, t1Today = { W: new Set(), K: new Set() };
   for (const c of (state.onecall || [])) {
     if ((c.dur || 0) <= ONECALL_MIN_TALK) continue;
-    const key = c.side + '|' + digitsOnly(c.phone); const at = c.at || null; if (!at) continue;
-    const prev = firstTalk.get(key);
-    if (!prev || String(at) < String(prev)) firstTalk.set(key, at);
-    if (S.thaiDay(at).slice(0, 7) === curMonth) talkedMonth.add(key);
+    if (c.side !== 'W' && c.side !== 'K') continue;
+    const p = digitsOnly(c.phone); if (!p || !fbSet.has(p)) continue;   // เฉพาะลูกค้า FB
+    const day = S.thaiDay(c.at); if (!day) continue;
+    if (day.slice(0, 7) === curMonth) t1Month[c.side].add(p);
+    if (day === today) t1Today[c.side].add(p);
   }
-  // T1/T2/T3 = เฉพาะกิจกรรม "เดือนนี้" · T1d/T2d/T3d = ที่ทำได้ TODAY (รีเซ็ตทุกวัน)
   const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, leads: 0 });
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
@@ -662,18 +667,15 @@ function followupTiers() {
     // แหล่งกระจายข้อมูล: FB Page = แอดมินปิดการขาย (pancake/manual/refill) · Marketplace = เว็บ Evolution
     const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
     const o = out[r.sales][grp]; o.leads++;
-    const key = r.sales + '|' + digitsOnly(r.phone);
-    if (talkedMonth.has(key)) {                     // T1: คุยจริง >7 วิ ในเดือนนี้ (per customer)
-      o.T1++;
-      const ft = firstTalk.get(key);
-      if (ft && S.thaiDay(ft) === today) o.T1d++;   // first real talk happened today
-    }
+    // T2/T3 = เซลล์กดเลื่อนรอบเอง (ยังผูกกับ lead ที่แจกแล้ว)
     const fs = r.followStage || 1;
     const t2m = r.t2At && S.thaiDay(r.t2At).slice(0, 7) === curMonth;
     const t3m = r.t3At && S.thaiDay(r.t3At).slice(0, 7) === curMonth;
     if (fs >= 2 && t2m) { o.T2++; if (S.thaiDay(r.t2At) === today) o.T2d++; }  // กด T2 เดือนนี้
     if (fs >= 3 && t3m) { o.T3++; if (S.thaiDay(r.t3At) === today) o.T3d++; }  // กด T3 เดือนนี้
   }
+  // T1 (fbpage) = ลูกค้า FB ที่คุยจริง (ไม่ซ้ำ) — เดือนนี้ / วันนี้ — จับจาก OneCall ตรง ๆ
+  for (const sd of ['W', 'K']) { out[sd].fbpage.T1 = t1Month[sd].size; out[sd].fbpage.T1d = t1Today[sd].size; }
   return out;
 }
 app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
