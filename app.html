@@ -267,6 +267,10 @@
       <button class="b-g" onclick="doOnecallPull()" id="ocpullbtn" style="padding:8px 14px"><span data-ic="refresh" data-sz="15"></span>ดึง OneCall เดี๋ยวนี้</button>
       <span id="ocstatus" style="font-size:12px;color:#6b7280"></span>
     </div>
+    <div class="row" style="margin-top:10px;align-items:center;gap:10px">
+      <button class="b-b" id="execXlsxBtn2" onclick="exportExecXlsx({mode:KR.mode,fromId:'kfrom',toId:'kto',btnId:'execXlsxBtn2',msgId:'execXlsxMsg2'})" style="background:#166534;color:#fff;border-color:#166534;padding:8px 14px"><span data-ic="download" data-sz="15"></span>ดึง Excel สรุป (ผู้บริหาร)</button>
+      <span id="execXlsxMsg2" style="font-size:12.5px;color:#6b7280">สรุปละเอียดตามช่วงที่เลือกด้านบน — เปิดใน Excel ได้เลย</span>
+    </div>
     <div class="row" style="margin-top:12px">
       <a class="btn" href="/sales?side=W" target="_blank" rel="noopener"><button class="b-w"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง W (Namwhan)</button></a>
       <a class="btn" href="/sales?side=K" target="_blank" rel="noopener"><button class="b-k"><span data-ic="eye" data-sz="15"></span>เปิดงานฝั่ง K (Khem)</button></a>
@@ -1973,20 +1977,21 @@ async function doDistribute(){
   b.disabled=false;b.innerHTML=old;}
 
 // ===== Executive Excel export (self-serve) — builds the detailed OneCall summary client-side and downloads it =====
-async function exportExecXlsx(){
-  const btn=document.getElementById('execXlsxBtn'),msg=document.getElementById('execXlsxMsg'),old=btn.innerHTML;
+async function exportExecXlsx(rs){
+  rs=rs||{mode:ANR.mode,fromId:'anFrom',toId:'anTo',btnId:'execXlsxBtn',msgId:'execXlsxMsg'};
+  const btn=document.getElementById(rs.btnId||'execXlsxBtn'),msg=document.getElementById(rs.msgId||'execXlsxMsg'),old=btn.innerHTML;
   btn.disabled=true;btn.innerHTML='กำลังสร้างไฟล์…';msg.style.color='#6b7280';msg.textContent='กำลังดึงข้อมูลและสร้างไฟล์ Excel…';
   try{
     await loadSheetJS();
-    // range from the picker above
+    // range from the picker on the same panel
     let fromMs,toMs,rangeLbl;
-    if(ANR.mode==='custom'){
-      const f=(document.getElementById('anFrom')||{}).value,t=(document.getElementById('anTo')||{}).value;
+    if(rs.mode==='custom'){
+      const f=(document.getElementById(rs.fromId)||{}).value,t=(document.getElementById(rs.toId)||{}).value;
       fromMs=f?Date.parse(f+'T00:00:00'):-8640000000000000; toMs=t?Date.parse(t+'T23:59:59'):Date.now();
       rangeLbl=thRange(new Date(Math.max(fromMs,0)).toISOString(),new Date(toMs).toISOString());
     } else {
-      const rr=rangeFor(ANR.mode); fromMs=Date.parse(rr.from); toMs=Date.parse(rr.to);
-      rangeLbl=(ANR.mode==='today')?thDay(rr.to):thRange(rr.from,rr.to);
+      const rr=rangeFor(rs.mode); fromMs=Date.parse(rr.from); toMs=Date.parse(rr.to);
+      rangeLbl=(rs.mode==='today')?thDay(rr.to):thRange(rr.from,rr.to);
     }
     const rec=await fetch('/api/admin/onecall-recon',{credentials:'same-origin'}).then(r=>r.json());
     if(!rec||!rec.rows){throw new Error('ดึงข้อมูลไม่สำเร็จ');}
