@@ -76,6 +76,14 @@ async function boot() {
   if (!state.dayoff) { state.dayoff = { W: null, K: null }; bf = true; }
   // Restore the persisted Evolution token so a server restart/redeploy doesn't drop the connection.
   if (state.evo && state.evo.token) { evo.token = state.evo.token; evo.facility = state.evo.facility || evo.facility; evo.updatedAt = state.evo.updatedAt || null; }
+  // Restore the persisted OneCall token too — a restart no longer drops it, and the 4-min keepalive
+  // keeps the OrkTrack session alive so it doesn't expire (this is what makes OneCall "หายขาด").
+  if (state.onecallAuth && state.onecallAuth.token) {
+    onecallAuth.token = state.onecallAuth.token;
+    onecallAuth.updatedAt = state.onecallAuth.updatedAt || null;
+    onecallAuth.alive = true;
+    console.log('[boot] restored OneCall token from', onecallAuth.updatedAt);
+  }
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -992,6 +1000,14 @@ const ONECALL_PASS = process.env.ONECALL_PASS || '';   // OrkTrack login passwor
 let onecallAuth = { token: null, updatedAt: null, alive: false, lastPullAt: null, lastAdded: 0, lastError: null,
   lastLoginAt: null, loginError: null, loginVia: null, loginAttempts: null, autoLogin: !!(ONECALL_USER && ONECALL_PASS) };
 function onecallHeaders() { return { 'Authorization': onecallAuth.token, 'Accept': 'application/json', 'Content-Type': 'application/json' }; }
+// Persist the current OneCall token to the store so a server restart/redeploy keeps the connection
+// (keepalive then keeps the OrkTrack session from expiring). Mirrors how the Evolution token is saved.
+function persistOnecallToken() {
+  try {
+    state.onecallAuth = { token: onecallAuth.token || null, updatedAt: onecallAuth.updatedAt || null };
+    store.save(state).catch(() => {});
+  } catch (e) { /* non-fatal */ }
+}
 if (!ONECALL_USER || !ONECALL_PASS) console.warn('[warn] ONECALL_USER/ONECALL_PASS not set — OneCall cannot auto-login; falling back to relayed token.');
 
 // Auto-login to OrkTrack with stored credentials → a fresh session token, so OneCall never needs a manual re-connect.
@@ -1059,6 +1075,7 @@ async function onecallLogin(force) {
           onecallAuth.loginError = null;
           onecallAuth.loginVia = a.method + ' ' + a.url + ' (' + a.mode + ')';
           onecallAuth.loginAttempts = diag;
+          persistOnecallToken();
           console.log('[onecall] auto-login OK via', onecallAuth.loginVia);
           return true;
         }
@@ -1129,6 +1146,7 @@ app.post('/api/onecall/token', (req, res) => {
   const t = req.body && req.body.token;
   if (!t || String(t).length < 10) return res.status(400).json({ error: 'no_token' });
   onecallAuth.token = String(t); onecallAuth.updatedAt = new Date().toISOString(); onecallAuth.alive = true; onecallAuth.lastError = null;
+  persistOnecallToken();          // survive restarts
   onecallPull().catch(() => {}); // kick an immediate pull with the fresh token
   res.json({ ok: true, updatedAt: onecallAuth.updatedAt });
 });
@@ -2665,8 +2683,10 @@ app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.len
 boot().then(() => {
   app.listen(PORT, () => console.log('[server] listening on', PORT));
   setInterval(() => { runSweep().catch(() => {}); }, 60 * 60 * 1000); // hourly stale sweep
+  // On boot: if a token was restored from the store, verify it (keepalive) and resume pulling right away.
+  setTimeout(() => { if (onecallAuth.token) { onecallKeepalive().then(() => onecallPull()).catch(() => {}); } }, 5 * 1000);
   if (ONECALL_USER && ONECALL_PASS) {
-    setTimeout(() => { onecallLogin(true).then((ok) => { if (ok) onecallPull().catch(() => {}); }).catch(() => {}); }, 8 * 1000); // auto-login on boot → OneCall works unattended (no manual re-connect)
+    setTimeout(() => { if (!onecallAuth.token || !onecallAuth.alive) onecallLogin(true).then((ok) => { if (ok) onecallPull().catch(() => {}); }).catch(() => {}); }, 12 * 1000); // fallback auto-login if no valid restored token
   }
   setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive (self-heals via auto-login on expiry)
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
