@@ -1431,11 +1431,14 @@ async function computeSalesKpi(fromQ, toQ) {
   // credited to whoever made it — the 50/50 lead assignment is arbitrary, so W calling a
   // closed-sale customer who happens to be assigned to K still counts as W's FB call.
   const fbPhones = new Set();
+  // side-AGNOSTIC set of Marketplace (Evolution + Big Seller/Laz) customer phones — a call to any of
+  // these counts as a Marketplace call, whether or not the lead has been handed out yet (mirrors fbPhones).
+  const mkPhones = new Set();
   for (const r of state.assigned) {
     if (r.archived) continue; const p = digitsOnly(r.phone); if (!p) continue;
     const isFb = (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill');
     leadSrc.set(r.sales + '|' + p, isFb ? 'manual' : 'evolution');
-    if (isFb) fbPhones.add(p);
+    if (isFb) fbPhones.add(p); else mkPhones.add(p);
   }
   // include ALL Pancake buyers (past closed-sale customers) so follow-up calls count as FB,
   // even when that customer isn't in the current (this-month) lead list.
@@ -1445,25 +1448,26 @@ async function computeSalesKpi(fromQ, toQ) {
   for (const c of (state.onecall || [])) {
     const A = sides[c.side]; if (!A) continue;
     const t = Date.parse(c.at); if (isNaN(t)) continue;
-    const key = c.side + '|' + digitsOnly(c.phone), src = leadSrc.get(key); // matched lead on this side?
+    const dp = digitsOnly(c.phone);
     const inR = t >= from && t <= to, inT = t >= tStart && t <= tEnd;
-    // "โทรแล้ว ... ราย" = unique matched leads that got ≥1 call (any duration) — always matched-only
-    if (src) {
-      const b = src === 'manual' ? 'manual' : 'evo';
-      if (inR) calledR[c.side][b].add(key);
-      if (inT) calledT[c.side][b].add(key);
+    // "โทรแล้ว ... ราย" = unique customers called, matched by phone to the FB / Marketplace customer lists
+    // (side-agnostic on both sides now — a Marketplace call is caught even before the lead is handed out).
+    const mSrc = fbPhones.has(dp) ? 'manual' : (mkPhones.has(dp) ? 'evo' : null);
+    if (mSrc) {
+      if (inR) calledR[c.side][mSrc].add(dp);
+      if (inT) calledT[c.side][mSrc].add(dp);
     }
     // FB "T1+T2+T3" per-call KPI:
     //  - from KPI_FB_MATCH_FROM onward: a call to any CLOSED-SALE (Pancake) / refill customer
     //    in the system (either side — credited to the caller)
     //  - before it (migration day): every real (>7s) call that isn't an Evolution website lead
     const fbCall = (t >= KPI_FB_MATCH_FROM)
-      ? fbPhones.has(digitsOnly(c.phone))
-      : (src !== 'evolution' && (c.dur || 0) > ONECALL_MIN_TALK);
+      ? fbPhones.has(dp)
+      : (!mkPhones.has(dp) && (c.dur || 0) > ONECALL_MIN_TALK);
     if (fbCall) { if (inR) A.callsManualRange++; if (inT) A.callsManualToday++; }
-    // per-call talks >7s, bucketed: FB closed-sale (any side) / Evolution (same side) / Other (new number)
+    // per-call talks >7s, bucketed: FB closed-sale / Marketplace (Evolution+BigSeller) / Other (new number) — all side-agnostic
     if ((c.dur || 0) > ONECALL_MIN_TALK) {
-      const b = fbPhones.has(digitsOnly(c.phone)) ? 'Manual' : (src === 'evolution' ? 'Evo' : 'Other');
+      const b = fbPhones.has(dp) ? 'Manual' : (mkPhones.has(dp) ? 'Evo' : 'Other');
       if (inR) { A.talk7Range++; A['talk7' + b + 'Range']++; }
       if (inT) { A.talk7Today++; A['talk7' + b + 'Today']++; }
     }
