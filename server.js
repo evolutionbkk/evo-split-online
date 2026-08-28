@@ -1624,6 +1624,39 @@ app.get('/api/admin/calllog', requireAuth, (req, res) => {
   });
 });
 
+// Reconciliation: every OneCall call + how the system classifies it (Marketplace / FB / Other) +
+// the matched customer in the system — so the team can compare in Excel whether OneCall ↔ system data lines up.
+app.get('/api/admin/onecall-recon', requireAuth, (req, res) => {
+  const isFb = (s) => (s === 'manual' || s === 'pancake' || s === 'refill');
+  const fbPhones = new Set(), mkPhones = new Set();
+  const leadByPhone = new Map();
+  for (const r of state.assigned) {
+    const p = digitsOnly(r.phone); if (!p) continue;
+    if (!leadByPhone.has(p)) leadByPhone.set(p, { name: r.name || '', source: r.source || 'evolution', sales: r.sales || '', archived: !!r.archived, pooled: !!r.pooled });
+    if (r.archived) continue;
+    if (isFb(r.source)) fbPhones.add(p); else mkPhones.add(p);
+  }
+  for (const p of (state.fbPhones || [])) fbPhones.add(p);
+  for (const p of (state.mpPhones || [])) if (!fbPhones.has(p)) mkPhones.add(p);
+  const rows = [];
+  const sum = { W: { FB: 0, Marketplace: 0, Other: 0, total: 0 }, K: { FB: 0, Marketplace: 0, Other: 0, total: 0 } };
+  for (const c of (state.onecall || [])) {
+    const p = digitsOnly(c.phone);
+    const cls = fbPhones.has(p) ? 'FB' : (mkPhones.has(p) ? 'Marketplace' : 'Other');
+    const lead = leadByPhone.get(p);
+    const side = c.side;
+    if (sum[side]) { sum[side][cls]++; sum[side].total++; }
+    rows.push({
+      seller: side === 'W' ? SALES_NAMES.W : (side === 'K' ? SALES_NAMES.K : side),
+      side, phone: c.phone, durationSec: c.dur || 0, over7s: (c.dur || 0) > ONECALL_MIN_TALK ? 'ใช่' : 'ไม่',
+      at: c.at, direction: c.dir || '', classify: cls,
+      matchedName: lead ? lead.name : '', matchedSource: lead ? lead.source : '', assignedTo: lead ? lead.sales : '',
+    });
+  }
+  rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  res.json({ generatedAt: new Date().toISOString(), names: SALES_NAMES, count: rows.length, summary: sum, rows });
+});
+
 // Call QA: per-salesperson quality metrics + calls that should be reviewed/coached.
 // Flags: long talk that didn't close (coach), or very short "hung-up" calls to a real lead.
 app.get('/api/admin/qa', requireAuth, (req, res) => {
