@@ -84,6 +84,14 @@ async function boot() {
     onecallAuth.alive = true;
     console.log('[boot] restored OneCall token from', onecallAuth.updatedAt);
   }
+  // Seed the persistent Marketplace-customer phone set from existing Evolution/Big Seller leads
+  // (incl. archived) so OneCall calls to any of them count as Marketplace right away.
+  if (!Array.isArray(state.mpPhones)) state.mpPhones = [];
+  { const before = state.mpPhones.length;
+    const mpSeed = state.assigned.filter((r) => { const s = r.source || 'evolution'; return s !== 'pancake' && s !== 'manual' && s !== 'refill'; }).map((r) => r.phone);
+    addMpPhones(mpSeed);
+    if (state.mpPhones.length !== before) { bf = true; console.log('[boot] seeded mpPhones', state.mpPhones.length); }
+  }
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -1191,6 +1199,7 @@ app.post('/api/pull', requireAuth, async (req, res) => {
     }
     const j = await r.json();
     const customers = mapItems(j);
+    addMpPhones(customers.map((c) => c.phone));   // remember Evolution customers for OneCall Marketplace matching
     const summary = S.applyNew(state, customers, req.body && req.body.label, { dailyCapPerSide: EVO_DAILY_PER_SIDE, off: dof() });
     recordPull('W', summary.addW); recordPull('K', summary.addK);
     state = await store.save(state);
@@ -1209,6 +1218,7 @@ app.post('/api/pull-hold', requireAuth, async (req, res) => {
     if (r.status === 401 || r.status === 403) return res.status(400).json({ error: 'token_expired', message: 'token หมดอายุ — เปิดหน้า Evolution ใหม่ แล้วกดอีกครั้ง' });
     const j = await r.json();
     const customers = mapItems(j);
+    addMpPhones(customers.map((c) => c.phone));   // remember Evolution customers for OneCall Marketplace matching
     const summary = S.applyNewPool(state, customers, { source: 'evolution', by: sessName(req) || 'Teamlead' });
     state = await store.save(state);
     res.json({ ok: true, summary, pulled: customers.length, pool: S.poolCounts(state) });
@@ -1256,6 +1266,20 @@ function normBSPhone(raw) {
   if (d.startsWith('00')) d = d.slice(1);          // 660817161754 -> 00817161754 -> 0817161754 (0 kept)
   return d;
 }
+// Persistent set of Marketplace (Evolution + Big Seller) customer phones — mirrors state.fbPhones for FB.
+// Grows on every Evolution pull and Big Seller ingest, so the KPI can credit a Marketplace call even
+// when that customer is no longer an active pooled/assigned lead.
+function addMpPhones(phones) {
+  if (!Array.isArray(state.mpPhones)) state.mpPhones = [];
+  const set = new Set(state.mpPhones);
+  let added = 0;
+  for (const ph of (phones || [])) {
+    const p = digitsOnly(normPhoneTH(ph));
+    if (p && p.length >= 9 && !set.has(p)) { set.add(p); added++; }
+  }
+  if (added) state.mpPhones = [...set];
+  return added;
+}
 app.post('/api/bigseller/ingest', async (req, res) => {
   const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
   const adminOk = (readSession(req) || {}).role === 'admin';
@@ -1275,6 +1299,7 @@ app.post('/api/bigseller/ingest', async (req, res) => {
       product: String((r && r.product) || '').trim(),
     });
   }
+  addMpPhones(mapped.map((r) => r.phone));   // remember these as Marketplace customers for OneCall matching
   const summary = S.applyNewPool(state, mapped, { source: 'bigseller', by: sessName(req) || 'BigSeller' });
   state = await store.save(state);
   res.json({ ok: true, received: rows.length, masked, added: summary.added, dup: summary.dup, invalid: summary.cut, pool: S.poolCounts(state) });
@@ -1445,6 +1470,9 @@ async function computeSalesKpi(fromQ, toQ) {
   // include ALL Pancake buyers (past closed-sale customers) so follow-up calls count as FB,
   // even when that customer isn't in the current (this-month) lead list.
   for (const p of (state.fbPhones || [])) fbPhones.add(p);
+  // include ALL Marketplace (Evolution + Big Seller) customers ever pulled — so a call to any
+  // Evolution/Laz customer counts as Marketplace, even if not currently a pooled/assigned lead.
+  for (const p of (state.mpPhones || [])) if (!fbPhones.has(p)) mkPhones.add(p);
   const mkSets = () => ({ evo: new Set(), manual: new Set() });
   const calledR = { W: mkSets(), K: mkSets() }, calledT = { W: mkSets(), K: mkSets() };
   for (const c of (state.onecall || [])) {
