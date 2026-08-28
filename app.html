@@ -442,6 +442,10 @@
         <button class="b-b" style="padding:6px 12px" onclick="anLoad()">ดู</button>
       </span>
     </div>
+    <div class="row" style="margin:0 0 12px">
+      <button class="b-b" id="execXlsxBtn" onclick="exportExecXlsx()" style="background:#166534;color:#fff;border-color:#166534"><span data-ic="download" data-sz="15"></span>ดึง Excel สรุป (ผู้บริหาร)</button>
+      <span class="hint" id="execXlsxMsg" style="font-size:12.5px;color:#6b7280">สรุปละเอียดตามช่วงที่เลือกด้านบน — เปิดใน Excel ได้เลย</span>
+    </div>
     <div id="callWarn" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:10px"></div>
     <div class="tblwrap" style="margin-bottom:14px"><table id="callSummary" style="min-width:520px">
       <thead><tr>
@@ -1924,7 +1928,14 @@ async function doPancakePullHold(){const b=document.getElementById('pullFbHoldBt
     if(j.error){m.textContent='❌ '+j.error;}else{m.textContent='✅ เชื่อมต่อ Facebook · เพิ่มรายชื่อรอแจก +'+(j.added||0)+' ราย'+(j.dup?(' (ซ้ำ '+j.dup+')'):'');await loadPool();}
   }catch(e){document.getElementById('poolMsg').textContent='❌ '+e;}
   b.disabled=false;b.innerHTML=old;}
-function loadSheetJS(){return new Promise((res,rej)=>{if(window.XLSX)return res();const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>res();s.onerror=()=>rej(new Error('โหลดตัวอ่านไฟล์ไม่สำเร็จ'));document.head.appendChild(s);});}
+function loadSheetJS(){return new Promise((res,rej)=>{if(window.XLSX)return res();const s=document.createElement('script');
+  // xlsx-js-style: drop-in fork of SheetJS 0.18.5 (reads files like the community build) + adds cell styling for the exec export
+  s.src='https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+  s.onload=()=>res();
+  s.onerror=()=>{ // fallback to plain SheetJS (export still works, just without colours)
+    const s2=document.createElement('script');s2.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s2.onload=()=>res();s2.onerror=()=>rej(new Error('โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ'));document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);});}
 async function doBigSellerUpload(inp){
   const file=inp.files&&inp.files[0];if(!file)return;
   const m=document.getElementById('poolMsg');const b=document.getElementById('bsUploadBtn');const old=b.innerHTML;b.disabled=true;b.textContent='กำลังอ่านไฟล์…';m.style.color='#6b7280';m.textContent='กำลังอ่านไฟล์ Big Seller…';
@@ -1960,6 +1971,123 @@ async function doDistribute(){
     await loadPool();refresh();if(typeof loadPulls==='function')loadPulls();
   }catch(e){document.getElementById('distMsg').textContent='❌ '+e;}
   b.disabled=false;b.innerHTML=old;}
+
+// ===== Executive Excel export (self-serve) — builds the detailed OneCall summary client-side and downloads it =====
+async function exportExecXlsx(){
+  const btn=document.getElementById('execXlsxBtn'),msg=document.getElementById('execXlsxMsg'),old=btn.innerHTML;
+  btn.disabled=true;btn.innerHTML='กำลังสร้างไฟล์…';msg.style.color='#6b7280';msg.textContent='กำลังดึงข้อมูลและสร้างไฟล์ Excel…';
+  try{
+    await loadSheetJS();
+    // range from the picker above
+    let fromMs,toMs,rangeLbl;
+    if(ANR.mode==='custom'){
+      const f=(document.getElementById('anFrom')||{}).value,t=(document.getElementById('anTo')||{}).value;
+      fromMs=f?Date.parse(f+'T00:00:00'):-8640000000000000; toMs=t?Date.parse(t+'T23:59:59'):Date.now();
+      rangeLbl=thRange(new Date(Math.max(fromMs,0)).toISOString(),new Date(toMs).toISOString());
+    } else {
+      const rr=rangeFor(ANR.mode); fromMs=Date.parse(rr.from); toMs=Date.parse(rr.to);
+      rangeLbl=(ANR.mode==='today')?thDay(rr.to):thRange(rr.from,rr.to);
+    }
+    const rec=await fetch('/api/admin/onecall-recon',{credentials:'same-origin'}).then(r=>r.json());
+    if(!rec||!rec.rows){throw new Error('ดึงข้อมูลไม่สำเร็จ');}
+    const NM={W:(rec.names&&rec.names.W)||'Namwhan (น้ำหวาน)',K:(rec.names&&rec.names.K)||'Khem (เขม)'};
+    const rows=rec.rows.filter(x=>{const t=Date.parse(x.at);return t>=fromMs&&t<=toMs;})
+      .sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
+    if(!rows.length){msg.style.color='#b45309';msg.textContent='ไม่มีสายในช่วงที่เลือก';btn.disabled=false;btn.innerHTML=old;return;}
+    const MIN=7, TZ=7*3600000;
+    const thTime=iso=>{const d=new Date(Date.parse(iso)+TZ),p=n=>String(n).padStart(2,'0');return p(d.getUTCHours())+':'+p(d.getUTCMinutes());};
+    const cls3=c=>c==='Marketplace'?'MK':c; // FB / MK / Other
+    // aggregate (real talk = dur>7, matches KPI card)
+    const AG={W:{legs:0,talk:0,FB:0,MK:0,Other:0,short:0},K:{legs:0,talk:0,FB:0,MK:0,Other:0,short:0}};
+    rows.forEach(x=>{const s=x.side; if(!AG[s])return; AG[s].legs++; const real=(x.durationSec||0)>MIN;
+      if(real){AG[s].talk++; AG[s][cls3(x.classify)]++;} else AG[s].short++;});
+    const T={legs:AG.W.legs+AG.K.legs,talk:AG.W.talk+AG.K.talk,FB:AG.W.FB+AG.K.FB,MK:AG.W.MK+AG.K.MK,Other:AG.W.Other+AG.K.Other,short:AG.W.short+AG.K.short};
+    // ---- styling helpers (xlsx-js-style) ----
+    const C={navy:'FF1F3864',blue:'FF2E5496',white:'FFFFFFFF',grey:'FFF2F2F2',green:'FFC6E0B4',amber:'FFFFF2CC',red:'FFF8CBAD',mute:'FF808080'};
+    const bd={style:'thin',color:{rgb:'FFBFBFBF'}}, BORD={top:bd,bottom:bd,left:bd,right:bd};
+    const FN='Tahoma';
+    const cell=(v,o={})=>({v:(v==null?'':v),t:(typeof v==='number'?'n':'s'),s:Object.assign({font:{name:FN,sz:o.sz||10,bold:!!o.b,color:{rgb:o.fc||'FF000000'}},alignment:{horizontal:o.h||'left',vertical:'center',wrapText:o.wrap!==false},},o.fill?{fill:{fgColor:{rgb:o.fill}}}:{},o.border!==false?{border:BORD}:{})});
+    const title=(v)=>cell(v,{sz:15,b:true,fc:C.white,fill:C.navy,h:'center',border:false});
+    const sub=(v)=>cell(v,{sz:9,fc:C.white,fill:C.blue,h:'center',border:false});
+    const hd=(v)=>cell(v,{sz:9,b:true,fc:C.white,fill:C.blue,h:'center'});
+    const mk=(ws,merges)=>{ws['!merges']=(ws['!merges']||[]).concat(merges||[]);};
+    const R=(c0,r0,c1,r1)=>({s:{c:c0,r:r0},e:{c:c1,r:r1}});
+    const newWS=(matrix,cols)=>{const ws=XLSX.utils.aoa_to_sheet(matrix.map(r=>r.map(c=>c==null?'':c)));
+      // overwrite with styled cell objects
+      matrix.forEach((row,ri)=>row.forEach((c,ciX)=>{if(c==null)return;const addr=XLSX.utils.encode_cell({r:ri,c:ciX});ws[addr]=c;}));
+      if(cols)ws['!cols']=cols; return ws;};
+    const wb=XLSX.utils.book_new();
+
+    // ===== S1 บทสรุปผู้บริหาร =====
+    const pct=(a,b)=>b?Math.round(a/b*100)+'%':'-';
+    const nowLbl=(()=>{const d=new Date(Date.now()+TZ),p=n=>String(n).padStart(2,'0');return p(d.getUTCHours())+':'+p(d.getUTCMinutes())+' น. '+thDay(new Date().toISOString());})();
+    const m1=[];
+    m1.push([title('รายงานสรุปผลการโทร Telesales — สำหรับผู้บริหาร'),null,null,null,null,null]);
+    m1.push([sub('ช่วง: '+rangeLbl+' · ที่มา: OneCall (สายโทรจริง) · ออกรายงาน '+nowLbl+' · ตรงกับการ์ด KPI ในระบบ'),null,null,null,null,null]);
+    m1.push([]);
+    // KPI cards
+    m1.push([cell('คุยจริง >7 วิ',{b:true,h:'center',fc:C.navy,fill:C.blue===C.blue?'FFD9E1F2':C.grey}),cell('คุย FB',{b:true,h:'center',fc:C.navy,fill:'FFC6E0B4'}),cell('Marketplace',{b:true,h:'center',fc:C.navy,fill:'FFD9E1F2'}),cell('นอกระบบ',{b:true,h:'center',fc:C.navy,fill:'FFFFF2CC'}),null,null]);
+    m1.push([cell(T.talk,{sz:20,b:true,h:'center',fill:C.grey}),cell(T.FB,{sz:20,b:true,h:'center',fill:C.grey}),cell(T.MK,{sz:20,b:true,h:'center',fill:C.grey}),cell(T.Other,{sz:20,b:true,h:'center',fill:C.grey}),null,null]);
+    m1.push([cell('* "คุยจริง" นับเฉพาะสายที่คุยเกิน '+MIN+' วินาที ('+T.talk+' สาย) ตามนิยามของระบบ · สายทั้งหมดที่โทร '+T.legs+' ครั้ง (สายสั้น ≤'+MIN+' วิ '+T.short+' สาย ไม่นับเป็นการคุย)',{sz:8.5,fc:C.mute,border:false}),null,null,null,null,null]);
+    m1.push([]);
+    m1.push([cell('ผลรวมรายบุคคล (ตรงกับ KPI ในระบบ)',{sz:12,b:true,fc:C.navy,border:false}),null,null,null,null,null]);
+    m1.push([hd('พนักงาน'),hd('คุยจริง >7วิ'),hd('คุย FB'),hd('Marketplace'),hd('นอกระบบ'),hd('% ตรงกลุ่ม')]);
+    ['W','K'].forEach(s=>{const a=AG[s];m1.push([cell(NM[s],{b:true,fill:C.grey}),cell(a.talk,{h:'center'}),cell(a.FB,{h:'center'}),cell(a.MK,{h:'center'}),cell(a.Other,{h:'center'}),cell(pct(a.FB,a.talk),{h:'center'})]);});
+    m1.push([cell('รวมทั้งหมด',{b:true,fc:C.white,fill:C.navy}),cell(T.talk,{b:true,h:'center',fc:C.white,fill:C.navy}),cell(T.FB,{b:true,h:'center',fc:C.white,fill:C.navy}),cell(T.MK,{b:true,h:'center',fc:C.white,fill:C.navy}),cell(T.Other,{b:true,h:'center',fc:C.white,fill:C.navy}),cell(pct(T.FB,T.talk),{b:true,h:'center',fc:C.white,fill:C.navy})]);
+    m1.push([]);
+    m1.push([cell('ข้อค้นพบสำคัญ',{sz:12,b:true,fc:C.navy,border:false}),null,null,null,null,null]);
+    const finds=[
+      'ช่วงนี้มีสาย "คุยจริง" (เกิน '+MIN+' วิ) '+T.talk+' สาย ยืนยันจาก OneCall โดยตรง — ตรงกับการ์ด KPI ในระบบ',
+      'คุยกับลูกค้าเพจ Facebook (Pancake) '+T.FB+' สาย ('+pct(T.FB,T.talk)+') จับคู่ชื่อลูกค้าได้จริง',
+      'Marketplace (Lazada/Big Seller) = '+T.MK+' สาย',
+      'สายนอกระบบ '+T.Other+' สาย (จาก '+(new Set(rows.filter(x=>x.classify==='Other').map(x=>x.phone)).size)+' เบอร์) = เบอร์ที่ไม่พบในฐานลูกค้าของระบบ (Evolution + Big Seller + FB)',
+      'ข้อมูลเดินระหว่างวัน — ตัวเลขเป็นภาพ ณ เวลาออกรายงาน หากดึงใหม่ภายหลังตัวเลขจะขยับตามจริง',
+    ];
+    finds.forEach(f=>m1.push([cell('•  '+f,{sz:10,border:false}),null,null,null,null,null]));
+    const ws1=newWS(m1,[{wch:30},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14}]);
+    mk(ws1,[R(0,0,5,0),R(0,1,5,1),R(0,5,5,5),R(0,7,5,7),R(0,12,5,12)]);
+    finds.forEach((_,i)=>ws1['!merges'].push(R(0,13+i,5,13+i)));
+    XLSX.utils.book_append_sheet(wb,ws1,'บทสรุปผู้บริหาร');
+
+    // ===== S2 รายละเอียดสายทุกสาย =====
+    const m2=[];
+    const H2=['#','พนักงาน','เวลา (ไทย)','เบอร์โทร','ทิศทาง','ระยะเวลา (วิ)','นับเป็นคุยจริง?','ประเภท','ชื่อลูกค้าที่จับคู่ได้','ที่มา'];
+    m2.push([title('รายละเอียดสายทุกสาย ('+T.legs+' สาย) — ช่วง '+rangeLbl)].concat(Array(H2.length-1).fill(null)));
+    m2.push(H2.map(hd));
+    rows.forEach((x,i)=>{const real=(x.durationSec||0)>MIN; const typ=x.classify==='FB'?'คุย FB':(x.classify==='Marketplace'?'Marketplace':'นอกระบบ');
+      const rowFill=!real?C.grey:(x.classify==='Other'?C.amber:undefined);
+      const co=o=>cell(o.v,Object.assign({h:o.h||'center',fill:rowFill,sz:9},o));
+      m2.push([
+        co({v:i+1}),co({v:NM[x.side]==NM.W?'น้ำหวาน':'เขม',h:'center'}),co({v:thTime(x.at)}),co({v:x.phone}),co({v:x.direction||''}),
+        co({v:x.durationSec||0}),co({v:real?'✓ (>'+MIN+'วิ)':'ไม่นับ (≤'+MIN+'วิ)'}),co({v:typ}),
+        co({v:x.matchedName||'—',h:'left'}),co({v:x.classify==='FB'?(x.matchedSource||'Pancake'):'—'})
+      ]);
+    });
+    const ws2=newWS(m2,[{wch:4},{wch:12},{wch:9},{wch:13},{wch:7},{wch:11},{wch:14},{wch:12},{wch:30},{wch:11}]);
+    mk(ws2,[R(0,0,H2.length-1,0)]); ws2['!freeze']={xSplit:0,ySplit:2}; ws2['!autofilter']={ref:'A2:'+XLSX.utils.encode_cell({r:1,c:H2.length-1})};
+    XLSX.utils.book_append_sheet(wb,ws2,'รายละเอียดสายทุกสาย');
+
+    // ===== S3 สายนอกระบบ =====
+    const others=rows.filter(x=>x.classify==='Other');
+    const m3=[]; const H3=['#','พนักงาน','เบอร์โทร','ทิศทาง','ระยะเวลา (วิ)','เวลา (ไทย)','Evolution','Big Seller','ฐาน FB/ปิดการขาย'];
+    m3.push([title('สายนอกระบบ — ตรวจสอบข้ามฐานข้อมูลลูกค้า')].concat(Array(H3.length-1).fill(null)));
+    m3.push(H3.map(hd));
+    if(!others.length){m3.push([cell('ไม่มีสายนอกระบบในช่วงนี้',{h:'center'})].concat(Array(H3.length-1).fill(cell('',{}))));}
+    others.forEach((x,i)=>{const co=(v,h)=>cell(v,{h:h||'center',sz:9}); const nf=cell('ไม่พบ',{h:'center',sz:9,fill:C.red});
+      m3.push([co(i+1),co(NM[x.side]==NM.W?'น้ำหวาน':'เขม'),co(x.phone),co(x.direction||''),co(x.durationSec||0),co(thTime(x.at)),nf,nf,nf]);
+    });
+    m3.push(Array(H3.length).fill(null));
+    m3.push([cell('เบอร์นอกระบบ = ไม่พบในฐานลูกค้าของระบบเลย (Evolution + Big Seller + FB/ปิดการขาย) — เป็นสายหาลูกค้าใหม่ / ส่วนตัว / เบอร์ผิด · ควรให้ทีมยืนยันบริบท',{sz:10,b:true,fc:'FF9C5700',fill:C.amber,border:false})].concat(Array(H3.length-1).fill(null)));
+    const ws3=newWS(m3,[{wch:4},{wch:12},{wch:13},{wch:8},{wch:11},{wch:9},{wch:13},{wch:13},{wch:16}]);
+    mk(ws3,[R(0,0,H3.length-1,0),R(0,m3.length-1,H3.length-1,m3.length-1)]);
+    XLSX.utils.book_append_sheet(wb,ws3,'สายนอกระบบ');
+
+    const fn='รายงานสรุปเทเลเซลล์-'+rangeLbl.replace(/[\/→ ]+/g,'-')+'.xlsx';
+    XLSX.writeFile(wb,fn);
+    msg.style.color='#0e9f6e';msg.textContent='✅ ดาวน์โหลดแล้ว: '+fn+' ('+T.talk+' สายคุยจริง / '+T.legs+' สายทั้งหมด)';
+  }catch(e){msg.style.color='#b91c1c';msg.textContent='❌ '+(e.message||e);}
+  btn.disabled=false;btn.innerHTML=old;
+}
 
 renderNav(); showSec('overview');
 refresh(); loadKpi(); loadChatKpi(); loadOnecallStatus(); loadPulls(); evoStatus(); loadCallLog(); loadPancakeStatus(); setInterval(loadOnecallStatus, 30000); setInterval(refresh, 30000); setInterval(loadPulls, 60000); setInterval(loadKpi, 30000); setInterval(evoStatus, 60000); setInterval(loadCallLog, 60000); setInterval(loadPancakeStatus, 30000); setInterval(loadChatKpi, 180000);
