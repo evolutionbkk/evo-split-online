@@ -12,23 +12,19 @@
     --brand:#2563eb;--brand-deep:#1e3a8a;--violet:#7c3aed;--cyan:#0e7490;
     --ok:#16a34a;--warn:#d97706;--bad:#dc2626;--w:#2563eb;--k:#4f46e5;
     --side:#0f172a;--side-ink:#cbd5e1;--side-mut:#64748b;--side-line:#1e293b;
-    --shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px rgba(30,41,59,.06);
-    --shadow-lg:0 12px 40px rgba(15,23,42,.18);
+    --shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px rgba(30,41,59,.06);--shadow-lg:0 12px 40px rgba(15,23,42,.18);
   }
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
     --bg:#0b1220;--surface:#131c2e;--surface-2:#0f1829;--ink:#e6ecf5;--muted:#93a3bb;--line:#243247;
-    --side:#080d18;--side-ink:#cbd5e1;--side-mut:#64748b;--side-line:#1a2436;
-    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);--shadow-lg:0 12px 40px rgba(0,0,0,.5);
+    --side:#080d18;--side-line:#1a2436;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);--shadow-lg:0 12px 40px rgba(0,0,0,.5);
   }}
   :root[data-theme="dark"]{
     --bg:#0b1220;--surface:#131c2e;--surface-2:#0f1829;--ink:#e6ecf5;--muted:#93a3bb;--line:#243247;
-    --side:#080d18;--side-ink:#cbd5e1;--side-mut:#64748b;--side-line:#1a2436;
-    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);--shadow-lg:0 12px 40px rgba(0,0,0,.5);
+    --side:#080d18;--side-line:#1a2436;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);--shadow-lg:0 12px 40px rgba(0,0,0,.5);
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:"Noto Sans Thai",system-ui,sans-serif;color:var(--ink);background:var(--bg);font-size:14px;-webkit-font-smoothing:antialiased}
-  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
-  .tnum{font-variant-numeric:tabular-nums}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}.tnum{font-variant-numeric:tabular-nums}
   button{font-family:inherit;cursor:pointer}
   .app{display:flex;min-height:100vh}
   .side{width:232px;flex:0 0 auto;background:var(--side);color:var(--side-ink);padding:16px 12px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow:auto}
@@ -36,16 +32,14 @@
   .brand small{display:block;color:var(--side-mut);font-weight:600;font-size:11px;margin-top:3px}
   .navlab{font-size:10px;font-weight:800;color:var(--side-mut);letter-spacing:.6px;padding:11px 10px 4px;text-transform:uppercase}
   .nav-i{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;font-size:13px;font-weight:700;color:var(--side-ink);background:transparent;border:0;width:100%;text-align:left}
-  .nav-i:hover{background:rgba(255,255,255,.06);color:#fff}
-  .nav-i.on{background:var(--brand);color:#fff}
+  .nav-i:hover{background:rgba(255,255,255,.06);color:#fff}.nav-i.on{background:var(--brand);color:#fff}
   .nav-i .ic{width:17px;text-align:center;flex:0 0 auto}
   .nav-i .badge{margin-left:auto;background:#db2777;color:#fff;font-size:11px;border-radius:8px;padding:1px 7px;font-weight:800}
   .nav-i.sub{padding-left:32px;font-size:12.5px;color:var(--side-mut);font-weight:600}
   .nav-i.sub.on{color:#fff;background:rgba(37,99,235,.25)}
   .main{flex:1;min-width:0;display:flex;flex-direction:column}
   .topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 86%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:11px 22px;display:flex;align-items:center;gap:14px}
-  .topbar h2{margin:0;font-size:16px;font-weight:800}
-  .spacer{flex:1}
+  .topbar h2{margin:0;font-size:16px;font-weight:800}.spacer{flex:1}
   .menuBtn{display:none;border:1px solid var(--line);background:var(--surface);border-radius:10px;width:38px;height:38px;font-size:16px;color:var(--ink)}
   .iconbtn{border:1px solid var(--line);background:var(--surface);border-radius:10px;width:38px;height:38px;font-size:16px;color:var(--ink)}
   .lo{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 13px;font-weight:700;font-size:13px;color:var(--ink);text-decoration:none}
@@ -58,6 +52,7 @@
   .fg{display:flex;align-items:center;gap:5px}.fg .lb{font-size:11px;color:var(--muted);font-weight:800}
   .chip{border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:6px 11px;font-size:12px;font-weight:700;color:var(--ink)}
   .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .fbar2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
   .tcard{overflow:hidden}
   .tcard .hd{padding:13px 16px;color:#fff;font-weight:800;font-size:14.5px;display:flex;align-items:center;gap:9px}
@@ -65,12 +60,10 @@
   .tcard.tel .hd{background:linear-gradient(135deg,#1e3a8a,#2563eb)}
   .mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line)}
   .mi{background:var(--surface);padding:14px 15px}
-  .mi .n{font-size:22px;font-weight:800;line-height:1}
-  .mi .l{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:4px}
+  .mi .n{font-size:22px;font-weight:800;line-height:1}.mi .l{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:4px}
   .todo{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px}
   .tt{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:13px;box-shadow:var(--shadow);padding:14px 15px}
-  .tt .n{font-size:25px;font-weight:800;line-height:1;color:var(--warn)}
-  .tt .l{font-size:12px;color:var(--muted);font-weight:700;margin-top:5px}
+  .tt .n{font-size:25px;font-weight:800;line-height:1;color:var(--warn)}.tt .l{font-size:12px;color:var(--muted);font-weight:700;margin-top:5px}
   .tt.red{border-left-color:var(--bad)}.tt.red .n{color:var(--bad)}
   .tt.blue{border-left-color:var(--brand)}.tt.blue .n{color:var(--brand)}
   .tt.green{border-left-color:var(--ok)}.tt.green .n{color:var(--ok)}
@@ -79,9 +72,10 @@
   .tbl th.r,.tbl td.r{text-align:right}
   .tbl td{padding:12px 15px;border-bottom:1px solid var(--line)}
   .tbl tr:last-child td{border-bottom:0}
+  .tbl.click tbody tr{cursor:pointer}.tbl.click tbody tr:hover td{background:var(--surface-2)}
   .win{color:var(--ok);font-weight:800}
-  .sideb{font-size:11px;font-weight:800;color:#fff;border-radius:6px;padding:2px 7px}
-  .sideb.w{background:var(--w)}.sideb.k{background:var(--k)}
+  .sideb{font-size:11px;font-weight:800;color:#fff;border-radius:6px;padding:2px 7px}.sideb.w{background:var(--w)}.sideb.k{background:var(--k)}
+  .rd{font-size:11.5px;font-weight:800;color:var(--violet);background:color-mix(in srgb,var(--violet) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--violet) 30%,var(--surface));border-radius:6px;padding:2px 7px}
   .st-new{background:color-mix(in srgb,#3730a3 14%,var(--surface));color:#4f46e5}
   .st-ct{background:color-mix(in srgb,var(--cyan) 14%,var(--surface));color:var(--cyan)}
   .st-int{background:color-mix(in srgb,var(--violet) 14%,var(--surface));color:var(--violet)}
@@ -103,11 +97,23 @@
   .dor{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid var(--line)}.dor:last-child{border-bottom:0}
   .av{width:42px;height:42px;border-radius:12px;color:#fff;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
   .av.W{background:linear-gradient(135deg,#2563eb,#1e3a8a)}.av.K{background:linear-gradient(135deg,#7c3aed,#4c1d95)}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px dashed var(--line)}.kv:last-child{border-bottom:0}.kv .k{color:var(--muted)}.kv .v{font-weight:700;text-align:right}
+  .backbtn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 13px;font-weight:700;font-size:13px;color:var(--ink);margin-bottom:14px;display:inline-flex;gap:7px;align-items:center}
+  .tk-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:15px 18px;margin-bottom:14px}
+  .tk-av{width:50px;height:50px;border-radius:13px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-weight:800;font-size:21px;display:flex;align-items:center;justify-content:center}
+  .tk-name{font-size:18px;font-weight:800;display:flex;align-items:center;gap:9px;flex-wrap:wrap}.tk-id{font-size:12px;color:var(--muted);margin-top:2px}
+  .grid2{display:grid;grid-template-columns:1.7fr 1fr;gap:16px;align-items:start}
+  .ev{position:relative;padding:0 0 15px 28px}
+  .ev:not(:last-child)::before{content:"";position:absolute;left:11px;top:23px;bottom:0;width:2px;background:var(--line)}
+  .ev .eic{position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;background:var(--surface-2);border:1px solid var(--line)}
+  .ev .et{font-size:13px;font-weight:700}.ev .em{font-size:11px;color:var(--muted);margin-top:2px}
+  .ev .ex{font-size:12px;color:var(--ink);margin-top:5px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
+  .ttag{font-size:12px;font-weight:700;border-radius:999px;padding:4px 11px;border:1px solid var(--line);background:var(--surface-2)}
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--surface);padding:11px 18px;border-radius:22px;font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:.22s;z-index:100;box-shadow:var(--shadow-lg)}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
   .note{background:color-mix(in srgb,var(--cyan) 9%,var(--surface));border:1px solid color-mix(in srgb,var(--cyan) 28%,var(--surface));color:#0369a1;border-radius:12px;padding:11px 14px;font-size:12.5px;font-weight:600;line-height:1.6}
   .empty{color:var(--muted);padding:26px;text-align:center;background:var(--surface);border:1px dashed var(--line);border-radius:14px}
-  @media(max-width:960px){.side{position:fixed;left:0;top:0;z-index:40;transform:translateX(-100%);transition:.25s}.side.open{transform:none}.menuBtn{display:block}.two{grid-template-columns:1fr}.todo{grid-template-columns:repeat(2,1fr)}.poolwrap{grid-template-columns:1fr}}
+  @media(max-width:960px){.side{position:fixed;left:0;top:0;z-index:40;transform:translateX(-100%);transition:.25s}.side.open{transform:none}.menuBtn{display:block}.two{grid-template-columns:1fr}.todo{grid-template-columns:repeat(2,1fr)}.poolwrap{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -116,7 +122,7 @@
   <div class="main">
     <div class="topbar">
       <button class="menuBtn" onclick="document.getElementById('side').classList.toggle('open')">☰</button>
-      <h2 id="viewTitle">ภาพรวมทีม</h2><div class="spacer"></div>
+      <h2 id="viewTitle">ภาพรวม</h2><div class="spacer"></div>
       <button class="iconbtn" id="themeBtn" title="สลับธีม" onclick="toggleTheme()">◐</button>
       <a class="lo" href="#" onclick="logout(event)">ออกจากระบบ</a>
     </div>
@@ -131,51 +137,71 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const fmt=n=>Number(n||0).toLocaleString("th-TH");
 const fmtB=n=>"฿"+fmt(Math.round(n||0));
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1900);}
-let ME=null,VIEW="dash",RANGE="today",D={};
+let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",D={};
 
-/* theme */
 (function(){try{const s=localStorage.getItem("evo-theme");if(s)document.documentElement.setAttribute("data-theme",s);}catch(e){}})();
-window.toggleTheme=function(){const el=document.documentElement;const cur=el.getAttribute("data-theme");const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;const nx=dark?"light":"dark";el.setAttribute("data-theme",nx);try{localStorage.setItem("evo-theme",nx);}catch(e){}};
+window.toggleTheme=function(){const el=document.documentElement,cur=el.getAttribute("data-theme");const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;const nx=dark?"light":"dark";el.setAttribute("data-theme",nx);try{localStorage.setItem("evo-theme",nx);}catch(e){}};
+window.logout=function(e){e.preventDefault();fetch("/logout",{method:"POST"}).then(()=>location.href="/login");};
 
+/* nav */
 const NAV=[
-  {k:"dash",ic:"📊",t:"ภาพรวมทีม"},
-  {lab:"ผลงานทีม"},
-  {k:"tele",ic:"📞",t:"KPI ทีมเซลล์",sub:1},
-  {k:"admin",ic:"💬",t:"KPI ทีมแอดมิน",sub:1},
-  {lab:"จัดการ"},
-  {k:"dist",ic:"📤",t:"คลังรายชื่อ & แจก"},
-  {k:"leave",ic:"🌴",t:"วันลา / วันหยุด"},
+  {k:"dashboard",ic:"📊",t:"ภาพรวม"},
+  {lab:"Admin (แชท)"},
+  {k:"admin_overview",t:"ภาพรวม Admin",sub:1},
+  {lab:"Telesales (โทร)"},
+  {k:"tel_overview",t:"ภาพรวม Telesales",sub:1},
+  {k:"tel_calltoday",t:"โทรวันนี้",sub:1},
+  {k:"tel_perf",t:"ผลงาน Telesales",sub:1},
+  {lab:"ทั่วไป"},
+  {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
+  {k:"stock",ic:"📥",t:"คลังรายชื่อ & แจก"},
+  {k:"reports",ic:"📄",t:"รายงาน"},
+  {k:"staff",ic:"🧑‍💼",t:"พนักงาน"},
+  {k:"settings",ic:"⚙️",t:"ตั้งค่า"},
 ];
-const TITLES={dash:"ภาพรวมทีม",tele:"KPI ทีมเซลล์",admin:"KPI ทีมแอดมิน",dist:"คลังรายชื่อ & แจก",leave:"วันลา / วันหยุด"};
+const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
 function renderNav(){
   $("#side").innerHTML=`<div class="brand">EVO E-COMMERCE<small>${esc((ME&&ME.name)||"หัวหน้าทีม")} · Console</small></div>`+
     NAV.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`
-      :`<button class="nav-i ${it.sub?"sub":""} ${VIEW===it.k?"on":""}" onclick="go('${it.k}')">${it.ic?`<span class="ic">${it.ic}</span>`:""}<span>${it.t}</span></button>`).join("");
+      :`<button class="nav-i ${it.sub?"sub":""} ${(VIEW===it.k||(it.k==="tickets"&&VIEW==="ticket"))?"on":""}" onclick="go('${it.k}')">${it.ic?`<span class="ic">${it.ic}</span>`:""}<span>${it.t}</span></button>`).join("");
 }
 window.go=function(k){VIEW=k;$("#side").classList.remove("open");paint();};
-window.logout=function(e){e.preventDefault();fetch("/logout",{method:"POST"}).then(()=>location.href="/login");};
 
 async function getJSON(u){const r=await fetch(u);if(r.status===401){location.href="/login";return null;}if(r.status===403){location.href="/sales";return null;}return r.json().catch(()=>({}));}
 async function postJSON(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});if(r.status===401){location.href="/login";return null;}return r.json().catch(()=>({}));}
 
 /* range */
+let customFrom="",customTo="";
 function rangeISO(){
   const TZ=7*3600000,now=Date.now(),th=new Date(now+TZ);
   const y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
   const sT=Date.UTC(y,m,d,0,0,0)-TZ,eT=Date.UTC(y,m,d,23,59,59)-TZ;
-  if(RANGE==="7")return{from:new Date(sT-6*86400000).toISOString(),to:new Date(eT).toISOString()};
+  if(RANGE==="yesterday")return{from:new Date(sT-86400000).toISOString(),to:new Date(eT-86400000).toISOString()};
+  if(RANGE==="week")return{from:new Date(sT-6*86400000).toISOString(),to:new Date(eT).toISOString()};
   if(RANGE==="month")return{from:new Date(Date.UTC(y,m,1,0,0,0)-TZ).toISOString(),to:new Date(eT).toISOString()};
+  if(RANGE==="custom"&&customFrom&&customTo){const f=Date.parse(customFrom+"T00:00:00Z")-TZ,t=Date.parse(customTo+"T23:59:59Z")-TZ;if(!isNaN(f)&&!isNaN(t))return{from:new Date(f).toISOString(),to:new Date(t).toISOString()};}
   return{from:new Date(sT).toISOString(),to:new Date(eT).toISOString()};
 }
-const RLABEL={today:"วันนี้","7":"7 วันล่าสุด",month:"เดือนนี้"};
+const RLABEL={today:"วันนี้",yesterday:"เมื่อวาน",week:"สัปดาห์",month:"เดือน",custom:"กำหนดเอง"};
+const RORDER=["today","yesterday","week","month","custom"];
+function rlab(){return (RANGE==="custom"&&customFrom&&customTo)?`${customFrom} – ${customTo}`:RLABEL[RANGE];}
 function filterBar(){
-  return `<div class="filters"><div class="fg"><span class="lb">ช่วงเวลา</span>`+
-    ["today","7","month"].map(r=>`<button class="chip ${RANGE===r?"on":""}" onclick="setRange('${r}')">${RLABEL[r]}</button>`).join("")+
-    `</div><div class="fg" style="margin-left:auto"><span class="lb" style="color:var(--muted)">อัปเดตอัตโนมัติทุก 1 นาที</span></div></div>`;
+  let h=`<div class="filters"><div class="fg"><span class="lb">ช่วงเวลา</span>`+RORDER.map(r=>`<button class="chip ${RANGE===r?"on":""}" onclick="setRange('${r}')">${RLABEL[r]}</button>`).join("")+`</div>`;
+  if(RANGE==="custom")h+=`<div class="fg" style="margin-left:6px"><span class="lb">จาก</span><input type="date" class="inp" id="cFrom" value="${esc(customFrom)}" style="padding:6px 9px;font-size:12.5px"><span class="lb">ถึง</span><input type="date" class="inp" id="cTo" value="${esc(customTo)}" style="padding:6px 9px;font-size:12.5px"><button class="chip on" onclick="applyCustom()">ใช้</button></div>`;
+  h+=`<div class="fg" style="margin-left:auto"><span class="lb" style="color:var(--muted)">อัปเดตทุก 1 นาที</span></div></div>`;
+  return h;
 }
-window.setRange=async function(r){RANGE=r;$("#content").innerHTML='<div class="empty">กำลังโหลด…</div>';await load();paint();};
+window.setRange=async function(r){RANGE=r;if(r==="custom"){if(!customFrom||!customTo){const TZ=7*3600000,th=new Date(Date.now()+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate(),iso=t=>new Date(t).toISOString().slice(0,10);customTo=iso(Date.UTC(y,m,d));customFrom=iso(Date.UTC(y,m,d)-6*86400000);}paint();return;}$("#content").innerHTML='<div class="empty">กำลังโหลด…</div>';await load();paint();};
+window.applyCustom=async function(){const f=$("#cFrom").value,t=$("#cTo").value;if(!f||!t){toast("เลือกวันที่ให้ครบ");return;}if(f>t){toast("วันเริ่มต้องไม่เกินวันสิ้นสุด");return;}customFrom=f;customTo=t;$("#content").innerHTML='<div class="empty">กำลังโหลด…</div>';await load();paint();};
 
-/* ---------- data ---------- */
+/* data */
+const FB=s=>s==="pancake"||s==="manual"||s==="refill";
+const chName=s=>FB(s)?"Facebook (Pancake)":"Marketplace";
+function saleRev(r){return (r.saleItems||[]).reduce((s,x)=>s+(Number(x.price)||0),0);}
+const STLABEL={new:"ใหม่",contacting:"กำลังติดต่อ",interested:"สนใจ",followup:"นัดติดตาม",awaiting_payment:"รอชำระเงิน",won:"ปิดการขาย",lost:"ไม่สนใจ"};
+const STCLASS={new:"st-new",contacting:"st-ct",interested:"st-int",followup:"st-fu",awaiting_payment:"st-pay",won:"st-won",lost:"st-lost"};
+const STCOL={new:"#4f46e5",contacting:"#0e7490",interested:"#7c3aed",followup:"#0369a1",awaiting_payment:"#d97706",won:"#16a34a",lost:"#b91c1c"};
+function stPill(s,ex){s=s||"new";return `<span class="pill ${STCLASS[s]||"st-new"}">${STLABEL[s]||s}${ex||""}</span>`;}
 async function load(){
   const{from,to}=rangeISO();const q=`?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
   const[kpi,calls,chat,pool,dist,leads,leave]=await Promise.all([
@@ -183,69 +209,43 @@ async function load(){
     getJSON("/api/pool"),getJSON("/api/dist-stats"+q),getJSON("/api/leads"),getJSON("/api/admin/leaves"),
   ]);
   D={kpi:kpi||{},calls:calls||{},chat:chat||{},pool:pool||{},dist:dist||{},leave:leave||{}};
-  // derive from raw leads: source table + todo counts
-  D.src=srcAgg((leads&&leads.active)||[]);
-  D.todo=todoAgg((leads&&leads.active)||[]);
+  D.leads=(leads&&leads.active)||[];D.archived=(leads&&leads.archived)||[];
+  D.src=srcAgg(D.leads);D.todo=todoAgg(D.leads);
 }
-const FB=s=>s==="pancake"||s==="manual"||s==="refill";
-function saleRev(r){return (r.saleItems||[]).reduce((s,x)=>s+(Number(x.price)||0),0);}
-function srcAgg(list){
-  const z=()=>({leads:0,called:0,talk:0,interest:0,won:0,rev:0});
-  const A={mkt:z(),fb:z()};
-  for(const r of list){const ch=FB(r.source)?"fb":"mkt";const a=A[ch];a.leads++;
-    if((r.callCount||0)>0)a.called++;
-    const st=r.leadStatus||"new";
-    if(st==="interested"||st==="followup")a.interest++;
-    if(st==="won"){a.won++;a.rev+=saleRev(r);}
-  }
-  return A;
-}
-function todoAgg(list){
-  const now=Date.now();let notCalled=0,dueToday=0,overdue=0,pay=0,interest=0;
-  const TZ=7*3600000,th=new Date(now+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
-  const dayEnd=Date.UTC(y,m,d,23,59,59)-TZ;
-  for(const r of list){const st=r.leadStatus||"new";
-    if(st==="won"||st==="lost")continue;
-    if((r.callCount||0)===0&&st==="new")notCalled++;
-    if(st==="awaiting_payment")pay++;
-    if(st==="interested")interest++;
+function srcAgg(list){const z=()=>({leads:0,called:0,interest:0,won:0,rev:0});const A={mkt:z(),fb:z()};
+  for(const r of list){const a=A[FB(r.source)?"fb":"mkt"];a.leads++;if((r.callCount||0)>0)a.called++;const st=r.leadStatus||"new";if(st==="interested"||st==="followup")a.interest++;if(st==="won"){a.won++;a.rev+=saleRev(r);}}return A;}
+function todoAgg(list){const now=Date.now();let notCalled=0,dueToday=0,overdue=0,pay=0,interest=0;
+  const TZ=7*3600000,th=new Date(now+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate(),dayEnd=Date.UTC(y,m,d,23,59,59)-TZ;
+  for(const r of list){const st=r.leadStatus||"new";if(st==="won"||st==="lost")continue;
+    if((r.callCount||0)===0&&st==="new")notCalled++;if(st==="awaiting_payment")pay++;if(st==="interested")interest++;
     if(st==="followup"&&r.nextAppt){const t=Date.parse(r.nextAppt);if(!isNaN(t)){if(t<now)overdue++;else if(t<=dayEnd)dueToday++;}}
-    else{const la=Date.parse(r.lastActivity||r.updatedAt||0);if(la&&(now-la)>=4*86400000)overdue++;}
-  }
-  return{notCalled,dueToday,overdue,pay,interest};
-}
-function teamT(){
-  const W=D.kpi.W||{},K=D.kpi.K||{},s=f=>(W[f]||0)+(K[f]||0);
-  const rev=a=>(a.todaySales||[]).reduce((x,y)=>x+(y.amount||0),0);
-  return{total:s("total"),callsToday:s("callsToday"),talk7Today:s("talk7Today"),wonToday:s("wonToday"),
-    revToday:rev(W)+rev(K),pending:s("pending"),followup:((W.status||{}).followup||0)+((K.status||{}).followup||0),
-    calledEvoToday:s("calledEvoToday"),calledManualToday:s("calledManualToday"),
-    Wrev:rev(W),Krev:rev(K)};
-}
+    else{const la=Date.parse(r.lastActivity||r.updatedAt||0);if(la&&(now-la)>=4*86400000)overdue++;}}
+  return{notCalled,dueToday,overdue,pay,interest};}
+function teamT(){const W=D.kpi.W||{},K=D.kpi.K||{},s=f=>(W[f]||0)+(K[f]||0),rev=a=>(a.todaySales||[]).reduce((x,y)=>x+(y.amount||0),0);
+  return{total:s("total"),callsToday:s("callsToday"),talk7Today:s("talk7Today"),wonToday:s("wonToday"),revToday:rev(W)+rev(K),
+    pending:s("pending"),followup:((W.status||{}).followup||0)+((K.status||{}).followup||0),
+    calledEvoToday:s("calledEvoToday"),calledManualToday:s("calledManualToday"),Wrev:rev(W),Krev:rev(K)};}
 
-/* ---------- helpers ---------- */
+/* helpers */
 function mi(n,l,c){return `<div class="mi"><div class="n tnum" ${c?`style="color:${c}"`:""}>${n}</div><div class="l">${l}</div></div>`;}
 function statTile(n,l,c){return `<div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;line-height:1${c?`;color:${c}`:""}">${n}</div><div style="font-size:11.5px;color:var(--muted);font-weight:600;margin-top:5px">${l}</div></div>`;}
+function grid(min){return `display:grid;grid-template-columns:repeat(auto-fit,minmax(${min}px,1fr));gap:12px`;}
 function bar(pct,c){return `<div style="height:7px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:5px"><i style="display:block;height:100%;width:${Math.min(100,pct)}%;background:${c}"></i></div>`;}
-function cell(v,pct){const c=pct>=90?"var(--ok)":pct>=60?"var(--brand)":pct>=40?"var(--warn)":"var(--bad)";
-  return `<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${v}</span><span class="tnum" style="color:${c}">${pct}%</span></div>${bar(pct,c)}</td>`;}
+function cell(v,pct){const c=pct>=90?"var(--ok)":pct>=60?"var(--brand)":pct>=40?"var(--warn)":"var(--bad)";return `<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${v}</span><span class="tnum" style="color:${c}">${pct}%</span></div>${bar(pct,c)}</td>`;}
+const pc=(v,t)=>t?Math.round(v/t*100):0;
+function ownerLabel(side){return side==="K"?"พี่เขม":"พี่หวาน";}
 
-/* ========== DASHBOARD ========== */
-function viewDash(){
-  const t=teamT(),src=D.src,todo=D.todo;
-  const admins=(D.chat.admins||[]).filter(Boolean);
-  const admChats=admins.reduce((s,a)=>s+(a.chats||0),0),admReplies=admins.reduce((s,a)=>s+(a.replies||0),0),admClosed=admins.reduce((s,a)=>s+(a.closed||0),0);
-  const tgtCallTeam=((D.kpi.targets&&D.kpi.targets.evo)||50)*2+((D.kpi.targets&&D.kpi.targets.manual)||15)*2;
+/* ===== DASHBOARD ===== */
+function viewDashboard(){
+  const t=teamT(),src=D.src,todo=D.todo,admins=(D.chat.admins||[]).filter(Boolean);
+  const aC=admins.reduce((s,a)=>s+(a.chats||0),0),aR=admins.reduce((s,a)=>s+(a.replies||0),0),aCl=admins.reduce((s,a)=>s+(a.closed||0),0);
   let h=filterBar();
   h+=`<div class="two">
     <div class="card tcard adm"><div class="hd">💬 ทีมแอดมิน — ตอบแชท FB</div>
-      <div class="mgrid">${mi(fmt(admins.length),"จำนวนแอดมิน")}${mi(fmt(admChats),"แชทที่ดูแล")}${mi(fmt(admReplies),"ข้อความตอบ")}${mi(fmt(admClosed),"ปิดแชท","var(--ok)")}${mi("—","ยอดขาย")}${mi("—","ต้องเชื่อม Pancake")}</div>
-    </div>
+      <div class="mgrid">${mi(fmt(admins.length),"จำนวนแอดมิน")}${mi(fmt(aC),"แชทที่ดูแล")}${mi(fmt(aR),"ข้อความตอบ")}${mi(fmt(aCl),"ปิดแชท","var(--ok)")}${mi("—","ยอดขาย")}${mi("—","ต้องเชื่อม Pancake")}</div></div>
     <div class="card tcard tel"><div class="hd">📞 ทีมเซลล์ — การโทร</div>
-      <div class="mgrid">${mi(fmt(t.total),"ลูกค้าในมือ")}${mi(fmt(t.callsToday),"โทรวันนี้")}${mi(fmt(t.talk7Today),"ได้คุย (>7 วิ)")}${mi(fmt(t.followup),"รอติดตาม")}${mi(fmt(t.wonToday),"ปิดได้วันนี้","var(--ok)")}${mi(fmtB(t.revToday),"ยอดขายวันนี้","var(--ok)")}</div>
-    </div>
+      <div class="mgrid">${mi(fmt(t.total),"ลูกค้าในมือ")}${mi(fmt(t.callsToday),"โทรวันนี้")}${mi(fmt(t.talk7Today),"ได้คุย (>7 วิ)")}${mi(fmt(t.followup),"รอติดตาม")}${mi(fmt(t.wonToday),"ปิดได้วันนี้","var(--ok)")}${mi(fmtB(t.revToday),"ยอดขายวันนี้","var(--ok)")}</div></div>
   </div>`;
-  // งานค้าง
   h+=`<div class="secttl">🔔 งานค้างวันนี้ — ต้องเคลียร์<span class="ln"></span></div>
   <div class="todo">
     <div class="tt blue"><div class="n tnum">${fmt(todo.notCalled)}</div><div class="l">ยังไม่ได้โทร</div></div>
@@ -254,178 +254,232 @@ function viewDash(){
     <div class="tt"><div class="n tnum">${fmt(todo.pay)}</div><div class="l">รอชำระเงิน</div></div>
     <div class="tt green"><div class="n tnum">${fmt(todo.interest)}</div><div class="l">สนใจ · รอปิด</div></div>
   </div>`;
-  // source table
   h+=`<div class="secttl">🛒 แหล่งที่มาของลูกค้า — Marketplace vs Facebook<span class="ln"></span></div>
-  <div class="card" style="overflow:auto"><table class="tbl">
-    <thead><tr><th>ช่องทาง</th><th class="r">รายชื่อในมือ</th><th class="r">โทรแล้ว</th><th class="r">สนใจ/ติดตาม</th><th class="r">ปิดขาย</th><th class="r">ยอดขาย</th></tr></thead>
-    <tbody>
-      <tr><td><b>📦 Marketplace</b></td><td class="r tnum">${fmt(src.mkt.leads)}</td><td class="r tnum">${fmt(src.mkt.called)}</td><td class="r tnum">${fmt(src.mkt.interest)}</td><td class="r tnum win">${fmt(src.mkt.won)}</td><td class="r tnum win">${fmtB(src.mkt.rev)}</td></tr>
-      <tr><td><b>💬 Facebook (Pancake)</b></td><td class="r tnum">${fmt(src.fb.leads)}</td><td class="r tnum">${fmt(src.fb.called)}</td><td class="r tnum">${fmt(src.fb.interest)}</td><td class="r tnum win">${fmt(src.fb.won)}</td><td class="r tnum win">${fmtB(src.fb.rev)}</td></tr>
-    </tbody></table></div>`;
-  // ยอดขายวันนี้
+  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>ช่องทาง</th><th class="r">รายชื่อในมือ</th><th class="r">โทรแล้ว</th><th class="r">สนใจ/ติดตาม</th><th class="r">ปิดขาย</th><th class="r">ยอดขาย</th></tr></thead><tbody>
+    <tr><td><b>📦 Marketplace</b></td><td class="r tnum">${fmt(src.mkt.leads)}</td><td class="r tnum">${fmt(src.mkt.called)}</td><td class="r tnum">${fmt(src.mkt.interest)}</td><td class="r tnum win">${fmt(src.mkt.won)}</td><td class="r tnum win">${fmtB(src.mkt.rev)}</td></tr>
+    <tr><td><b>💬 Facebook (Pancake)</b></td><td class="r tnum">${fmt(src.fb.leads)}</td><td class="r tnum">${fmt(src.fb.called)}</td><td class="r tnum">${fmt(src.fb.interest)}</td><td class="r tnum win">${fmt(src.fb.won)}</td><td class="r tnum win">${fmtB(src.fb.rev)}</td></tr>
+  </tbody></table></div>`;
   h+=`<div class="secttl" style="margin-top:22px">💰 ยอดขายวันนี้ (ทีมเซลล์)<span class="ln"></span></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px">
-    ${statTile(fmtB(t.revToday),"ยอดขายรวม","var(--ok)")}${statTile(fmtB(t.Wrev),"พี่หวาน (W)")}${statTile(fmtB(t.Krev),"พี่เขม (K)")}${statTile(fmt(t.wonToday),"ออเดอร์รวม")}</div>
-  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>พนักงาน</th><th>ทีม</th><th class="r">ปิดวันนี้</th><th class="r">ยอดขายวันนี้</th></tr></thead>
-  <tbody>
+  <div style="${grid(170)};margin-bottom:16px">${statTile(fmtB(t.revToday),"ยอดขายรวม","var(--ok)")}${statTile(fmtB(t.Wrev),"พี่หวาน (W)")}${statTile(fmtB(t.Krev),"พี่เขม (K)")}${statTile(fmt(t.wonToday),"ออเดอร์รวม")}</div>
+  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>พนักงาน</th><th>ทีม</th><th class="r">ปิดวันนี้</th><th class="r">ยอดขายวันนี้</th></tr></thead><tbody>
     <tr><td><b>พี่หวาน</b></td><td><span class="sideb w">W</span> Telesales</td><td class="r tnum">${fmt((D.kpi.W||{}).wonToday||0)}</td><td class="r tnum win">${fmtB(t.Wrev)}</td></tr>
     <tr><td><b>พี่เขม</b></td><td><span class="sideb k">K</span> Telesales</td><td class="r tnum">${fmt((D.kpi.K||{}).wonToday||0)}</td><td class="r tnum win">${fmtB(t.Krev)}</td></tr>
-    ${admins.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td>Admin (แชท)</td><td class="r tnum">${fmt(a.closed)}</td><td class="r tnum" style="color:var(--muted)">—</td></tr>`).join("")}
+    ${admins.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td>Admin (แชท)</td><td class="r tnum">${fmt(a.closed)}</td><td class="r" style="color:var(--muted)">—</td></tr>`).join("")}
   </tbody></table></div>
-  ${admins.length?'':'<div class="note" style="margin-top:12px">ℹ️ แถวทีมแอดมินและยอดขายรายแอดมินจะแสดงเมื่อตั้งค่า CHAT_USERS และเชื่อม Pancake (PANCAKE_API_KEY) บน Railway</div>'}`;
+  ${admins.length?'':'<div class="note" style="margin-top:12px">ℹ️ ทีมแอดมินและยอดขายรายแอดมินจะแสดงเมื่อตั้งค่า CHAT_USERS และเชื่อม Pancake (PANCAKE_API_KEY) บน Railway</div>'}`;
   return h;
 }
 
-/* ========== TELESALES KPI ========== */
-function viewTele(){
-  const kpi=D.kpi,W=kpi.W||{},K=kpi.K||{},calls=D.calls||{};
-  const s=f=>(W[f]||0)+(K[f]||0);
-  const tEvo=(kpi.targets&&kpi.targets.evo)||50,tMan=(kpi.targets&&kpi.targets.manual)||15;
-  const pc=(v,t)=>t?Math.round(v/t*100):0;
-  const wEvo=W.calledEvoToday||0,kEvo=K.calledEvoToday||0,wMan=W.calledManualToday||0,kMan=K.calledManualToday||0;
+/* ===== ADMIN OVERVIEW ===== */
+function viewAdminOverview(){
+  const admins=(D.chat.admins||[]).filter(Boolean);
   let h=filterBar();
-  // pipeline
-  const stK=[["new","st-new","ใหม่"],["contacting","st-ct","กำลังติดต่อ"],["interested","st-int","สนใจ"],["followup","st-fu","นัดติดตาม"],["awaiting_payment","st-pay","รอชำระเงิน"],["won","st-won","ปิดสำเร็จ"],["lost","st-lost","ไม่สนใจ"]];
+  if(!admins.length)return h+`<div class="empty">ยังไม่ได้ตั้งค่าทีมแอดมิน (ตอบแชท) หรือยังไม่มีข้อมูลในช่วง ${rlab()}<br><span style="font-size:12px">เพิ่มรายชื่อแอดมิน (ไลลา/ณชา/ยูกิ/พี่โม) ที่ตัวแปร CHAT_USERS บน Railway</span></div>`;
+  const aC=admins.reduce((s,a)=>s+(a.chats||0),0),aR=admins.reduce((s,a)=>s+(a.replies||0),0),aCl=admins.reduce((s,a)=>s+(a.closed||0),0);
+  h+=`<div style="${grid(160)};margin-bottom:22px">${statTile(fmt(admins.length),"จำนวนแอดมิน")}${statTile(fmt(aC),"แชทที่ดูแล","var(--brand)")}${statTile(fmt(aR),"ข้อความตอบ")}${statTile(fmt(aCl),"ปิดแชท","var(--ok)")}</div>
+  <div class="secttl">👥 ผลงานรายคน · ${rlab()}<span class="ln"></span></div>
+  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>แอดมิน</th><th class="r">จำนวนแชท</th><th class="r">ข้อความตอบ</th><th class="r">ตอบเฉลี่ย</th><th class="r">ปิดแชท</th></tr></thead><tbody>
+    ${admins.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td class="r tnum">${fmt(a.chats)}</td><td class="r tnum">${fmt(a.replies)}</td><td class="r tnum">${a.avgRespSec!=null?a.avgRespSec+" วิ":"—"}</td><td class="r tnum win">${fmt(a.closed)}</td></tr>`).join("")}
+  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted);line-height:1.7"><b>จำนวนแชท</b> = แชทที่แอดมินดูแลในช่วงที่เลือก · <b>ปิดแชท</b> = แชทที่ปิดจ๊อบแล้ว · <b>ยอดขายรายแอดมิน (Pancake)</b> จะเพิ่มในด่านถัดไปเมื่อเชื่อม API</div></div>`;
+  return h;
+}
+
+/* ===== TELESALES OVERVIEW (pipeline + target) ===== */
+function viewTelOverview(){
+  const W=D.kpi.W||{},K=D.kpi.K||{},s=f=>(W[f]||0)+(K[f]||0);
+  const tEvo=(D.kpi.targets&&D.kpi.targets.evo)||50,tMan=(D.kpi.targets&&D.kpi.targets.manual)||15;
+  const wEvo=W.calledEvoToday||0,kEvo=K.calledEvoToday||0,wMan=W.calledManualToday||0,kMan=K.calledManualToday||0;
+  const stK=[["new","ใหม่"],["contacting","กำลังติดต่อ"],["interested","สนใจ"],["followup","นัดติดตาม"],["awaiting_payment","รอชำระเงิน"],["won","ปิดสำเร็จ"],["lost","ไม่สนใจ"]];
+  let h=filterBar();
   h+=`<div class="secttl">📊 ไปป์ไลน์ลูกค้า (ในมือตอนนี้)<span class="ln"></span></div>
-  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl">
-    <thead><tr><th>สถานะ</th><th class="r">พี่หวาน (W)</th><th class="r">พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
-    ${stK.map(([k,cls,l])=>`<tr><td><span class="pill ${cls}">${esc(l)}</span></td><td class="r tnum">${fmt((W.status||{})[k]||0)}</td><td class="r tnum">${fmt((K.status||{})[k]||0)}</td><td class="r tnum"><b>${fmt(((W.status||{})[k]||0)+((K.status||{})[k]||0))}</b></td></tr>`).join("")}
+  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>สถานะ</th><th class="r">พี่หวาน (W)</th><th class="r">พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
+    ${stK.map(([k,l])=>`<tr><td>${stPill(k)}</td><td class="r tnum">${fmt((W.status||{})[k]||0)}</td><td class="r tnum">${fmt((K.status||{})[k]||0)}</td><td class="r tnum"><b>${fmt(((W.status||{})[k]||0)+((K.status||{})[k]||0))}</b></td></tr>`).join("")}
     <tr style="background:var(--surface-2)"><td><b>ลูกค้าในมือรวม</b></td><td class="r tnum"><b>${fmt(W.total)}</b></td><td class="r tnum"><b>${fmt(K.total)}</b></td><td class="r tnum"><b>${fmt(s("total"))}</b></td></tr>
   </tbody></table></div>`;
-  // KPI target table w/ progress cells
   h+=`<div class="secttl">📞 การโทร — เทียบเป้าที่ระบบแจก/คน/วัน<span class="ln"></span></div>
-  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl">
-    <thead><tr><th>ช่องทาง</th><th class="r">เป้า/คน</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th>รวมทีม</th></tr></thead><tbody>
+  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>ช่องทาง</th><th class="r">เป้า/คน</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th>รวมทีม</th></tr></thead><tbody>
     <tr><td><b>📦 Marketplace</b><div style="font-size:11px;color:var(--muted)">รายชื่อจากเว็บ</div></td><td class="r tnum">${tEvo}</td>${cell(wEvo+"/"+tEvo,pc(wEvo,tEvo))}${cell(kEvo+"/"+tEvo,pc(kEvo,tEvo))}${cell((wEvo+kEvo)+"/"+(tEvo*2),pc(wEvo+kEvo,tEvo*2))}</tr>
     <tr><td><b>💬 Facebook (Pancake)</b><div style="font-size:11px;color:var(--muted)">T1+T2+T3</div></td><td class="r tnum">${tMan}</td>${cell(wMan+"/"+tMan,pc(wMan,tMan))}${cell(kMan+"/"+tMan,pc(kMan,tMan))}${cell((wMan+kMan)+"/"+(tMan*2),pc(wMan+kMan,tMan*2))}</tr>
     <tr style="background:var(--surface-2)"><td><b>รวมทั้งหมด</b></td><td class="r tnum">${tEvo+tMan}</td>${cell((wEvo+wMan)+"/"+(tEvo+tMan),pc(wEvo+wMan,tEvo+tMan))}${cell((kEvo+kMan)+"/"+(tEvo+tMan),pc(kEvo+kMan,tEvo+tMan))}${cell((wEvo+wMan+kEvo+kMan)+"/"+((tEvo+tMan)*2),pc(wEvo+wMan+kEvo+kMan,(tEvo+tMan)*2))}</tr>
-  </tbody></table>
-  <div style="padding:12px 15px;font-size:12px;color:var(--muted)">🟩 ถึงเป้า ≥90% · 🟦 ใกล้ 60–89% · 🟧 ต้องเร่ง 40–59% · 🟥 ห่างเป้า &lt;40% · <b>เป้าเป็นรายวัน</b> (เลือกช่วง "7 วัน/เดือนนี้" เพื่อดูยอดสะสม)</div></div>`;
-  // performance + revenue
-  h+=`<div class="secttl">🎯 ผลงาน · ${RLABEL[RANGE]}<span class="ln"></span></div>
-  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl">
-    <thead><tr><th>ตัวชี้วัด</th><th class="r">พี่หวาน (W)</th><th class="r">พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
-    ${krow("โทรออก (นับสาย)","callsRange",W,K)}
-    ${krow("คุยจริง >7 วินาที","talk7Range",W,K)}
-    ${krow("ปิดการขาย","wonRange",W,K)}
-    ${krow("ไม่สนใจ (Lost)","lostRange",W,K)}
-    <tr style="background:var(--surface-2)"><td><b>ยอดขาย</b></td><td class="r tnum"><b>${fmtB(W.revRange)}</b></td><td class="r tnum"><b>${fmtB(K.revRange)}</b></td><td class="r tnum win"><b>${fmtB(s("revRange"))}</b></td></tr>
-  </tbody></table></div>`;
-  // call quality
-  if(calls.summary){const q=calls.summary;
-    h+=`<div class="secttl">☎️ คุณภาพการโทร (OneCall) — ${calls.hasOnecall?"เชื่อมต่อแล้ว":"ยังไม่มีข้อมูล"}<span class="ln"></span></div>
-    <div class="card" style="overflow:auto"><table class="tbl">
-      <thead><tr><th>เซลล์</th><th class="r">สายทั้งหมด</th><th class="r">คุย >7 วิ</th><th class="r">เฉลี่ย/สาย</th><th class="r">อัตราคุยติด</th></tr></thead><tbody>
-      ${qrow("พี่หวาน (W)",q.W)}${qrow("พี่เขม (K)",q.K)}
-      <tr style="background:var(--surface-2)"><td><b>รวมทีม</b></td><td class="r tnum"><b>${fmt(q.team.calls)}</b></td><td class="r tnum win"><b>${fmt(q.team.over7)}</b></td><td class="r tnum"><b>${fmt(q.team.avgSec)} วิ</b></td><td class="r tnum"><b>${fmt(q.team.pct)}%</b></td></tr>
-    </tbody></table></div>`;
-  }
+  </tbody></table><div style="padding:12px 15px;font-size:12px;color:var(--muted)">🟩 ถึงเป้า ≥90% · 🟦 ใกล้ 60–89% · 🟧 ต้องเร่ง 40–59% · 🟥 ห่างเป้า &lt;40% · เป้าเป็นรายวัน</div></div>`;
   return h;
 }
-function krow(l,f,W,K){return `<tr><td>${esc(l)}</td><td class="r tnum">${fmt(W[f]||0)}</td><td class="r tnum">${fmt(K[f]||0)}</td><td class="r tnum"><b>${fmt((W[f]||0)+(K[f]||0))}</b></td></tr>`;}
-function qrow(n,s){s=s||{};return `<tr><td><b>${esc(n)}</b></td><td class="r tnum">${fmt(s.calls)}</td><td class="r tnum win">${fmt(s.over7)}</td><td class="r tnum">${fmt(s.avgSec)} วิ</td><td class="r tnum">${fmt(s.pct)}%</td></tr>`;}
 
-/* ========== TEAM ADMIN KPI ========== */
-function viewAdmin(){
-  const admins=(D.chat.admins||[]).filter(Boolean);
+/* ===== TEL CALL TODAY ===== */
+function ticketRow(r){const side=r.sales==="K"?"K":"W";
+  return `<tr onclick="openTicket('${esc(r.key)}')"><td class="mono" style="color:var(--brand);font-weight:800">${esc(r.code||"—")}</td><td><b>${esc(r.name||"(ไม่มีชื่อ)")}</b></td><td>${esc(chName(r.source))}</td><td>${r.step?`<span class="rd">${esc(r.step)}</span>`:'<span style="color:var(--muted)">—</span>'}</td><td>${stPill(r.leadStatus,saleRev(r)?" · "+fmtB(saleRev(r)):"")}</td><td><span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)}</td></tr>`;}
+function viewTelCallToday(){
+  const W=D.kpi.W||{},K=D.kpi.K||{},s=f=>(W[f]||0)+(K[f]||0);
+  const list=D.leads.filter(r=>{const st=r.leadStatus||"new";return st!=="won"&&st!=="lost";});
+  const notCalled=D.leads.filter(r=>(r.callCount||0)===0&&(r.leadStatus||"new")==="new").length;
   let h=filterBar();
-  if(!admins.length){h+=`<div class="empty">ยังไม่ได้ตั้งค่าทีมแอดมิน (ตอบแชท) หรือยังไม่มีข้อมูลในช่วง ${RLABEL[RANGE]}<br><span style="font-size:12px">เพิ่มรายชื่อแอดมิน (ไลลา/ณชา/ยูกิ/พี่โม) ที่ตัวแปร CHAT_USERS บน Railway แล้วข้อมูลจะขึ้นที่นี่อัตโนมัติ</span></div>`;return h;}
-  const tc=admins.reduce((s,a)=>s+(a.chats||0),0),tr=admins.reduce((s,a)=>s+(a.replies||0),0),tcl=admins.reduce((s,a)=>s+(a.closed||0),0);
-  h+=`<div class="card tcard adm" style="margin-bottom:20px"><div class="hd">💬 ทีมแอดมิน — ตอบแชท FB · ${RLABEL[RANGE]}</div>
-    <div class="mgrid">${mi(fmt(admins.length),"จำนวนแอดมิน")}${mi(fmt(tc),"แชทที่ดูแล")}${mi(fmt(tcl),"ปิดแชท","var(--ok)")}</div></div>`;
-  h+=`<div class="secttl">รายบุคคล<span class="ln"></span></div>
-  <div class="card" style="overflow:auto"><table class="tbl">
-    <thead><tr><th>แอดมิน</th><th class="r">จำนวนแชท</th><th class="r">ข้อความตอบ</th><th class="r">ตอบเฉลี่ย</th><th class="r">ปิดแชท</th></tr></thead><tbody>
-    ${admins.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td class="r tnum">${fmt(a.chats)}</td><td class="r tnum">${fmt(a.replies)}</td><td class="r tnum">${a.avgRespSec!=null?a.avgRespSec+" วิ":"—"}</td><td class="r tnum win">${fmt(a.closed)}</td></tr>`).join("")}
-  </tbody></table></div>
-  <div class="note" style="margin-top:14px">ยอดขายรายแอดมิน (ปิดการขายผ่านแชท) จะแสดงเมื่อเชื่อม Pancake (PANCAKE_API_KEY) — อยู่ในแผนด่านถัดไป</div>`;
+  h+=`<div style="${grid(150)};margin-bottom:20px">${statTile(fmt(s("total")),"รายชื่อทั้งหมด")}${statTile(fmt(notCalled),"ยังไม่ได้โทร","var(--brand)")}${statTile(fmt(s("callsToday")),"โทรวันนี้")}${statTile(fmt(s("talk7Today")),"ได้คุย (>7วิ)","var(--ok)")}${statTile(fmt(s("wonToday")),"ปิดได้วันนี้","var(--ok)")}</div>
+  <div class="secttl">รายชื่อที่ต้องโทร (ยังไม่ปิด/ไม่ตัดออก)<span class="ln"></span></div>
+  <div class="card" style="overflow:auto"><table class="tbl click"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ช่องทาง</th><th>รอบ</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>
+    ${list.length?list.slice(0,200).map(ticketRow).join(""):'<tr><td colspan="6" style="color:var(--muted)">ไม่มีรายการ</td></tr>'}
+  </tbody></table>${list.length>200?`<div style="padding:11px 15px;font-size:12px;color:var(--muted)">แสดง 200 จาก ${fmt(list.length)} ราย</div>`:""}</div>`;
   return h;
 }
 
-/* ========== DISTRIBUTE ========== */
+/* ===== TEL PERFORMANCE ===== */
+function viewTelPerf(){
+  const W=D.kpi.W||{},K=D.kpi.K||{};
+  const rate=a=>{const c=a.callsRange||0,w=a.wonRange||0;return c?Math.round(w/c*1000)/10+"%":"—";};
+  const cmp=(name,side,a)=>`<div class="card" style="padding:16px 18px"><div style="font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span class="sideb ${side}">${side.toUpperCase()}</span> ${name}</div>
+    ${[["ลูกค้าในมือ",fmt(a.total)],["โทรออก (นับสาย)",fmt(a.callsRange)],["คุยจริง >7 วิ",fmt(a.talk7Range)],["ปิดการขาย",fmt(a.wonRange)],["ไม่สนใจ",fmt(a.lostRange)],["ยอดขาย",fmtB(a.revRange)]].map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v tnum">${r[1]}</span></div>`).join("")}</div>`;
+  let h=filterBar();
+  h+=`<div class="card" style="overflow:auto;margin-bottom:18px"><table class="tbl"><thead><tr><th>Telesales</th><th class="r">ลูกค้า</th><th class="r">โทรออก</th><th class="r">ได้คุย</th><th class="r">ปิดขาย</th><th class="r">ไม่สนใจ</th><th class="r">อัตราปิด</th><th class="r">ยอดขาย</th></tr></thead><tbody>
+    <tr><td><b>พี่หวาน (W)</b></td><td class="r tnum">${fmt(W.total)}</td><td class="r tnum">${fmt(W.callsRange)}</td><td class="r tnum">${fmt(W.talk7Range)}</td><td class="r tnum win">${fmt(W.wonRange)}</td><td class="r tnum">${fmt(W.lostRange)}</td><td class="r tnum">${rate(W)}</td><td class="r tnum win">${fmtB(W.revRange)}</td></tr>
+    <tr><td><b>พี่เขม (K)</b></td><td class="r tnum">${fmt(K.total)}</td><td class="r tnum">${fmt(K.callsRange)}</td><td class="r tnum">${fmt(K.talk7Range)}</td><td class="r tnum win">${fmt(K.wonRange)}</td><td class="r tnum">${fmt(K.lostRange)}</td><td class="r tnum">${rate(K)}</td><td class="r tnum win">${fmtB(K.revRange)}</td></tr>
+  </tbody></table></div>
+  <div class="secttl">⚖️ เปรียบเทียบตรง · ${rlab()}<span class="ln"></span></div>
+  <div class="two">${cmp("พี่หวาน","w",W)}${cmp("พี่เขม","k",K)}</div>`;
+  return h;
+}
+
+/* ===== TICKETS ===== */
+function viewTickets(){
+  const all=D.leads;
+  const cnt={all:all.length,W:all.filter(r=>r.sales!=="K").length,K:all.filter(r=>r.sales==="K").length,
+    pending:all.filter(r=>{const s=r.leadStatus||"new";return s!=="won"&&s!=="lost";}).length,won:all.filter(r=>r.leadStatus==="won").length};
+  let list=all;
+  if(TKFILTER==="W")list=all.filter(r=>r.sales!=="K");else if(TKFILTER==="K")list=all.filter(r=>r.sales==="K");
+  else if(TKFILTER==="pending")list=all.filter(r=>{const s=r.leadStatus||"new";return s!=="won"&&s!=="lost";});
+  else if(TKFILTER==="won")list=all.filter(r=>r.leadStatus==="won");
+  const chips=[["all","ทั้งหมด "+cnt.all],["W","ฝั่ง W "+cnt.W],["K","ฝั่ง K "+cnt.K],["pending","ค้าง "+cnt.pending],["won","ปิดได้ "+cnt.won]];
+  let h=`<div class="fbar2">${chips.map(([k,l])=>`<button class="chip ${TKFILTER===k?"on":""}" onclick="setTk('${k}')">${l}</button>`).join("")}</div>
+  <div class="card" style="overflow:auto"><table class="tbl click"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ช่องทาง</th><th>รอบ</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>
+    ${list.length?list.slice(0,300).map(ticketRow).join(""):'<tr><td colspan="6" style="color:var(--muted)">ไม่มีรายการ</td></tr>'}
+  </tbody></table>${list.length>300?`<div style="padding:11px 15px;font-size:12px;color:var(--muted)">แสดง 300 จาก ${fmt(list.length)} ราย</div>`:""}</div>
+  <p style="color:var(--muted);font-size:12.5px;margin-top:12px">คลิกแถวเพื่อเปิดอ่านตั๋ว (หัวหน้าทีมอ่านได้ทุกฝั่ง · อ่านอย่างเดียว)</p>`;
+  return h;
+}
+window.setTk=function(k){TKFILTER=k;paint();};
+window.openTicket=function(key){CURKEY=key;PREV=(VIEW==="ticket"?PREV:VIEW);VIEW="ticket";paint();};
+
+const HLAB={call:"โทรหาลูกค้า",status:"เปลี่ยนสถานะ",result:"ผลการโทร",interest:"ระดับความสนใจ",action:"ตั้ง Next Action",lost:"เหตุผลที่ไม่สนใจ",followup:"ตั้งนัดติดตาม",note:"บันทึกโน้ต",name:"แก้ชื่อ",address:"แก้ที่อยู่",calls:"ปรับจำนวนสาย",sale:"บันทึกรายการขาย",tracking:"เลขพัสดุ",tstage:"ปรับรอบติดตาม",distribute:"แจกให้เซลล์",dayoff_move:"ย้าย(วันลา)",dayoff_return:"คืน(ยกเลิกลา)",transfer:"โอนให้อีกฝั่ง"};
+function evIcon(k){return {call:"📞",status:"🔄",sale:"💰",note:"✍️",followup:"📅",lost:"✖",distribute:"📤",result:"📋"}[k]||"•";}
+function viewTicket(){
+  const r=D.leads.find(x=>x.key===CURKEY)||D.archived.find(x=>x.key===CURKEY);
+  if(!r)return `<button class="backbtn" onclick="go('${PREV}')">← กลับ</button><div class="empty">ไม่พบตั๋วนี้</div>`;
+  const side=r.sales==="K"?"K":"W";const rev=saleRev(r);
+  const tl=(r.history||[]).slice().reverse();
+  const fdate=t=>{const d=Date.parse(t);return isNaN(d)?esc(t||""):new Date(d).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"});};
+  let h=`<button class="backbtn" onclick="go('${PREV}')">← กลับ</button>
+  <div class="tk-head"><div class="tk-av">${esc((r.name||"?").trim()[0]||"?")}</div>
+    <div style="flex:1;min-width:0"><div class="tk-name">${esc(r.name||"(ไม่มีชื่อ)")} ${r.vip?'<span style="color:#a16207">★</span>':""} ${stPill(r.leadStatus,rev?" · "+fmtB(rev):"")}</div>
+      <div class="tk-id">รหัส ${esc(r.code||"—")} · 📞 ${esc(r.phone||"")} · <span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)} ${r.step?`· <span class="rd">${esc(r.step)}</span>`:""}</div></div></div>`;
+  if((r.tags||[]).length)h+=`<div class="fbar2" style="margin-bottom:14px">🏷️ ${r.tags.map(t=>`<span class="ttag">${esc(t)}</span>`).join(" ")}</div>`;
+  h+=`<div class="grid2"><div>
+    <div class="secttl">🕓 ไทม์ไลน์การติดต่อ<span class="ln"></span></div>
+    <div class="card" style="padding:16px 18px">${tl.length?tl.map(e=>`<div class="ev"><div class="eic">${evIcon(e.k)}</div><div class="et">${HLAB[e.k]||e.k}${e.v?` · ${esc(String(e.v))}`:""}</div><div class="em">${fdate(e.at)}${e.by?" · "+esc(e.by):""}</div></div>`).join(""):'<div style="color:var(--muted)">ยังไม่มีประวัติ</div>'}</div>
+  </div><div>
+    <div class="secttl">📄 ข้อมูลลูกค้า<span class="ln"></span></div>
+    <div class="card" style="padding:15px 16px;margin-bottom:14px">
+      <div class="kv"><span class="k">ช่องทาง</span><span class="v">${esc(chName(r.source))}</span></div>
+      <div class="kv"><span class="k">รอบติดตาม</span><span class="v">${r.step?esc(r.step):"—"}</span></div>
+      <div class="kv"><span class="k">จำนวนโทร</span><span class="v tnum">${fmt(r.callCount||0)} ครั้ง</span></div>
+      <div class="kv"><span class="k">ที่อยู่</span><span class="v" style="max-width:170px">${esc(r.address||"—")}</span></div>
+      <div class="kv"><span class="k">นัดถัดไป</span><span class="v">${r.nextAppt?fdate(r.nextAppt):"—"}</span></div>
+    </div>
+    ${rev?`<div class="secttl">💰 รายการขาย<span class="ln"></span></div><div class="card" style="padding:15px 16px;margin-bottom:14px">${(r.saleItems||[]).map(i=>`<div class="kv"><span class="k">${esc(i.name||"สินค้า")}</span><span class="v tnum">${fmtB(i.price)}</span></div>`).join("")}<div class="kv"><span class="k"><b>รวม</b></span><span class="v tnum win">${fmtB(rev)}</span></div></div>`:""}
+    ${r.note?`<div class="secttl">📝 โน้ต<span class="ln"></span></div><div class="card" style="padding:14px 16px;font-size:13px;line-height:1.6">${esc(r.note)}</div>`:""}
+  </div></div>`;
+  return h;
+}
+
+/* ===== STOCK & DISTRIBUTE (+leave) ===== */
 let dSource="all",dMode="50",dSide="W";
-function viewDist(){
-  const pool=(D.pool.pool)||{mp:0,fb:0,total:0},dist=D.dist||{};
-  let h=`<div class="secttl">📦 คลังรายชื่อ (รอแจก)<span class="ln"></span></div>
+function viewStock(){
+  const pool=(D.pool.pool)||{mp:0,fb:0,total:0},dist=D.dist||{},lv=D.leave||{},people=(lv.people||[]),dof=(D.pool.dayoff)||{};
+  const sales=people.filter(p=>p.kind==="sales"),admins=people.filter(p=>p.kind==="admin");
+  let h=`<div class="secttl">📥 คลังรายชื่อ (รอแจก)<span class="ln"></span></div>
   <div class="card" style="padding:16px 17px;margin-bottom:20px"><div class="poolwrap">
     <div class="poolcard"><div class="n tnum">${fmt(pool.total)}</div><div class="l">รวมทั้งหมด</div></div>
     <div class="poolcard"><div class="n tnum" style="color:var(--brand)">${fmt(pool.mp)}</div><div class="l">📦 Marketplace</div></div>
     <div class="poolcard"><div class="n tnum" style="color:var(--violet)">${fmt(pool.fb)}</div><div class="l">💬 Facebook (Pancake)</div></div>
-  </div>${pool.total===0?`<div class="note" style="margin-top:14px">ยังไม่มีรายชื่อในคลัง — ดึงรายชื่อจาก Evolution / Pancake เข้าคลังก่อนจึงจะแจกได้</div>`:""}</div>`;
-  h+=`<div class="secttl">📤 แจกรายชื่อให้เซลล์<span class="ln"></span></div>
+  </div>${pool.total===0?`<div class="note" style="margin-top:14px">ยังไม่มีรายชื่อในคลัง — ดึงรายชื่อจาก Evolution / Pancake เข้าคลังก่อนจึงจะแจกได้</div>`:""}</div>
+  <div class="secttl">📤 แจกรายชื่อให้เซลล์<span class="ln"></span></div>
   <div class="card" style="padding:18px;margin-bottom:20px">
-    <div class="fld"><label>ช่องทางที่จะแจก</label><div class="seg">
-      <button class="${dSource==="all"?"on":""}" onclick="setD('source','all')">ทั้งหมด</button>
-      <button class="${dSource==="mp"?"on":""}" onclick="setD('source','mp')">📦 Marketplace</button>
-      <button class="${dSource==="fb"?"on":""}" onclick="setD('source','fb')">💬 Facebook</button></div></div>
-    <div class="fld"><label>วิธีแจก</label><div class="seg">
-      <button class="${dMode==="50"?"on":""}" onclick="setD('mode','50')">อัตโนมัติ · แบ่งเท่ากัน W/K</button>
-      <button class="${dMode==="one"?"on":""}" onclick="setD('mode','one')">เลือกจำนวน → คนเดียว</button></div></div>
-    ${dMode==="one"?`<div class="fld"><label>แจกให้</label><div class="seg">
-      <button class="${dSide==="W"?"on":""}" onclick="setD('side','W')">พี่หวาน (W)</button>
-      <button class="${dSide==="K"?"on":""}" onclick="setD('side','K')">พี่เขม (K)</button></div></div>`:""}
+    <div class="fld"><label>ช่องทางที่จะแจก</label><div class="seg"><button class="${dSource==="all"?"on":""}" onclick="setD('source','all')">ทั้งหมด</button><button class="${dSource==="mp"?"on":""}" onclick="setD('source','mp')">📦 Marketplace</button><button class="${dSource==="fb"?"on":""}" onclick="setD('source','fb')">💬 Facebook</button></div></div>
+    <div class="fld"><label>วิธีแจก</label><div class="seg"><button class="${dMode==="50"?"on":""}" onclick="setD('mode','50')">อัตโนมัติ · แบ่งเท่ากัน W/K</button><button class="${dMode==="one"?"on":""}" onclick="setD('mode','one')">เลือกจำนวน → คนเดียว</button></div></div>
+    ${dMode==="one"?`<div class="fld"><label>แจกให้</label><div class="seg"><button class="${dSide==="W"?"on":""}" onclick="setD('side','W')">พี่หวาน (W)</button><button class="${dSide==="K"?"on":""}" onclick="setD('side','K')">พี่เขม (K)</button></div></div>`:""}
     <div class="fld"><label>จำนวน (เว้นว่าง = แจกทั้งหมดในช่องทางที่เลือก)</label><input class="inp" id="dCount" type="number" min="1" placeholder="เช่น 50" style="width:170px"></div>
-    <button class="btn p" id="dBtn" onclick="doDist()">แจกรายชื่อ</button>
-    <span id="dMsg" style="margin-left:12px;font-size:13px;color:var(--muted);font-weight:700"></span>
+    <button class="btn p" id="dBtn" onclick="doDist()">แจกรายชื่อ</button><span id="dMsg" style="margin-left:12px;font-size:13px;color:var(--muted);font-weight:700"></span>
   </div>`;
-  if(dist.distributed){
-    h+=`<div class="secttl">📈 สรุปการแจก · ${RLABEL[RANGE]}<span class="ln"></span></div>
-    <div class="card" style="overflow:auto"><table class="tbl">
-      <thead><tr><th>รายการ</th><th class="r">Marketplace</th><th class="r">Facebook</th><th class="r">รวม</th></tr></thead><tbody>
-      <tr><td>ดึงเข้าคลัง</td><td class="r tnum">${fmt(dist.pulled.mp)}</td><td class="r tnum">${fmt(dist.pulled.fb)}</td><td class="r tnum"><b>${fmt(dist.pulled.total)}</b></td></tr>
-      <tr><td>แจกให้เซลล์</td><td class="r tnum">${fmt(dist.distributed.mp)}</td><td class="r tnum">${fmt(dist.distributed.fb)}</td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
-      <tr style="background:var(--surface-2)"><td><b>แยกตามเซลล์</b></td><td class="r" colspan="2">พี่หวาน (W): <b>${fmt(dist.distributed.W)}</b> · พี่เขม (K): <b>${fmt(dist.distributed.K)}</b></td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
-    </tbody></table></div>`;
-  }
+  if(dist.distributed){h+=`<div class="secttl">📈 สรุปการแจก · ${rlab()}<span class="ln"></span></div>
+  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th class="r">Marketplace</th><th class="r">Facebook</th><th class="r">รวม</th></tr></thead><tbody>
+    <tr><td>ดึงเข้าคลัง</td><td class="r tnum">${fmt(dist.pulled.mp)}</td><td class="r tnum">${fmt(dist.pulled.fb)}</td><td class="r tnum"><b>${fmt(dist.pulled.total)}</b></td></tr>
+    <tr><td>แจกให้เซลล์</td><td class="r tnum">${fmt(dist.distributed.mp)}</td><td class="r tnum">${fmt(dist.distributed.fb)}</td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
+    <tr style="background:var(--surface-2)"><td><b>แยกตามเซลล์</b></td><td class="r" colspan="2">พี่หวาน (W): <b>${fmt(dist.distributed.W)}</b> · พี่เขม (K): <b>${fmt(dist.distributed.K)}</b></td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
+  </tbody></table></div>`;}
+  h+=`<div class="secttl">🌴 วันลา / วันหยุด — ทีมเซลล์ · เดือน ${esc(lv.month||"")}<span class="ln"></span></div>
+  <div class="card" style="padding:16px 18px;margin-bottom:14px">${sales.map(p=>{const off=!!dof[p.who];return `<div class="dor"><div class="av ${p.who}">${p.who}</div><div><div style="font-weight:800;font-size:14.5px">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ลาเดือนนี้ ${fmt(p.monthCount)} วัน ${off?"· <b style='color:var(--warn)'>วันนี้ลา</b>":""}</div></div><div style="margin-left:auto"><button class="btn ${off?"g":"p"}" onclick="setOff('${p.who}',${off?"false":"true"})">${off?"ยกเลิกวันลา":"ลาวันนี้"}</button></div></div>`;}).join("")}</div>
+  <div class="note">เมื่อเซลล์ลา ระบบจะย้ายลูกค้าในมือไปให้อีกคนอัตโนมัติ และคืนกลับเมื่อยกเลิกวันลา · ต้องมีเซลล์ทำงานอย่างน้อย 1 คนเสมอ</div>`;
+  if(admins.length)h+=`<div class="secttl" style="margin-top:22px">🌴 วันลา — ทีมแอดมิน<span class="ln"></span></div><div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>แอดมิน</th><th class="r">ลาเดือนนี้</th><th>วันนี้</th></tr></thead><tbody>${admins.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td class="r tnum">${fmt(p.monthCount)} วัน</td><td>${p.onToday?'<span class="pill st-lost">ลา</span>':'<span class="pill st-won">ทำงาน</span>'}</td></tr>`).join("")}</tbody></table></div>`;
   return h;
 }
 window.setD=function(k,v){if(k==="source")dSource=v;if(k==="mode")dMode=v;if(k==="side")dSide=v;paint();};
-window.doDist=async function(){
-  const pool=(D.pool.pool)||{total:0};if(!pool.total){toast("ยังไม่มีรายชื่อในคลัง");return;}
-  const count=Number($("#dCount").value||0)||undefined;
-  $("#dBtn").disabled=true;$("#dMsg").textContent="กำลังแจก…";
-  const j=await postJSON("/api/distribute",{source:dSource,mode:dMode,side:dSide,count});
-  if(j&&j.ok){toast(`แจกแล้ว ${j.summary.distributed} ราย (W:${j.summary.toW} · K:${j.summary.toK})`);await load();paint();}
-  else{$("#dBtn").disabled=false;$("#dMsg").textContent=(j&&j.message)||"แจกไม่สำเร็จ";}
-};
+window.doDist=async function(){const pool=(D.pool.pool)||{total:0};if(!pool.total){toast("ยังไม่มีรายชื่อในคลัง");return;}const count=Number($("#dCount").value||0)||undefined;$("#dBtn").disabled=true;$("#dMsg").textContent="กำลังแจก…";const j=await postJSON("/api/distribute",{source:dSource,mode:dMode,side:dSide,count});if(j&&j.ok){toast(`แจกแล้ว ${j.summary.distributed} ราย (W:${j.summary.toW} · K:${j.summary.toK})`);await load();paint();}else{$("#dBtn").disabled=false;$("#dMsg").textContent=(j&&j.message)||"แจกไม่สำเร็จ";}};
+window.setOff=async function(side,on){const j=await postJSON("/api/admin/dayoff",{side,off:on,type:"leave"});if(j&&j.ok){toast(on?`บันทึกวันลา ${side} แล้ว (ย้าย ${j.moved} ราย)`:`ยกเลิกวันลา ${side} แล้ว`);await load();paint();}else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");};
 
-/* ========== LEAVE ========== */
-function viewLeave(){
-  const lv=D.leave||{},people=(lv.people||[]),dof=(D.pool.dayoff)||{};
-  const sales=people.filter(p=>p.kind==="sales"),admins=people.filter(p=>p.kind==="admin");
-  let h=`<div class="secttl">🌴 วันลา / วันหยุด — ทีมเซลล์ · เดือน ${esc(lv.month||"")}<span class="ln"></span></div>
-  <div class="card" style="padding:16px 18px;margin-bottom:14px">`;
-  h+=sales.map(p=>{const off=!!dof[p.who];return `<div class="dor"><div class="av ${p.who}">${p.who}</div>
-    <div><div style="font-weight:800;font-size:14.5px">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ลาเดือนนี้ ${fmt(p.monthCount)} วัน ${off?"· <b style='color:var(--warn)'>วันนี้ลา</b>":""}</div></div>
-    <div style="margin-left:auto"><button class="btn ${off?"g":"p"}" onclick="setOff('${p.who}',${off?"false":"true"})">${off?"ยกเลิกวันลา":"บันทึกลาวันนี้"}</button></div></div>`;}).join("");
-  h+=`</div><div class="note">เมื่อเซลล์ลา ระบบจะย้ายลูกค้าในมือไปให้อีกคนอัตโนมัติ และคืนกลับเมื่อยกเลิกวันลา · ต้องมีเซลล์ทำงานอย่างน้อย 1 คนเสมอ</div>`;
-  if(admins.length){
-    h+=`<div class="secttl" style="margin-top:22px">🌴 วันลา — ทีมแอดมิน<span class="ln"></span></div>
-    <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>แอดมิน</th><th class="r">ลาเดือนนี้</th><th>วันนี้</th></tr></thead><tbody>
-    ${admins.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td class="r tnum">${fmt(p.monthCount)} วัน</td><td>${p.onToday?'<span class="pill st-lost">ลา</span>':'<span class="pill st-won">ทำงาน</span>'}</td></tr>`).join("")}
-    </tbody></table></div>`;
-  }
+/* ===== REPORTS ===== */
+function viewReports(){
+  const rp=(ic,t,d,href)=>`<a class="card" href="${href}" style="padding:16px 18px;text-decoration:none;color:inherit;display:flex;gap:13px;align-items:center;width:100%"><span style="font-size:26px">${ic}</span><span style="flex:1"><span style="display:block;font-weight:800">${t}</span><span style="font-size:12px;color:var(--muted)">${d}</span></span><span style="color:var(--brand);font-weight:800">ดาวน์โหลด ↓</span></a>`;
+  return `<div class="note" style="margin-bottom:16px">ดาวน์โหลดข้อมูลลูกค้าเป็นไฟล์ Excel/CSV ได้ทันที · รายงานสรุป KPI แบบละเอียดจะเพิ่มในด่านถัดไป</div>
+  <div style="${grid(280)}">
+    ${rp("📊","รายชื่อลูกค้าทั้งหมด (W+K)","ไฟล์ Excel (.xlsx)","/export/xlsx")}
+    ${rp("📞","รายชื่อฝั่งพี่หวาน (W)","ไฟล์ CSV","/export/csv?side=W")}
+    ${rp("📞","รายชื่อฝั่งพี่เขม (K)","ไฟล์ CSV","/export/csv?side=K")}
+  </div>`;
+}
+
+/* ===== STAFF ===== */
+function viewStaff(){
+  const admins=(D.chat.admins||[]).filter(Boolean);
+  const tele=[{n:"พี่หวาน",side:"W"},{n:"พี่เขม",side:"K"}];
+  let h=`<div class="note" style="margin-bottom:16px">รายชื่อพนักงานปัจจุบัน (ตั้งค่าจาก Railway) · การเพิ่ม/ปิดพนักงานจากหน้าจอโดยตรงจะเปิดในด่านถัดไป</div>
+  <div class="secttl">📞 Team Telesales<span class="ln"></span></div>
+  <div class="card" style="overflow:auto;margin-bottom:22px"><table class="tbl"><thead><tr><th>ชื่อ</th><th>ฝั่ง</th><th>สถานะ</th></tr></thead><tbody>
+    ${tele.map(s=>`<tr><td><b>${esc(s.n)}</b></td><td><span class="sideb ${s.side.toLowerCase()}">${s.side}</span></td><td><span class="pill st-won">ใช้งาน</span></td></tr>`).join("")}
+  </tbody></table></div>
+  <div class="secttl">🧑‍💼 Team Admin (ตอบแชท)<span class="ln"></span></div>
+  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>ชื่อ</th><th>สถานะ</th></tr></thead><tbody>
+    ${admins.length?admins.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td><span class="pill st-won">ใช้งาน</span></td></tr>`).join(""):'<tr><td colspan="2" style="color:var(--muted)">ยังไม่ได้ตั้งค่า CHAT_USERS บน Railway</td></tr>'}
+  </tbody></table></div>`;
   return h;
 }
-window.setOff=async function(side,on){
-  const j=await postJSON("/api/admin/dayoff",{side,off:on,type:"leave"});
-  if(j&&j.ok){toast(on?`บันทึกวันลา ${side} แล้ว (ย้าย ${j.moved} ราย)`:`ยกเลิกวันลา ${side} แล้ว`);await load();paint();}
-  else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");
-};
 
-/* ========== render ========== */
-function paint(){
-  renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";
-  let h="";
-  if(VIEW==="dash")h=viewDash();else if(VIEW==="tele")h=viewTele();else if(VIEW==="admin")h=viewAdmin();
-  else if(VIEW==="dist")h=viewDist();else if(VIEW==="leave")h=viewLeave();
-  $("#content").innerHTML=h;window.scrollTo(0,0);
+/* ===== SETTINGS ===== */
+function viewSettings(){
+  const t=D.kpi.targets||{};
+  const sn=(l,v)=>`<div><div style="font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:5px">${l}</div><input class="inp" style="width:100%" value="${v}" disabled></div>`;
+  return `<div class="note" style="margin-bottom:16px">หน้านี้แสดงค่าปัจจุบันของระบบ · การแก้ไขค่าจากหน้าจอจะเปิดในด่านถัดไป (ตอนนี้ตั้งค่าได้ที่ตัวแปรบน Railway)</div>
+  <div class="secttl">🛒 ช่องทางการขาย<span class="ln"></span></div>
+  <div class="card" style="padding:8px 6px;margin-bottom:22px">
+    <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)"><b>📦 Marketplace</b><span style="font-size:12px;color:var(--muted)">รายชื่อจากเว็บ Evolution/Lazada</span><span class="pill st-won" style="margin-left:auto">เปิดใช้งาน</span></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:11px 14px"><b>💬 Facebook (Pancake)</b><span style="font-size:12px;color:var(--muted)">รายชื่อจากแชท FB · T1/T2/T3</span><span class="pill st-won" style="margin-left:auto">เปิดใช้งาน</span></div>
+  </div>
+  <div class="secttl">🎯 เป้าที่ระบบแจก / คน / วัน<span class="ln"></span></div>
+  <div class="card" style="padding:16px 18px;margin-bottom:22px"><div style="${grid(150)}">${sn("Marketplace",t.evo||50)}${sn("Facebook (T1+T2+T3)",t.manual||15)}${sn("เป้ายอดขาย/เดือน (เซลล์)",fmtB(t.salesMonthly||100000))}</div></div>
+  <div class="secttl">⚙️ กติการะบบ<span class="ln"></span></div>
+  <div class="card" style="padding:16px 18px">
+    <div class="kv"><span class="k">เวลารีเซ็ตรายชื่อประจำวัน</span><span class="v">20:00 น. (Asia/Bangkok)</span></div>
+    <div class="kv"><span class="k">คืนรายชื่อเมื่อโทรไม่ได้คุย</span><span class="v">ครบ 3 ครั้ง (จาก OneCall)</span></div>
+    <div class="kv"><span class="k">รอบติดตาม</span><span class="v">T1 รายใหม่ · T2 หลังรับของ · T3 ซื้อซ้ำ</span></div>
+    <div class="kv"><span class="k">ฟอนต์</span><span class="v">Noto Sans Thai</span></div>
+  </div>
+  <div class="note" style="margin-top:14px">หมายเหตุ: การแยก T1/T2/T3 อัตโนมัติ, ระบบคืนรายชื่อ 3 สาย, และรีเซ็ต 20:00 น. เป็นงานหลังบ้านของด่านถัดไป</div>`;
 }
+
+/* render */
+const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_calltoday:viewTelCallToday,tel_perf:viewTelPerf,tickets:viewTickets,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
+function paint(){renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";const fn=VIEWS[VIEW]||viewDashboard;$("#content").innerHTML=fn();window.scrollTo(0,0);}
 async function init(){
   const me=await getJSON("/api/me");if(!me)return;ME=me;
   if(me.role!=="admin"){location.href=(me.role==="adminsales"?"/distribute":(me.role==="chatadmin"?"/me":"/sales"));return;}
   renderNav();await load();paint();
-  setInterval(async()=>{if(!$("#dBtn"))await load();paint();},60000);
+  setInterval(async()=>{if(VIEW==="ticket"||$("#dBtn"))return;await load();paint();},60000);
 }
 init();
 </script>
