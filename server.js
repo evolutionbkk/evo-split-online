@@ -510,6 +510,26 @@ function dailyReset() {
   return moved;
 }
 
+// ---------- Auto T1/T2/T3 rounds (system-assigned; Telesales cannot set) ----------
+// The follow-up round for a Facebook (Pancake) lead is derived from how long ago the order came in
+// (lastOrderAt if known, else when the lead entered the system). Marketplace leads have no round.
+//   T1 = 0..N1 days  (รายใหม่จากแอดมิน — โทรครั้งแรก/ยืนยันออเดอร์)
+//   T2 = N1+1..N2 days (ติดตามหลังรับของ)
+//   T3 = > N2 days     (ตามซื้อซ้ำ)
+const TSTAGE_T1_MAX = Number(process.env.TSTAGE_T1_MAX) || 6;   // days
+const TSTAGE_T2_MAX = Number(process.env.TSTAGE_T2_MAX) || 24;  // days
+function autoTStage(rec) {
+  if (!rec || rec.archived) return false;
+  const src = rec.source || 'evolution';
+  if (src !== 'pancake' && src !== 'manual' && src !== 'refill') return false; // FB only
+  const base = rec.lastOrderAt || rec.receivedAt;
+  const t = Date.parse(base); if (isNaN(t)) return false;
+  const days = Math.floor((Date.now() - t) / 86400000);
+  const step = days <= TSTAGE_T1_MAX ? 'T1' : (days <= TSTAGE_T2_MAX ? 'T2' : 'T3');
+  if (rec.step !== step) { rec.step = step; return true; }
+  return false;
+}
+
 // After 3 self-logged calls with no meaningful progress (still ใหม่/กำลังติดต่อ), the lead is
 // returned to the คลังรายชื่อ instead of staying stuck in the seller's queue. Progressed leads
 // (สนใจ / นัด / รอชำระ / ปิด) are kept.
@@ -542,6 +562,7 @@ async function runSweep() {
   const now = Date.now(); let changed = false;
   for (const rec of state.assigned) {
     if (rec.archived) continue;
+    if (autoTStage(rec)) changed = true;   // keep the T1/T2/T3 round current as the order ages
     const st = recStatus(rec);
     if (st === 'won') continue;
     if (st === 'followup' && rec.nextAppt) { const t = Date.parse(rec.nextAppt); if (!isNaN(t) && t > now) continue; }
