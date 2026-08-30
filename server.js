@@ -368,15 +368,15 @@ app.post('/api/admin/adminleave', requireAuth, async (req, res) => {
 });
 
 // ---------- lead CRM (per-salesperson status tracking) ----------
-const UNREACH_REASONS = ['ไม่สะดวกคุย', 'ไม่รับสาย', 'ปิดเครื่อง', 'พบช่องทางอื่นที่ถูกกว่า', 'สะดวกสั่งซื้อช่องทางอื่น'];
+const UNREACH_REASONS = ['ไม่รับสาย', 'สายไม่ว่าง', 'ปิดเครื่อง', 'โทรไม่ติด', 'เบอร์ผิด', 'เบอร์ไม่ใช้งาน'];
 const REACH_STATUS = ['not_ready', 'appointment', 'closed'];
 const ARCH_REASONS = ['unreachable', 'bad_data', 'duplicate', 'stopped'];
 // New CRM taxonomy (replaces the old reachStatus/contact model in the UI; legacy fields kept for back-compat)
-const LEAD_STATUS_KEYS = ['new', 'contacting', 'interested', 'followup', 'won', 'lost'];
+const LEAD_STATUS_KEYS = ['new', 'contacting', 'interested', 'followup', 'awaiting_payment', 'won', 'lost'];
 const CALL_RESULT_KEYS = ['no_answer', 'connected', 'hung_up', 'wrong_number'];
 const INTEREST_KEYS = ['hot', 'warm', 'cold', 'churned'];
 const NEXT_ACTION_KEYS = ['callback', 'send_info', 'meeting'];
-const LOST_REASONS = ['ราคาแพง', 'ซื้อที่อื่น', 'ไม่มีงบ', 'ติดต่อไม่ได้', 'ไม่สนใจ', 'อื่นๆ'];
+const LOST_REASONS = ['ราคาสูงเกินไป', 'โปรโมชั่นไม่ตรงใจ', 'ไม่สนใจ', 'ปฏิเสธถาวร', 'ราคาแพง', 'ซื้อที่อื่น', 'ไม่มีงบ', 'ติดต่อไม่ได้', 'อื่นๆ'];
 // Sale line items captured when a lead is Won: [{name, price}]
 function sanitizeSaleItems(v) {
   if (!Array.isArray(v)) return [];
@@ -429,6 +429,7 @@ function leadView(r, ocMap) {
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
     trackingNo: r.trackingNo || '',
+    tags: r.tags || [],
     handoffs: (r.handoffs || []).slice(-20),
     archived: !!r.archived, archiveReason: r.archiveReason || '', archiveNote: r.archiveNote || '', archivedAt: r.archivedAt || null,
     stage: r.stage || 0, handoffCount: (r.handoffs || []).length,
@@ -582,6 +583,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ('address' in p) rec.address = String(p.address || '').slice(0, 500);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
   if ('trackingNo' in p) rec.trackingNo = String(p.trackingNo || '').trim().slice(0, 60);
+  if ('tags' in p) rec.tags = Array.isArray(p.tags) ? p.tags.slice(0, 20).map((t) => String(t).slice(0, 40)).filter(Boolean) : rec.tags;
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = by;
   // log each meaningful change to the timeline
   if (recStatus(rec) !== b0.leadStatus) pushHist(rec, 'status', rec.leadStatus, by);
