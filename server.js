@@ -92,6 +92,8 @@ async function boot() {
     addMpPhones(mpSeed);
     if (state.mpPhones.length !== before) { bf = true; console.log('[boot] seeded mpPhones', state.mpPhones.length); }
   }
+  // Assign ticket IDs (TLEVO-W/K) to any assigned lead that doesn't have one yet.
+  { const n = backfillTicketIds(); if (n) { bf = true; console.log('[boot] assigned', n, 'ticket IDs'); } }
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -357,6 +359,13 @@ function leaveSummary(ym) {
   return { month: ym, today, people: people.map((p) => ({ who: p.who, name: p.name, kind: p.kind, onToday: leaveHas(p.who, today), monthCount: leaveCountMonth(p.who, ym) })) };
 }
 app.get('/api/admin/leaves', requireAuth, (req, res) => res.json(leaveSummary(req.query.month)));
+// Manual trigger for the daily reset (same action the 20:00 scheduler runs) — the Teamlead can
+// return all no-progress leads to the คลังรายชื่อ on demand.
+app.post('/api/admin/daily-reset', requireAuth, async (req, res) => {
+  const moved = dailyReset();
+  state = await store.save(state);
+  res.json({ ok: true, moved, pool: S.poolCounts(state) });
+});
 app.post('/api/admin/adminleave', requireAuth, async (req, res) => {
   const who = String((req.body && req.body.who) || '');
   const on = !!(req.body && req.body.on);
@@ -415,7 +424,7 @@ function pushHist(rec, k, v, by) {
 function leadView(r, ocMap) {
   const oc = ocMap ? ocMap.get(r.sales + '|' + digitsOnly(r.phone)) : null;
   return {
-    key: S.keyOf(r), code: r.code, name: r.name, phone: r.phone, sales: r.sales, round: r.round, date: r.date,
+    key: S.keyOf(r), code: r.code, ticketId: r.ticketId || '', name: r.name, phone: r.phone, sales: r.sales, round: r.round, date: r.date,
     realCalls: oc ? oc.calls : 0, realTalkCalls: oc ? oc.talk : 0, realLastCallAt: oc ? oc.lastAt : null,
     exported: !!r.exported,
     callCount: r.callCount || 0, calls: r.calls || [], lastCallAt: lastCallOf(r),
@@ -460,6 +469,59 @@ function advanceStage(rec, by) {
   pushHist(rec, 'recycle', '', by || 'ระบบ');
   return { action: 'recycled_out' };
 }
+// ---------- Ticket IDs (TLEVO-W-00001 / TLEVO-K-00001) ----------
+// A stable, human-friendly case number per lead. Prefix = the side it was first handed to;
+// it never changes afterwards (an ID, not a live indicator).
+function backfillTicketIds() {
+  if (!state.ticketSeq) state.ticketSeq = { W: 0, K: 0 };
+  const need = state.assigned.filter((r) => r.sales && !r.ticketId);
+  if (!need.length) return 0;
+  need.sort((a, b) => String(a.receivedAt || '').localeCompare(String(b.receivedAt || '')));
+  for (const r of need) {
+    const side = r.sales === 'K' ? 'K' : 'W';
+    state.ticketSeq[side] = (state.ticketSeq[side] || 0) + 1;
+    r.ticketId = 'TLEVO-' + side + '-' + String(state.ticketSeq[side]).padStart(5, '0');
+  }
+  return need.length;
+}
+
+// ---------- Lifecycle: return a lead to the คลังรายชื่อ (pool) ----------
+// Used by (a) the 3-call-no-progress rule and (b) the 20:00 daily reset. The lead becomes
+// pooled again (unassigned) with a fresh call state, so a Teamlead can hand it out again.
+// The original ticketId is kept so its history stays traceable.
+function returnToPool(rec, reason) {
+  rec.pooled = true; rec.sales = null; rec.round = 0; rec.exported = false;
+  rec.callCount = 0; rec.calls = []; rec.contact = ''; rec.reachStatus = ''; rec.unreachableReason = '';
+  rec.leadStatus = 'new'; rec.callResult = ''; rec.interest = ''; rec.nextAction = ''; rec.lostReason = '';
+  rec.lastCallAt = ''; rec.saleItems = []; rec.nextAppt = ''; rec.stage = 0; rec.dayoffMoved = undefined;
+  rec.receivedAt = new Date().toISOString();
+  pushHist(rec, 'return_pool', reason || 'คืนคลังรายชื่อ', 'ระบบ');
+}
+
+// 20:00 Asia/Bangkok daily reset: no-progress leads (still ใหม่/กำลังติดต่อ, no outcome) go back
+// to the คลังรายชื่อ. Leads that are สนใจ / นัดติดตาม / รอชำระเงิน / ปิดการขาย / ไม่สนใจ stay with the seller.
+function dailyReset() {
+  let moved = 0;
+  for (const rec of state.assigned) {
+    if (rec.archived || !rec.sales) continue;
+    const st = recStatus(rec);
+    if (st === 'new' || st === 'contacting') { returnToPool(rec, 'รีเซ็ต 20:00 · คืนคลัง'); moved++; }
+  }
+  return moved;
+}
+
+// After 3 self-logged calls with no meaningful progress (still ใหม่/กำลังติดต่อ), the lead is
+// returned to the คลังรายชื่อ instead of staying stuck in the seller's queue. Progressed leads
+// (สนใจ / นัด / รอชำระ / ปิด) are kept.
+function maybeReturnPool(rec) {
+  if (rec.archived || !rec.sales) return null;
+  const st = recStatus(rec);
+  if (st !== 'new' && st !== 'contacting') return null;
+  if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
+  returnToPool(rec, 'โทรครบ 3 ครั้งไม่คืบหน้า · คืนคลัง');
+  return { action: 'returned_pool' };
+}
+
 // Auto rule: after 3 calls without closing (won) and not an active follow-up.
 function maybeRecycle(rec) {
   if (rec.archived) return null;
@@ -486,6 +548,7 @@ async function runSweep() {
     const la = lastActivityMs(rec); if (la == null) continue;
     if (now - la > STALE_DAYS * 86400000) { advanceStage(rec); changed = true; }
   }
+  if (backfillTicketIds() > 0) changed = true;
   if (changed) state = await store.save(state);
   try { await reconcileDayoff(); } catch (_) {} // auto-reset day-off when the Thai day rolls over
   return changed;
@@ -553,7 +616,7 @@ app.post('/api/lead/call', requireCrm, async (req, res) => {
   rec.lastCallAt = nowIso;
   rec.updatedAt = nowIso; rec.updatedBy = whoami(req);
   pushHist(rec, 'call', '', whoami(req));
-  const advanced = maybeRecycle(rec);
+  const advanced = maybeReturnPool(rec);
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec), advanced });
 });
@@ -1337,6 +1400,7 @@ app.post('/api/distribute', requireAuth, async (req, res) => {
   });
   if (summary.toW) recordPull('W', summary.toW);
   if (summary.toK) recordPull('K', summary.toK);
+  backfillTicketIds();
   state = await store.save(state);
   res.json({ ok: true, summary, pool: S.poolCounts(state), total: state.assigned.length });
 });
@@ -2769,6 +2833,20 @@ app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.len
 boot().then(() => {
   app.listen(PORT, () => console.log('[server] listening on', PORT));
   setInterval(() => { runSweep().catch(() => {}); }, 60 * 60 * 1000); // hourly stale sweep
+  // 20:00 Asia/Bangkok daily reset — return no-progress leads to the คลังรายชื่อ, once per day.
+  let lastResetDay = null;
+  setInterval(async () => {
+    try {
+      const th = new Date(Date.now() + 7 * 3600000);
+      const day = th.toISOString().slice(0, 10);
+      if (th.getUTCHours() === 20 && lastResetDay !== day) {
+        lastResetDay = day;
+        const moved = dailyReset();
+        if (moved) { state.updatedAt = new Date().toISOString(); state = await store.save(state); }
+        console.log('[reset] 20:00 daily reset — returned', moved, 'leads to pool');
+      }
+    } catch (e) { console.warn('[reset] failed (non-fatal):', String(e)); }
+  }, 60 * 1000);
   // On boot: if a token was restored from the store, verify it (keepalive) and resume pulling right away.
   setTimeout(() => { if (onecallAuth.token) { onecallKeepalive().then(() => onecallPull()).catch(() => {}); } }, 5 * 1000);
   if (ONECALL_USER && ONECALL_PASS) {

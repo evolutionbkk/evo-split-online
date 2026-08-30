@@ -186,7 +186,7 @@ function leadCard(r){
   return `<button class="lcard" onclick="openLead('${esc(r.key)}')" style="border-left:4px solid ${scol}">
     <div class="av" style="background:${scol}">${esc((r.name||"?").trim()[0]||"?")}</div>
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span>${vip}</div>
-      <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation();logCall('${esc(r.key)}')">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.code)}</span></div>
+      <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation();logCall('${esc(r.key)}')">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
       ${urgLine(r)}</div>
     <div class="lc-right">${statusPill(r)}${amt?`<span class="lc-amt tnum">${amt}</span>`:""}</div></button>`;
 }
@@ -285,7 +285,7 @@ function renderSheet(){
   let fval="";try{const b=r.nextAppt?new Date(r.nextAppt):(()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(10,0,0,0);return d;})();const p=n=>String(n).padStart(2,"0");fval=b.getFullYear()+"-"+p(b.getMonth()+1)+"-"+p(b.getDate())+"T"+p(b.getHours())+":"+p(b.getMinutes());}catch(e){}
   $("#sheet").innerHTML=`<button class="closeX" onclick="closeSheet()">✕</button>
     <div class="tk-name">${esc(r.name)||"(ไม่มีชื่อ)"} ${(r.vip&&(r.vip.key==="gold"||r.vip.key==="silver"))?'<span style="color:#a16207">★</span>':""}</div>
-    <div class="tk-id">รหัสลูกค้า <span class="mono">${esc(r.code)}</span> · Sales (${esc(r.sales)}) · ติดต่อ ${r.callCount||0} ครั้ง${r.realCalls?` · OneCall โทร ${r.realCalls} คุยจริง ${r.realTalkCalls||0}`:""}</div>
+    <div class="tk-id"><span class="mono" style="color:var(--brand);font-weight:700">${esc(r.ticketId||"")}</span> · รหัสลูกค้า <span class="mono">${esc(r.code)}</span> · Sales (${esc(r.sales)}) · ติดต่อ ${r.callCount||0} ครั้ง${r.realCalls?` · OneCall โทร ${r.realCalls} คุยจริง ${r.realTalkCalls||0}`:""}</div>
     <div class="tagbar">🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
     ${(r.leadStatus==="won"||r.leadStatus==="awaiting_payment")?saleCard(r):""}
     ${roundInfo(r)}

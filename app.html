@@ -307,7 +307,7 @@ function viewTelOverview(){
 
 /* ===== TEL CALL TODAY ===== */
 function ticketRow(r){const side=r.sales==="K"?"K":"W";
-  return `<tr onclick="openTicket('${esc(r.key)}')"><td class="mono" style="color:var(--brand);font-weight:800">${esc(r.code||"—")}</td><td><b>${esc(r.name||"(ไม่มีชื่อ)")}</b></td><td>${esc(chName(r.source))}</td><td>${r.step?`<span class="rd">${esc(r.step)}</span>`:'<span style="color:var(--muted)">—</span>'}</td><td>${stPill(r.leadStatus,saleRev(r)?" · "+fmtB(saleRev(r)):"")}</td><td><span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)}</td></tr>`;}
+  return `<tr onclick="openTicket('${esc(r.key)}')"><td class="mono" style="color:var(--brand);font-weight:800">${esc(r.ticketId||r.code||"—")}<div style="font-size:10.5px;color:var(--muted);font-weight:600">${esc(r.code||"")}</div></td><td><b>${esc(r.name||"(ไม่มีชื่อ)")}</b></td><td>${esc(chName(r.source))}</td><td>${r.step?`<span class="rd">${esc(r.step)}</span>`:'<span style="color:var(--muted)">—</span>'}</td><td>${stPill(r.leadStatus,saleRev(r)?" · "+fmtB(saleRev(r)):"")}</td><td><span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)}</td></tr>`;}
 function viewTelCallToday(){
   const W=D.kpi.W||{},K=D.kpi.K||{},s=f=>(W[f]||0)+(K[f]||0);
   const list=D.leads.filter(r=>{const st=r.leadStatus||"new";return st!=="won"&&st!=="lost";});
@@ -367,8 +367,8 @@ function viewTicket(){
   const fdate=t=>{const d=Date.parse(t);return isNaN(d)?esc(t||""):new Date(d).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"});};
   let h=`<button class="backbtn" onclick="go('${PREV}')">← กลับ</button>
   <div class="tk-head"><div class="tk-av">${esc((r.name||"?").trim()[0]||"?")}</div>
-    <div style="flex:1;min-width:0"><div class="tk-name">${esc(r.name||"(ไม่มีชื่อ)")} ${r.vip?'<span style="color:#a16207">★</span>':""} ${stPill(r.leadStatus,rev?" · "+fmtB(rev):"")}</div>
-      <div class="tk-id">รหัส ${esc(r.code||"—")} · 📞 ${esc(r.phone||"")} · <span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)} ${r.step?`· <span class="rd">${esc(r.step)}</span>`:""}</div></div></div>`;
+    <div style="flex:1;min-width:0"><div class="tk-name"><span class="mono" style="color:var(--brand)">${esc(r.ticketId||"")}</span> ${esc(r.name||"(ไม่มีชื่อ)")} ${r.vip?'<span style="color:#a16207">★</span>':""} ${stPill(r.leadStatus,rev?" · "+fmtB(rev):"")}</div>
+      <div class="tk-id">รหัสลูกค้า ${esc(r.code||"—")} · 📞 ${esc(r.phone||"")} · <span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)} ${r.step?`· <span class="rd">${esc(r.step)}</span>`:""}</div></div></div>`;
   if((r.tags||[]).length)h+=`<div class="fbar2" style="margin-bottom:14px">🏷️ ${r.tags.map(t=>`<span class="ttag">${esc(t)}</span>`).join(" ")}</div>`;
   h+=`<div class="grid2"><div>
     <div class="secttl">🕓 ไทม์ไลน์การติดต่อ<span class="ln"></span></div>
@@ -464,14 +464,27 @@ function viewSettings(){
   <div class="card" style="padding:16px 18px;margin-bottom:22px"><div style="${grid(150)}">${sn("Marketplace",t.evo||50)}${sn("Facebook (T1+T2+T3)",t.manual||15)}${sn("เป้ายอดขาย/เดือน (เซลล์)",fmtB(t.salesMonthly||100000))}</div></div>
   <div class="secttl">⚙️ กติการะบบ<span class="ln"></span></div>
   <div class="card" style="padding:16px 18px">
-    <div class="kv"><span class="k">เวลารีเซ็ตรายชื่อประจำวัน</span><span class="v">20:00 น. (Asia/Bangkok)</span></div>
-    <div class="kv"><span class="k">คืนรายชื่อเมื่อโทรไม่ได้คุย</span><span class="v">ครบ 3 ครั้ง (จาก OneCall)</span></div>
+    <div class="kv"><span class="k">เวลารีเซ็ตรายชื่อประจำวัน</span><span class="v" style="color:var(--ok)">✅ 20:00 น. (Asia/Bangkok) · ทำงานอัตโนมัติ</span></div>
+    <div class="kv"><span class="k">คืนรายชื่อเมื่อโทรไม่คืบหน้า</span><span class="v" style="color:var(--ok)">✅ ครบ 3 ครั้ง → คืนคลังอัตโนมัติ</span></div>
+    <div class="kv"><span class="k">เลขตั๋ว</span><span class="v" style="color:var(--ok)">✅ TLEVO-W / TLEVO-K (อัตโนมัติ)</span></div>
     <div class="kv"><span class="k">รอบติดตาม</span><span class="v">T1 รายใหม่ · T2 หลังรับของ · T3 ซื้อซ้ำ</span></div>
     <div class="kv"><span class="k">ฟอนต์</span><span class="v">Noto Sans Thai</span></div>
   </div>
-  <div class="note" style="margin-top:14px">หมายเหตุ: การแยก T1/T2/T3 อัตโนมัติ, ระบบคืนรายชื่อ 3 สาย, และรีเซ็ต 20:00 น. เป็นงานหลังบ้านของด่านถัดไป</div>`;
+  <div class="secttl" style="margin-top:22px">🔄 รีเซ็ตรายชื่อคืนคลัง (ด้วยตัวเอง)<span class="ln"></span></div>
+  <div class="card" style="padding:16px 18px">
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;line-height:1.6">คืนรายชื่อที่ยังไม่คืบหน้า (สถานะ "ใหม่/กำลังติดต่อ") กลับเข้าคลังรายชื่อทันที โดยไม่ต้องรอ 20:00 น. — รายที่ สนใจ/นัด/รอชำระ/ปิดการขาย จะยังอยู่กับเซลล์</p>
+    <button class="btn p" id="resetBtn" onclick="doReset()">รีเซ็ตคืนคลังตอนนี้</button><span id="resetMsg" style="margin-left:12px;font-size:13px;color:var(--muted);font-weight:700"></span>
+  </div>
+  <div class="note" style="margin-top:14px">หมายเหตุ: การแยก T1/T2/T3 อัตโนมัติจากอายุออเดอร์ Pancake อยู่ในแผนถัดไป (ตอนนี้ระบบใช้รอบที่ตั้งจากตอนแจกรายชื่อ)</div>`;
 }
 
+window.doReset=async function(){
+  if(!confirm("คืนรายชื่อที่ยังไม่คืบหน้าทั้งหมดกลับเข้าคลัง?"))return;
+  $("#resetBtn").disabled=true;$("#resetMsg").textContent="กำลังรีเซ็ต…";
+  const j=await postJSON("/api/admin/daily-reset");
+  if(j&&j.ok){toast(`คืนคลังแล้ว ${j.moved} ราย`);await load();paint();}
+  else{$("#resetBtn").disabled=false;$("#resetMsg").textContent="ทำรายการไม่สำเร็จ";}
+};
 /* render */
 const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_calltoday:viewTelCallToday,tel_perf:viewTelPerf,tickets:viewTickets,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
 function paint(){renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";const fn=VIEWS[VIEW]||viewDashboard;$("#content").innerHTML=fn();window.scrollTo(0,0);}
