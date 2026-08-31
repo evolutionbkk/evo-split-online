@@ -122,6 +122,9 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clea
 function fmtB(n){return "฿"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:0});}
 function fmtShort(v){if(!v)return"";try{const d=new Date(v),p=n=>String(n).padStart(2,"0");return p(d.getDate())+"/"+p(d.getMonth()+1)+" "+p(d.getHours())+":"+p(d.getMinutes());}catch(e){return"";}}
 function daysIdle(r){if(!r.lastActivity)return 0;const t=Date.parse(r.lastActivity);return isNaN(t)?0:Math.floor((Date.now()-t)/864e5);}
+function fmtDay(v){if(!v)return"";try{const d=new Date(v),p=n=>String(n).padStart(2,"0");return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+String(d.getFullYear()+543).slice(-2);}catch(e){return"";}}
+// ฐานอ้างอิงของรอบ T1/T2/T3 = วันสั่งซื้อล่าสุด (lastOrderAt) ถ้าไม่มีใช้วันรับเข้าระบบ (receivedAt) — ตรงกับที่ระบบใช้คำนวณอายุออเดอร์
+function orderBase(r){const raw=(r&&(r.lastOrderAt||r.receivedAt))||"";if(!raw)return null;const t=Date.parse(raw);if(isNaN(t))return null;return {label:r.lastOrderAt?"วันสั่งซื้อ":"วันรับเข้าระบบ",raw,day:fmtDay(raw),days:Math.max(0,Math.floor((Date.now()-t)/864e5))};}
 
 const STLABEL={new:"ใหม่",contacting:"กำลังติดต่อ",interested:"สนใจ",followup:"นัดติดตาม",awaiting_payment:"รอชำระเงิน",won:"ปิดการขาย",lost:"ไม่สนใจ"};
 const STCOL={new:"#4f46e5",contacting:"#0e7490",interested:"#7c3aed",followup:"#0e7490",awaiting_payment:"#c2660c",won:"#16a34a",lost:"#b91c1c"};
@@ -187,6 +190,7 @@ function leadCard(r){
     <div class="av" style="background:${scol}">${esc((r.name||"?").trim()[0]||"?")}</div>
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span>${vip}</div>
       <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation();logCall('${esc(r.key)}')">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
+      ${(()=>{const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";})()}
       ${urgLine(r)}</div>
     <div class="lc-right">${statusPill(r)}${amt?`<span class="lc-amt tnum">${amt}</span>`:""}</div></button>`;
 }
@@ -274,7 +278,8 @@ function viewKpi(){
 function findLead(key){return ACTIVE.concat(ARCHIVED).find(r=>r.key===key);}
 function openLead(key){const r=findLead(key);if(!r)return;CUR=JSON.parse(JSON.stringify(r));renderSheet();$("#mbg").classList.add("on");}
 function closeSheet(){$("#mbg").classList.remove("on");CUR=null;}
-function roundInfo(r){const isFB=(r.source==="pancake"||r.source==="manual"||r.source==="refill");if(!r.step&&!isFB)return "";const cur=r.step||"T1";const b=t=>`<button onclick="setRound('${r.key}','${t.slice(1)}')" style="flex:1;padding:8px 0;border:none;border-radius:9px;font-weight:800;font-size:14px;cursor:pointer;${cur===t?"background:#fff;color:#111":"background:rgba(255,255,255,.22);color:#fff"}">${t}</button>`;return `<div class="rb ${cur}"><b>รอบปัจจุบัน: ${cur} · ${ROUND_NAME[cur]||""}</b><div class="g">🎯 ${ROUND_GOAL[cur]||""}</div><div style="display:flex;gap:6px;margin-top:10px">${["T1","T2","T3"].map(b).join("")}</div><div style="font-size:11px;opacity:.88;margin-top:7px">${r.stepManual?"🖐 เลือกรอบเอง — กดปุ่มอื่นเพื่อเปลี่ยน":"⚙️ ระบบกำหนดตามอายุออเดอร์ (T1 0–4 วัน · T2 5–9 วัน · T3 10 วัน+) · กดปุ่มเพื่อเปลี่ยนรอบเอง"}</div></div>`;}
+function roundInfo(r){const isFB=(r.source==="pancake"||r.source==="manual"||r.source==="refill");if(!r.step&&!isFB)return "";const cur=r.step||"T1";const b=t=>`<button onclick="setRound('${r.key}','${t.slice(1)}')" style="flex:1;padding:8px 0;border:none;border-radius:9px;font-weight:800;font-size:14px;cursor:pointer;${cur===t?"background:#fff;color:#111":"background:rgba(255,255,255,.22);color:#fff"}">${t}</button>`;const ob=orderBase(r);const refTxt=ob?` <span style="font-weight:600;opacity:.9">(อ้างอิง${ob.label} ${ob.day} · ${ob.days} วัน)</span>`:"";
+  return `<div class="rb ${cur}"><b>รอบปัจจุบัน: ${cur} · ${ROUND_NAME[cur]||""}</b>${refTxt}<div class="g">🎯 ${ROUND_GOAL[cur]||""}</div><div style="display:flex;gap:6px;margin-top:10px">${["T1","T2","T3"].map(b).join("")}</div><div style="font-size:11px;opacity:.88;margin-top:7px">${r.stepManual?"🖐 เลือกรอบเอง — กดปุ่มอื่นเพื่อเปลี่ยน":`⚙️ ระบบกำหนดตามอายุออเดอร์ นับจาก${ob?ob.label:"วันสั่งซื้อ/วันรับเข้าระบบ"} (T1 0–4 วัน · T2 5–9 วัน · T3 10 วัน+) · กดปุ่มเพื่อเปลี่ยนรอบเอง`}</div></div>`;}
 window.setRound=function(key,stage){api("/api/lead/tstage",{key,stage:Number(stage)}).then(j=>{if(j&&j.ok){if(j.lead)CUR=j.lead;const i=ACTIVE.findIndex(x=>x.key===key);if(i>=0&&j.lead)ACTIVE[i]=j.lead;renderSheet();renderList();renderNav();toast("เปลี่ยนเป็นรอบ T"+stage+" แล้ว");}else toast((j&&j.message)||"เปลี่ยนรอบไม่สำเร็จ");});};
 function saleCard(r){
   const items=r.saleItems||[];const label=(r.leadStatus==="awaiting_payment")?"🧾 รอชำระเงิน — รายการที่ตกลงซื้อ":"✅ ปิดการขายสำเร็จ";

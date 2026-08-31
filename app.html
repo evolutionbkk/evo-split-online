@@ -315,7 +315,7 @@ function viewTelOverview(){
 }
 
 /* ===== KPI drill-down (click a number → see the phones by channel) ===== */
-function showModal(title,html){closeModal();const o=document.createElement("div");o.id="kpiModal";o.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto";o.onclick=e=>{if(e.target===o)closeModal();};o.innerHTML=`<div style="background:var(--card,#fff);border-radius:14px;max-width:700px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35)"><div style="position:sticky;top:0;background:var(--navy,#1f3864);color:#fff;padding:13px 18px;display:flex;justify-content:space-between;align-items:center;border-radius:14px 14px 0 0"><b>${title}</b><span onclick="closeModal()" style="cursor:pointer;font-size:22px;line-height:1">×</span></div><div id="kpiModalBody" style="padding:16px 18px">${html}</div></div>`;document.body.appendChild(o);}
+function showModal(title,html){closeModal();const o=document.createElement("div");o.id="kpiModal";o.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px 16px";o.onclick=e=>{if(e.target===o)closeModal();};o.innerHTML=`<div style="background:var(--card,#fff);border-radius:14px;max-width:700px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)"><div style="flex:0 0 auto;background:var(--navy,#1f3864);color:#fff;padding:13px 18px;display:flex;justify-content:space-between;align-items:center"><b>${title}</b><span onclick="closeModal()" style="cursor:pointer;font-size:22px;line-height:1">×</span></div><div id="kpiModalBody" style="padding:16px 18px;overflow:auto">${html}</div></div>`;document.body.appendChild(o);}
 window.closeModal=function(){const m=document.getElementById("kpiModal");if(m)m.remove();};
 window.drillKpi=async function(cat,side){
   const nm=side==="W"?"พี่หวาน (W)":"พี่เขม (K)";
@@ -338,8 +338,14 @@ window.drillKpi=async function(cat,side){
       const cls=cat==="mk"?"Marketplace":"FB",seen=new Set();
       rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return x.side===side&&x.classify===cls&&t>=tS&&t<tE&&(x.durationSec||0)>7;}).filter(x=>{if(seen.has(x.phone))return false;seen.add(x.phone);return true;}).map(x=>({name:x.matchedName||"—",phone:x.phone,extra:(x.durationSec||0)+" วิ · "+(x.direction||"")}));
     }else{
-      const st=cat==="t2"?"T2":"T3";
-      rows=(D.leads||[]).filter(r=>r.sales===side&&String(r.step||"").toUpperCase()===st).map(r=>({name:r.name||"—",phone:r.phone||"",extra:chName(r.source)}));
+      // T2/T3 = รอบติดตามที่เซลล์กดเอง — โชว์ทั้ง "เลื่อนเข้ารอบวันนี้" (ตรงกับตัวเลขในตาราง) และ "ยอดค้างในรอบตอนนี้"
+      const st=cat==="t2"?"T2":"T3",key=cat==="t2"?"t2At":"t3At";
+      const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
+      const inRound=(D.leads||[]).filter(r=>r.sales===side&&String(r.step||"").toUpperCase()===st);
+      const movedToday=inRound.filter(r=>{const t=Date.parse(r[key]||"");return t>=tS&&t<tE;}).length;
+      if(!inRound.length){setBody(`<div class="empty" style="padding:24px">ยังไม่มีลูกค้าในรอบ ${st}</div>`);return;}
+      const body=`<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.6">เลื่อนเข้า ${st} <b style="color:var(--brand)">วันนี้ ${fmt(movedToday)} ราย</b> (= ตัวเลขในตาราง) · กำลังอยู่รอบ ${st} ตอนนี้รวม <b>${fmt(inRound.length)} ราย</b></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>ชื่อลูกค้า</th><th>เบอร์โทร</th><th>ช่องทาง</th></tr></thead><tbody>${inRound.map(r=>{const t=Date.parse(r[key]||"");const isToday=t>=tS&&t<tE;return `<tr><td>${esc(r.name||"—")}${isToday?' <span style="font-size:10px;color:var(--brand);font-weight:700">• วันนี้</span>':""}</td><td class="mono">${esc(r.phone||"")}</td><td style="color:var(--muted)">${esc(chName(r.source))}</td></tr>`;}).join("")}</tbody></table></div>`;
+      setBody(body);return;
     }
     if(!rows.length){setBody('<div class="empty" style="padding:24px">ยังไม่มีรายการในวันนี้</div>');return;}
     setBody(`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">รวม ${rows.length} ราย</div><div style="overflow:auto"><table class="tbl"><thead><tr><th>ชื่อลูกค้า</th><th>เบอร์โทร</th><th>รายละเอียด</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="mono">${esc(r.phone)}</td><td style="color:var(--muted)">${esc(r.extra)}</td></tr>`).join("")}</tbody></table></div>`);
