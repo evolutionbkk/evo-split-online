@@ -2730,6 +2730,20 @@ function thTodayStartMs() {
   const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
   return Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
 }
+// Human chat admins only (exclude bots/automation like "Botcake", "POS", unmapped names).
+// CHAT_USERS names are always human; STAFF_NICK humans minus the two telesales nicknames.
+const CHAT_ADMIN_NICKS = new Set(STAFF_NICK.map((kv) => kv[1]).filter((n) => n !== 'เขม' && n !== 'หวาน'));
+function isHumanChatAdmin(nick) { return CHAT_ADMIN_NICKS.has(nick) || CHAT_USERS.some((c) => c.name === nick); }
+// Background-computed chat-KPI snapshots (month + today) so the endpoint never blocks on a live tally.
+async function chatKpiRefresh() {
+  if (!pkChatConfigured()) return;
+  try {
+    const month = await pkConvTally(thMonthStartMs(), 500, null);
+    const today = await pkConvTally(thTodayStartMs(), 200, null);
+    state.chatKpiSnap = { computedAt: new Date().toISOString(), monthStart: thMonthStartMs(), todayStart: thTodayStartMs(), month, today };
+    state = await store.save(state);
+  } catch (e) { console.warn('[chatkpi] refresh failed:', String(e)); }
+}
 app.get('/api/chat/today-summary', requireChat, async (req, res) => {
   if (!pkChatConfigured()) return res.json({ tot: 0, wait: 0, ans: 0 });
   try {
@@ -2845,25 +2859,36 @@ app.get('/api/admin/chat-kpi', requireAuth, async (req, res) => {
   let from = req.query.from ? Date.parse(req.query.from) : (now - 29 * 86400000);
   if (isNaN(to)) to = now; if (isNaN(from)) from = to - 29 * 86400000;
   const iso = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
-  if (!pkChatConfigured()) return res.json({ ok: true, ...iso, admins: CHAT_USERS.map((c) => ({ name: c.name, chats: 0, replies: 0, avgRespSec: null, closed: 0 })), note: 'ยังไม่ได้เชื่อม Pancake แชท' });
+  const emptyAdmins = () => [...CHAT_ADMIN_NICKS].map((nm) => ({ name: nm, chats: 0, replies: 0, avgRespSec: null, closed: 0 }));
+  if (!pkChatConfigured()) return res.json({ ok: true, ...iso, admins: emptyAdmins(), note: 'ยังไม่ได้เชื่อม Pancake แชท' });
+  // Closed count from in-app statuses (optional add-on)
+  const meta = pkChatMeta(); const closedBy = {};
+  for (const id of Object.keys(meta)) {
+    const m = meta[id]; if (!m || m.status !== 'closed' || !m.closedBy) continue;
+    const t = m.closedAt ? Date.parse(m.closedAt) : NaN; if (isNaN(t) || t < from || t > to) continue;
+    const nk = nickName(m.closedBy) || m.closedBy; closedBy[nk] = (closedBy[nk] || 0) + 1;
+  }
+  const build = (tally) => {
+    const byNick = (tally && tally.byNick) || {};
+    const names = new Set([...CHAT_USERS.map((c) => c.name), ...Object.keys(byNick).filter(isHumanChatAdmin)]);
+    return [...names].filter(isHumanChatAdmin).map((nm) => ({ name: nm, chats: byNick[nm] || 0, replies: byNick[nm] || 0, avgRespSec: null, closed: closedBy[nm] || 0 })).sort((a, b) => b.chats - a.chats);
+  };
+  // Serve month/today from the background snapshot so we never block on a live tally.
+  const snap = state.chatKpiSnap || null;
+  const todayStart = thTodayStartMs();
+  const wantToday = from >= todayStart - 2 * 3600000;
   try {
-    // REAL data from Pancake: byNick = จำนวนแชทที่แต่ละแอดมิน (ชื่อเล่น) เป็นคนตอบล่าสุด ในช่วงเวลาที่เลือก
-    const tally = await pkConvTally(from, 300, to);           // { tot, wait, byNick }
-    const byNick = tally.byNick || {};
-    // "ปิดได้" จากสถานะที่กดในกล่องแชทของแอปนี้ (ถ้าใช้) — เสริม ไม่บังคับ
-    const meta = pkChatMeta(); const closedBy = {};
-    for (const id of Object.keys(meta)) {
-      const m = meta[id]; if (!m || m.status !== 'closed' || !m.closedBy) continue;
-      const t = m.closedAt ? Date.parse(m.closedAt) : NaN; if (isNaN(t) || t < from || t > to) continue;
-      const nk = nickName(m.closedBy) || m.closedBy; closedBy[nk] = (closedBy[nk] || 0) + 1;
+    if (snap && (wantToday ? snap.today : snap.month)) {
+      const tally = wantToday ? snap.today : snap.month;
+      const bots = Object.entries((tally && tally.byNick) || {}).filter(([nm]) => !isHumanChatAdmin(nm)).reduce((s, [, v]) => s + v, 0);
+      return res.json({ ok: true, ...iso, source: wantToday ? 'today' : 'month', computedAt: snap.computedAt, totalChats: tally.tot, waiting: tally.wait, botReplies: bots, admins: build(tally) });
     }
-    // รวมรายชื่อ: ทีมที่ตั้งไว้ (CHAT_USERS) + ทุกคนที่ตอบจริงใน Pancake
-    const namesSet = new Set([...CHAT_USERS.map((c) => c.name), ...Object.keys(byNick)]);
-    const admins = [...namesSet].map((nm) => ({ name: nm, chats: byNick[nm] || 0, replies: byNick[nm] || 0, avgRespSec: null, closed: closedBy[nm] || 0 }))
-      .sort((a, b) => b.chats - a.chats);
-    res.json({ ok: true, ...iso, totalChats: tally.tot, waiting: tally.wait, admins });
+    // Snapshot not ready yet (first run): compute today live (fast); for wider ranges return note + kick a refresh.
+    if (wantToday) { const t = await pkConvTally(todayStart, 200, null); return res.json({ ok: true, ...iso, source: 'today-live', totalChats: t.tot, waiting: t.wait, admins: build(t) }); }
+    chatKpiRefresh().catch(() => {});
+    return res.json({ ok: true, ...iso, admins: emptyAdmins(), note: 'กำลังประมวลผลรอบแรก — ลองใหม่อีกครั้งในอีกสักครู่' });
   } catch (e) {
-    res.json({ ok: false, ...iso, error: String(e).slice(0, 160), admins: CHAT_USERS.map((c) => ({ name: c.name, chats: 0, replies: 0, avgRespSec: null, closed: 0 })) });
+    res.json({ ok: false, ...iso, error: String(e).slice(0, 160), admins: emptyAdmins() });
   }
 });
 
@@ -3002,6 +3027,10 @@ boot().then(() => {
   if (GROQ_API_KEY) {
     setTimeout(() => { aisumWorker().catch(() => {}); }, 45 * 1000);           // first AI-summary pass shortly after boot
     setInterval(() => { aisumWorker().catch(() => {}); }, 5 * 60 * 1000);      // summarize new calls every 5 min (batch, rate-limited)
+  }
+  if (pkChatConfigured()) {
+    setTimeout(() => { chatKpiRefresh().catch(() => {}); }, 30 * 1000);        // warm admin chat-KPI snapshot (month + today) shortly after boot
+    setInterval(() => { chatKpiRefresh().catch(() => {}); }, 15 * 60 * 1000);  // refresh every 15 min so the dashboard reads it instantly
   }
   if (PANCAKE_API_KEY) {
     setTimeout(() => { pancakePull({ hold: true }).catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot → holding pool (Teamlead distributes)
