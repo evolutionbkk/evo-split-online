@@ -380,7 +380,8 @@ app.post('/api/admin/adminleave', requireAuth, async (req, res) => {
 // ---------- lead CRM (per-salesperson status tracking) ----------
 const UNREACH_REASONS = ['ไม่รับสาย', 'สายไม่ว่าง', 'ปิดเครื่อง', 'โทรไม่ติด', 'เบอร์ผิด', 'เบอร์ไม่ใช้งาน'];
 const REACH_STATUS = ['not_ready', 'appointment', 'closed'];
-const ARCH_REASONS = ['unreachable', 'bad_data', 'duplicate', 'stopped'];
+const ARCH_REASONS = ['unreachable', 'bad_data', 'duplicate', 'stopped', 'deleted', 'closed'];
+// 'deleted' = ลบเข้าถังขยะ (กู้คืนได้) · 'closed' = ปิดงาน/จัดเก็บ (กู้คืนได้) · อื่น ๆ = เหตุผลเดิม
 // New CRM taxonomy (replaces the old reachStatus/contact model in the UI; legacy fields kept for back-compat)
 const LEAD_STATUS_KEYS = ['new', 'contacting', 'interested', 'followup', 'awaiting_payment', 'won', 'lost'];
 const CALL_RESULT_KEYS = ['no_answer', 'connected', 'hung_up', 'wrong_number'];
@@ -601,7 +602,7 @@ app.get('/api/leads', requireCrm, async (req, res) => {
 });
 
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
-const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', restore: 'กู้คืน' };
+const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
   const limit = Math.min(600, Math.max(20, parseInt(req.query.limit, 10) || 250));
   const activity = [], transfers = [];
@@ -651,7 +652,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   const p = (req.body && req.body.patch) || {};
   const by = whoami(req);
   // snapshot for the activity timeline
-  const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length, trackingNo: rec.trackingNo || '' };
+  const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', phone: rec.phone || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length, trackingNo: rec.trackingNo || '' };
   // new CRM taxonomy
   if ('leadStatus' in p) rec.leadStatus = LEAD_STATUS_KEYS.includes(p.leadStatus) ? p.leadStatus : rec.leadStatus;
   if ('callResult' in p) rec.callResult = (p.callResult === '' || CALL_RESULT_KEYS.includes(p.callResult)) ? p.callResult : rec.callResult;
@@ -666,6 +667,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ('line' in p) rec.line = ['added', 'not_added', ''].includes(p.line) ? p.line : rec.line;
   if ('nextAppt' in p) rec.nextAppt = String(p.nextAppt || '').slice(0, 40);
   if ('name' in p) rec.name = String(p.name || '').trim().slice(0, 200);
+  if ('phone' in p) rec.phone = String(p.phone || '').trim().slice(0, 40);   // แก้เบอร์โทร (กรณีบันทึกผิด)
   if ('note' in p) rec.note = String(p.note || '').slice(0, 2000);
   if ('address' in p) rec.address = String(p.address || '').slice(0, 500);
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
@@ -681,6 +683,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ((rec.nextAppt || '') !== b0.nextAppt) pushHist(rec, 'followup', rec.nextAppt, by);
   if ((rec.note || '') !== b0.note) pushHist(rec, 'note', '', by);
   if ((rec.name || '') !== b0.name) pushHist(rec, 'name', rec.name, by);
+  if ((rec.phone || '') !== b0.phone) pushHist(rec, 'phone', rec.phone, by);
   if ((rec.address || '') !== b0.address) pushHist(rec, 'address', '', by);
   if ((rec.callCount || 0) !== b0.callCount) pushHist(rec, 'calls', rec.callCount, by);
   if ((rec.saleItems || []).length !== b0.saleN) pushHist(rec, 'sale', (rec.saleItems || []).length, by);
@@ -701,19 +704,20 @@ app.post('/api/lead/archive', requireCrm, async (req, res) => {
   rec.archiveReason = reason;
   rec.archiveNote = note;
   rec.archivedAt = new Date().toISOString(); rec.updatedAt = rec.archivedAt; rec.updatedBy = whoami(req);
-  pushHist(rec, 'archive', reason + (note ? (' · ' + note) : ''), whoami(req));
+  const hk = reason === 'deleted' ? 'delete' : (reason === 'closed' ? 'close' : 'archive');
+  pushHist(rec, hk, note || (hk === 'archive' ? reason : ''), whoami(req));
   state = await store.save(state);
-  res.json({ ok: true });
+  res.json({ ok: true, lead: leadView(rec) });
 });
 
 app.post('/api/lead/restore', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
-  rec.archived = false; rec.archiveReason = ''; rec.archivedAt = null;
+  rec.archived = false; rec.archiveReason = ''; rec.archiveNote = ''; rec.archivedAt = null;
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
   pushHist(rec, 'restore', '', whoami(req));
   state = await store.save(state);
-  res.json({ ok: true });
+  res.json({ ok: true, lead: leadView(rec) });
 });
 
 // ----- Follow-up tiers T1/T2/T3 -----

@@ -144,7 +144,7 @@ const OUTCOMES=[
 const REJECT_REASONS=["ราคาสูงเกินไป","โปรโมชั่นไม่ตรงใจ","ไม่สนใจ","ปฏิเสธถาวร"];
 const NOREACH=["ไม่รับสาย","สายไม่ว่าง","ปิดเครื่อง","โทรไม่ติด","เบอร์ผิด","เบอร์ไม่ใช้งาน"];
 
-let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="today",CUR=null,Q="",VIEW="list";
+let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="today",CUR=null,Q="",TQ="",VIEW="list";
 const MP_TARGET=50,FB_T=5;
 
 function leadPanel(r){if(r.source==="refill")return"refill";return (r.source==="pancake"||r.source==="manual")?"mkt":"ecom";}
@@ -166,13 +166,14 @@ async function api(url,body){const r=await fetch(url,{method:"POST",headers:{"Co
 
 function renderNav(){
   const fbCount=ACTIVE.filter(r=>!r.archived&&leadPanel(r)==="mkt"&&isToCall(r)).length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"}];
+  const arcCount=ARCHIVED.length;
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"trash",ic:"🗑",t:"ถังขยะ / กู้คืน",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
-      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
+      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
 }
-function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else{VIEW="list";PANEL=k;FILTER="today";Q="";}render();}
+function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else{VIEW="list";PANEL=k;FILTER="today";Q="";}render();}
 
 function statusPill(r){const st=r.leadStatus||"new";return `<span class="pill st-${st}">${STLABEL[st]||st}</span>`;}
 function urgLine(r){
@@ -207,6 +208,7 @@ function render(){
   $("#viewTitle").textContent = VIEW==="kpi"?"สรุป & KPI ของฉัน":(PANEL==="mkt"?"Facebook (Pancake)":"Marketplace");
   const c=$("#content");
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
+  if(VIEW==="trash"){c.innerHTML=viewTrash2();return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
   const target=isFB?15:MP_TARGET,doneToday=pool.filter(calledToday).length,remain=pool.filter(isToCall).length;
@@ -250,6 +252,27 @@ function renderList(){
   }
 }
 function setFilter(f){FILTER=f;render();}
+
+/* ===== ถังขยะ / กู้คืน (ของเซลล์เอง) ===== */
+function trReason(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออก (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"เลิกติดตาม"};return m[r.archiveReason||""]||"เก็บเข้าคลัง";}
+function renderTrList(){
+  const q=(TQ||"").trim().toLowerCase(),dq=q.replace(/\D/g,"");
+  let list=ARCHIVED.filter(r=>!q||[r.code,r.name].some(v=>String(v||"").toLowerCase().includes(q))||(dq&&String(r.phone||"").replace(/\D/g,"").includes(dq)));
+  list=list.slice().sort((a,b)=>(Date.parse(b.archivedAt||0)||0)-(Date.parse(a.archivedAt||0)||0));
+  if(!list.length)return `<div class="empty">${q?"ไม่พบรายการที่ตรงกับคำค้น":"ยังไม่มีตั๋วในถังขยะ"}</div>`;
+  return `<div class="cards">`+list.map(r=>`<div class="lcard" style="border-left:4px solid #94a3b8"><div class="av" style="background:#94a3b8">${esc((r.name||"?").trim()[0]||"?")}</div>
+    <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span></div>
+      <div class="lc-sub">📞 ${esc(r.phone)} · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
+      <div class="lc-urg u-mut">${trReason(r)} · ${esc(fmtShort(r.archivedAt))}${r.archiveNote?" · "+esc(r.archiveNote):""}</div></div>
+    <div class="lc-right"><button class="btn p" style="padding:8px 14px" onclick="restoreLead2('${esc(r.key)}')">↩︎ กู้คืน</button></div></div>`).join("")+`</div>`;
+}
+function viewTrash2(){
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">ตั๋วที่คุณ <b>ลบ</b> (ถังขยะ) หรือ <b>จัดเก็บ</b> (ปิดงาน) — กู้คืนกลับเข้าคิวได้ทันที · หัวหน้าทีมเห็นประวัตินี้ด้วย (${ARCHIVED.length} ราย)</div>
+  <input class="search" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / รหัส" value="${esc(TQ)}" oninput="TQ=this.value;renderTrListBox()">
+  <div id="trlist">${renderTrList()}</div>`;
+}
+window.renderTrListBox=function(){const b=$("#trlist");if(b)b.innerHTML=renderTrList();};
+window.restoreLead2=async function(key){const j=await api("/api/lead/restore",{key});if(j&&j.ok){toast("กู้คืนตั๋วแล้ว");await reload();}else toast((j&&j.message)||"กู้คืนไม่สำเร็จ");};
 
 function viewKpi(){
   const A=ACTIVE.filter(r=>!r.archived);
@@ -312,12 +335,37 @@ function renderSheet(){
       <button class="btn g" style="margin-top:8px" onclick="saveNote()">บันทึกโน้ต</button>
       <div style="font-size:12px;color:var(--muted);font-weight:700;margin:12px 0 6px">วันนัดติดตามครั้งถัดไป</div>
       <input type="datetime-local" class="inp" id="fdate" value="${fval}"><button class="btn p" style="margin-top:8px" onclick="saveAppt()">บันทึกวันนัด</button></div>
-    <div class="box"><h4>🕑 ไทม์ไลน์การติดต่อ</h4><div>${timeline(r)}</div></div>`;
+    <div class="box"><div class="step-h"><span class="step-n">✏️</span><span class="step-t">แก้ไขข้อมูลลูกค้า (กรณีบันทึกผิด)</span></div>
+      <div style="font-size:12px;color:var(--muted);font-weight:700;margin:2px 0 4px">ชื่อลูกค้า</div>
+      <input class="inp" id="edName" value="${esc(r.name||"")}" placeholder="ชื่อลูกค้า">
+      <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">เบอร์โทร</div>
+      <input class="inp" id="edPhone" value="${esc(r.phone||"")}" placeholder="เบอร์โทร" inputmode="tel">
+      <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">ที่อยู่</div>
+      <textarea class="inp" id="edAddr" rows="2" placeholder="ที่อยู่จัดส่ง">${esc(r.address||"")}</textarea>
+      <button class="btn g" style="margin-top:9px" onclick="saveEdit()">💾 บันทึกการแก้ไข</button></div>
+    <div class="box"><h4>🕑 ไทม์ไลน์การติดต่อ</h4><div>${timeline(r)}</div></div>
+    <div class="box" style="display:flex;gap:9px;flex-wrap:wrap">
+      <button class="btn" style="flex:1;min-width:130px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);font-weight:800" onclick="archiveLead('closed')">📁 จัดเก็บ (ปิดงาน)</button>
+      <button class="btn" style="flex:1;min-width:130px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:800" onclick="archiveLead('deleted')">🗑 ลบเข้าถังขยะ</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:2px">ลบ/จัดเก็บแล้ว ตั๋วจะออกจากคิว แต่ยังกู้คืนได้ที่เมนู "ถังขยะ"</div>`;
   if(r.contact==="reached")pickReach(true);
   else if(r.contact==="unreachable")pickReach(false);
 }
-const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",address:"🏠",calls:"📞",tracking:"📦",transfer:"🔁",archive:"🗑️",restore:"↩️"};
-function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;default:return e.k;}}
+window.saveEdit=async function(){
+  const name=($("#edName").value||"").trim(),phone=($("#edPhone").value||"").trim(),address=($("#edAddr").value||"").trim();
+  if(!name){toast("กรอกชื่อลูกค้า");return;}
+  await save({name,phone,address},"แก้ไขข้อมูลแล้ว");
+};
+window.archiveLead=async function(reason){
+  if(!CUR)return;
+  const key=CUR.key,lab=reason==="deleted"?"ลบเข้าถังขยะ":"จัดเก็บ (ปิดงาน)";
+  const j=await api("/api/lead/archive",{key,reason});
+  if(j&&j.ok){closeSheet();await reload();toast(lab+"แล้ว · กู้คืนได้ที่ถังขยะ");}
+  else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");
+};
+const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",phone:"✏️",address:"🏠",calls:"📞",tracking:"📦",tstage:"🔄",transfer:"🔁",archive:"📁",delete:"🗑️",close:"📁",restore:"↩️",aisum:"🤖"};
+function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;case"name":return"แก้ชื่อ → "+v;case"phone":return"แก้เบอร์โทร → "+v;case"address":return"แก้ที่อยู่";case"tstage":return"ปรับรอบ → "+v;case"tracking":return"ใส่เลขพัสดุ "+v;case"archive":return"เก็บเข้าคลัง"+(v?(" · "+v):"");case"delete":return"ลบเข้าถังขยะ"+(v?(" · "+v):"");case"close":return"ปิดงาน/จัดเก็บ"+(v?(" · "+v):"");case"restore":return"กู้คืนตั๋ว";case"aisum":return"AI สรุปสาย";default:return e.k;}}
 function timeline(r){const h=(r.history||[]).slice().reverse();if(!h.length)return `<div style="color:var(--muted);font-size:12.5px">ยังไม่มีประวัติ</div>`;return h.map(e=>`<div class="ev"><span class="eic">${EVIC[e.k]||"•"}</span><div><div class="et">${esc(evText(e))}</div><div class="em">${esc(fmtShort(e.at))}${e.by?" · "+esc(e.by):""}</div></div></div>`).join("");}
 
 window.pickReach=function(ok){
