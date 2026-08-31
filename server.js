@@ -1277,13 +1277,16 @@ async function groqTranscribe(id, sttModel) {
 async function groqSummarize(transcript, meta, model) {
   const sys = 'คุณเป็นผู้ช่วยสรุปบทสนทนาการขายทางโทรศัพท์ของทีมเทเลเซลล์ YANHEE สรุปเป็นภาษาไทยแบบสั้น กระชับ อ่านเข้าใจใน 10 วินาที เพื่อให้เพื่อนร่วมทีมที่รับช่วงต่อรู้ว่าคุยอะไรไปแล้ว';
   const user = 'ถอดเสียงสายโทร (' + (meta || '') + '):\n"""' + String(transcript).slice(0, 6000) + '"""\n\nสรุปเป็นหัวข้อสั้น ๆ:\n• ประเด็นที่คุย:\n• ท่าที/ความสนใจของลูกค้า:\n• สิ่งที่ต้องทำต่อ:\nถ้าข้อมูลน้อยหรือถอดเสียงไม่ชัด ให้บอกเท่าที่มี ห้ามแต่งข้อมูลเพิ่ม';
+  const body = { model: model || GROQ_SUM_MODEL, temperature: 0.2, max_tokens: 1500, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] };
+  if (/gpt-oss/.test(body.model)) body.reasoning_effort = 'low';   // reasoning models: keep hidden reasoning short so content isn't starved
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: model || GROQ_SUM_MODEL, temperature: 0.2, max_tokens: 500, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+    body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error('llm_' + r.status + ':' + JSON.stringify(j).slice(0, 180));
-  return ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+  const msg = (j.choices && j.choices[0] && j.choices[0].message) || {};
+  return String(msg.content || msg.reasoning || '').trim();
 }
 async function summarizeCall(rec, model, sttModel) {
   const id = rec.id;
