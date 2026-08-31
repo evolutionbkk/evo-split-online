@@ -85,12 +85,13 @@
   .pk-tile{border:1px solid var(--line);border-radius:11px;padding:12px 13px;background:var(--surface-2,var(--surface))}
   .pk-tile .n{font-size:18px;font-weight:800;line-height:1.05}.pk-tile .l{font-size:11px;color:var(--muted);margin-top:5px;font-weight:600}
   .pk-kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:13px}.pk-kv span{color:var(--muted)}
-  .opts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-  .op{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:11px;background:var(--surface);text-align:left;width:100%}
-  .op:hover{border-color:#c7d7f0}.op.sel{border-color:var(--ok);background:#f0fdf4}
-  .op .ico{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--surface-2);flex:0 0 auto}
-  .op .tx{flex:1}.op .t{display:block;font-weight:700;font-size:13.5px}.op .d{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
-  .op .rev{font-size:10.5px;font-weight:800;color:var(--violet);background:#f5f3ff;border:1px solid #ddd6fe;border-radius:7px;padding:3px 8px}
+  .opts{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+  .op{border:1.5px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:13px;background:var(--surface);text-align:left;width:100%;transition:border-color .12s,box-shadow .12s}
+  .op:hover{border-color:#c7d7f0;box-shadow:0 1px 6px rgba(37,99,235,.06)}.op.sel{border-color:var(--ok);background:#f0fdf4;box-shadow:0 1px 8px rgba(16,185,129,.1)}
+  .op .ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;background:var(--surface-2);flex:0 0 auto}
+  .op.sel .ico{background:#dcfce7}
+  .op .tx{flex:1;min-width:0}.op .t{display:block;font-weight:800;font-size:14.5px}.op .d{display:block;font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4}
+  .op .rev{font-size:11px;font-weight:800;color:var(--violet);background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:5px 10px;flex:0 0 auto;white-space:nowrap}
   .reveal{margin:2px 0 4px 39px;border-left:2px solid #bbf7d0;padding:10px 0 2px 13px;display:none}.reveal.show{display:block}
   .inp{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13px}
   .reasons{display:flex;gap:7px;flex-wrap:wrap}.rchip{border:1.5px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 11px;font-size:12.5px;font-weight:700;color:var(--muted)}
@@ -454,8 +455,9 @@ window.archiveLead=async function(reason){
   if(j&&j.ok){closeSheet();await reload();toast(lab+"แล้ว · กู้คืนได้ที่ถังขยะ");}
   else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");
 };
-const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",phone:"✏️",address:"🏠",calls:"📞",tracking:"📦",tstage:"🔄",transfer:"🔁",archive:"📁",delete:"🗑️",close:"📁",restore:"↩️",aisum:"🤖"};
-function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;case"name":return"แก้ชื่อ → "+v;case"phone":return"แก้เบอร์โทร → "+v;case"address":return"แก้ที่อยู่";case"tstage":return"ปรับรอบ → "+v;case"tracking":return"ใส่เลขพัสดุ "+v;case"archive":return"เก็บเข้าคลัง"+(v?(" · "+v):"");case"delete":return"ลบเข้าถังขยะ"+(v?(" · "+v):"");case"close":return"ปิดงาน/จัดเก็บ"+(v?(" · "+v):"");case"restore":return"กู้คืนตั๋ว";case"aisum":return"AI สรุปสาย";default:return e.k;}}
+const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",phone:"✏️",address:"🏠",calls:"📞",tracking:"📦",tstage:"🔄",transfer:"🔁",archive:"📁",delete:"🗑️",close:"📁",restore:"↩️",aisum:"🤖",import:"📥",distribute:"📤",recycle:"♻️",dayoff_move:"🌴",dayoff_return:"↩️"};
+const EVLAB={import:"นำเข้ารายชื่อ",distribute:"แจกให้เซลล์",recycle:"คัดออกถาวร",dayoff_move:"ย้าย (วันลา)",dayoff_return:"คืน (ยกเลิกวันลา)",transfer:"โอนให้อีกฝั่ง",tag:"เพิ่มแท็ก"};
+function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;case"name":return"แก้ชื่อ → "+v;case"phone":return"แก้เบอร์โทร → "+v;case"address":return"แก้ที่อยู่";case"tstage":return"ปรับรอบ → "+v;case"tracking":return"ใส่เลขพัสดุ "+v;case"archive":return"เก็บเข้าคลัง"+(v?(" · "+v):"");case"delete":return"ลบเข้าถังขยะ"+(v?(" · "+v):"");case"close":return"ปิดงาน/จัดเก็บ"+(v?(" · "+v):"");case"restore":return"กู้คืนตั๋ว";case"aisum":return"AI สรุปสาย";case"transfer":return"โอนให้ฝั่ง "+v;case"import":return"นำเข้ารายชื่อ"+(v?(" · รอบ "+v):"");default:return EVLAB[e.k]||e.k;}}
 function timeline(r){const h=(r.history||[]).slice().reverse();if(!h.length)return `<div style="color:var(--muted);font-size:12.5px">ยังไม่มีประวัติ</div>`;return h.map(e=>`<div class="ev"><span class="eic">${EVIC[e.k]||"•"}</span><div><div class="et">${esc(evText(e))}</div><div class="em">${esc(fmtShort(e.at))}${e.by?" · "+esc(e.by):""}</div></div></div>`).join("");}
 
 window.pickReach=function(ok){
