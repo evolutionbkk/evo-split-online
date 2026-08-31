@@ -155,6 +155,7 @@ const NOREACH=["ไม่รับสาย","สายไม่ว่าง","�
 let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="today",CUR=null,Q="",TQ="",VIEW="list";
 let KR="today",kcf="",kct="",MTQ="",MTPAGE=1,MTFILTER="all";  // ตั๋วของฉัน: ช่วงเวลา/ค้นหา/หน้า/สถานะ
 let PROUND="all",LPAGE=1;  // แท็บรอบ (T1/T2/T3) + หน้าในลิสต์คิวโทร
+let PREVVIEW="list";  // หน้าก่อนเปิดตั๋ว (ไว้กด ← กลับ)
 const KRLABEL={today:"วันนี้",yesterday:"เมื่อวาน",week:"สัปดาห์",month:"เดือน",custom:"กำหนดเอง"},KRORDER=["today","yesterday","week","month","custom"];
 function krBounds(){const TZ=7*3600000,now=Date.now(),th=new Date(now+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
   const sT=Date.UTC(y,m,d,0,0,0)-TZ,eT=Date.UTC(y,m,d,23,59,59)-TZ;
@@ -233,6 +234,7 @@ function render(){
   renderNav();
   $("#viewTitle").textContent = VIEW==="kpi"?"สรุป & KPI ของฉัน":(PANEL==="mkt"?"Facebook (Pancake)":"Marketplace");
   const c=$("#content");
+  if(VIEW==="ticket"){$("#viewTitle").textContent="ตั๋วลูกค้า";renderSheet();return;}
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
   if(VIEW==="trash"){c.innerHTML=viewTrash2();return;}
   if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
@@ -373,8 +375,8 @@ function viewKpi(){
 }
 
 function findLead(key){return ACTIVE.concat(ARCHIVED).find(r=>r.key===key);}
-function openLead(key){const r=findLead(key);if(!r)return;CUR=JSON.parse(JSON.stringify(r));renderSheet();$("#mbg").classList.add("on");}
-function closeSheet(){$("#mbg").classList.remove("on");CUR=null;}
+function openLead(key){const r=findLead(key);if(!r)return;CUR=JSON.parse(JSON.stringify(r));PREVVIEW=(VIEW==="ticket"?PREVVIEW:VIEW);VIEW="ticket";render();window.scrollTo(0,0);}
+function closeSheet(){VIEW=PREVVIEW||"list";CUR=null;render();}
 function roundInfo(r){const isFB=(r.source==="pancake"||r.source==="manual"||r.source==="refill");if(!r.step&&!isFB)return "";const cur=r.step||"T1";const b=t=>`<button onclick="setRound('${r.key}','${t.slice(1)}')" style="flex:1;padding:8px 0;border:none;border-radius:9px;font-weight:800;font-size:14px;cursor:pointer;${cur===t?"background:#fff;color:#111":"background:rgba(255,255,255,.22);color:#fff"}">${t}</button>`;const ob=orderBase(r);const refTxt=ob?` <span style="font-weight:600;opacity:.9">(อ้างอิง${ob.label} ${ob.day} · ${ob.days} วัน)</span>`:"";
   return `<div class="rb ${cur}"><b>รอบปัจจุบัน: ${cur} · ${ROUND_NAME[cur]||""}</b>${refTxt}<div class="g">🎯 ${ROUND_GOAL[cur]||""}</div><div style="display:flex;gap:6px;margin-top:10px">${["T1","T2","T3"].map(b).join("")}</div><div style="font-size:11px;opacity:.88;margin-top:7px">${r.stepManual?"🖐 เลือกรอบเอง — กดปุ่มอื่นเพื่อเปลี่ยน":`⚙️ ระบบกำหนดตามอายุออเดอร์ นับจาก${ob?ob.label:"วันสั่งซื้อ/วันรับเข้าระบบ"} (T1 0–4 วัน · T2 5–9 วัน · T3 10 วัน+) · กดปุ่มเพื่อเปลี่ยนรอบเอง`}</div></div>`;}
 window.setRound=function(key,stage){api("/api/lead/tstage",{key,stage:Number(stage)}).then(j=>{if(j&&j.ok){if(j.lead)CUR=j.lead;const i=ACTIVE.findIndex(x=>x.key===key);if(i>=0&&j.lead)ACTIVE[i]=j.lead;renderSheet();renderList();renderNav();toast("เปลี่ยนเป็นรอบ T"+stage+" แล้ว");}else toast((j&&j.message)||"เปลี่ยนรอบไม่สำเร็จ");});};
@@ -397,7 +399,7 @@ function renderSheet(){
   const ac=(r.aiCalls&&r.aiCalls[0])||null;
   const sumMeta=`จาก 📞 สายโทร OneCall · ${ac?esc(fmtShort(ac.at)):"—"} · โดย${esc(ME.name||("Sales "+ME.side))}`;
   const sumText=ac?esc(ac.summary):(r.note?esc(r.note):(r.product?(esc(r.product)+(r.orderAmount?" "+fmtB(r.orderAmount):"")+" · "+(STLABEL[r.leadStatus||"new"]||"รอโทร")):"ยังไม่มีสรุป — โทรและบันทึกผล/โน้ต แล้วจะเห็นสรุปตรงนี้"));
-  $("#sheet").innerHTML=`<button class="closeX" onclick="closeSheet()">✕</button>
+  $("#content").innerHTML=`<button onclick="closeSheet()" style="border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 14px;font-weight:700;font-size:13px;color:var(--ink);margin-bottom:14px;cursor:pointer">← กลับ</button>
     <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">
       <div class="tk-av2">${esc((r.name||"?").trim()[0]||"?")}</div>
       <div style="flex:1;min-width:0">
@@ -531,7 +533,7 @@ async function init(){
   await reload();
 }
 init();
-setInterval(()=>{if(!$("#mbg").classList.contains("on"))reload();},30000);
+setInterval(()=>{if(VIEW!=="ticket")reload();},30000);
 </script>
 </body>
 </html>
