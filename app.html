@@ -554,6 +554,12 @@ function viewTicket(){
 
 /* ===== STOCK & DISTRIBUTE (+leave) ===== */
 let dSource="all",dMode="50",dSide="W";
+const QUOTA={mpSide:30,t1Side:20};  // โควตาแจกต่อวัน (ล็อกตาม KPI) · Marketplace 30/คน · FB T1 20/คน · T2/T3 เติมตามต้องการ
+function dRec(){ // จำนวนที่แนะนำตามช่องทาง+วิธีแจกที่เลือก
+  if(dSource==="mp")return dMode==="one"?QUOTA.mpSide:QUOTA.mpSide*2;
+  if(dSource==="fb")return dMode==="one"?QUOTA.t1Side:QUOTA.t1Side*2;
+  return "";  // ทั้งหมด = ไม่กำหนดค่าเริ่มต้น
+}
 function viewStock(){
   const pool=(D.pool.pool)||{mp:0,fb:0,total:0},dist=D.dist||{},lv=D.leave||{},people=(lv.people||[]),dof=(D.pool.dayoff)||{};
   const sales=people.filter(p=>p.kind==="sales"),admins=people.filter(p=>p.kind==="admin");
@@ -570,11 +576,12 @@ function viewStock(){
     <span id="impMsg" style="margin-left:12px;font-size:13px;color:var(--muted);font-weight:700"></span>
   </div>
   <div class="secttl">📤 แจกรายชื่อให้เซลล์<span class="ln"></span></div>
+  <div class="card" style="padding:13px 16px;margin-bottom:14px;background:var(--surface-2);border-style:dashed"><div style="font-weight:800;font-size:13px;margin-bottom:6px">📋 โควตาแจกต่อวัน (ตาม KPI)</div><div style="font-size:12.5px;color:var(--muted);line-height:1.7">📦 <b>Marketplace ${QUOTA.mpSide}/คน</b> (รวม ${QUOTA.mpSide*2}/วัน) · 💬 <b>FB · T1 ${QUOTA.t1Side}/คน</b> · T2/T3 มีฐานเดิมอยู่แล้ว แจกเพิ่มได้ตามต้องการ<br><span style="font-size:11.5px">ช่องจำนวนด้านล่างตั้งค่าเริ่มต้นตามโควตาให้แล้ว — หัวหน้าทีมกดแจกเองได้เลย (แก้จำนวนได้)</span></div></div>
   <div class="card" style="padding:18px;margin-bottom:20px">
     <div class="fld"><label>ช่องทางที่จะแจก</label><div class="seg"><button class="${dSource==="all"?"on":""}" onclick="setD('source','all')">ทั้งหมด</button><button class="${dSource==="mp"?"on":""}" onclick="setD('source','mp')">📦 Marketplace</button><button class="${dSource==="fb"?"on":""}" onclick="setD('source','fb')">💬 Facebook</button></div></div>
     <div class="fld"><label>วิธีแจก</label><div class="seg"><button class="${dMode==="50"?"on":""}" onclick="setD('mode','50')">อัตโนมัติ · แบ่งเท่ากัน W/K</button><button class="${dMode==="one"?"on":""}" onclick="setD('mode','one')">เลือกจำนวน → คนเดียว</button></div></div>
     ${dMode==="one"?`<div class="fld"><label>แจกให้</label><div class="seg"><button class="${dSide==="W"?"on":""}" onclick="setD('side','W')">พี่หวาน (W)</button><button class="${dSide==="K"?"on":""}" onclick="setD('side','K')">พี่เขม (K)</button></div></div>`:""}
-    <div class="fld"><label>จำนวน (เว้นว่าง = แจกทั้งหมดในช่องทางที่เลือก)</label><input class="inp" id="dCount" type="number" min="1" placeholder="เช่น 50" style="width:170px"></div>
+    <div class="fld"><label>จำนวน${dSource!=="all"?` · โควตาแนะนำ ${dRec()} ราย`:" (เว้นว่าง = แจกทั้งหมด)"}</label><input class="inp" id="dCount" type="number" min="1" value="${dRec()}" placeholder="เช่น ${QUOTA.mpSide*2}" style="width:170px"></div>
     <button class="btn p" id="dBtn" onclick="doDist()">แจกรายชื่อ</button><span id="dMsg" style="margin-left:12px;font-size:13px;color:var(--muted);font-weight:700"></span>
   </div>`;
   if(dist.distributed){h+=`<div class="secttl">📈 สรุปการแจก · ${rlab()}<span class="ln"></span></div>
