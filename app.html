@@ -298,13 +298,19 @@ function viewTelOverview(){
   const COL={mk:"#a16207",t1:"#2563eb",t2:"#0891b2",t3:"#7c3aed"};
   const cC=(v,tg,color,cat,side)=>{const pct=tg?Math.min(100,Math.round(v/tg*100)):0;return `<td onclick="drillKpi('${cat}','${side}')" style="cursor:pointer" title="กดดูรายชื่อ/เบอร์"><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${fmt(v)}<span style="color:var(--muted);font-weight:500">/${tg}</span></span><span class="tnum" style="color:${color}">${pct}%</span></div>${bar(pct,color)}</td>`;};
   const row=(dot,lab,sub,tg,wv,kv,color,cat)=>`<tr><td><b style="color:${color}">${dot} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${cC(wv,tg,color,cat,'W')}${cC(kv,tg,color,cat,'K')}<td class="r tnum"><b style="font-size:15px">${fmt(wv+kv)}</b></td></tr>`;
+  // ยอดขายวันนี้ — จากที่เซลล์บันทึกปิดการขาย (todaySales ต่อฝั่ง) เหมือนฝั่งแอดมิน
+  const revOf=side=>((D.kpi[side]||{}).todaySales||[]).reduce((s,x)=>s+(x.amount||0),0);
+  const wRev=revOf("W"),kRev=revOf("K");
+  const revCell=(side,amt,cnt)=>`<td onclick="drillKpi('rev','${side}')" style="cursor:pointer" title="กดดูรายการขายวันนี้"><div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:14px"><span class="tnum win">${fmtB(amt)}</span><span class="tnum" style="color:var(--muted);font-weight:600;font-size:11px">${fmt(cnt)} ปิด</span></div><div style="height:7px;margin-top:5px"></div></td>`;
+  const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">ปิดได้วันนี้ · จากที่เซลล์บันทึก</div></td>${revCell("W",wRev,W.wonToday||0)}${revCell("K",kRev,K.wonToday||0)}<td class="r tnum win"><b style="font-size:15px">${fmtB(wRev+kRev)}</b></td></tr>`;
   h+=`<div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
     ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",50,wEvo,kEvo,COL.mk,'mk')}
     ${row("💬","T1 · คุย FB จริง","ลูกค้า FB ที่คุยจริง >7 วิ (ไม่ซ้ำคน)",5,fw.T1d||0,fk.T1d||0,COL.t1,'t1')}
     ${row("💬","T2 · ตามรอบ 2","",5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
     ${row("💬","T3 · ตามรอบ 3","",5,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
-  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · กดตัวเลข W/K เพื่อดูว่าเป็นเบอร์อะไร จากช่องทางไหน</div></div>`;
+    ${revRow}
+  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · <b>ยอดขาย</b> = ยอดที่ปิดได้วันนี้ (จากรายการที่เซลล์บันทึกในระบบ) · กดตัวเลขเพื่อดูรายละเอียด</div></div>`;
   return h;
 }
 
@@ -313,11 +319,19 @@ function showModal(title,html){closeModal();const o=document.createElement("div"
 window.closeModal=function(){const m=document.getElementById("kpiModal");if(m)m.remove();};
 window.drillKpi=async function(cat,side){
   const nm=side==="W"?"พี่หวาน (W)":"พี่เขม (K)";
-  const LAB={mk:"Marketplace",t1:"T1 · คุย FB จริง",t2:"T2 · ตามรอบ 2",t3:"T3 · ตามรอบ 3"};
+  const LAB={mk:"Marketplace",t1:"T1 · คุย FB จริง",t2:"T2 · ตามรอบ 2",t3:"T3 · ตามรอบ 3",rev:"💰 ยอดขายวันนี้"};
   showModal((LAB[cat]||cat)+" — "+nm,'<div style="color:var(--muted);padding:10px">กำลังโหลด…</div>');
   const setBody=h=>{const b=document.getElementById("kpiModalBody");if(b)b.innerHTML=h;};
   try{
     let rows=[];
+    if(cat==="rev"){
+      // ยอดขายวันนี้ — จากที่เซลล์บันทึกปิดการขาย (todaySales ต่อฝั่ง)
+      const ts=((D.kpi[side]||{}).todaySales||[]);
+      if(!ts.length){setBody('<div class="empty" style="padding:24px">วันนี้ยังไม่มีการปิดการขาย</div>');return;}
+      const tot=ts.reduce((s,x)=>s+(x.amount||0),0);
+      setBody(`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">ปิดได้ ${ts.length} ราย · รวม <b class="win">${fmtB(tot)}</b></div><div style="overflow:auto"><table class="tbl"><thead><tr><th>ลูกค้า</th><th>สินค้า</th><th class="r">ยอด</th></tr></thead><tbody>${ts.map(x=>{const prod=x.product||(x.items||[]).map(i=>i.name).filter(Boolean).join(", ")||"—";return `<tr><td><b>${esc(x.name||"—")}</b></td><td style="color:var(--muted)">${esc(prod)}</td><td class="r tnum win">${fmtB(x.amount||0)}</td></tr>`;}).join("")}</tbody></table></div>`);
+      return;
+    }
     if(cat==="mk"||cat==="t1"){
       if(!window.__recon)window.__recon=await getJSON("/api/admin/onecall-recon");
       const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
