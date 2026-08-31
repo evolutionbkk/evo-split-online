@@ -179,6 +179,8 @@ function applyManual(state, rows, opts) {
       page: String((r && r.page) || '').slice(0, 120),
       closer: String((r && r.closer) || '').slice(0, 120),
       lastOrderAt: (r && r.lastOrderAt) || null,
+      nextAppt: String((r && r.nextAppt) || '').slice(0, 40),
+      leadStatus: (r && r.leadStatus) || 'new',
       ltv: (r && typeof r.ltv === 'number') ? r.ltv : null,
       succeedOrders: (r && typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
     });
@@ -199,8 +201,9 @@ function applyManual(state, rows, opts) {
         source: opts.source || 'manual', step, stepManual: !!opts.stepManual, distributedBy: opts.distributedBy || opts.by || '',
         address: p.address, product: p.product, orderAmount: p.orderAmount,
         page: p.page, closer: p.closer, lastOrderAt: p.lastOrderAt || null,
+        nextAppt: p.nextAppt || '',
         ...(p.ltv != null ? { ltv: p.ltv } : {}), ...(p.succeedOrders != null ? { succeedOrders: p.succeedOrders } : {}),
-        leadStatus: 'new', callCount: 0, calls: [],
+        leadStatus: ['new','contacting','interested','followup','awaiting_payment','won','lost'].includes(p.leadStatus) ? p.leadStatus : 'new', callCount: 0, calls: [],
         history: [{ at: nowIso, by: opts.by || 'admin', k: 'import', v: step }],
       });
       if (side === 'W') addW++; else addK++;

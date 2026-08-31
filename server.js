@@ -1570,6 +1570,7 @@ app.post('/api/admin/import-t2t3', requireAuth, async (req, res) => {
     const rows = all.filter((r) => r.step === step).map((r) => ({
       name: r.name, phone: r.phone, side: r.side === 'K' ? 'K' : 'W',
       address: r.address || '', product: r.product || '', page: r.page || '', lastOrderAt: r.lastOrderAt || null,
+      nextAppt: r.nextAppt || '', leadStatus: r.leadStatus || 'new',
     }));
     out[step] = S.applyManual(state, rows, { step, stepManual: true, source: 'manual', label: 'นำเข้า T2/T3', by, distributedBy: by, off: dof() });
   }

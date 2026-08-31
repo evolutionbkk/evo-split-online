@@ -490,7 +490,7 @@ function viewTicket(){
   const fdate=t=>{const d=Date.parse(t);return isNaN(d)?esc(t||""):new Date(d).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"});};
   let h=`<button class="backbtn" onclick="go('${PREV}')">← กลับ</button>
   <div class="tk-head"><div class="tk-av">${esc((r.name||"?").trim()[0]||"?")}</div>
-    <div style="flex:1;min-width:0"><div class="tk-name"><span class="mono" style="color:var(--brand)">${esc(r.ticketId||"")}</span> ${esc(r.name||"(ไม่มีชื่อ)")} ${r.vip?'<span style="color:#a16207">★</span>':""} ${stPill(r.leadStatus,rev?" · "+fmtB(rev):"")}</div>
+    <div style="flex:1;min-width:0"><div class="tk-name"><span class="mono" style="color:var(--brand)">${esc(r.ticketId||"")}</span> ${esc(r.name||"(ไม่มีชื่อ)")} ${stPill(r.leadStatus,rev?" · "+fmtB(rev):"")}</div>
       <div class="tk-id">รหัสลูกค้า ${esc(r.code||"—")} · 📞 ${esc(r.phone||"")} · <span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)} ${r.step?`· <span class="rd">${esc(r.step)}</span>`:""}</div></div></div>`;
   if((r.tags||[]).length)h+=`<div class="fbar2" style="margin-bottom:14px">🏷️ ${r.tags.map(t=>`<span class="ttag">${esc(t)}</span>`).join(" ")}</div>`;
   h+=`<div class="grid2"><div>
