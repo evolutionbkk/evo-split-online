@@ -150,7 +150,6 @@ const NAV=[
   {k:"admin_overview",t:"ภาพรวม Admin",sub:1},
   {lab:"Telesales (โทร)"},
   {k:"tel_overview",t:"ภาพรวม Telesales",sub:1},
-  {k:"tel_calltoday",t:"โทรวันนี้",sub:1},
   {k:"tel_perf",t:"ผลงาน Telesales",sub:1},
   {lab:"ทั่วไป"},
   {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
@@ -291,11 +290,6 @@ function viewTelOverview(){
   const wEvo=W.calledEvoToday||0,kEvo=K.calledEvoToday||0,wMan=W.calledManualToday||0,kMan=K.calledManualToday||0;
   const stK=[["new","ใหม่"],["contacting","กำลังติดต่อ"],["interested","สนใจ"],["followup","นัดติดตาม"],["awaiting_payment","รอชำระเงิน"],["won","ปิดสำเร็จ"],["lost","ไม่สนใจ"]];
   let h=filterBar();
-  h+=`<div class="secttl">📊 ไปป์ไลน์ลูกค้า (ในมือตอนนี้)<span class="ln"></span></div>
-  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>สถานะ</th><th class="r">พี่หวาน (W)</th><th class="r">พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
-    ${stK.map(([k,l])=>`<tr><td>${stPill(k)}</td><td class="r tnum">${fmt((W.status||{})[k]||0)}</td><td class="r tnum">${fmt((K.status||{})[k]||0)}</td><td class="r tnum"><b>${fmt(((W.status||{})[k]||0)+((K.status||{})[k]||0))}</b></td></tr>`).join("")}
-    <tr style="background:var(--surface-2)"><td><b>ลูกค้าในมือรวม</b></td><td class="r tnum"><b>${fmt(W.total)}</b></td><td class="r tnum"><b>${fmt(K.total)}</b></td><td class="r tnum"><b>${fmt(s("total"))}</b></td></tr>
-  </tbody></table></div>`;
   h+=`<div class="secttl">📞 การโทร — เทียบเป้าที่ระบบแจก/คน/วัน<span class="ln"></span></div>
   <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>ช่องทาง</th><th class="r">เป้า/คน</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th>รวมทีม</th></tr></thead><tbody>
     <tr><td><b>📦 Marketplace</b><div style="font-size:11px;color:var(--muted)">รายชื่อจากเว็บ</div></td><td class="r tnum">${tEvo}</td>${cell(wEvo+"/"+tEvo,pc(wEvo,tEvo))}${cell(kEvo+"/"+tEvo,pc(kEvo,tEvo))}${cell((wEvo+kEvo)+"/"+(tEvo*2),pc(wEvo+kEvo,tEvo*2))}</tr>
