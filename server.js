@@ -816,6 +816,9 @@ function followupTiers() {
   // T1 วันนี้ (ตามที่ Teamlead ต้องการ) = "ออเดอร์ FB ใหม่ที่แอดมินปิดวันนี้" แจกคนละครึ่ง
   //   T1recv = จำนวนรายชื่อ T1 ที่เข้าใหม่วันนี้ (เป้ายืดหยุ่นต่อฝั่ง) · T1done = โทรไปแล้วกี่ราย
   const t1RecvN = { W: 0, K: 0 }, t1DoneN = { W: 0, K: 0 };
+  // วันที่ "เข้าระบบครั้งแรก" (สร้างจากออเดอร์) — ใช้ประวัติรายการแรก (import/pool) ซึ่งจะไม่เปลี่ยนตอนแจกซ้ำ/โอนฝั่ง
+  // (ต่างจาก receivedAt ที่ถูกสแตมป์ใหม่ทุกครั้งที่แจก จึงพองเกินจริง)
+  const firstDay = (r) => { const h = (r.history && r.history.length) ? r.history[0].at : r.receivedAt; return S.thaiDay(h); };
   for (const r of state.assigned) {
     if (r.archived) continue;
     if (r.sales !== 'W' && r.sales !== 'K') continue;
@@ -823,7 +826,10 @@ function followupTiers() {
     // แหล่งกระจายข้อมูล: FB Page = แอดมินปิดการขาย (pancake/manual/refill) · Marketplace = เว็บ Evolution
     const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
     const o = out[r.sales][grp]; o.leads++;
-    if (grp === 'fbpage' && S.thaiDay(r.receivedAt) === today) { t1RecvN[r.sales]++; if ((r.callCount || 0) > 0) t1DoneN[r.sales]++; }
+    // T1 วันนี้ = ออเดอร์ FB "ใหม่จริง" ที่แอดมินปิดวันนี้ (pancake/manual · รอบ T1 · ไม่ใช่ Excel · สร้างวันนี้)
+    if ((src === 'pancake' || src === 'manual') && !r.fromExcel && String(r.step || '').toUpperCase() === 'T1' && firstDay(r) === today) {
+      t1RecvN[r.sales]++; if ((r.callCount || 0) > 0) t1DoneN[r.sales]++;
+    }
     // T2/T3 = เซลล์กดเลื่อนรอบเอง (ยังผูกกับ lead ที่แจกแล้ว)
     const fs = r.followStage || 1;
     const t2m = r.t2At && S.thaiDay(r.t2At).slice(0, 7) === curMonth;
