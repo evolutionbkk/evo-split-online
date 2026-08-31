@@ -1098,7 +1098,7 @@ const ONECALL_PASS = process.env.ONECALL_PASS || '';   // OrkTrack login passwor
 // ---------- AI call summary (Groq: Whisper STT + LLM) ----------
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_STT_MODEL = process.env.GROQ_STT_MODEL || 'whisper-large-v3-turbo';
-const GROQ_SUM_MODEL = process.env.GROQ_SUM_MODEL || 'llama-3.3-70b-versatile';
+const GROQ_SUM_MODEL = process.env.GROQ_SUM_MODEL || 'openai/gpt-oss-20b';
 const AISUM_MIN_SEC = Number(process.env.AISUM_MIN_SEC) || 20;    // only summarize talks longer than this
 const AISUM_BATCH = Number(process.env.AISUM_BATCH) || 5;         // max calls summarized per worker tick
 const AISUM_LOOKBACK_H = Number(process.env.AISUM_LOOKBACK_H) || 72;
@@ -1273,22 +1273,22 @@ async function groqTranscribe(id) {
   if (!r.ok) throw new Error('stt_' + r.status + ':' + t.slice(0, 180));
   return (t || '').trim();
 }
-async function groqSummarize(transcript, meta) {
+async function groqSummarize(transcript, meta, model) {
   const sys = 'คุณเป็นผู้ช่วยสรุปบทสนทนาการขายทางโทรศัพท์ของทีมเทเลเซลล์ YANHEE สรุปเป็นภาษาไทยแบบสั้น กระชับ อ่านเข้าใจใน 10 วินาที เพื่อให้เพื่อนร่วมทีมที่รับช่วงต่อรู้ว่าคุยอะไรไปแล้ว';
   const user = 'ถอดเสียงสายโทร (' + (meta || '') + '):\n"""' + String(transcript).slice(0, 6000) + '"""\n\nสรุปเป็นหัวข้อสั้น ๆ:\n• ประเด็นที่คุย:\n• ท่าที/ความสนใจของลูกค้า:\n• สิ่งที่ต้องทำต่อ:\nถ้าข้อมูลน้อยหรือถอดเสียงไม่ชัด ให้บอกเท่าที่มี ห้ามแต่งข้อมูลเพิ่ม';
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: GROQ_SUM_MODEL, temperature: 0.2, max_tokens: 400, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+    body: JSON.stringify({ model: model || GROQ_SUM_MODEL, temperature: 0.2, max_tokens: 500, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error('llm_' + r.status + ':' + JSON.stringify(j).slice(0, 180));
   return ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
 }
-async function summarizeCall(rec) {
+async function summarizeCall(rec, model) {
   const id = rec.id;
   const transcript = await groqTranscribe(id);
   let summary;
-  if (transcript && transcript.replace(/\s/g, '').length >= 6) summary = await groqSummarize(transcript, (rec.dir || '') + ' ' + (rec.dur || 0) + 'วิ');
+  if (transcript && transcript.replace(/\s/g, '').length >= 6) summary = await groqSummarize(transcript, (rec.dir || '') + ' ' + (rec.dur || 0) + 'วิ', model);
   else summary = '(เสียงสั้น/ไม่ชัด — ถอดเสียงไม่ได้)';
   const entry = { id, phone: rec.phone, side: rec.side, dur: rec.dur, at: rec.at, dir: rec.dir, transcript: String(transcript || '').slice(0, 4000), summary, summarizedAt: new Date().toISOString() };
   const p = digitsOnly(rec.phone);
@@ -1368,7 +1368,7 @@ app.post('/api/onecall/summarize/:id', requireAuth, async (req, res) => {
   const id = String(req.params.id || '').replace(/\D/g, '');
   const rec = (state.onecall || []).find((c) => String(c.id) === id);
   if (!rec) return res.status(404).json({ error: 'not_found', message: 'ไม่พบสายนี้ใน state.onecall' });
-  try { const entry = await summarizeCall(rec); state = await store.save(state); res.json({ ok: true, entry }); }
+  try { const entry = await summarizeCall(rec, req.query.model ? String(req.query.model) : null); state = await store.save(state); res.json({ ok: true, model: req.query.model || GROQ_SUM_MODEL, entry }); }
   catch (e) { res.status(502).json({ error: 'summarize_failed', message: String(e) }); }
 });
 // Admin: run the batch worker now
