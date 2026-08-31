@@ -507,7 +507,12 @@ window.logCall=function(key){api("/api/lead/call",{key}).then(()=>{toast("บั
 async function save(patch,msg){
   if(!CUR)return;
   const j=await api("/api/lead/update",{key:CUR.key,patch});
-  if(j&&j.ok){toast(msg||"บันทึกแล้ว");if(j.lead)CUR=j.lead;
+  if(j&&j.ok){
+    if(j.replaced){ // Marketplace ติดต่อไม่ได้ → นำออก + เติมรายใหม่ทันที
+      toast(j.replaced.poolEmpty?"นำออกแล้ว · คลัง Marketplace หมด ยังไม่มีรายใหม่":"ติดต่อไม่ได้ · ดึงรายใหม่มาแทนแล้ว");
+      closeSheet();await reload();return;
+    }
+    toast(msg||"บันทึกแล้ว");if(j.lead)CUR=j.lead;
     const i=ACTIVE.findIndex(x=>x.key===CUR.key);if(i>=0)ACTIVE[i]=CUR;
     renderSheet();renderList();renderNav();
   }else toast((j&&j.error)||"บันทึกไม่สำเร็จ");

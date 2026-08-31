@@ -507,6 +507,19 @@ function returnToPool(rec, reason) {
 // มีแต่รายใหม่/รอบ T1 เท่านั้นที่ถูกดึงคืนตอน 20:00 หรือกฎโทรครบ 3 สาย
 function isFollowupBase(rec) { const s = String(rec.step || '').toUpperCase(); return s === 'T2' || s === 'T3'; }
 
+function isMpSource(s) { s = s || 'evolution'; return s !== 'pancake' && s !== 'manual' && s !== 'refill'; }
+// ดึงลูกค้า Marketplace 1 รายจากคลัง (pooled) มาให้เซลล์ฝั่ง side — ใช้ตอน auto-replace เมื่อรายเดิมติดต่อไม่ได้
+// เพื่อให้คิว "ต้องโทร" ของเซลล์เต็มโควตาเสมอ (Marketplace วันละ 30/คน)
+function pullOneMP(side) {
+  const cand = state.assigned.find((r) => r.pooled && !r.archived && !r.sales && isMpSource(r.source));
+  if (!cand) return null;
+  const now = new Date().toISOString();
+  cand.pooled = false; cand.sales = side; cand.exported = true; cand.receivedAt = now; cand.updatedAt = now; cand.updatedBy = 'ระบบ';
+  cand.leadStatus = 'new'; cand.callCount = 0; cand.calls = []; cand.contact = ''; cand.reachStatus = ''; cand.unreachableReason = '';
+  pushHist(cand, 'distribute', side + ' · เติมแทนรายที่ติดต่อไม่ได้', 'ระบบ');
+  return cand;
+}
+
 // 20:00 Asia/Bangkok daily reset: no-progress leads (still ใหม่/กำลังติดต่อ, no outcome) go back
 // to the คลังรายชื่อ. Leads that are สนใจ / นัดติดตาม / รอชำระเงิน / ปิดการขาย / ไม่สนใจ stay with the seller.
 // รอบ T2/T3 (ฐานลูกค้าเก่า) จะไม่ถูกดึงคืน — คงอยู่กับเซลล์เสมอ.
@@ -662,6 +675,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   const by = whoami(req);
   // snapshot for the activity timeline
   const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', phone: rec.phone || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length, trackingNo: rec.trackingNo || '' };
+  const contactBefore = rec.contact || '';
   // new CRM taxonomy
   if ('leadStatus' in p) rec.leadStatus = LEAD_STATUS_KEYS.includes(p.leadStatus) ? p.leadStatus : rec.leadStatus;
   if ('callResult' in p) rec.callResult = (p.callResult === '' || CALL_RESULT_KEYS.includes(p.callResult)) ? p.callResult : rec.callResult;
@@ -697,9 +711,18 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ((rec.callCount || 0) !== b0.callCount) pushHist(rec, 'calls', rec.callCount, by);
   if ((rec.saleItems || []).length !== b0.saleN) pushHist(rec, 'sale', (rec.saleItems || []).length, by);
   if ((rec.trackingNo || '') !== b0.trackingNo) pushHist(rec, 'tracking', rec.trackingNo, by);
+  // Marketplace auto-replace: พอเซลล์กด "ติดต่อไม่ได้" → นำรายนี้ออก (คืนคลัง) แล้วดึงรายใหม่มาแทนทันที
+  // (เฉพาะ Marketplace · Facebook/T1-T2-T3 ไม่ใช้กฎนี้)
+  let replaced = null;
+  if (rec.contact === 'unreachable' && contactBefore !== 'unreachable' && isMpSource(rec.source) && rec.sales) {
+    const side = rec.sales;
+    returnToPool(rec, 'ติดต่อไม่ได้ · เปลี่ยนรายใหม่');
+    const nw = pullOneMP(side);
+    replaced = { returned: true, newLead: nw ? leadView(nw) : null, poolEmpty: !nw };
+  }
   // Note: field edits do NOT auto-recycle — only real call logs (/api/lead/call) and the stale sweep do.
   state = await store.save(state);
-  res.json({ ok: true, lead: leadView(rec), advanced: null });
+  res.json({ ok: true, lead: leadView(rec), advanced: null, replaced });
 });
 
 app.post('/api/lead/archive', requireCrm, async (req, res) => {
