@@ -1520,6 +1520,27 @@ app.post('/api/pull-hold', requireAuth, async (req, res) => {
     res.status(502).json({ error: 'pull_failed', message: 'ดึงจาก Evolution ไม่สำเร็จ: ' + String(e) });
   }
 });
+// ----- server-side auto-pull: Evolution (Marketplace) → holding pool, no manual click needed -----
+// ใช้ token ที่ relay ไว้ (evo.token) · ถ้า token หมดอายุจะข้ามเงียบ ๆ จนกว่าแอดมินจะเปิดหน้า Evolution ส่ง token ใหม่
+// รายชื่อที่เข้าคลังจะถูก autoDistribute แจก 50/50 ให้เซลล์อัตโนมัติภายใน 1 นาที
+let evoAutoBusy = false;
+async function evoPullHoldAuto() {
+  if (evoAutoBusy || !evo.token) return 0;
+  evoAutoBusy = true;
+  try {
+    const r = await fetch(EVO_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(evoBody()) });
+    if (r.status === 401 || r.status === 403) { evo.expired = true; console.warn('[evo-auto] token expired — ต้อง relay ใหม่'); return 0; }
+    if (!r.ok) { console.warn('[evo-auto] http', r.status); return 0; }
+    const j = await r.json();
+    const customers = mapItems(j);
+    addMpPhones(customers.map((c) => c.phone));
+    const summary = S.applyNewPool(state, customers, { source: 'evolution', by: 'ระบบ · ดึงอัตโนมัติ' });
+    evo.expired = false; evo.lastAutoAt = new Date().toISOString(); evo.lastAutoAdded = summary.added || 0;
+    if (summary.added) { state = await store.save(state); console.log('[evo-auto] pooled', summary.added, 'Marketplace leads'); }
+    return summary.added || 0;
+  } catch (e) { console.warn('[evo-auto] error', String(e)); return 0; }
+  finally { evoAutoBusy = false; }
+}
 // Pull Pancake (Facebook closed sales) into the pool. Backfills the last N days (default 30) of
 // closed-sale orders and pools any whose phone isn't already an active/pooled lead (dedup by phone).
 // This lets the Teamlead see existing FB customers to distribute — not only forward-only new ones.
@@ -3161,6 +3182,8 @@ boot().then(() => {
   }
   setTimeout(() => { autoDistribute().catch(() => {}); }, 20 * 1000);          // แจก T1+Marketplace ที่ค้างในคลังหลังบูต
   setInterval(() => { autoDistribute().catch(() => {}); }, 60 * 1000);         // แจกอัตโนมัติ (50/50) ทุก 1 นาที — T1 + Marketplace ที่เข้ามาใหม่
+  setTimeout(() => { evoPullHoldAuto().catch(() => {}); }, 30 * 1000);         // ดึง Marketplace (Evolution) เข้าคลังอัตโนมัติหลังบูต
+  setInterval(() => { evoPullHoldAuto().catch(() => {}); }, 10 * 60 * 1000);   // ดึง Marketplace อัตโนมัติทุก 10 นาที (ใช้ token ที่ relay ไว้ · หมดอายุจะข้ามเงียบ ๆ จนกว่าจะ relay ใหม่)
   setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive (self-heals via auto-login on expiry)
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
   if (GROQ_API_KEY) {

@@ -595,7 +595,8 @@ function viewStock(){
     <div class="poolcard"><div class="n tnum">${fmt(pool.total)}</div><div class="l">รวมทั้งหมด</div></div>
     <div class="poolcard"><div class="n tnum" style="color:var(--brand)">${fmt(pool.mp)}</div><div class="l">📦 Marketplace</div></div>
     <div class="poolcard"><div class="n tnum" style="color:var(--violet)">${fmt(pool.fb)}</div><div class="l">💬 Facebook (Pancake)</div></div>
-  </div>${pool.total===0?`<div class="note" style="margin-top:14px">ยังไม่มีรายชื่อในคลัง — ดึงรายชื่อจาก Evolution / Pancake เข้าคลังก่อนจึงจะแจกได้</div>`:""}</div>
+  </div><div class="note" style="margin-top:14px;background:#f0fdf4;border-color:#bbf7d0;color:#166534">⚙️ ระบบดึงรายชื่อ <b>อัตโนมัติ</b> — Facebook (T1) จากที่แอดมินปิดการขาย (Pancake) และ Marketplace จาก Evolution + Big Seller ไหลเข้าคลังเอง แล้ว<b>แจกให้เซลล์คนละครึ่งอัตโนมัติ</b>ภายใน 1 นาที ${pool.total===0?`· ตอนนี้คลังว่าง (แจกออกหมดแล้ว) ไม่ต้องกดดึงเอง`:`· มี ${fmt(pool.total)} รายชื่อกำลังรอแจกรอบถัดไป`}</div>
+  <div style="margin-top:8px;font-size:11.5px;color:var(--muted)">หมายเหตุ: ปุ่มดึง/แจกด้านล่างมีไว้เผื่อกดเองกรณีต้องการเร่ง หรือ Evolution token หมดอายุ (ต้องเปิดหน้า Evolution ส่ง token ใหม่ครั้งเดียว ระบบจะดึงต่อเอง)</div></div>
   <div class="secttl">📥 นำเข้ารายชื่อ T2/T3 (จากชีท Master Workflow)<span class="ln"></span></div>
   <div class="card" style="padding:16px 18px;margin-bottom:20px">
     <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:10px">นำเข้า 1,215 รายชื่อ (พี่หวาน 506 · พี่เขม 709) ล็อกฝั่ง + รอบ T2/T3 ตามชีท · ข้ามเบอร์ที่ซ้ำกับในระบบอัตโนมัติ (กดซ้ำได้ ไม่เพิ่มซ้ำ)</div>
