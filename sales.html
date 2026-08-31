@@ -154,6 +154,7 @@ const NOREACH=["ไม่รับสาย","สายไม่ว่าง","�
 
 let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="today",CUR=null,Q="",TQ="",VIEW="list";
 let KR="today",kcf="",kct="",MTQ="",MTPAGE=1,MTFILTER="all";  // ตั๋วของฉัน: ช่วงเวลา/ค้นหา/หน้า/สถานะ
+let PROUND="all",LPAGE=1;  // แท็บรอบ (T1/T2/T3) + หน้าในลิสต์คิวโทร
 const KRLABEL={today:"วันนี้",yesterday:"เมื่อวาน",week:"สัปดาห์",month:"เดือน",custom:"กำหนดเอง"},KRORDER=["today","yesterday","week","month","custom"];
 function krBounds(){const TZ=7*3600000,now=Date.now(),th=new Date(now+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
   const sT=Date.UTC(y,m,d,0,0,0)-TZ,eT=Date.UTC(y,m,d,23,59,59)-TZ;
@@ -196,7 +197,7 @@ function renderNav(){
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
       `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="tickets"&&it.k==="tickets"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
 }
-function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else{VIEW="list";PANEL=k;FILTER="today";Q="";}render();}
+function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else{VIEW="list";PANEL=k;FILTER="today";Q="";PROUND="all";LPAGE=1;}render();}
 
 function statusPill(r){const st=r.leadStatus||"new";return `<span class="pill st-${st}">${STLABEL[st]||st}</span>`;}
 function urgLine(r){
@@ -214,6 +215,7 @@ function leadCard(r){
     <div class="av" style="background:${scol}">${esc((r.name||"?").trim()[0]||"?")}</div>
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span>${vip}</div>
       <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation();logCall('${esc(r.key)}')">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
+      ${r.fromExcel?`<div class="lc-urg u-mut">📋 รายชื่อเดิมจาก Excel (ฐานลูกค้าเก่า)</div>`:""}
       ${(r.product||r.page)?`<div class="lc-urg u-mut">📦 ${esc(r.product||"—")}${r.page?` · เพจ: ${esc(r.page)}`:""}</div>`:""}
       ${(()=>{const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";})()}
       ${urgLine(r)}</div>
@@ -246,37 +248,42 @@ function render(){
     <div class="ph-bar"><i style="width:${pct}%"></i></div>
     <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:8px">ความคืบหน้าวันนี้ ${pct}%</div></div>`;
   html+=`<div class="fbar">`+[["today","ต้องโทร"],["followup","นัดติดตาม"],["won","ปิด/รอจ่าย"],["all","ทั้งหมด"]].map(([f,l])=>`<button class="chip ${FILTER===f?"on":""}" onclick="setFilter('${f}')">${l} <b class="tnum">${pool.filter(r=>passFilter(r,f)).length}</b></button>`).join("")+`</div>`;
-  html+=`<input class="search" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / รหัส" value="${esc(Q)}" oninput="Q=this.value.trim().toLowerCase();renderList()">`;
+  html+=`<input class="search" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / รหัส" value="${esc(Q)}" oninput="Q=this.value.trim().toLowerCase();LPAGE=1;renderList()">`;
   html+=`<div id="list"></div>`;
   c.innerHTML=html;
   renderList();
 }
+function pageSlice(list){const PER=10,tot=Math.max(1,Math.ceil(list.length/PER));if(LPAGE>tot)LPAGE=tot;if(LPAGE<1)LPAGE=1;const start=(LPAGE-1)*PER;return {rows:list.slice(start,start+PER),tot,start,len:list.length};}
+function lpBar(p){if(p.tot<=1)return "";return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 2px"><span style="font-size:12px;color:var(--muted)">แสดง ${p.start+1}–${p.start+p.rows.length} จาก ${p.len} ราย</span>${pagerS(p.tot,LPAGE,'setLPage')}</div>`;}
+window.setLPage=function(n){LPAGE=n;renderList();window.scrollTo(0,0);};
 function renderList(){
   const box=$("#list");if(!box)return;
-  if(Q){ // ค้นหาข้ามทุกช่องทาง/ทุกสถานะ — หาลูกค้าเจอเสมอ ไม่ติดฟิลเตอร์วันนี้/แท็บ
-    const res=ACTIVE.filter(r=>!r.archived&&ms(r)).sort(urgCmp);
-    box.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">🔍 ผลการค้นหา "${esc(Q)}" · ${res.length} ราย (ทุกช่องทาง/ทุกสถานะ)</div>`+(res.length?`<div class="cards">${res.map(leadCard).join("")}</div>`:`<div class="empty">ไม่พบลูกค้าที่ตรงกับคำค้น</div>`);
+  if(Q){ // ค้นหาข้ามทุกช่องทาง/ทุกสถานะ — หาลูกค้าเจอเสมอ
+    const res=ACTIVE.filter(r=>!r.archived&&ms(r)).sort(urgCmp);const p=pageSlice(res);
+    box.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">🔍 ผลการค้นหา "${esc(Q)}" · ${res.length} ราย (ทุกช่องทาง/ทุกสถานะ)</div>`+(res.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">ไม่พบลูกค้าที่ตรงกับคำค้น</div>`);
     return;
   }
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
-  const base=pool.filter(r=>passFilter(r,FILTER)&&ms(r));
+  const base=pool.filter(r=>passFilter(r,FILTER)&&ms(r)).sort(urgCmp);
   if(isFB){
-    let html="";
-    for(const t of ["T1","T2","T3"]){
-      const g=base.filter(r=>(r.step||"")===t).sort(urgCmp);
-      const doneT=pool.filter(r=>(r.step||"")===t&&calledToday(r)).length;
-      html+=`<div class="tgroup"><div class="tg-head ${t}"><div><div class="tg-name">รอบ ${t} · ${ROUND_NAME[t]}</div><div class="tg-goal">🎯 ${ROUND_GOAL[t]}</div></div><div class="tg-prog">โทรแล้ว ${Math.min(doneT,FB_TG[t])}/${FB_TG[t]}</div></div>${g.length?`<div class="cards">${g.map(leadCard).join("")}</div>`:`<div class="empty" style="padding:12px">— ไม่มีรายชื่อในรอบนี้ —</div>`}</div>`;
-    }
-    const other=base.filter(r=>!["T1","T2","T3"].includes(r.step||"")).sort(urgCmp);
-    if(other.length)html+=`<div class="tgroup"><div class="tg-head" style="background:#475569"><div class="tg-name">อื่นๆ · ไม่ระบุรอบ</div></div><div class="cards">${other.map(leadCard).join("")}</div></div>`;
+    // แท็บรอบ T1/T2/T3 — เลือกกรองเพื่อไม่ต้องเลื่อนยาว
+    const cnt=t=>base.filter(r=>(r.step||"")===t).length;
+    const tabs=[["all","ทั้งหมด "+base.length],["T1","T1 "+cnt("T1")],["T2","T2 "+cnt("T2")],["T3","T3 "+cnt("T3")]];
+    let html=`<div class="fbar" style="margin-bottom:10px">${tabs.map(([k,l])=>`<button class="chip ${PROUND===k?"on":""}" onclick="setPRound('${k}')">${l}</button>`).join("")}</div>`;
+    const list=PROUND==="all"?base:base.filter(r=>(r.step||"")===PROUND);
+    if(PROUND!=="all"){const t=PROUND,doneT=pool.filter(r=>(r.step||"")===t&&calledToday(r)).length;
+      html+=`<div class="tg-head ${t}" style="border-radius:12px;margin-bottom:10px"><div><div class="tg-name">รอบ ${t} · ${ROUND_NAME[t]}</div><div class="tg-goal">🎯 ${ROUND_GOAL[t]}</div></div><div class="tg-prog">โทรแล้ว ${Math.min(doneT,FB_TG[t])}/${FB_TG[t]}</div></div>`;}
+    const p=pageSlice(list);
+    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">— ไม่มีรายชื่อในกลุ่มนี้ —</div>`;
     box.innerHTML=html;
   }else{
-    const list=base.slice().sort(urgCmp);
-    box.innerHTML=list.length?`<div class="cards">${list.map(leadCard).join("")}</div>`:`<div class="empty">ไม่มีรายชื่อในกลุ่มนี้</div>`;
+    const p=pageSlice(base);
+    box.innerHTML=base.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">ไม่มีรายชื่อในกลุ่มนี้</div>`;
   }
 }
-function setFilter(f){FILTER=f;render();}
+window.setPRound=function(k){PROUND=k;LPAGE=1;renderList();};
+function setFilter(f){FILTER=f;LPAGE=1;PROUND="all";render();}
 
 /* ===== ถังขยะ / กู้คืน (ของเซลล์เอง) ===== */
 function trReason(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออก (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"เลิกติดตาม"};return m[r.archiveReason||""]||"เก็บเข้าคลัง";}
@@ -398,7 +405,7 @@ function renderSheet(){
         <div class="tk-id" style="margin:3px 0 0">ตั๋ว <span class="mono" style="color:var(--brand);font-weight:700">${esc(r.ticketId||"")}</span> · ลูกค้า <span class="mono">${esc(r.code)}</span></div>
       </div>
     </div>
-    <div class="tagbar" style="margin-bottom:14px">🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
+    <div class="tagbar" style="margin-bottom:14px">${r.fromExcel?`<span class="ttag" style="color:#b45309;border-color:#fde68a;background:#fffbeb">📋 รายชื่อเดิมจาก Excel</span>`:""}🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
     <div class="tksheet">
       <div>
         <div class="box" style="border:1.5px solid #ddd6fe"><h4>🤖 สรุปล่าสุด (ระบบสรุปให้อัตโนมัติ)</h4><div style="font-size:11.5px;color:var(--muted);margin-bottom:7px">${sumMeta}</div><div style="font-size:13.5px;line-height:1.6">${sumText}</div></div>

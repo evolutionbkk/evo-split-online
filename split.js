@@ -199,6 +199,7 @@ function applyManual(state, rows, opts) {
         code: p.code, name: p.name, phone: p.phone,
         sales: side, round, date, exported: true, receivedAt: nowIso,
         source: opts.source || 'manual', step, stepManual: !!opts.stepManual, distributedBy: opts.distributedBy || opts.by || '',
+        ...(opts.fromExcel ? { fromExcel: true } : {}),
         address: p.address, product: p.product, orderAmount: p.orderAmount,
         page: p.page, closer: p.closer, lastOrderAt: p.lastOrderAt || null,
         nextAppt: p.nextAppt || '',

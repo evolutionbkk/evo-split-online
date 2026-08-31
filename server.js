@@ -438,6 +438,7 @@ function leadView(r, ocMap) {
     orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     succeedOrders: (typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
+    fromExcel: !!r.fromExcel,
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
     aiCalls: aiCallsForPhone(r.phone),
@@ -502,12 +503,18 @@ function returnToPool(rec, reason) {
   pushHist(rec, 'return_pool', reason || 'คืนคลังรายชื่อ', 'ระบบ');
 }
 
+// ฐานลูกค้าเก่า (รอบ T2/T3 — เช่น รายชื่อนำเข้าจาก Excel) จะ "ไม่ถูกดึงคืน" คลังอัตโนมัติ
+// มีแต่รายใหม่/รอบ T1 เท่านั้นที่ถูกดึงคืนตอน 20:00 หรือกฎโทรครบ 3 สาย
+function isFollowupBase(rec) { const s = String(rec.step || '').toUpperCase(); return s === 'T2' || s === 'T3'; }
+
 // 20:00 Asia/Bangkok daily reset: no-progress leads (still ใหม่/กำลังติดต่อ, no outcome) go back
 // to the คลังรายชื่อ. Leads that are สนใจ / นัดติดตาม / รอชำระเงิน / ปิดการขาย / ไม่สนใจ stay with the seller.
+// รอบ T2/T3 (ฐานลูกค้าเก่า) จะไม่ถูกดึงคืน — คงอยู่กับเซลล์เสมอ.
 function dailyReset() {
   let moved = 0;
   for (const rec of state.assigned) {
     if (rec.archived || !rec.sales) continue;
+    if (isFollowupBase(rec)) continue;   // ฐานเก่า T2/T3 ไม่ดึงคืน
     const st = recStatus(rec);
     if (st === 'new' || st === 'contacting') { returnToPool(rec, 'รีเซ็ต 20:00 · คืนคลัง'); moved++; }
   }
@@ -540,6 +547,7 @@ function autoTStage(rec) {
 // (สนใจ / นัด / รอชำระ / ปิด) are kept.
 function maybeReturnPool(rec) {
   if (rec.archived || !rec.sales) return null;
+  if (isFollowupBase(rec)) return null;   // ฐานเก่า T2/T3 ไม่ดึงคืนคลัง
   const st = recStatus(rec);
   if (st !== 'new' && st !== 'contacting') return null;
   if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
@@ -1573,8 +1581,12 @@ app.post('/api/admin/import-t2t3', requireAuth, async (req, res) => {
       address: r.address || '', product: r.product || '', page: r.page || '', lastOrderAt: r.lastOrderAt || null,
       nextAppt: r.nextAppt || '', leadStatus: r.leadStatus || 'new',
     }));
-    out[step] = S.applyManual(state, rows, { step, stepManual: true, source: 'manual', label: 'นำเข้า T2/T3', by, distributedBy: by, off: dof() });
+    out[step] = S.applyManual(state, rows, { step, stepManual: true, source: 'manual', fromExcel: true, label: 'นำเข้า T2/T3', by, distributedBy: by, off: dof() });
   }
+  // Backfill: mark every lead whose phone is in the Excel file as fromExcel (covers rows imported before this flag existed)
+  const excelPhones = new Set(all.map((r) => digitsOnly(r.phone)).filter(Boolean));
+  let flagged = 0;
+  for (const rec of state.assigned) { if (!rec.fromExcel && excelPhones.has(digitsOnly(rec.phone))) { rec.fromExcel = true; flagged++; } }
   backfillTicketIds();
   state = await store.save(state);
   const sum = (k) => (out.T2[k] || 0) + (out.T3[k] || 0);
