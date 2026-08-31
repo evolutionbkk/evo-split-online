@@ -156,6 +156,19 @@ let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="toda
 let KR="today",kcf="",kct="",MTQ="",MTPAGE=1,MTFILTER="all";  // ตั๋วของฉัน: ช่วงเวลา/ค้นหา/หน้า/สถานะ
 let PROUND="all",LPAGE=1;  // แท็บรอบ (T1/T2/T3) + หน้าในลิสต์คิวโทร
 let PREVVIEW="list";  // หน้าก่อนเปิดตั๋ว (ไว้กด ← กลับ)
+let APPTF="all";  // ฟิลเตอร์วันนัดหมาย (ตอนดู "นัดติดตาม")
+function apptInRange(r){
+  const raw=r.nextAppt;const t=Date.parse(raw||"");
+  if(APPTF==="all")return true;
+  if(isNaN(t))return false;  // ไม่มีวันนัด → ไม่เข้าช่วงใด
+  const TZ=7*3600000,n=new Date(Date.now()+TZ),y=n.getUTCFullYear(),m=n.getUTCMonth(),d=n.getUTCDate();
+  const todayS=Date.UTC(y,m,d,0,0,0)-TZ,todayE=todayS+86400000;
+  if(APPTF==="overdue")return t<Date.now();
+  if(APPTF==="today")return t>=todayS&&t<todayE;
+  if(APPTF==="tomorrow")return t>=todayE&&t<todayE+86400000;
+  if(APPTF==="week")return t>=todayS&&t<todayS+7*86400000;
+  return true;
+}
 const KRLABEL={today:"วันนี้",yesterday:"เมื่อวาน",week:"สัปดาห์",month:"เดือน",custom:"กำหนดเอง"},KRORDER=["today","yesterday","week","month","custom"];
 function krBounds(){const TZ=7*3600000,now=Date.now(),th=new Date(now+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
   const sT=Date.UTC(y,m,d,0,0,0)-TZ,eT=Date.UTC(y,m,d,23,59,59)-TZ;
@@ -268,6 +281,16 @@ function renderList(){
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
   const base=pool.filter(r=>passFilter(r,FILTER)&&ms(r)).sort(urgCmp);
+  if(FILTER==="followup"){
+    // ฟิลเตอร์ตามวันนัดหมาย — เรียงจากใกล้ที่สุด เห็นชัดว่าวันไหนมีนัดอะไร
+    const chip=k=>{const s=APPTF;APPTF=k;const c=base.filter(apptInRange).length;APPTF=s;return c;};
+    const cs=[["all","ทั้งหมด"],["overdue","⏰ เลยกำหนด"],["today","วันนี้"],["tomorrow","พรุ่งนี้"],["week","7 วัน"]];
+    let list=base.filter(apptInRange).slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));
+    let html=`<div class="fbar" style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--muted);align-self:center;margin-right:2px;font-weight:700">📅 วันนัด:</span>${cs.map(([k,l])=>`<button class="chip ${APPTF===k?"on":""}" onclick="setApptF('${k}')">${l} <b class="tnum">${chip(k)}</b></button>`).join("")}</div>`;
+    const p=pageSlice(list);
+    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">ไม่มีนัดในช่วงที่เลือก</div>`;
+    box.innerHTML=html;return;
+  }
   if(isFB){
     // แท็บรอบ T1/T2/T3 — เลือกกรองเพื่อไม่ต้องเลื่อนยาว
     const cnt=t=>base.filter(r=>(r.step||"")===t).length;
@@ -285,7 +308,8 @@ function renderList(){
   }
 }
 window.setPRound=function(k){PROUND=k;LPAGE=1;renderList();};
-function setFilter(f){FILTER=f;LPAGE=1;PROUND="all";render();}
+window.setApptF=function(k){APPTF=k;LPAGE=1;renderList();};
+function setFilter(f){FILTER=f;LPAGE=1;PROUND="all";APPTF="all";render();}
 
 /* ===== ถังขยะ / กู้คืน (ของเซลล์เอง) ===== */
 function trReason(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออก (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"เลิกติดตาม"};return m[r.archiveReason||""]||"เก็บเข้าคลัง";}
