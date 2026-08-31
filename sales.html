@@ -85,6 +85,24 @@
   .pk-tile{border:1px solid var(--line);border-radius:11px;padding:12px 13px;background:var(--surface-2,var(--surface))}
   .pk-tile .n{font-size:18px;font-weight:800;line-height:1.05}.pk-tile .l{font-size:11px;color:var(--muted);margin-top:5px;font-weight:600}
   .pk-kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:13px}.pk-kv span{color:var(--muted)}
+  .listwrap{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+  @media(max-width:1000px){.listwrap{grid-template-columns:1fr}.calside{order:-1}}
+  .calside{position:sticky;top:12px}
+  .cal{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 13px 10px;box-shadow:var(--shadow)}
+  .cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .cal-h b{font-size:14px;font-weight:800}
+  .cal-nav{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;width:28px;height:28px;font-size:14px;color:var(--ink);cursor:pointer}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal-wd{text-align:center;font-size:10.5px;color:var(--muted);font-weight:700;padding:2px 0}
+  .cal-cell{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--ink);background:transparent;border:1px solid transparent;cursor:default}
+  .cal-cell.pad{cursor:default}
+  .cal-cell.has{cursor:pointer;background:color-mix(in srgb,var(--brand) 12%,var(--surface));border-color:color-mix(in srgb,var(--brand) 30%,var(--surface))}
+  .cal-cell.has:hover{background:color-mix(in srgb,var(--brand) 20%,var(--surface))}
+  .cal-cell.today{outline:2px solid var(--warn);outline-offset:-2px}
+  .cal-cell.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .cal-cnt{position:absolute;top:-5px;right:-4px;min-width:16px;height:16px;border-radius:9px;background:var(--bad);color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}
+  .cal-cell.sel .cal-cnt{background:#fff;color:var(--brand)}
+  .cal-legend{font-size:10.5px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
   .opts{display:flex;flex-direction:column;gap:9px;margin-top:12px}
   .op{border:1.5px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:13px;background:var(--surface);text-align:left;width:100%;transition:border-color .12s,box-shadow .12s}
   .op:hover{border-color:#c7d7f0;box-shadow:0 1px 6px rgba(37,99,235,.06)}.op.sel{border-color:var(--ok);background:#f0fdf4;box-shadow:0 1px 8px rgba(16,185,129,.1)}
@@ -156,19 +174,9 @@ let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="toda
 let KR="today",kcf="",kct="",MTQ="",MTPAGE=1,MTFILTER="all";  // ตั๋วของฉัน: ช่วงเวลา/ค้นหา/หน้า/สถานะ
 let PROUND="all",LPAGE=1;  // แท็บรอบ (T1/T2/T3) + หน้าในลิสต์คิวโทร
 let PREVVIEW="list";  // หน้าก่อนเปิดตั๋ว (ไว้กด ← กลับ)
-let APPTF="all";  // ฟิลเตอร์วันนัดหมาย (ตอนดู "นัดติดตาม")
-function apptInRange(r){
-  const raw=r.nextAppt;const t=Date.parse(raw||"");
-  if(APPTF==="all")return true;
-  if(isNaN(t))return false;  // ไม่มีวันนัด → ไม่เข้าช่วงใด
-  const TZ=7*3600000,n=new Date(Date.now()+TZ),y=n.getUTCFullYear(),m=n.getUTCMonth(),d=n.getUTCDate();
-  const todayS=Date.UTC(y,m,d,0,0,0)-TZ,todayE=todayS+86400000;
-  if(APPTF==="overdue")return t<Date.now();
-  if(APPTF==="today")return t>=todayS&&t<todayE;
-  if(APPTF==="tomorrow")return t>=todayE&&t<todayE+86400000;
-  if(APPTF==="week")return t>=todayS&&t<todayS+7*86400000;
-  return true;
-}
+let APPTDATE="",CALYM="";  // ฟิลเตอร์วันนัด (YYYY-MM-DD) + เดือนที่ปฏิทินแสดง (YYYY-MM)
+function apptDayKey(r){const t=Date.parse(r.nextAppt||"");if(isNaN(t))return null;const TZ=7*3600000,d=new Date(t+TZ),p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+"-"+p(d.getUTCMonth()+1)+"-"+p(d.getUTCDate());}
+function apptKeyLabel(k){const a=k.split("-");return a[2]+"/"+a[1]+"/"+String((+a[0])+543).slice(-2);}  // 2026-09-10 → 10/09/69
 const KRLABEL={today:"วันนี้",yesterday:"เมื่อวาน",week:"สัปดาห์",month:"เดือน",custom:"กำหนดเอง"},KRORDER=["today","yesterday","week","month","custom"];
 function krBounds(){const TZ=7*3600000,now=Date.now(),th=new Date(now+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
   const sT=Date.UTC(y,m,d,0,0,0)-TZ,eT=Date.UTC(y,m,d,23,59,59)-TZ;
@@ -281,35 +289,51 @@ function renderList(){
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
   const base=pool.filter(r=>passFilter(r,FILTER)&&ms(r)).sort(urgCmp);
-  // แถบกรอง "วันนัด" — ตัวกรองพิเศษเสริม ใช้ร่วมกับแท็บรอบ (นับจากชุด poolForCount)
-  const apptRow=poolForCount=>{const chip=k=>{const s=APPTF;APPTF=k;const c=poolForCount.filter(apptInRange).length;APPTF=s;return c;};
-    const cs=[["all","ทั้งหมด"],["overdue","⏰ เลยกำหนด"],["today","วันนี้"],["tomorrow","พรุ่งนี้"],["week","7 วัน"]];
-    return `<div class="fbar" style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--muted);align-self:center;margin-right:2px;font-weight:700">📅 วันนัด:</span>${cs.map(([k,l])=>`<button class="chip ${APPTF===k?"on":""}" onclick="setApptF('${k}')">${l} <b class="tnum">${chip(k)}</b></button>`).join("")}</div>`;};
-  const applyAppt=arr=>{let x=arr.filter(apptInRange);if(APPTF!=="all")x=x.slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));return x;};
+  const applyAppt=arr=>{if(!APPTDATE)return arr;return arr.filter(r=>apptDayKey(r)===APPTDATE).slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));};
+  // ปฏิทินนัดหมายเล็ก ๆ (แบบ Google Calendar) — apptPool = ลูกค้าในช่องนี้ที่มีวันนัด
+  const miniCal=apptPool=>{
+    const cntByDay=new Map();for(const r of apptPool){const k=apptDayKey(r);if(k)cntByDay.set(k,(cntByDay.get(k)||0)+1);}
+    const TZ=7*3600000,thNow=new Date(Date.now()+TZ),p2=n=>String(n).padStart(2,"0");
+    const tY=thNow.getUTCFullYear(),tM=thNow.getUTCMonth()+1,tD=thNow.getUTCDate();
+    let Y,M;if(CALYM){const a=CALYM.split("-");Y=+a[0];M=+a[1];}else{Y=tY;M=tM;}
+    const MN=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+    const startDow=new Date(Date.UTC(Y,M-1,1)).getUTCDay(),dim=new Date(Date.UTC(Y,M,0)).getUTCDate();
+    const todayKey=tY+"-"+p2(tM)+"-"+p2(tD);
+    const wd=["อา","จ","อ","พ","พฤ","ศ","ส"].map(w=>`<div class="cal-wd">${w}</div>`).join("");
+    let cells="";for(let i=0;i<startDow;i++)cells+=`<div class="cal-cell pad"></div>`;
+    for(let d=1;d<=dim;d++){const key=Y+"-"+p2(M)+"-"+p2(d);const c=cntByDay.get(key)||0;
+      const cls=["cal-cell",c?"has":"",key===todayKey?"today":"",APPTDATE===key?"sel":""].filter(Boolean).join(" ");
+      cells+=`<div class="${cls}" ${c?`onclick="setApptDate('${key}')"`:""}>${d}${c?`<span class="cal-cnt">${c}</span>`:""}</div>`;}
+    const totalAppt=[...cntByDay.values()].reduce((s,n)=>s+n,0);
+    return `<div class="cal"><div class="cal-h"><button class="cal-nav" onclick="calNav(-1)">‹</button><b>${MN[M-1]} ${Y+543}</b><button class="cal-nav" onclick="calNav(1)">›</button></div>
+      <div class="cal-grid">${wd}${cells}</div>
+      <div class="cal-legend"><span style="width:11px;height:11px;border-radius:3px;background:color-mix(in srgb,var(--brand) 25%,var(--surface));display:inline-block"></span> วันที่มีนัด · 🔴 = จำนวนนัด · เดือนนี้รวม ${totalAppt} นัด</div>
+      ${APPTDATE?`<button class="btn g" style="width:100%;margin-top:9px" onclick="setApptDate('')">✕ ล้างตัวกรองวันนัด</button>`:""}</div>`;};
+  const apptPool=pool.filter(r=>r.nextAppt&&apptDayKey(r));  // ลูกค้าในช่องนี้ที่มีวันนัด (ทุกสถานะ)
+  let main="";
   if(isFB){
-    // แท็บรอบ T1/T2/T3 — เลือกกรองเพื่อไม่ต้องเลื่อนยาว
     const cnt=t=>base.filter(r=>(r.step||"")===t).length;
     const tabs=[["all","ทั้งหมด "+base.length],["T1","T1 "+cnt("T1")],["T2","T2 "+cnt("T2")],["T3","T3 "+cnt("T3")]];
-    let html=`<div class="fbar" style="margin-bottom:10px">${tabs.map(([k,l])=>`<button class="chip ${PROUND===k?"on":""}" onclick="setPRound('${k}')">${l}</button>`).join("")}</div>`;
+    main=`<div class="fbar" style="margin-bottom:10px">${tabs.map(([k,l])=>`<button class="chip ${PROUND===k?"on":""}" onclick="setPRound('${k}')">${l}</button>`).join("")}</div>`;
     const roundBase=PROUND==="all"?base:base.filter(r=>(r.step||"")===PROUND);
-    html+=apptRow(roundBase);
     const list=applyAppt(roundBase);
-    if(PROUND!=="all"){const t=PROUND,doneT=pool.filter(r=>(r.step||"")===t&&calledToday(r)).length;
-      html+=`<div class="tg-head ${t}" style="border-radius:12px;margin-bottom:10px"><div><div class="tg-name">รอบ ${t} · ${ROUND_NAME[t]}</div><div class="tg-goal">🎯 ${ROUND_GOAL[t]}</div></div><div class="tg-prog">โทรแล้ว ${Math.min(doneT,FB_TG[t])}/${FB_TG[t]}</div></div>`;}
+    if(APPTDATE)main+=`<div style="background:color-mix(in srgb,var(--brand) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--brand) 30%,var(--surface));border-radius:11px;padding:9px 13px;margin-bottom:10px;font-size:13px;font-weight:700">📅 เฉพาะนัดวันที่ ${apptKeyLabel(APPTDATE)} · ${list.length} ราย</div>`;
+    else if(PROUND!=="all"){const t=PROUND,doneT=pool.filter(r=>(r.step||"")===t&&calledToday(r)).length;
+      main+=`<div class="tg-head ${t}" style="border-radius:12px;margin-bottom:10px"><div><div class="tg-name">รอบ ${t} · ${ROUND_NAME[t]}</div><div class="tg-goal">🎯 ${ROUND_GOAL[t]}</div></div><div class="tg-prog">โทรแล้ว ${Math.min(doneT,FB_TG[t])}/${FB_TG[t]}</div></div>`;}
     const p=pageSlice(list);
-    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">${APPTF==="all"?"— ไม่มีรายชื่อในกลุ่มนี้ —":"ไม่มีนัดในช่วงที่เลือก"}</div>`;
-    box.innerHTML=html;
+    main+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">${APPTDATE?"ไม่มีนัดในวันที่เลือก":"— ไม่มีรายชื่อในกลุ่มนี้ —"}</div>`;
   }else{
-    let html=apptRow(base);
     const list=applyAppt(base);
+    if(APPTDATE)main+=`<div style="background:color-mix(in srgb,var(--brand) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--brand) 30%,var(--surface));border-radius:11px;padding:9px 13px;margin-bottom:10px;font-size:13px;font-weight:700">📅 เฉพาะนัดวันที่ ${apptKeyLabel(APPTDATE)} · ${list.length} ราย</div>`;
     const p=pageSlice(list);
-    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">${APPTF==="all"?"ไม่มีรายชื่อในกลุ่มนี้":"ไม่มีนัดในช่วงที่เลือก"}</div>`;
-    box.innerHTML=html;
+    main+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">${APPTDATE?"ไม่มีนัดในวันที่เลือก":"ไม่มีรายชื่อในกลุ่มนี้"}</div>`;
   }
+  box.innerHTML=apptPool.length?`<div class="listwrap"><div class="listmain">${main}</div><aside class="calside">${miniCal(apptPool)}</aside></div>`:main;
 }
 window.setPRound=function(k){PROUND=k;LPAGE=1;renderList();};
-window.setApptF=function(k){APPTF=k;LPAGE=1;renderList();};
-function setFilter(f){FILTER=f;LPAGE=1;PROUND="all";APPTF="all";render();}
+window.setApptDate=function(k){APPTDATE=k;if(k)PROUND="all";LPAGE=1;renderList();};
+window.calNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);let Y=thNow.getUTCFullYear(),M=thNow.getUTCMonth()+1;if(CALYM){const a=CALYM.split("-");Y=+a[0];M=+a[1];}M+=delta;if(M<1){M=12;Y--;}if(M>12){M=1;Y++;}CALYM=Y+"-"+String(M).padStart(2,"0");renderList();};
+function setFilter(f){FILTER=f;LPAGE=1;PROUND="all";APPTDATE="";CALYM="";render();}
 
 /* ===== ถังขยะ / กู้คืน (ของเซลล์เอง) ===== */
 function trReason(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออก (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"เลิกติดตาม"};return m[r.archiveReason||""]||"เก็บเข้าคลัง";}
