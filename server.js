@@ -1293,7 +1293,14 @@ async function summarizeCall(rec, model) {
   const entry = { id, phone: rec.phone, side: rec.side, dur: rec.dur, at: rec.at, dir: rec.dir, transcript: String(transcript || '').slice(0, 4000), summary, summarizedAt: new Date().toISOString() };
   const p = digitsOnly(rec.phone);
   const lead = state.assigned.find((a) => !a.archived && a.sales === rec.side && digitsOnly(a.phone) === p) || state.assigned.find((a) => digitsOnly(a.phone) === p);
-  if (lead) { entry.ticketId = lead.ticketId || ''; if (summary) addHist(lead, 'aisum', summary, 'AI'); }
+  if (lead) {
+    entry.ticketId = lead.ticketId || '';
+    if (summary) {
+      lead.history = lead.history || [];
+      lead.history.push({ at: new Date().toISOString(), by: 'AI', k: 'aisum', v: String(summary).slice(0, 800) });
+      if (lead.history.length > 100) lead.history = lead.history.slice(-100);
+    }
+  }
   state.onecallSummaries[id] = entry;
   return entry;
 }
