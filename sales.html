@@ -290,7 +290,8 @@ function renderList(){
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
   const base=pool.filter(r=>passFilter(r,FILTER)&&ms(r)).sort(urgCmp);
-  const applyAppt=arr=>{if(!APPTDATE)return arr;return arr.filter(r=>apptDayKey(r)===APPTDATE).slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));};
+  // เลือกวันในปฏิทิน → แสดง "ทุกรายชื่อในช่องนี้ที่มีนัดวันนั้น" (ไม่ตัดกับตัวกรองเวลา วันนี้/สัปดาห์ ฯลฯ) ให้ตรงกับตัวเลขบนปฏิทิน
+  const applyAppt=arr=>{if(!APPTDATE)return arr;return pool.filter(r=>ms(r)&&apptDayKey(r)===APPTDATE).slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));};
   // ปฏิทินนัดหมายเล็ก ๆ (แบบ Google Calendar) — apptPool = ลูกค้าในช่องนี้ที่มีวันนัด
   const miniCal=apptPool=>{
     const cntByDay=new Map();for(const r of apptPool){const k=apptDayKey(r);if(k)cntByDay.set(k,(cntByDay.get(k)||0)+1);}
