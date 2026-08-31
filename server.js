@@ -1689,7 +1689,13 @@ app.get('/api/dist-stats', requireAuth, (req, res) => {
 
 // tells the UI whether a pull is possible
 app.get('/api/evo-status', requireAuth, (req, res) => {
-  res.json({ hasToken: !!evo.token, tokenUpdatedAt: evo.updatedAt, facility: evo.facility });
+  res.json({ hasToken: !!evo.token, tokenUpdatedAt: evo.updatedAt, facility: evo.facility,
+    autoExpired: !!evo.expired, lastAutoAt: evo.lastAutoAt || null, lastAutoAdded: evo.lastAutoAdded || 0 });
+});
+// เรียกดึง Marketplace อัตโนมัติทันที (ให้ Teamlead กดทดสอบ/เร่งได้ — ปกติระบบดึงเองทุก 10 นาที)
+app.post('/api/evo/auto-now', requireAuth, async (req, res) => {
+  const added = await evoPullHoldAuto();
+  res.json({ ok: true, added, autoExpired: !!evo.expired, hasToken: !!evo.token, pool: S.poolCounts(state) });
 });
 
 // Manually set the Marketplace (Evolution) access token — the logged-in Teamlead pastes the token
