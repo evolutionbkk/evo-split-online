@@ -2839,29 +2839,32 @@ app.get('/api/chat/log', requireChat, (req, res) => {
 });
 
 // Teamlead KPI for the chat admins (only the people in CHAT_USERS): จำนวนแชท · ความเร็วตอบ · ปิดการขาย
-app.get('/api/admin/chat-kpi', requireAuth, (req, res) => {
+app.get('/api/admin/chat-kpi', requireAuth, async (req, res) => {
   const now = Date.now();
   let to = req.query.to ? Date.parse(req.query.to) : now;
   let from = req.query.from ? Date.parse(req.query.from) : (now - 29 * 86400000);
   if (isNaN(to)) to = now; if (isNaN(from)) from = to - 29 * 86400000;
-  const names = CHAT_USERS.map((c) => c.name);
-  const agg = {};
-  for (const nm of names) agg[nm] = { name: nm, chats: new Set(), replies: 0, respTotal: 0, respCount: 0, closed: 0 };
-  for (const e of pkChatLog()) {
-    const t = Date.parse(e.at); if (isNaN(t) || t < from || t > to) continue;
-    const a = agg[e.by]; if (!a) continue;
-    a.replies++; if (e.convId) a.chats.add(e.convId);
-    if (typeof e.respSec === 'number') { a.respTotal += e.respSec; a.respCount++; }
+  const iso = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+  if (!pkChatConfigured()) return res.json({ ok: true, ...iso, admins: CHAT_USERS.map((c) => ({ name: c.name, chats: 0, replies: 0, avgRespSec: null, closed: 0 })), note: 'ยังไม่ได้เชื่อม Pancake แชท' });
+  try {
+    // REAL data from Pancake: byNick = จำนวนแชทที่แต่ละแอดมิน (ชื่อเล่น) เป็นคนตอบล่าสุด ในช่วงเวลาที่เลือก
+    const tally = await pkConvTally(from, 300, to);           // { tot, wait, byNick }
+    const byNick = tally.byNick || {};
+    // "ปิดได้" จากสถานะที่กดในกล่องแชทของแอปนี้ (ถ้าใช้) — เสริม ไม่บังคับ
+    const meta = pkChatMeta(); const closedBy = {};
+    for (const id of Object.keys(meta)) {
+      const m = meta[id]; if (!m || m.status !== 'closed' || !m.closedBy) continue;
+      const t = m.closedAt ? Date.parse(m.closedAt) : NaN; if (isNaN(t) || t < from || t > to) continue;
+      const nk = nickName(m.closedBy) || m.closedBy; closedBy[nk] = (closedBy[nk] || 0) + 1;
+    }
+    // รวมรายชื่อ: ทีมที่ตั้งไว้ (CHAT_USERS) + ทุกคนที่ตอบจริงใน Pancake
+    const namesSet = new Set([...CHAT_USERS.map((c) => c.name), ...Object.keys(byNick)]);
+    const admins = [...namesSet].map((nm) => ({ name: nm, chats: byNick[nm] || 0, replies: byNick[nm] || 0, avgRespSec: null, closed: closedBy[nm] || 0 }))
+      .sort((a, b) => b.chats - a.chats);
+    res.json({ ok: true, ...iso, totalChats: tally.tot, waiting: tally.wait, admins });
+  } catch (e) {
+    res.json({ ok: false, ...iso, error: String(e).slice(0, 160), admins: CHAT_USERS.map((c) => ({ name: c.name, chats: 0, replies: 0, avgRespSec: null, closed: 0 })) });
   }
-  const meta = pkChatMeta();
-  for (const id of Object.keys(meta)) {
-    const m = meta[id]; if (!m || m.status !== 'closed' || !m.closedBy) continue;
-    const t = m.closedAt ? Date.parse(m.closedAt) : NaN;
-    if (isNaN(t) || t < from || t > to) continue;
-    const a = agg[m.closedBy]; if (a) a.closed++;
-  }
-  const admins = names.map((nm) => { const a = agg[nm]; return { name: nm, chats: a.chats.size, replies: a.replies, avgRespSec: a.respCount ? Math.round(a.respTotal / a.respCount) : null, closed: a.closed }; });
-  res.json({ ok: true, from: new Date(from).toISOString(), to: new Date(to).toISOString(), admins });
 });
 
 app.get('/me', requireChat, (req, res) => res.sendFile(path.join(__dirname, 'me.html')));
