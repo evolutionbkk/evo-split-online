@@ -160,7 +160,7 @@ function krBar(){let h=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-it
   return h+`</div>`;}
 window.setKR=function(r){KR=r;MTPAGE=1;if(r==="custom"&&(!kcf||!kct)){const TZ=7*3600000,th=new Date(Date.now()+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate(),iso=t=>new Date(t).toISOString().slice(0,10);kct=iso(Date.UTC(y,m,d));kcf=iso(Date.UTC(y,m,d)-6*86400000);}render();};
 window.applyKC=function(){const f=$("#kcf").value,t=$("#kct").value;if(!f||!t){toast("เลือกวันที่ให้ครบ");return;}if(f>t){toast("วันเริ่มต้องไม่เกินวันสิ้นสุด");return;}kcf=f;kct=t;MTPAGE=1;render();};
-const MP_TARGET=50,FB_T=5;
+const MP_TARGET=30,FB_TG={T1:5,T2:5,T3:20},FB_TOTAL=FB_TG.T1+FB_TG.T2+FB_TG.T3;
 
 function leadPanel(r){if(r.source==="refill")return"refill";return (r.source==="pancake"||r.source==="manual")?"mkt":"ecom";}
 function neverCalled(r){return !((r.realCalls>0)||(r.callCount>0));}
@@ -228,10 +228,10 @@ function render(){
   if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
-  const target=isFB?15:MP_TARGET,doneToday=pool.filter(calledToday).length,remain=pool.filter(isToCall).length;
+  const target=isFB?FB_TOTAL:MP_TARGET,doneToday=pool.filter(calledToday).length,remain=pool.filter(isToCall).length;
   const pct=Math.min(100,Math.round(doneToday/target*100));
   let html=`<div class="phead"><div class="ph-top"><div class="ph-title">${isFB?"💬 Facebook (Pancake)":"📦 Marketplace"}</div>
-    <span class="ph-target">เป้าวันละ ${isFB?"15 (T1·T2·T3 อย่างละ 5)":MP_TARGET}</span></div>
+    <span class="ph-target">เป้าวันละ ${isFB?(FB_TOTAL+" (T1·"+FB_TG.T1+" T2·"+FB_TG.T2+" T3·"+FB_TG.T3+")"):MP_TARGET}</span></div>
     <div class="ph-stats"><div class="ph-st"><div class="n tnum" style="color:var(--warn)">${remain}</div><div class="l">เหลือต้องโทร</div></div>
       <div class="ph-st"><div class="n tnum" style="color:var(--brand)">${doneToday} / ${target}</div><div class="l">โทรแล้ววันนี้</div></div>
       <div class="ph-st"><div class="n tnum" style="color:var(--ok)">${pool.filter(wonToday).length}</div><div class="l">ปิดได้วันนี้</div></div></div>
@@ -258,7 +258,7 @@ function renderList(){
     for(const t of ["T1","T2","T3"]){
       const g=base.filter(r=>(r.step||"")===t).sort(urgCmp);
       const doneT=pool.filter(r=>(r.step||"")===t&&calledToday(r)).length;
-      html+=`<div class="tgroup"><div class="tg-head ${t}"><div><div class="tg-name">รอบ ${t} · ${ROUND_NAME[t]}</div><div class="tg-goal">🎯 ${ROUND_GOAL[t]}</div></div><div class="tg-prog">โทรแล้ว ${Math.min(doneT,FB_T)}/${FB_T}</div></div>${g.length?`<div class="cards">${g.map(leadCard).join("")}</div>`:`<div class="empty" style="padding:12px">— ไม่มีรายชื่อในรอบนี้ —</div>`}</div>`;
+      html+=`<div class="tgroup"><div class="tg-head ${t}"><div><div class="tg-name">รอบ ${t} · ${ROUND_NAME[t]}</div><div class="tg-goal">🎯 ${ROUND_GOAL[t]}</div></div><div class="tg-prog">โทรแล้ว ${Math.min(doneT,FB_TG[t])}/${FB_TG[t]}</div></div>${g.length?`<div class="cards">${g.map(leadCard).join("")}</div>`:`<div class="empty" style="padding:12px">— ไม่มีรายชื่อในรอบนี้ —</div>`}</div>`;
     }
     const other=base.filter(r=>!["T1","T2","T3"].includes(r.step||"")).sort(urgCmp);
     if(other.length)html+=`<div class="tgroup"><div class="tg-head" style="background:#475569"><div class="tg-name">อื่นๆ · ไม่ระบุรอบ</div></div><div class="cards">${other.map(leadCard).join("")}</div></div>`;
@@ -352,7 +352,7 @@ function viewKpi(){
     <thead><tr><th style="text-align:left;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">ช่องทาง / รอบ</th><th style="text-align:right;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">เป้า ${days>1?("("+days+" วัน)"):""}</th><th style="text-align:right;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">ของฉัน · ${rl}</th></tr></thead>
     <tbody>
       <tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>Marketplace</b></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${MP_TARGET*days}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(ecom,MP_TARGET)}</td></tr>
-      ${["T1","T2","T3"].map(t=>`<tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>FB · ${t}</b> <span style="font-size:11px;color:var(--muted)">${ROUND_NAME[t]}</span></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${FB_T*days}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(mkt.filter(r=>(r.step||"")===t),FB_T)}</td></tr>`).join("")}
+      ${["T1","T2","T3"].map(t=>`<tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>FB · ${t}</b> <span style="font-size:11px;color:var(--muted)">${ROUND_NAME[t]}</span></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${FB_TG[t]*days}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(mkt.filter(r=>(r.step||"")===t),FB_TG[t])}</td></tr>`).join("")}
     </tbody></table>
     <div style="padding:10px 14px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)">เป้าปรับตามจำนวนวันในช่วงที่เลือก · "คุยจริง (OneCall)" เป็นยอดสะสมทั้งหมด · "รอติดตาม" เป็นสถานะปัจจุบัน</div></div>`;
 }

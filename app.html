@@ -290,7 +290,7 @@ window.tglAO=function(i){const el=document.getElementById("ao"+i);if(el)el.style
 /* ===== TELESALES OVERVIEW (pipeline + target) ===== */
 function viewTelOverview(){
   const W=D.kpi.W||{},K=D.kpi.K||{},s=f=>(W[f]||0)+(K[f]||0);
-  const tEvo=(D.kpi.targets&&D.kpi.targets.evo)||50,tMan=(D.kpi.targets&&D.kpi.targets.manual)||15;
+  const TG=(D.kpi.targets)||{};const tEvo=TG.evo||30,tMan=TG.manual||30;
   const wEvo=W.calledEvoToday||0,kEvo=K.calledEvoToday||0,wMan=W.calledManualToday||0,kMan=K.calledManualToday||0;
   const stK=[["new","ใหม่"],["contacting","กำลังติดต่อ"],["interested","สนใจ"],["followup","นัดติดตาม"],["awaiting_payment","รอชำระเงิน"],["won","ปิดสำเร็จ"],["lost","ไม่สนใจ"]];
   let h=filterBar();
@@ -306,10 +306,10 @@ function viewTelOverview(){
   const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">ปิดได้วันนี้ · จากที่เซลล์บันทึก</div></td>${revCell("W",wRev,W.wonToday||0)}${revCell("K",kRev,K.wonToday||0)}<td class="r tnum win"><b style="font-size:15px">${fmtB(wRev+kRev)}</b></td></tr>`;
   h+=`<div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
-    ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",50,wEvo,kEvo,COL.mk,'mk')}
-    ${row("💬","T1 · คุย FB จริง","ลูกค้า FB ที่คุยจริง >7 วิ (ไม่ซ้ำคน)",5,fw.T1d||0,fk.T1d||0,COL.t1,'t1')}
-    ${row("💬","T2 · ตามรอบ 2","",5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
-    ${row("💬","T3 · ตามรอบ 3","",5,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
+    ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,wEvo,kEvo,COL.mk,'mk')}
+    ${row("💬","T1 · คุย FB จริง","ลูกค้า FB ที่คุยจริง >7 วิ (ไม่ซ้ำคน)",TG.t1||5,fw.T1d||0,fk.T1d||0,COL.t1,'t1')}
+    ${row("💬","T2 · ตามรอบ 2","",TG.t2||5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
+    ${row("💬","T3 · ตามรอบ 3","",TG.t3||20,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
     ${revRow}
   </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · <b>ยอดขาย</b> = ยอดที่ปิดได้วันนี้ (จากรายการที่เซลล์บันทึกในระบบ) · กดตัวเลขเพื่อดูรายละเอียด</div></div>`;
   return h;

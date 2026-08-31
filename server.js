@@ -910,8 +910,11 @@ const ONECALL_LINES = { '66948880324': 'W', '66948880326': 'K' };
 const ONECALL_MIN_TALK = 7;   // seconds; > this counts toward KPI
 const ONECALL_MAX = 60000;    // cap stored call records
 // Daily call targets per Telesales (adjustable via Railway Variables)
-const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 50;     // Evolution database calls / day
-const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || 15; // FB + Follow-up calls/day (T1+T2+T3 = 5+5+5, counted per call)
+const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 30;     // Marketplace (Evolution + Lazada) calls / day
+const KPI_TARGET_T1 = Number(process.env.KPI_T1_TARGET) || 5;        // FB รอบ T1 / วัน
+const KPI_TARGET_T2 = Number(process.env.KPI_T2_TARGET) || 5;        // FB รอบ T2 / วัน
+const KPI_TARGET_T3 = Number(process.env.KPI_T3_TARGET) || 20;       // FB รอบ T3 / วัน
+const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || (KPI_TARGET_T1 + KPI_TARGET_T2 + KPI_TARGET_T3); // FB รวมทุกรอบ/วัน
 const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
 const SALES_REV_TARGET = Number(process.env.SALES_REV_TARGET) || 100000; // เป้ายอดขายเซลล์ (เทเลเซลล์) ต่อคน/เดือน
 const ADMIN_REV_TARGET = Number(process.env.ADMIN_REV_TARGET) || 200000; // เป้ายอดขายแอดมิน (ตอบแชท) ต่อคน/เดือน
@@ -1743,7 +1746,7 @@ async function computeSalesKpi(fromQ, toQ) {
     from: new Date(from).toISOString(), to: new Date(to).toISOString(), now: new Date(now).toISOString(),
     names: SALES_NAMES, W: sides.W, K: sides.K,
     onecall: (state.onecall || []).length > 0, onecallUpdatedAt: state.onecallUpdatedAt || null,
-    targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL, rev: KPI_TARGET_REV, salesMonthly: SALES_REV_TARGET, adminMonthly: ADMIN_REV_TARGET },
+    targets: { evo: KPI_TARGET_EVO, manual: KPI_TARGET_MANUAL, t1: KPI_TARGET_T1, t2: KPI_TARGET_T2, t3: KPI_TARGET_T3, rev: KPI_TARGET_REV, salesMonthly: SALES_REV_TARGET, adminMonthly: ADMIN_REV_TARGET },
     kpiFbMatchFrom: new Date(KPI_FB_MATCH_FROM).toISOString(),
   };
 }
