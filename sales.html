@@ -145,6 +145,21 @@ const REJECT_REASONS=["ราคาสูงเกินไป","โปรโม
 const NOREACH=["ไม่รับสาย","สายไม่ว่าง","ปิดเครื่อง","โทรไม่ติด","เบอร์ผิด","เบอร์ไม่ใช้งาน"];
 
 let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="today",CUR=null,Q="",TQ="",VIEW="list";
+let KR="today",kcf="",kct="",MTQ="",MTPAGE=1,MTFILTER="all";  // ตั๋วของฉัน: ช่วงเวลา/ค้นหา/หน้า/สถานะ
+const KRLABEL={today:"วันนี้",yesterday:"เมื่อวาน",week:"สัปดาห์",month:"เดือน",custom:"กำหนดเอง"},KRORDER=["today","yesterday","week","month","custom"];
+function krBounds(){const TZ=7*3600000,now=Date.now(),th=new Date(now+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
+  const sT=Date.UTC(y,m,d,0,0,0)-TZ,eT=Date.UTC(y,m,d,23,59,59)-TZ;
+  if(KR==="yesterday")return{from:sT-86400000,to:eT-86400000};
+  if(KR==="week")return{from:sT-6*86400000,to:eT};
+  if(KR==="month")return{from:Date.UTC(y,m,1,0,0,0)-TZ,to:eT};
+  if(KR==="custom"&&kcf&&kct){const f=Date.parse(kcf+"T00:00:00Z")-TZ,t=Date.parse(kct+"T23:59:59Z")-TZ;if(!isNaN(f)&&!isNaN(t))return{from:f,to:t};}
+  return{from:sT,to:eT};}
+function krLabel(){return (KR==="custom"&&kcf&&kct)?(kcf+" – "+kct):KRLABEL[KR];}
+function krBar(){let h=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span style="font-size:12px;color:var(--muted);font-weight:700">ช่วงเวลา</span>`+KRORDER.map(r=>`<button class="chip ${KR===r?"on":""}" onclick="setKR('${r}')">${KRLABEL[r]}</button>`).join("");
+  if(KR==="custom")h+=`<input type="date" class="inp" id="kcf" value="${esc(kcf)}" style="padding:6px 9px;font-size:12.5px;width:auto"><span style="font-size:12px">ถึง</span><input type="date" class="inp" id="kct" value="${esc(kct)}" style="padding:6px 9px;font-size:12.5px;width:auto"><button class="chip on" onclick="applyKC()">ใช้</button>`;
+  return h+`</div>`;}
+window.setKR=function(r){KR=r;MTPAGE=1;if(r==="custom"&&(!kcf||!kct)){const TZ=7*3600000,th=new Date(Date.now()+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate(),iso=t=>new Date(t).toISOString().slice(0,10);kct=iso(Date.UTC(y,m,d));kcf=iso(Date.UTC(y,m,d)-6*86400000);}render();};
+window.applyKC=function(){const f=$("#kcf").value,t=$("#kct").value;if(!f||!t){toast("เลือกวันที่ให้ครบ");return;}if(f>t){toast("วันเริ่มต้องไม่เกินวันสิ้นสุด");return;}kcf=f;kct=t;MTPAGE=1;render();};
 const MP_TARGET=50,FB_T=5;
 
 function leadPanel(r){if(r.source==="refill")return"refill";return (r.source==="pancake"||r.source==="manual")?"mkt":"ecom";}
@@ -167,13 +182,13 @@ async function api(url,body){const r=await fetch(url,{method:"POST",headers:{"Co
 function renderNav(){
   const fbCount=ACTIVE.filter(r=>!r.archived&&leadPanel(r)==="mkt"&&isToCall(r)).length;
   const arcCount=ARCHIVED.length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"trash",ic:"🗑",t:"ถังขยะ / กู้คืน",badge:arcCount||0}];
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"trash",ic:"🗑",t:"ถังขยะ / กู้คืน",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
-      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
+      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="tickets"&&it.k==="tickets"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
 }
-function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else{VIEW="list";PANEL=k;FILTER="today";Q="";}render();}
+function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else{VIEW="list";PANEL=k;FILTER="today";Q="";}render();}
 
 function statusPill(r){const st=r.leadStatus||"new";return `<span class="pill st-${st}">${STLABEL[st]||st}</span>`;}
 function urgLine(r){
@@ -209,6 +224,7 @@ function render(){
   const c=$("#content");
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
   if(VIEW==="trash"){c.innerHTML=viewTrash2();return;}
+  if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
   const target=isFB?15:MP_TARGET,doneToday=pool.filter(calledToday).length,remain=pool.filter(isToCall).length;
@@ -273,6 +289,43 @@ function viewTrash2(){
 }
 window.renderTrListBox=function(){const b=$("#trlist");if(b)b.innerHTML=renderTrList();};
 window.restoreLead2=async function(key){const j=await api("/api/lead/restore",{key});if(j&&j.ok){toast("กู้คืนตั๋วแล้ว");await reload();}else toast((j&&j.message)||"กู้คืนไม่สำเร็จ");};
+
+/* ===== ตั๋วของฉัน (ลิสต์รวมแบบ Teamlead — ช่วงเวลา + ค้นหา + แบ่งหน้า) ===== */
+function pagerS(total,cur,fnName){if(total<=1)return "";
+  const btn=(p,lab,on,dis)=>`<button onclick="${fnName}(${p})" ${dis?"disabled":""} style="min-width:34px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-weight:800;font-size:13px;cursor:${dis?"default":"pointer"};${on?"background:var(--brand);color:#fff;border-color:var(--brand)":"background:var(--surface);color:var(--ink)"};${dis?"opacity:.4":""}">${lab}</button>`;
+  let nums=[];if(total<=7){for(let p=1;p<=total;p++)nums.push(p);}else{nums.push(1);let a=Math.max(2,cur-1),b=Math.min(total-1,cur+1);if(a>2)nums.push("…");for(let p=a;p<=b;p++)nums.push(p);if(b<total-1)nums.push("…");nums.push(total);}
+  const mid=nums.map(p=>p==="…"?`<span style="min-width:22px;text-align:center;color:var(--muted)">…</span>`:btn(p,p,p===cur,false)).join("");
+  return `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${btn(cur-1,"‹",false,cur<=1)}${mid}${btn(cur+1,"›",false,cur>=total)}</div>`;}
+function mtTime(r){let t=Date.parse(r.lastActivity||r.updatedAt||r.date||"");if(isNaN(t)&&r.lastOrderAt)t=Date.parse(r.lastOrderAt);if(isNaN(t)&&r.history&&r.history.length)t=Date.parse(r.history[r.history.length-1].at);return isNaN(t)?null:t;}
+function mtMatch(r,q){if(!q)return true;const dq=q.replace(/\D/g,"");return [r.name,r.ticketId,r.code].some(v=>String(v||"").toLowerCase().includes(q))||(!!dq&&String(r.phone||"").replace(/\D/g,"").includes(dq));}
+function chLabel(r){return leadPanel(r)==="ecom"?"📦 Marketplace":"💬 Facebook";}
+function renderMtBody(){
+  const b=krBounds(),q=(MTQ||"").trim().toLowerCase();
+  const base=ACTIVE.filter(r=>!r.archived).filter(r=>{const t=mtTime(r);return t!=null&&t>=b.from&&t<=b.to;}).filter(r=>mtMatch(r,q));
+  const cnt={all:base.length,call:base.filter(isToCall).length,fu:base.filter(r=>(r.leadStatus||"new")==="followup").length,won:base.filter(r=>{const s=r.leadStatus||"new";return s==="won"||s==="awaiting_payment";}).length};
+  let list=base;
+  if(MTFILTER==="call")list=base.filter(isToCall);
+  else if(MTFILTER==="fu")list=base.filter(r=>(r.leadStatus||"new")==="followup");
+  else if(MTFILTER==="won")list=base.filter(r=>{const s=r.leadStatus||"new";return s==="won"||s==="awaiting_payment";});
+  const chips=[["all","ทั้งหมด "+cnt.all],["call","ต้องโทร "+cnt.call],["fu","นัดติดตาม "+cnt.fu],["won","ปิด/รอจ่าย "+cnt.won]];
+  const PER=10,totalPages=Math.max(1,Math.ceil(list.length/PER));
+  if(MTPAGE>totalPages)MTPAGE=totalPages;if(MTPAGE<1)MTPAGE=1;
+  const start=(MTPAGE-1)*PER,rows=list.slice(start,start+PER);
+  return `<div class="fbar" style="margin-bottom:10px">${chips.map(([k,l])=>`<button class="chip ${MTFILTER===k?"on":""}" onclick="setMtFilter('${k}')">${l}</button>`).join("")}</div>
+  <div class="card" style="overflow:auto;padding:0"><table style="width:100%;border-collapse:collapse;font-size:13.5px">
+    <thead><tr>${["รหัส","ลูกค้า","ช่องทาง","รอบ","สถานะ"].map(t=>`<th style="text-align:left;padding:10px 12px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">${t}</th>`).join("")}</tr></thead><tbody>
+    ${rows.length?rows.map(r=>`<tr style="cursor:pointer;border-top:1px solid var(--line)" onclick="openLead('${esc(r.key)}')"><td style="padding:10px 12px" class="mono"><b style="color:var(--brand)">${esc(r.ticketId||r.code||"—")}</b></td><td style="padding:10px 12px"><b>${esc(r.name||"(ไม่มีชื่อ)")}</b><div style="font-size:11px;color:var(--muted)">📞 ${esc(r.phone||"")}</div></td><td style="padding:10px 12px;font-size:12px">${chLabel(r)}</td><td style="padding:10px 12px">${r.step?`<span class="mono" style="font-weight:800">${esc(r.step)}</span>`:"—"}</td><td style="padding:10px 12px">${statusPill(r)}</td></tr>`).join(""):`<tr><td colspan="5" style="padding:16px;color:var(--muted)">${q?"ไม่พบตั๋วที่ตรงกับคำค้น":"ไม่มีตั๋วในช่วงเวลานี้"}</td></tr>`}
+  </tbody></table>${list.length?`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:11px 14px;border-top:1px solid var(--line)"><span style="font-size:12px;color:var(--muted)">แสดง ${start+1}–${start+rows.length} จาก ${list.length} ราย</span>${pagerS(totalPages,MTPAGE,'setMtPage')}</div>`:""}</div>`;
+}
+function viewMyTickets(){
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">ตั๋วลูกค้าของฉันทั้งหมด · กรองตามช่วงเวลา (${krLabel()}) และค้นหาได้ · แตะแถวเพื่อเปิด/แก้ไข/ลบ</div>
+  ${krBar()}
+  <input class="search" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / รหัสตั๋ว" value="${esc(MTQ)}" oninput="MTQ=this.value;mtRefresh()">
+  <div id="mtBody">${renderMtBody()}</div>`;
+}
+window.mtRefresh=function(){const b=$("#mtBody");if(b)b.innerHTML=renderMtBody();};
+window.setMtPage=function(p){MTPAGE=p;mtRefresh();window.scrollTo(0,0);};
+window.setMtFilter=function(k){MTFILTER=k;MTPAGE=1;mtRefresh();};
 
 function viewKpi(){
   const A=ACTIVE.filter(r=>!r.archived);
