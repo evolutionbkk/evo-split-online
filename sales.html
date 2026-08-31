@@ -328,27 +328,32 @@ window.setMtPage=function(p){MTPAGE=p;mtRefresh();window.scrollTo(0,0);};
 window.setMtFilter=function(k){MTFILTER=k;MTPAGE=1;mtRefresh();};
 
 function viewKpi(){
+  const b=krBounds(),rl=krLabel();
+  const inR=t=>{const p=Date.parse(t);return !isNaN(p)&&p>=b.from&&p<=b.to;};
+  const calledInR=r=>{if(r.lastCallAt&&inR(r.lastCallAt))return true;for(const e of(r.history||[]))if(e.k==="call"&&inR(e.at))return true;return false;};
+  const wonInR=r=>{if(r.archived||(r.leadStatus||"new")!=="won")return false;const h=r.history||[];for(let i=h.length-1;i>=0;i--){if(h[i].k==="status"&&h[i].v==="won")return inR(h[i].at);}return inR(r.updatedAt);};
+  const days=Math.max(1,Math.round((b.to-b.from)/86400000));
   const A=ACTIVE.filter(r=>!r.archived);
-  const called=A.filter(calledToday).length, talk=A.reduce((s,r)=>s+(r.realTalkCalls||0),0);
-  const wonT=A.filter(wonToday).length;
-  const rev=A.filter(r=>(r.leadStatus||"new")==="won").reduce((s,r)=>s+saleTotal(r),0);
+  const called=A.filter(calledInR).length, talk=A.reduce((s,r)=>s+(r.realTalkCalls||0),0);
+  const wonList=A.filter(wonInR);const wonT=wonList.length, rev=wonList.reduce((s,r)=>s+saleTotal(r),0);
   const fu=A.filter(r=>(r.leadStatus||"new")==="followup").length;
   const mkt=A.filter(r=>leadPanel(r)==="mkt"),ecom=A.filter(r=>leadPanel(r)==="ecom");
-  const cell=(pool,tg)=>{const d=pool.filter(calledToday).length,p=Math.min(100,Math.round(d/tg*100));const col=p>=90?"var(--ok)":p>=60?"var(--brand)":p>=40?"var(--warn)":"var(--bad)";return `${d}/${tg} <span style="color:${col};font-size:12px">${p}%</span>`;};
-  return `<div style="font-size:13px;color:var(--muted);margin-bottom:14px">KPI ของ <b style="color:var(--ink)">${esc(ME.name||("Sales "+ME.side))}</b> — เห็นเฉพาะของตัวเอง</div>
+  const cell=(pool,tgDay)=>{const tg=tgDay*days,d=pool.filter(calledInR).length,p=Math.min(100,Math.round(d/tg*100));const col=p>=90?"var(--ok)":p>=60?"var(--brand)":p>=40?"var(--warn)":"var(--bad)";return `${d}/${tg} <span style="color:${col};font-size:12px">${p}%</span>`;};
+  return krBar()+`<div style="font-size:13px;color:var(--muted);margin-bottom:14px">KPI ของ <b style="color:var(--ink)">${esc(ME.name||("Sales "+ME.side))}</b> · <b>${rl}</b> — เห็นเฉพาะของตัวเอง</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px">
-    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--brand)">${called}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">โทรแล้ววันนี้</div></div>
-    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${talk}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">คุยจริง >7 วิ</div></div>
-    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800">${fu}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">รอติดตาม</div></div>
-    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${wonT}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">ปิดได้วันนี้</div></div>
-    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${fmtB(rev)}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">ยอดขายของฉัน</div></div>
+    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--brand)">${called}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">โทรแล้ว · ${rl}</div></div>
+    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${talk}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">คุยจริง >7 วิ · สะสม</div></div>
+    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800">${fu}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">รอติดตาม · ปัจจุบัน</div></div>
+    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${wonT}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">ปิดได้ · ${rl}</div></div>
+    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${fmtB(rev)}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">ยอดขาย · ${rl}</div></div>
   </div>
   <div class="card" style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13.5px">
-    <thead><tr><th style="text-align:left;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">ช่องทาง / รอบ</th><th style="text-align:right;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">เป้า</th><th style="text-align:right;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">ของฉันวันนี้</th></tr></thead>
+    <thead><tr><th style="text-align:left;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">ช่องทาง / รอบ</th><th style="text-align:right;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">เป้า ${days>1?("("+days+" วัน)"):""}</th><th style="text-align:right;padding:11px 14px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">ของฉัน · ${rl}</th></tr></thead>
     <tbody>
-      <tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>Marketplace</b></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${MP_TARGET}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(ecom,MP_TARGET)}</td></tr>
-      ${["T1","T2","T3"].map(t=>`<tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>FB · ${t}</b> <span style="font-size:11px;color:var(--muted)">${ROUND_NAME[t]}</span></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${FB_T}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(mkt.filter(r=>(r.step||"")===t),FB_T)}</td></tr>`).join("")}
-    </tbody></table></div>`;
+      <tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>Marketplace</b></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${MP_TARGET*days}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(ecom,MP_TARGET)}</td></tr>
+      ${["T1","T2","T3"].map(t=>`<tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>FB · ${t}</b> <span style="font-size:11px;color:var(--muted)">${ROUND_NAME[t]}</span></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${FB_T*days}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(mkt.filter(r=>(r.step||"")===t),FB_T)}</td></tr>`).join("")}
+    </tbody></table>
+    <div style="padding:10px 14px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)">เป้าปรับตามจำนวนวันในช่วงที่เลือก · "คุยจริง (OneCall)" เป็นยอดสะสมทั้งหมด · "รอติดตาม" เป็นสถานะปัจจุบัน</div></div>`;
 }
 
 function findLead(key){return ACTIVE.concat(ARCHIVED).find(r=>r.key===key);}
