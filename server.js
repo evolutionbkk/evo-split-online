@@ -1266,7 +1266,6 @@ async function groqTranscribe(id, sttModel) {
   fd.append('model', sttModel || GROQ_STT_MODEL);
   fd.append('language', 'th');
   fd.append('temperature', '0');
-  fd.append('prompt', 'บทสนทนาการขายสินค้าความงามและอาหารเสริมทางโทรศัพท์ ภาษาไทย ระหว่างพนักงานขายกับลูกค้า');
   fd.append('response_format', 'text');
   const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd,
