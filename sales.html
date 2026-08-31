@@ -58,7 +58,7 @@
   .empty{color:var(--muted);padding:22px;text-align:center;background:var(--surface);border:1px dashed var(--line);border-radius:14px}
   .mbg{position:fixed;inset:0;background:rgba(15,23,42,.5);backdrop-filter:blur(2px);display:none;justify-content:flex-end;z-index:40}
   .mbg.on{display:flex}
-  .sheet{background:var(--bg);width:560px;max-width:100%;height:100vh;overflow:auto;box-shadow:var(--shadow-lg);animation:si .2s ease}
+  .sheet{background:var(--bg);width:1000px;max-width:100%;height:100vh;overflow:auto;box-shadow:var(--shadow-lg);animation:si .2s ease}
   @keyframes si{from{transform:translateX(30px);opacity:.4}to{transform:translateX(0);opacity:1}}
   .sh-in{padding:18px 20px 60px}
   .closeX{position:sticky;top:0;float:right;background:var(--surface);border:1px solid var(--line);border-radius:50%;width:34px;height:34px;font-size:16px;color:var(--muted);z-index:2}
@@ -78,6 +78,13 @@
   .toggle{display:grid;grid-template-columns:1fr 1fr;gap:9px}
   .tg2{border:2px solid var(--line);background:var(--surface);border-radius:11px;padding:12px;text-align:center;font-weight:800;font-size:14px;color:var(--muted)}
   .tg2.ok{border-color:var(--ok);background:#f0fdf4;color:var(--ok)}.tg2.no{border-color:var(--bad);background:#fef2f2;color:var(--bad)}
+  .tk-av2{width:48px;height:48px;border-radius:13px;background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:#fff;font-weight:800;font-size:21px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .tksheet{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;align-items:start}
+  @media(max-width:900px){.tksheet{grid-template-columns:1fr}}
+  .pk-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+  .pk-tile{border:1px solid var(--line);border-radius:11px;padding:12px 13px;background:var(--surface-2,var(--surface))}
+  .pk-tile .n{font-size:18px;font-weight:800;line-height:1.05}.pk-tile .l{font-size:11px;color:var(--muted);margin-top:5px;font-weight:600}
+  .pk-kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:13px}.pk-kv span{color:var(--muted)}
   .opts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
   .op{border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:11px;background:var(--surface);text-align:left;width:100%}
   .op:hover{border-color:#c7d7f0}.op.sel{border-color:var(--ok);background:#f0fdf4}
@@ -376,39 +383,62 @@ function renderSheet(){
   const r=CUR;if(!r)return;
   const tags=(r.tags||[]).map(t=>`<span class="ttag">${esc(t)}</span>`).join("");
   let fval="";try{const b=r.nextAppt?new Date(r.nextAppt):(()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(10,0,0,0);return d;})();const p=n=>String(n).padStart(2,"0");fval=b.getFullYear()+"-"+p(b.getMonth()+1)+"-"+p(b.getDate())+"T"+p(b.getHours())+":"+p(b.getMinutes());}catch(e){}
+  const days=v=>{const t=Date.parse(v);return isNaN(t)?null:Math.max(0,Math.floor((Date.now()-t)/864e5));};
+  const lastD=days(r.lastOrderAt);
+  const tile=(n,l)=>`<div class="pk-tile"><div class="n tnum">${n}</div><div class="l">${l}</div></div>`;
+  const ac=(r.aiCalls&&r.aiCalls[0])||null;
+  const sumMeta=`จาก 📞 สายโทร OneCall · ${ac?esc(fmtShort(ac.at)):"—"} · โดย${esc(ME.name||("Sales "+ME.side))}`;
+  const sumText=ac?esc(ac.summary):(r.note?esc(r.note):(r.product?(esc(r.product)+(r.orderAmount?" "+fmtB(r.orderAmount):"")+" · "+(STLABEL[r.leadStatus||"new"]||"รอโทร")):"ยังไม่มีสรุป — โทรและบันทึกผล/โน้ต แล้วจะเห็นสรุปตรงนี้"));
   $("#sheet").innerHTML=`<button class="closeX" onclick="closeSheet()">✕</button>
-    <div class="tk-name">${esc(r.name)||"(ไม่มีชื่อ)"}</div>
-    <div class="tk-id"><span class="mono" style="color:var(--brand);font-weight:700">${esc(r.ticketId||"")}</span> · รหัสลูกค้า <span class="mono">${esc(r.code)}</span> · Sales (${esc(r.sales)}) · ติดต่อ ${r.callCount||0} ครั้ง${r.realCalls?` · OneCall โทร ${r.realCalls} คุยจริง ${r.realTalkCalls||0}`:""}</div>
-    ${(r.product||r.page||r.orderAmount)?`<div style="font-size:12.5px;color:var(--muted);margin:4px 0 2px">📦 ${esc(r.product||"—")}${r.page?` · เพจ: <b>${esc(r.page)}</b>`:""}${r.orderAmount?` · ยอดออเดอร์ ${fmtB(r.orderAmount)}`:""}</div>`:""}
-    <div class="tagbar">🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
-    ${(r.leadStatus==="won"||r.leadStatus==="awaiting_payment")?saleCard(r):""}
-    ${roundInfo(r)}
-    <div class="box" style="border:1.5px solid #ddd6fe"><h4>🤖 สรุปล่าสุด</h4><div style="font-size:13px;line-height:1.6">${latestSummary(r)}</div></div>
-    <div class="box"><div class="step-h"><span class="step-n">1</span><span class="step-t">โทรหาลูกค้า</span></div>
-      <a class="dial" href="tel:${esc(r.phone)}" onclick="logCall('${esc(r.key)}')">📞 โทรออก ${esc(r.phone)}</a>
-      <div class="seg"><button class="${(r.callCount||0)>=1?"on":""}" onclick="setCalls(1)">ครั้งที่ 1</button><button class="${(r.callCount||0)>=2?"on":""}" onclick="setCalls(2)">2</button><button class="${(r.callCount||0)>=3?"on":""}" onclick="setCalls(3)">3</button><button onclick="setCalls(0)" style="flex:0 0 auto;min-width:54px;color:var(--muted)">ล้าง</button></div></div>
-    <div class="box"><div class="step-h"><span class="step-n">2</span><span class="step-t">ผลการติดต่อ</span></div>
-      <div class="toggle"><button class="tg2 ${r.contact==="reached"?"ok":""}" id="tgOk" onclick="pickReach(true)">✅ ติดต่อได้</button><button class="tg2 ${r.contact==="unreachable"?"no":""}" id="tgNo" onclick="pickReach(false)">📵 ติดต่อไม่ได้</button></div>
-      <div id="reachBox"></div></div>
-    <div class="box"><div class="step-h"><span class="step-n">3</span><span class="step-t">โน้ต / วันนัด</span></div>
-      <textarea class="inp" id="noteInp" rows="2" placeholder="✍️ โน้ตการคุย (เห็นเฉพาะทีม)">${esc(r.note||"")}</textarea>
-      <button class="btn g" style="margin-top:8px" onclick="saveNote()">บันทึกโน้ต</button>
-      <div style="font-size:12px;color:var(--muted);font-weight:700;margin:12px 0 6px">วันนัดติดตามครั้งถัดไป</div>
-      <input type="datetime-local" class="inp" id="fdate" value="${fval}"><button class="btn p" style="margin-top:8px" onclick="saveAppt()">บันทึกวันนัด</button></div>
-    <div class="box"><div class="step-h"><span class="step-n">✏️</span><span class="step-t">แก้ไขข้อมูลลูกค้า (กรณีบันทึกผิด)</span></div>
-      <div style="font-size:12px;color:var(--muted);font-weight:700;margin:2px 0 4px">ชื่อลูกค้า</div>
-      <input class="inp" id="edName" value="${esc(r.name||"")}" placeholder="ชื่อลูกค้า">
-      <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">เบอร์โทร</div>
-      <input class="inp" id="edPhone" value="${esc(r.phone||"")}" placeholder="เบอร์โทร" inputmode="tel">
-      <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">ที่อยู่</div>
-      <textarea class="inp" id="edAddr" rows="2" placeholder="ที่อยู่จัดส่ง">${esc(r.address||"")}</textarea>
-      <button class="btn g" style="margin-top:9px" onclick="saveEdit()">💾 บันทึกการแก้ไข</button></div>
-    <div class="box"><h4>🕑 ไทม์ไลน์การติดต่อ</h4><div>${timeline(r)}</div></div>
-    <div class="box" style="display:flex;gap:9px;flex-wrap:wrap">
-      <button class="btn" style="flex:1;min-width:130px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);font-weight:800" onclick="archiveLead('closed')">📁 จัดเก็บ (ปิดงาน)</button>
-      <button class="btn" style="flex:1;min-width:130px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:800" onclick="archiveLead('deleted')">🗑 ลบเข้าถังขยะ</button>
+    <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">
+      <div class="tk-av2">${esc((r.name||"?").trim()[0]||"?")}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div class="tk-name" style="margin:0">${esc(r.name)||"(ไม่มีชื่อ)"}</div>${statusPill(r)}</div>
+        <div class="tk-id" style="margin:3px 0 0">ตั๋ว <span class="mono" style="color:var(--brand);font-weight:700">${esc(r.ticketId||"")}</span> · ลูกค้า <span class="mono">${esc(r.code)}</span></div>
+      </div>
     </div>
-    <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:2px">ลบ/จัดเก็บแล้ว ตั๋วจะออกจากคิว แต่ยังกู้คืนได้ที่เมนู "ถังขยะ"</div>`;
+    <div class="tagbar" style="margin-bottom:14px">🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
+    <div class="tksheet">
+      <div>
+        <div class="box" style="border:1.5px solid #ddd6fe"><h4>🤖 สรุปล่าสุด (ระบบสรุปให้อัตโนมัติ)</h4><div style="font-size:11.5px;color:var(--muted);margin-bottom:7px">${sumMeta}</div><div style="font-size:13.5px;line-height:1.6">${sumText}</div></div>
+        ${(r.leadStatus==="won"||r.leadStatus==="awaiting_payment")?saleCard(r):""}
+        ${roundInfo(r)}
+        <div class="box"><div class="step-h"><span class="step-n">1</span><span class="step-t">โทรหาลูกค้า</span></div>
+          <a class="dial" href="tel:${esc(r.phone)}" onclick="logCall('${esc(r.key)}')">📞 โทรออก ${esc(r.phone)}</a>
+          <div class="seg"><button class="${(r.callCount||0)>=1?"on":""}" onclick="setCalls(1)">ครั้งที่ 1</button><button class="${(r.callCount||0)>=2?"on":""}" onclick="setCalls(2)">2</button><button class="${(r.callCount||0)>=3?"on":""}" onclick="setCalls(3)">3</button><button onclick="setCalls(0)" style="flex:0 0 auto;min-width:54px;color:var(--muted)">ล้าง</button></div></div>
+        <div class="box"><div class="step-h"><span class="step-n">2</span><span class="step-t">ผลการติดต่อ</span></div>
+          <div class="toggle"><button class="tg2 ${r.contact==="reached"?"ok":""}" id="tgOk" onclick="pickReach(true)">✅ ติดต่อได้</button><button class="tg2 ${r.contact==="unreachable"?"no":""}" id="tgNo" onclick="pickReach(false)">📵 ติดต่อไม่ได้</button></div>
+          <div id="reachBox"></div></div>
+        <div class="box"><div class="step-h"><span class="step-n">3</span><span class="step-t">โน้ต / วันนัด</span></div>
+          <textarea class="inp" id="noteInp" rows="2" placeholder="✍️ โน้ตการคุย (เห็นเฉพาะทีม)">${esc(r.note||"")}</textarea>
+          <button class="btn g" style="margin-top:8px" onclick="saveNote()">บันทึกโน้ต</button>
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin:12px 0 6px">วันนัดติดตามครั้งถัดไป</div>
+          <input type="datetime-local" class="inp" id="fdate" value="${fval}"><button class="btn p" style="margin-top:8px" onclick="saveAppt()">บันทึกวันนัด</button></div>
+        <div class="box"><div class="step-h"><span class="step-n">✏️</span><span class="step-t">แก้ไขข้อมูลลูกค้า (กรณีบันทึกผิด)</span></div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin:2px 0 4px">ชื่อลูกค้า</div>
+          <input class="inp" id="edName" value="${esc(r.name||"")}" placeholder="ชื่อลูกค้า">
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">เบอร์โทร</div>
+          <input class="inp" id="edPhone" value="${esc(r.phone||"")}" placeholder="เบอร์โทร" inputmode="tel">
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">ที่อยู่</div>
+          <textarea class="inp" id="edAddr" rows="2" placeholder="ที่อยู่จัดส่ง">${esc(r.address||"")}</textarea>
+          <button class="btn g" style="margin-top:9px" onclick="saveEdit()">💾 บันทึกการแก้ไข</button></div>
+        <div class="box" style="display:flex;gap:9px;flex-wrap:wrap">
+          <button class="btn" style="flex:1;min-width:130px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);font-weight:800" onclick="archiveLead('closed')">📁 จัดเก็บ (ปิดงาน)</button>
+          <button class="btn" style="flex:1;min-width:130px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:800" onclick="archiveLead('deleted')">🗑 ลบเข้าถังขยะ</button></div>
+        <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:2px">ลบ/จัดเก็บแล้ว ตั๋วจะออกจากคิว แต่ยังกู้คืนได้ที่เมนู "ถังขยะ"</div>
+      </div>
+      <div>
+        <div class="box"><h4>👤 ข้อมูลลูกค้า (Pancake)</h4>
+          <div class="pk-tiles">${tile(r.ltv!=null?fmtB(r.ltv):"—","ยอดซื้อสะสม")}${tile(r.succeedOrders!=null?(r.succeedOrders+" ครั้ง"):"—","ออเดอร์สำเร็จ")}${tile(lastD!=null?(lastD+" วันก่อน"):"—","ซื้อล่าสุด")}${tile(r.step||"—","รอบปัจจุบัน")}</div>
+          <div class="pk-kv"><span>เคยซื้อ</span><b>${esc(r.product||"—")}</b></div>
+          ${r.page?`<div class="pk-kv"><span>เพจ</span><b>${esc(r.page)}</b></div>`:""}
+          <div class="pk-kv"><span>เบอร์</span><b class="mono">${esc(r.phone||"—")}</b></div>
+          ${r.nextAppt?`<div class="pk-kv"><span>นัดถัดไป</span><b>${esc(fmtShort(r.nextAppt))}</b></div>`:""}
+          ${r.address?`<div class="pk-kv" style="align-items:flex-start"><span>ที่อยู่</span><b style="text-align:right;max-width:62%">${esc(r.address)}</b></div>`:""}
+        </div>
+        <div class="box"><h4>🕑 ไทม์ไลน์การติดต่อ</h4><div>${timeline(r)}</div></div>
+      </div>
+    </div>`;
   if(r.contact==="reached")pickReach(true);
   else if(r.contact==="unreachable")pickReach(false);
 }

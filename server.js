@@ -437,6 +437,7 @@ function leadView(r, ocMap) {
     source: r.source || 'evolution', step: r.step || '', stepManual: !!r.stepManual, product: r.product || '',
     orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
+    succeedOrders: (typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
     aiCalls: aiCallsForPhone(r.phone),
