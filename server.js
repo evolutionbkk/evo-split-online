@@ -602,7 +602,7 @@ app.get('/api/leads', requireCrm, async (req, res) => {
 });
 
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
-const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน' };
+const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน', import: 'นำเข้ารายชื่อ' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
   const limit = Math.min(600, Math.max(20, parseInt(req.query.limit, 10) || 250));
   const activity = [], transfers = [];
@@ -1555,6 +1555,28 @@ app.post('/api/distribute', requireAuth, async (req, res) => {
   backfillTicketIds();
   state = await store.save(state);
   res.json({ ok: true, summary, pool: S.poolCounts(state), total: state.assigned.length });
+});
+// One-time import: T2/T3 follow-up leads from the master workflow sheet (t2t3_import.json),
+// each row carries an explicit side (Telesale) + round. Locks the round (stepManual) so the
+// auto age-based staging never overwrites the human designation. Dedupes by phone — safe to re-run.
+app.post('/api/admin/import-t2t3', requireAuth, async (req, res) => {
+  let all;
+  try { all = JSON.parse(fs.readFileSync(path.join(__dirname, 't2t3_import.json'), 'utf8')); }
+  catch (e) { return res.status(500).json({ error: 'no_file', message: 'ไม่พบไฟล์ t2t3_import.json' }); }
+  if (!Array.isArray(all)) return res.status(500).json({ error: 'bad_file' });
+  const by = sessName(req) || 'Teamlead';
+  const out = { T2: null, T3: null };
+  for (const step of ['T2', 'T3']) {
+    const rows = all.filter((r) => r.step === step).map((r) => ({
+      name: r.name, phone: r.phone, side: r.side === 'K' ? 'K' : 'W',
+      address: r.address || '', product: r.product || '', page: r.page || '', lastOrderAt: r.lastOrderAt || null,
+    }));
+    out[step] = S.applyManual(state, rows, { step, stepManual: true, source: 'manual', label: 'นำเข้า T2/T3', by, distributedBy: by, off: dof() });
+  }
+  backfillTicketIds();
+  state = await store.save(state);
+  const sum = (k) => (out.T2[k] || 0) + (out.T3[k] || 0);
+  res.json({ ok: true, detail: out, added: sum('added'), addW: sum('addW'), addK: sum('addK'), dupSkipped: sum('dup'), badPhone: sum('cut'), total: state.assigned.length });
 });
 // Time-range report for the distribute page: how many leads were PULLED (into the pool) and
 // DISTRIBUTED to sellers within [from,to], split by channel (MP/FB) and by seller (W/K).

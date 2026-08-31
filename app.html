@@ -522,6 +522,12 @@ function viewStock(){
     <div class="poolcard"><div class="n tnum" style="color:var(--brand)">${fmt(pool.mp)}</div><div class="l">📦 Marketplace</div></div>
     <div class="poolcard"><div class="n tnum" style="color:var(--violet)">${fmt(pool.fb)}</div><div class="l">💬 Facebook (Pancake)</div></div>
   </div>${pool.total===0?`<div class="note" style="margin-top:14px">ยังไม่มีรายชื่อในคลัง — ดึงรายชื่อจาก Evolution / Pancake เข้าคลังก่อนจึงจะแจกได้</div>`:""}</div>
+  <div class="secttl">📥 นำเข้ารายชื่อ T2/T3 (จากชีท Master Workflow)<span class="ln"></span></div>
+  <div class="card" style="padding:16px 18px;margin-bottom:20px">
+    <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:10px">นำเข้า 1,215 รายชื่อ (พี่หวาน 506 · พี่เขม 709) ล็อกฝั่ง + รอบ T2/T3 ตามชีท · ข้ามเบอร์ที่ซ้ำกับในระบบอัตโนมัติ (กดซ้ำได้ ไม่เพิ่มซ้ำ)</div>
+    <button class="btn p" id="impBtn" onclick="importT2T3()">📥 นำเข้ารายชื่อ T2/T3</button>
+    <span id="impMsg" style="margin-left:12px;font-size:13px;color:var(--muted);font-weight:700"></span>
+  </div>
   <div class="secttl">📤 แจกรายชื่อให้เซลล์<span class="ln"></span></div>
   <div class="card" style="padding:18px;margin-bottom:20px">
     <div class="fld"><label>ช่องทางที่จะแจก</label><div class="seg"><button class="${dSource==="all"?"on":""}" onclick="setD('source','all')">ทั้งหมด</button><button class="${dSource==="mp"?"on":""}" onclick="setD('source','mp')">📦 Marketplace</button><button class="${dSource==="fb"?"on":""}" onclick="setD('source','fb')">💬 Facebook</button></div></div>
@@ -543,6 +549,10 @@ function viewStock(){
   return h;
 }
 window.setD=function(k,v){if(k==="source")dSource=v;if(k==="mode")dMode=v;if(k==="side")dSide=v;paint();};
+window.importT2T3=async function(){const btn=$("#impBtn"),msg=$("#impMsg");btn.disabled=true;msg.textContent="กำลังนำเข้า…";
+  const j=await postJSON("/api/admin/import-t2t3",{});
+  if(j&&j.ok){msg.textContent=`นำเข้าสำเร็จ ${fmt(j.added)} ราย (W:${fmt(j.addW)} · K:${fmt(j.addK)})${j.dupSkipped?` · ข้ามซ้ำ ${fmt(j.dupSkipped)}`:""}`;toast("นำเข้า T2/T3 แล้ว");await load();paint();}
+  else{btn.disabled=false;msg.textContent=(j&&j.message)||"นำเข้าไม่สำเร็จ";}};
 window.doDist=async function(){const pool=(D.pool.pool)||{total:0};if(!pool.total){toast("ยังไม่มีรายชื่อในคลัง");return;}const count=Number($("#dCount").value||0)||undefined;$("#dBtn").disabled=true;$("#dMsg").textContent="กำลังแจก…";const j=await postJSON("/api/distribute",{source:dSource,mode:dMode,side:dSide,count});if(j&&j.ok){toast(`แจกแล้ว ${j.summary.distributed} ราย (W:${j.summary.toW} · K:${j.summary.toK})`);await load();paint();}else{$("#dBtn").disabled=false;$("#dMsg").textContent=(j&&j.message)||"แจกไม่สำเร็จ";}};
 window.setOff=async function(side,on,type){type=type||"leave";const lab=type==="holiday"?"วันหยุด":"วันลา";const j=await postJSON("/api/admin/dayoff",{side,off:on,type});if(j&&j.ok){toast(on?`บันทึก${lab} ${side} แล้ว (ย้าย ${j.moved} ราย)`:`ยกเลิก ${side} แล้ว`);await load();paint();}else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");};
 
