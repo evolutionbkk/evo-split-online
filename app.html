@@ -137,7 +137,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const fmt=n=>Number(n||0).toLocaleString("th-TH");
 const fmtB=n=>"฿"+fmt(Math.round(n||0));
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1900);}
-let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",D={};
+let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",TKPAGE=1,TKQ="",D={};
 
 (function(){try{const s=localStorage.getItem("evo-theme");if(s)document.documentElement.setAttribute("data-theme",s);}catch(e){}})();
 window.toggleTheme=function(){const el=document.documentElement,cur=el.getAttribute("data-theme");const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;const nx=dark?"light":"dark";el.setAttribute("data-theme",nx);try{localStorage.setItem("evo-theme",nx);}catch(e){}};
@@ -383,23 +383,59 @@ function viewTelPerf(){
 }
 
 /* ===== TICKETS ===== */
+// เวลาอ้างอิงของตั๋ว = เคลื่อนไหวล่าสุด (updatedAt) → รับเข้า → วันที่ → ประวัติล่าสุด
+function tkTime(r){let t=Date.parse(r.lastActivity||r.updatedAt||r.date||"");if(isNaN(t)&&r.history&&r.history.length)t=Date.parse(r.history[r.history.length-1].at);return isNaN(t)?null:t;}
+function tkMatch(r,q){if(!q)return true;const dq=q.replace(/\D/g,"");const nm=(r.name||"").toLowerCase(),tid=(r.ticketId||"").toLowerCase(),cd=(r.code||"").toLowerCase(),ph=(r.phone||"").replace(/\D/g,"");return nm.includes(q)||tid.includes(q)||cd.includes(q)||(!!dq&&ph.includes(dq));}
 function viewTickets(){
-  const all=D.leads;
-  const cnt={all:all.length,W:all.filter(r=>r.sales!=="K").length,K:all.filter(r=>r.sales==="K").length,
-    pending:all.filter(r=>{const s=r.leadStatus||"new";return s!=="won"&&s!=="lost";}).length,won:all.filter(r=>r.leadStatus==="won").length};
-  let list=all;
-  if(TKFILTER==="W")list=all.filter(r=>r.sales!=="K");else if(TKFILTER==="K")list=all.filter(r=>r.sales==="K");
-  else if(TKFILTER==="pending")list=all.filter(r=>{const s=r.leadStatus||"new";return s!=="won"&&s!=="lost";});
-  else if(TKFILTER==="won")list=all.filter(r=>r.leadStatus==="won");
-  const chips=[["all","ทั้งหมด "+cnt.all],["W","ฝั่ง W "+cnt.W],["K","ฝั่ง K "+cnt.K],["pending","ค้าง "+cnt.pending],["won","ปิดได้ "+cnt.won]];
-  let h=`<div class="fbar2">${chips.map(([k,l])=>`<button class="chip ${TKFILTER===k?"on":""}" onclick="setTk('${k}')">${l}</button>`).join("")}</div>
-  <div class="card" style="overflow:auto"><table class="tbl click"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ช่องทาง</th><th>รอบ</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>
-    ${list.length?list.slice(0,300).map(ticketRow).join(""):'<tr><td colspan="6" style="color:var(--muted)">ไม่มีรายการ</td></tr>'}
-  </tbody></table>${list.length>300?`<div style="padding:11px 15px;font-size:12px;color:var(--muted)">แสดง 300 จาก ${fmt(list.length)} ราย</div>`:""}</div>
-  <p style="color:var(--muted);font-size:12.5px;margin-top:12px">คลิกแถวเพื่อเปิดอ่านตั๋ว (หัวหน้าทีมอ่านได้ทุกฝั่ง · อ่านอย่างเดียว)</p>`;
+  let h=filterBar();
+  h+=`<div style="margin-bottom:10px"><input id="tkSearch" class="inp" placeholder="🔍 ค้นหาชื่อลูกค้า / เบอร์โทร / รหัสตั๋ว" value="${esc(TKQ)}" oninput="tkSearch(this.value)" style="width:100%;padding:9px 13px;font-size:13.5px"></div>
+  <div id="tkBody">${renderTkBody()}</div>
+  <p style="color:var(--muted);font-size:12.5px;margin-top:12px">คลิกแถวเพื่อเปิดอ่านตั๋ว · กรองตามช่วงเวลา (${rlab()}) และค้นหาได้ · หัวหน้าทีมอ่านได้ทุกฝั่ง (อ่านอย่างเดียว)</p>`;
   return h;
 }
-window.setTk=function(k){TKFILTER=k;paint();};
+function renderTkBody(){
+  const all=D.leads||[];
+  const rb=rangeISO(),fromMs=Date.parse(rb.from),toMs=Date.parse(rb.to);
+  const q=(TKQ||"").trim().toLowerCase();
+  // 1) กรองช่วงเวลา  2) กรองคำค้น  → base สำหรับนับ chip
+  const base=all.filter(r=>{const t=tkTime(r);return t!=null&&t>=fromMs&&t<=toMs;}).filter(r=>tkMatch(r,q));
+  const cnt={all:base.length,W:base.filter(r=>r.sales!=="K").length,K:base.filter(r=>r.sales==="K").length,
+    pending:base.filter(r=>{const s=r.leadStatus||"new";return s!=="won"&&s!=="lost";}).length,won:base.filter(r=>r.leadStatus==="won").length};
+  let list=base;
+  if(TKFILTER==="W")list=base.filter(r=>r.sales!=="K");else if(TKFILTER==="K")list=base.filter(r=>r.sales==="K");
+  else if(TKFILTER==="pending")list=base.filter(r=>{const s=r.leadStatus||"new";return s!=="won"&&s!=="lost";});
+  else if(TKFILTER==="won")list=base.filter(r=>r.leadStatus==="won");
+  const chips=[["all","ทั้งหมด "+cnt.all],["W","ฝั่ง W "+cnt.W],["K","ฝั่ง K "+cnt.K],["pending","ค้าง "+cnt.pending],["won","ปิดได้ "+cnt.won]];
+  // แบ่งหน้า หน้าละ 10 รายการ
+  const PER=10,totalPages=Math.max(1,Math.ceil(list.length/PER));
+  if(TKPAGE>totalPages)TKPAGE=totalPages; if(TKPAGE<1)TKPAGE=1;
+  const start=(TKPAGE-1)*PER,pageRows=list.slice(start,start+PER);
+  return `<div class="fbar2">${chips.map(([k,l])=>`<button class="chip ${TKFILTER===k?"on":""}" onclick="setTk('${k}')">${l}</button>`).join("")}</div>
+  <div class="card" style="overflow:auto"><table class="tbl click"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ช่องทาง</th><th>รอบ</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>
+    ${pageRows.length?pageRows.map(ticketRow).join(""):`<tr><td colspan="6" style="color:var(--muted);padding:16px">${q?"ไม่พบตั๋วที่ตรงกับคำค้น":"ไม่มีตั๋วในช่วงเวลานี้"}</td></tr>`}
+  </tbody></table>${list.length?`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:11px 15px;border-top:1px solid var(--line)"><span style="font-size:12px;color:var(--muted)">แสดง ${fmt(start+1)}–${fmt(start+pageRows.length)} จาก ${fmt(list.length)} ราย</span>${pager(totalPages)}</div>`:""}</div>`;
+}
+function tkRefresh(){const el=document.getElementById("tkBody");if(el)el.innerHTML=renderTkBody();}
+// ปุ่มเลขหน้า 1 2 3 4 5 … (มีย่อ … เมื่อหน้าเยอะ)
+function pager(total){
+  if(total<=1)return "";
+  const cur=TKPAGE,btn=(p,lab,on,dis)=>`<button onclick="setTkPage(${p})" ${dis?"disabled":""} style="min-width:34px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-weight:800;font-size:13px;cursor:${dis?"default":"pointer"};${on?"background:var(--brand,#2563eb);color:#fff;border-color:var(--brand,#2563eb)":"background:var(--card,#fff);color:var(--text,#111)"};${dis?"opacity:.4":""}">${lab}</button>`;
+  let nums=[];
+  if(total<=7){for(let p=1;p<=total;p++)nums.push(p);}
+  else{
+    nums.push(1);
+    let a=Math.max(2,cur-1),b=Math.min(total-1,cur+1);
+    if(a>2)nums.push("…");
+    for(let p=a;p<=b;p++)nums.push(p);
+    if(b<total-1)nums.push("…");
+    nums.push(total);
+  }
+  const mid=nums.map(p=>p==="…"?`<span style="min-width:22px;text-align:center;color:var(--muted)">…</span>`:btn(p,fmt(p),p===cur,false)).join("");
+  return `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${btn(cur-1,"‹",false,cur<=1)}${mid}${btn(cur+1,"›",false,cur>=total)}</div>`;
+}
+window.setTkPage=function(p){TKPAGE=p;tkRefresh();window.scrollTo(0,0);};
+window.setTk=function(k){TKFILTER=k;TKPAGE=1;tkRefresh();};
+window.tkSearch=function(v){TKQ=v;TKPAGE=1;tkRefresh();};  // อัปเดตเฉพาะตาราง (ช่องค้นหาไม่เสีย focus)
 window.openTicket=function(key){CURKEY=key;PREV=(VIEW==="ticket"?PREV:VIEW);VIEW="ticket";paint();};
 
 const HLAB={call:"โทรหาลูกค้า",status:"เปลี่ยนสถานะ",result:"ผลการโทร",interest:"ระดับความสนใจ",action:"ตั้ง Next Action",lost:"เหตุผลที่ไม่สนใจ",followup:"ตั้งนัดติดตาม",note:"บันทึกโน้ต",name:"แก้ชื่อ",address:"แก้ที่อยู่",calls:"ปรับจำนวนสาย",sale:"บันทึกรายการขาย",tracking:"เลขพัสดุ",tstage:"ปรับรอบติดตาม",distribute:"แจกให้เซลล์",dayoff_move:"ย้าย(วันลา)",dayoff_return:"คืน(ยกเลิกลา)",transfer:"โอนให้อีกฝั่ง"};
