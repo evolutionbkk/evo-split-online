@@ -590,13 +590,27 @@ function dRec(){ // จำนวนที่แนะนำตามช่อง
 function viewStock(){
   const pool=(D.pool.pool)||{mp:0,fb:0,total:0},dist=D.dist||{},lv=D.leave||{},people=(lv.people||[]),dof=(D.pool.dayoff)||{};
   const sales=people.filter(p=>p.kind==="sales"),admins=people.filter(p=>p.kind==="admin");
+  setTimeout(()=>{try{evoStatusRefresh();}catch(e){}},80);  // เช็กสถานะ Evolution token สด
   let h=`<div class="secttl">📥 คลังรายชื่อ (รอแจก)<span class="ln"></span></div>
   <div class="card" style="padding:16px 17px;margin-bottom:20px"><div class="poolwrap">
     <div class="poolcard"><div class="n tnum">${fmt(pool.total)}</div><div class="l">รวมทั้งหมด</div></div>
     <div class="poolcard"><div class="n tnum" style="color:var(--brand)">${fmt(pool.mp)}</div><div class="l">📦 Marketplace</div></div>
     <div class="poolcard"><div class="n tnum" style="color:var(--violet)">${fmt(pool.fb)}</div><div class="l">💬 Facebook (Pancake)</div></div>
   </div><div class="note" style="margin-top:14px;background:#f0fdf4;border-color:#bbf7d0;color:#166534">⚙️ ระบบดึงรายชื่อ <b>อัตโนมัติ</b> — Facebook (T1) จากที่แอดมินปิดการขาย (Pancake) และ Marketplace จาก Evolution + Big Seller ไหลเข้าคลังเอง แล้ว<b>แจกให้เซลล์คนละครึ่งอัตโนมัติ</b>ภายใน 1 นาที ${pool.total===0?`· ตอนนี้คลังว่าง (แจกออกหมดแล้ว) ไม่ต้องกดดึงเอง`:`· มี ${fmt(pool.total)} รายชื่อกำลังรอแจกรอบถัดไป`}</div>
-  <div style="margin-top:8px;font-size:11.5px;color:var(--muted)">หมายเหตุ: ปุ่มดึง/แจกด้านล่างมีไว้เผื่อกดเองกรณีต้องการเร่ง หรือ Evolution token หมดอายุ (ต้องเปิดหน้า Evolution ส่ง token ใหม่ครั้งเดียว ระบบจะดึงต่อเอง)</div></div>
+  <div style="margin-top:8px;font-size:11.5px;color:var(--muted)">หมายเหตุ: ปุ่มดึง/แจกด้านล่างมีไว้เผื่อกดเองกรณีต้องการเร่ง หรือ Evolution token หมดอายุ</div></div>
+  <div class="secttl">🔗 เชื่อม Evolution (Marketplace)<span class="ln"></span></div>
+  <div class="card" style="padding:16px 18px;margin-bottom:20px">
+    <div id="evoStat" style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--muted)">กำลังตรวจสอบสถานะ…</div>
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.8;margin-bottom:11px">ถ้า Marketplace ไม่ไหลเข้าเอง แปลว่า token หมดอายุ — ต่ออายุแบบนี้ (ทำครั้งเดียว ระบบจะดึงต่อเองทุก 10 นาที):<br>
+    <b>1)</b> เปิดหน้า Evolution → <b>ลูกค้าปลีก</b> แล้วกด <b>F12</b> → แท็บ <b>Console</b><br>
+    <b>2)</b> วางคำสั่งนี้แล้ว Enter (คัดลอก token อัตโนมัติ): <code style="background:var(--surface-2);padding:3px 7px;border-radius:6px;font-size:12px">copy(JSON.parse(localStorage.auth).accessToken)</code><br>
+    <b>3)</b> กลับมาวางในช่องนี้ แล้วกด "เชื่อม"</div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+      <input id="evoTok" class="inp" placeholder="วาง Evolution token ที่นี่…" style="flex:1;min-width:240px;padding:10px 13px;font-size:13px">
+      <button class="btn p" onclick="evoConnect()" style="padding:10px 20px">🔗 เชื่อม & ดึงทันที</button>
+    </div>
+    <div id="evoMsg" style="font-size:13px;margin-top:9px;font-weight:700"></div>
+  </div>
   <div class="secttl">📥 นำเข้ารายชื่อ T2/T3 (จากชีท Master Workflow)<span class="ln"></span></div>
   <div class="card" style="padding:16px 18px;margin-bottom:20px">
     <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:10px">นำเข้า 1,215 รายชื่อ (พี่หวาน 506 · พี่เขม 709) ล็อกฝั่ง + รอบ T2/T3 ตามชีท · ข้ามเบอร์ที่ซ้ำกับในระบบอัตโนมัติ (กดซ้ำได้ ไม่เพิ่มซ้ำ)</div>
@@ -696,6 +710,26 @@ window.doReset=async function(){
   const j=await postJSON("/api/admin/daily-reset");
   if(j&&j.ok){toast(`คืนคลังแล้ว ${j.moved} ราย`);await load();paint();}
   else{$("#resetBtn").disabled=false;$("#resetMsg").textContent="ทำรายการไม่สำเร็จ";}
+};
+// เชื่อม Evolution ด้วยการวาง token (ไม่ต้องพึ่งสคริปต์) → ตั้ง token แล้วสั่งดึงทันที
+async function evoStatusRefresh(){
+  const el=document.getElementById("evoStat");if(!el)return;
+  try{const s=await getJSON("/api/evo-status");
+    if(!s||!s.hasToken){el.innerHTML='🔴 ยังไม่เชื่อม Evolution — วาง token ด้านล่างเพื่อเปิดการดึง Marketplace อัตโนมัติ';el.style.color="var(--bad)";}
+    else if(s.autoExpired){el.innerHTML='🟠 เชื่อมอยู่ แต่ token หมดอายุแล้ว — ต่ออายุด้านล่าง (อัปเดตล่าสุด '+new Date(s.tokenUpdatedAt).toLocaleDateString("th-TH")+')';el.style.color="#b45309";}
+    else{el.innerHTML='🟢 เชื่อม Evolution แล้ว · ดึงอัตโนมัติทำงานปกติ'+(s.lastAutoAt?(' · ดึงล่าสุด '+new Date(s.lastAutoAt).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"})):"");el.style.color="var(--ok)";}
+  }catch(e){el.textContent="ตรวจสอบสถานะไม่สำเร็จ";}
+}
+window.evoConnect=async function(){
+  const tok=(($("#evoTok")||{}).value||"").trim(),msg=$("#evoMsg");
+  if(tok.length<20){msg.textContent="⚠️ วาง token ให้ครบก่อน";msg.style.color="var(--bad)";return;}
+  msg.textContent="กำลังเชื่อม…";msg.style.color="var(--muted)";
+  const j=await postJSON("/api/evo-token-set",{token:tok});
+  if(!(j&&j.ok)){msg.textContent="❌ "+((j&&j.message)||"เชื่อม token ไม่สำเร็จ");msg.style.color="var(--bad)";return;}
+  const p=await postJSON("/api/evo/auto-now",{});
+  if($("#evoTok"))$("#evoTok").value="";
+  if(p&&p.ok&&!p.autoExpired){msg.textContent="✅ เชื่อมสำเร็จ! ดึง Marketplace เข้าคลัง "+fmt(p.added||0)+" ราย · ระบบจะดึงต่อเองทุก 10 นาที แล้วแจกอัตโนมัติ";msg.style.color="var(--ok)";await load();paint();}
+  else{msg.textContent="⚠️ ตั้ง token แล้ว แต่ Evolution ยังปฏิเสธ (token หมดอายุ) — คัดลอกใหม่จากหน้า Evolution ที่เพิ่งล็อกอิน แล้วลองอีกครั้ง";msg.style.color="var(--bad)";evoStatusRefresh();}
 };
 /* ===== นัดหมาย (ปฏิทิน) — หัวหน้าทีมเห็นนัดที่เซลล์ทั้งสองฝั่งลงไว้ ทุกช่องทาง (Marketplace/Facebook/T1-T2-T3) ===== */
 function viewAppts(){

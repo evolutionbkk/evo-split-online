@@ -162,8 +162,7 @@ const OUTCOMES=[
   {k:"hot",ic:"🔥",t:"สนใจมาก · มีโอกาสซื้อสูง",d:"ควรติดตามเร็ว",patch:{contact:"reached",leadStatus:"interested",interest:"hot"}},
   {k:"warm",ic:"😊",t:"สนใจ · ขอเวลาตัดสินใจก่อน",patch:{contact:"reached",leadStatus:"interested",interest:"warm"}},
   {k:"info",ic:"📄",t:"ขอรายละเอียดเพิ่ม",d:"ส่งข้อมูลสินค้า/ราคา/โปร",patch:{contact:"reached",leadStatus:"interested",nextAction:"send_info"}},
-  {k:"think",ic:"🤔",t:"ขอคิดดูก่อน",d:"นัดวันโทรกลับ",rev:"→ เลือกวันนัด",field:"date",patch:{contact:"reached",leadStatus:"followup"}},
-  {k:"appt",ic:"📅",t:"นัดติดตาม · ลูกค้าระบุวัน/เวลา",rev:"→ เลือกวันนัด",field:"date",patch:{contact:"reached",leadStatus:"followup"}},
+  {k:"appt",ic:"📅",t:"นัดติดตาม / นัดวันโทรกลับ",d:"ลูกค้าขอคิดดู หรือระบุวัน/เวลา",rev:"→ เลือกวันนัด",field:"date",patch:{contact:"reached",leadStatus:"followup"}},
   {k:"later",ic:"⏳",t:"สนใจ แต่ยังไม่พร้อมซื้อ",d:"เก็บเข้า Follow-up ระยะกลาง",patch:{contact:"reached",leadStatus:"interested",interest:"cold"}},
   {k:"reject",ic:"✖",t:"ปฏิเสธการซื้อ",d:"ราคาสูง / โปรไม่ตรงใจ / ไม่สนใจ / ปฏิเสธถาวร",rev:"→ เลือกเหตุผล",field:"reason",patch:{contact:"reached",leadStatus:"lost"}}
 ];
