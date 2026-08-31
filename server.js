@@ -1097,7 +1097,7 @@ const ONECALL_USER = process.env.ONECALL_USER || '';   // OrkTrack login user (e
 const ONECALL_PASS = process.env.ONECALL_PASS || '';   // OrkTrack login password
 // ---------- AI call summary (Groq: Whisper STT + LLM) ----------
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_STT_MODEL = process.env.GROQ_STT_MODEL || 'whisper-large-v3-turbo';
+const GROQ_STT_MODEL = process.env.GROQ_STT_MODEL || 'whisper-large-v3';
 const GROQ_SUM_MODEL = process.env.GROQ_SUM_MODEL || 'openai/gpt-oss-20b';
 const AISUM_MIN_SEC = Number(process.env.AISUM_MIN_SEC) || 20;    // only summarize talks longer than this
 const AISUM_BATCH = Number(process.env.AISUM_BATCH) || 5;         // max calls summarized per worker tick
@@ -1254,7 +1254,7 @@ function aiCallsForPhone(phone) {
   out.sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0));
   return out.slice(0, 10).map((s) => ({ at: s.at, dir: s.dir, dur: s.dur, summary: s.summary, transcript: s.transcript || '' }));
 }
-async function groqTranscribe(id) {
+async function groqTranscribe(id, sttModel) {
   if (!onecallAuth.token) throw new Error('no_onecall_token');
   const url = ONECALL_HOST + '/orktrack/rest/mediastream/' + id + '?at=' + encodeURIComponent(onecallAuth.token) + '&usage=play';
   const ar = await fetch(url, { headers: { Authorization: onecallAuth.token, Accept: '*/*' } });
@@ -1263,8 +1263,10 @@ async function groqTranscribe(id) {
   if (buf.length < 800) throw new Error('audio_empty_' + buf.length);
   const fd = new FormData();
   fd.append('file', new Blob([buf], { type: 'audio/wav' }), 'call-' + id + '.wav');
-  fd.append('model', GROQ_STT_MODEL);
+  fd.append('model', sttModel || GROQ_STT_MODEL);
   fd.append('language', 'th');
+  fd.append('temperature', '0');
+  fd.append('prompt', 'บทสนทนาการขายสินค้าความงามและอาหารเสริมทางโทรศัพท์ ภาษาไทย ระหว่างพนักงานขายกับลูกค้า');
   fd.append('response_format', 'text');
   const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd,
@@ -1284,9 +1286,9 @@ async function groqSummarize(transcript, meta, model) {
   if (!r.ok) throw new Error('llm_' + r.status + ':' + JSON.stringify(j).slice(0, 180));
   return ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
 }
-async function summarizeCall(rec, model) {
+async function summarizeCall(rec, model, sttModel) {
   const id = rec.id;
-  const transcript = await groqTranscribe(id);
+  const transcript = await groqTranscribe(id, sttModel);
   let summary;
   if (transcript && transcript.replace(/\s/g, '').length >= 6) summary = await groqSummarize(transcript, (rec.dir || '') + ' ' + (rec.dur || 0) + 'วิ', model);
   else summary = '(เสียงสั้น/ไม่ชัด — ถอดเสียงไม่ได้)';
@@ -1375,7 +1377,7 @@ app.post('/api/onecall/summarize/:id', requireAuth, async (req, res) => {
   const id = String(req.params.id || '').replace(/\D/g, '');
   const rec = (state.onecall || []).find((c) => String(c.id) === id);
   if (!rec) return res.status(404).json({ error: 'not_found', message: 'ไม่พบสายนี้ใน state.onecall' });
-  try { const entry = await summarizeCall(rec, req.query.model ? String(req.query.model) : null); state = await store.save(state); res.json({ ok: true, model: req.query.model || GROQ_SUM_MODEL, entry }); }
+  try { const entry = await summarizeCall(rec, req.query.model ? String(req.query.model) : null, req.query.stt ? String(req.query.stt) : null); state = await store.save(state); res.json({ ok: true, model: req.query.model || GROQ_SUM_MODEL, stt: req.query.stt || GROQ_STT_MODEL, entry }); }
   catch (e) { res.status(502).json({ error: 'summarize_failed', message: String(e) }); }
 });
 // Admin: run the batch worker now
