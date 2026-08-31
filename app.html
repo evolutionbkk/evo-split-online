@@ -116,6 +116,19 @@
   .rb .ro{float:right;font-size:10.5px;font-weight:800;background:rgba(255,255,255,.2);border-radius:7px;padding:3px 9px}
   .ro-banner{background:color-mix(in srgb,#06b6d4 10%,var(--surface));border:1px solid color-mix(in srgb,#06b6d4 30%,var(--surface));color:#0e7490;border-radius:11px;padding:9px 13px;font-size:12.5px;font-weight:700;margin-bottom:14px}
   .xlbadge{font-size:11.5px;font-weight:800;color:#b45309;border:1px solid #fde68a;background:#fffbeb;border-radius:999px;padding:4px 11px}
+  .cal{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+  .cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.cal-h b{font-size:15px;font-weight:800}
+  .cal-nav{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;width:30px;height:30px;font-size:15px;color:var(--ink);cursor:pointer}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-wd{text-align:center;font-size:11px;color:var(--muted);font-weight:700;padding:3px 0}
+  .cal-cell{position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:9px;font-size:13px;font-weight:700;color:var(--ink);border:1px solid transparent}
+  .cal-cell.has{cursor:pointer;background:color-mix(in srgb,var(--brand) 12%,var(--surface));border-color:color-mix(in srgb,var(--brand) 30%,var(--surface))}
+  .cal-cell.has:hover{background:color-mix(in srgb,var(--brand) 22%,var(--surface))}
+  .cal-cell.today{outline:2px solid var(--warn);outline-offset:-2px}
+  .cal-cell.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .cal-cnt{position:absolute;top:-6px;right:-5px;min-width:17px;height:17px;border-radius:9px;background:var(--bad);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}
+  .cal-cell.sel .cal-cnt{background:#fff;color:var(--brand)}
+  @media(max-width:900px){.apptwrap{grid-template-columns:1fr!important}.apptwrap aside{order:-1}}
   .ev .ex{font-size:12px;color:var(--ink);margin-top:5px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:8px 10px}
   .ttag{font-size:12px;font-weight:700;border-radius:999px;padding:4px 11px;border:1px solid var(--line);background:var(--surface-2)}
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--surface);padding:11px 18px;border-radius:22px;font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:.22s;z-index:100;box-shadow:var(--shadow-lg)}
@@ -146,7 +159,10 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const fmt=n=>Number(n||0).toLocaleString("th-TH");
 const fmtB=n=>"฿"+fmt(Math.round(n||0));
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1900);}
-let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",TKPAGE=1,TKQ="",TRQ="",TRPAGE=1,TRBIN="all",D={};
+let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",TKPAGE=1,TKQ="",TRQ="",TRPAGE=1,TRBIN="all",AVDATE="",AVYM="",AVSIDE="all",D={};
+function apptKey(r){const t=Date.parse(r.nextAppt||"");if(isNaN(t))return null;const TZ=7*3600000,d=new Date(t+TZ),p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+"-"+p(d.getUTCMonth()+1)+"-"+p(d.getUTCDate());}
+function apptKeyLab(k){const a=k.split("-");return a[2]+"/"+a[1]+"/"+String((+a[0])+543).slice(-2);}
+function apptTime(v){const t=Date.parse(v);if(isNaN(t))return"";const TZ=7*3600000,d=new Date(t+TZ),p=n=>String(n).padStart(2,"0");return p(d.getUTCHours())+":"+p(d.getUTCMinutes());}
 
 (function(){try{const s=localStorage.getItem("evo-theme");if(s)document.documentElement.setAttribute("data-theme",s);}catch(e){}})();
 window.toggleTheme=function(){const el=document.documentElement,cur=el.getAttribute("data-theme");const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;const nx=dark?"light":"dark";el.setAttribute("data-theme",nx);try{localStorage.setItem("evo-theme",nx);}catch(e){}};
@@ -162,13 +178,14 @@ const NAV=[
   {k:"tel_perf",t:"ผลงาน Telesales",sub:1},
   {lab:"ทั่วไป"},
   {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
+  {k:"appts",ic:"📅",t:"นัดหมาย (ปฏิทิน)"},
   {k:"trash",ic:"🗑",t:"ถังขยะ / กู้คืน"},
   {k:"stock",ic:"📥",t:"คลังรายชื่อ & แจก"},
   {k:"reports",ic:"📄",t:"รายงาน"},
   {k:"staff",ic:"🧑‍💼",t:"พนักงาน"},
   {k:"settings",ic:"⚙️",t:"ตั้งค่า"},
 ];
-const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",trash:"ถังขยะ / กู้คืน",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
+const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",trash:"ถังขยะ / กู้คืน",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
 function renderNav(){
   $("#side").innerHTML=`<div class="brand">EVO E-COMMERCE<small>${esc((ME&&ME.name)||"หัวหน้าทีม")} · Console</small></div>`+
     NAV.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`
@@ -316,7 +333,7 @@ function viewTelOverview(){
   h+=`<div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
     ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,wEvo,kEvo,COL.mk,'mk')}
-    ${row("💬","T1 · คุย FB จริง","ลูกค้า FB ที่คุยจริง >7 วิ (ไม่ซ้ำคน)",TG.t1||5,fw.T1d||0,fk.T1d||0,COL.t1,'t1')}
+    ${(()=>{const wr=fw.T1recv||0,kr=fk.T1recv||0,wd=fw.T1done||0,kd=fk.T1done||0;return `<tr><td><b style="color:${COL.t1}">💬 T1 · ออเดอร์ใหม่วันนี้</b><div style="font-size:11px;color:var(--muted)">แอดมินปิดวันนี้ · แจกคนละครึ่ง · (โทรแล้ว / ที่ได้รับ)</div></td>${cC(wd,wr,COL.t1,'t1','W')}${cC(kd,kr,COL.t1,'t1','K')}<td class="r tnum"><b style="font-size:15px">${fmt(wd+kd)}<span style="color:var(--muted);font-weight:500;font-size:12px">/${fmt(wr+kr)}</span></b></td></tr>`;})()}
     ${row("💬","T2 · ตามรอบ 2","",TG.t2||5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
     ${row("💬","T3 · ตามรอบ 3","",TG.t3||20,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
     ${revRow}
@@ -339,7 +356,7 @@ function drillRender(){
 window.drillPage=function(n){if(window.__drill){window.__drill.page=n;drillRender();}};
 window.drillKpi=async function(cat,side){
   const nm=side==="W"?"พี่หวาน (W)":"พี่เขม (K)";
-  const LAB={mk:"Marketplace",t1:"T1 · คุย FB จริง",t2:"T2 · ตามรอบ 2",t3:"T3 · ตามรอบ 3",rev:"💰 ยอดขายวันนี้"};
+  const LAB={mk:"Marketplace",t1:"T1 · ออเดอร์ใหม่วันนี้",t2:"T2 · ตามรอบ 2",t3:"T3 · ตามรอบ 3",rev:"💰 ยอดขายวันนี้"};
   showModal((LAB[cat]||cat)+" — "+nm,'<div style="color:var(--muted);padding:10px">กำลังโหลด…</div>');
   const setBody=h=>{const b=document.getElementById("kpiModalBody");if(b)b.innerHTML=h;};
   try{
@@ -351,11 +368,21 @@ window.drillKpi=async function(cat,side){
       sub=`ปิดได้ ${ts.length} ราย · รวม <b class="win">${fmtB(tot)}</b>`;
       head=`<tr><th>ลูกค้า</th><th>สินค้า</th><th class="r">ยอด</th></tr>`;
       trs=ts.map(x=>{const prod=x.product||(x.items||[]).map(i=>i.name).filter(Boolean).join(", ")||"—";return `<tr><td><b>${esc(x.name||"—")}</b></td><td style="color:var(--muted)">${esc(prod)}</td><td class="r tnum win">${fmtB(x.amount||0)}</td></tr>`;});
-    }else if(cat==="mk"||cat==="t1"){
+    }else if(cat==="t1"){
+      // T1 = ออเดอร์ FB ใหม่ที่แอดมินปิดวันนี้ แจกให้ฝั่งนี้ · แสดงว่าโทรครบหรือยัง
+      const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
+      const fbSrc=s=>s==="pancake"||s==="manual"||s==="refill";
+      const rows=(D.leads||[]).filter(r=>r.sales===side&&!r.archived&&fbSrc(r.source)).filter(r=>{const t=Date.parse(r.receivedAt||"");return t>=tS&&t<tE;}).sort((a,b)=>((a.callCount||0)-(b.callCount||0)));
+      const done=rows.filter(r=>(r.callCount||0)>0).length;
+      if(!rows.length){setBody('<div class="empty" style="padding:24px">วันนี้ยังไม่มีออเดอร์ใหม่เข้าฝั่งนี้</div>');return;}
+      sub=`ออเดอร์ใหม่วันนี้ <b>${fmt(rows.length)}</b> ราย · โทรแล้ว <b style="color:#16a34a">${fmt(done)}</b> · ยังไม่โทร <b style="color:var(--bad)">${fmt(rows.length-done)}</b>`;
+      head=`<tr><th>ชื่อลูกค้า</th><th>เบอร์โทร</th><th>สถานะโทร</th></tr>`;
+      trs=rows.map(r=>`<tr><td>${esc(r.name||"—")}${r.prevSales?' <span style="font-size:10px;color:#0369a1;font-weight:700">↩ ซื้อซ้ำ</span>':""}</td><td class="mono">${esc(r.phone||"")}</td><td>${(r.callCount||0)>0?'<span style="color:#16a34a;font-weight:700">✓ โทรแล้ว '+fmt(r.callCount||0)+' ครั้ง</span>':'<span style="color:var(--muted)">ยังไม่โทร</span>'}</td></tr>`);
+    }else if(cat==="mk"){
       if(!window.__recon)window.__recon=await getJSON("/api/admin/onecall-recon");
       const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
-      const cls=cat==="mk"?"Marketplace":"FB",seen=new Set();
-      const rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return x.side===side&&x.classify===cls&&t>=tS&&t<tE&&(x.durationSec||0)>7;}).filter(x=>{if(seen.has(x.phone))return false;seen.add(x.phone);return true;});
+      const seen=new Set();
+      const rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return x.side===side&&x.classify==="Marketplace"&&t>=tS&&t<tE&&(x.durationSec||0)>7;}).filter(x=>{if(seen.has(x.phone))return false;seen.add(x.phone);return true;});
       sub=`รวม ${rows.length} ราย`;
       head=`<tr><th>ชื่อลูกค้า</th><th>เบอร์โทร</th><th>รายละเอียด</th></tr>`;
       trs=rows.map(x=>`<tr><td>${esc(x.matchedName||"—")}</td><td class="mono">${esc(x.phone)}</td><td style="color:var(--muted)">${(x.durationSec||0)+" วิ · "+esc(x.direction||"")}</td></tr>`);
@@ -525,7 +552,7 @@ function viewTicket(){
     <div style="flex:1;min-width:160px"><div class="tk-name">${esc(r.name||"(ไม่มีชื่อ)")}</div>
       <div class="tk-id">ตั๋ว <b class="mono" style="color:var(--brand)">${esc(r.ticketId||"")}</b> · ลูกค้า <span class="mono">${esc(r.code||"—")}</span> · <span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)}</div></div>
     ${stPill(r.leadStatus,rev?" · "+fmtB(rev):"")}</div>
-  <div class="fbar2" style="margin-bottom:14px">${r.fromExcel?`<span class="xlbadge">📋 รายชื่อเดิมจาก Excel</span>`:""}${(r.tags||[]).length?`🏷️ ${r.tags.map(t=>`<span class="ttag">${esc(t)}</span>`).join(" ")}`:(r.fromExcel?"":`<span style="font-size:12px;color:var(--muted)">— ไม่มีแท็ก —</span>`)}</div>
+  <div class="fbar2" style="margin-bottom:14px">${r.fromExcel?`<span class="xlbadge">📋 รายชื่อเดิมจาก Excel</span>`:""}${r.prevSales?`<span class="xlbadge" style="color:#0369a1;border-color:#bae6fd;background:#f0f9ff">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม (K)":"พี่หวาน (W)"} · ซื้อซ้ำ</span>`:""}${(r.tags||[]).length?`🏷️ ${r.tags.map(t=>`<span class="ttag">${esc(t)}</span>`).join(" ")}`:(r.fromExcel||r.prevSales?"":`<span style="font-size:12px;color:var(--muted)">— ไม่มีแท็ก —</span>`)}</div>
   <div class="grid2">
     <div>
       <div class="card" style="padding:15px 16px;margin-bottom:14px;border:1.5px solid color-mix(in srgb,var(--violet) 30%,var(--line))"><h4 style="margin:0 0 8px;font-size:13.5px;font-weight:800">🤖 สรุปล่าสุด (ระบบสรุปให้อัตโนมัติ)</h4>
@@ -669,8 +696,53 @@ window.doReset=async function(){
   if(j&&j.ok){toast(`คืนคลังแล้ว ${j.moved} ราย`);await load();paint();}
   else{$("#resetBtn").disabled=false;$("#resetMsg").textContent="ทำรายการไม่สำเร็จ";}
 };
+/* ===== นัดหมาย (ปฏิทิน) — หัวหน้าทีมเห็นนัดที่เซลล์ทั้งสองฝั่งลงไว้ ทุกช่องทาง (Marketplace/Facebook/T1-T2-T3) ===== */
+function viewAppts(){
+  const all=(D.leads||[]).filter(r=>r.nextAppt&&apptKey(r));
+  const bySide=r=>AVSIDE==="all"?true:(AVSIDE==="K"?r.sales==="K":r.sales!=="K");
+  const pool=all.filter(bySide);
+  const cntByDay=new Map();for(const r of pool){const k=apptKey(r);cntByDay.set(k,(cntByDay.get(k)||0)+1);}
+  const TZ=7*3600000,thNow=new Date(Date.now()+TZ),p2=n=>String(n).padStart(2,"0");
+  const tY=thNow.getUTCFullYear(),tM=thNow.getUTCMonth()+1,tD=thNow.getUTCDate();
+  let Y,M;if(AVYM){const a=AVYM.split("-");Y=+a[0];M=+a[1];}else{Y=tY;M=tM;}
+  const MN=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const startDow=new Date(Date.UTC(Y,M-1,1)).getUTCDay(),dim=new Date(Date.UTC(Y,M,0)).getUTCDate();
+  const todayKey=tY+"-"+p2(tM)+"-"+p2(tD);
+  const wd=["อา","จ","อ","พ","พฤ","ศ","ส"].map(w=>`<div class="cal-wd">${w}</div>`).join("");
+  let cells="";for(let i=0;i<startDow;i++)cells+=`<div class="cal-cell pad"></div>`;
+  for(let d=1;d<=dim;d++){const key=Y+"-"+p2(M)+"-"+p2(d);const c=cntByDay.get(key)||0;
+    const cls=["cal-cell",c?"has":"",key===todayKey?"today":"",AVDATE===key?"sel":""].filter(Boolean).join(" ");
+    cells+=`<div class="${cls}" ${c?`onclick="avPick('${key}')"`:""}>${d}${c?`<span class="cal-cnt">${c}</span>`:""}</div>`;}
+  const monthTotal=[...cntByDay.values()].reduce((s,n)=>s+n,0);
+  const chips=[["all","ทั้งหมด"],["W","ฝั่ง W · พี่หวาน"],["K","ฝั่ง K · พี่เขม"]].map(([k,l])=>`<button class="chip ${AVSIDE===k?"on":""}" onclick="avSide('${k}')">${l}</button>`).join("");
+  const cal=`<div class="cal"><div class="cal-h"><button class="cal-nav" onclick="avNav(-1)">‹</button><b>${MN[M-1]} ${Y+543}</b><button class="cal-nav" onclick="avNav(1)">›</button></div>
+    <div class="fbar2" style="margin-bottom:10px">${chips}</div>
+    <div class="cal-grid">${wd}${cells}</div>
+    <div class="cal-legend" style="margin-top:10px;font-size:12px;color:var(--muted)"><span style="width:11px;height:11px;border-radius:3px;background:color-mix(in srgb,var(--brand) 25%,var(--surface));display:inline-block;vertical-align:-1px"></span> วันที่เซลล์ลงนัด · 🔴 = จำนวนนัด · เดือนนี้รวม ${monthTotal} นัด</div>
+    ${AVDATE?`<button class="chip" style="width:100%;margin-top:9px" onclick="avPick('')">✕ ล้างวันที่เลือก</button>`:""}</div>`;
+  const rowFor=r=>{const side=r.sales==="K"?"K":"W";return `<tr onclick="openTicket('${esc(r.key)}')"><td style="white-space:nowrap;font-weight:800;color:var(--brand)">${esc(apptTime(r.nextAppt))} น.</td><td><b>${esc(r.name||"(ไม่มีชื่อ)")}</b><div style="font-size:11px;color:var(--muted)">📞 ${esc(r.phone||"")} · ${esc(chName(r.source))}${r.step?" · "+esc(r.step):""}</div></td><td>${stPill(r.leadStatus)}</td><td><span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)}</td></tr>`;};
+  let left;
+  if(AVDATE){
+    const dayList=pool.filter(r=>apptKey(r)===AVDATE).slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));
+    left=`<div class="card" style="overflow:auto"><div style="padding:12px 15px;border-bottom:1px solid var(--line);font-weight:800">📅 นัดวันที่ ${apptKeyLab(AVDATE)} · ${dayList.length} ราย</div>
+      <table class="tbl click"><thead><tr><th>เวลานัด</th><th>ลูกค้า</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>${dayList.length?dayList.map(rowFor).join(""):`<tr><td colspan="4" style="color:var(--muted);padding:16px">ไม่มีนัดในวันนี้</td></tr>`}</tbody></table></div>`;
+  }else{
+    const fut=pool.filter(r=>{const t=Date.parse(r.nextAppt||"");return !isNaN(t)&&t>=Date.now()-864e5;}).slice().sort((a,b)=>Date.parse(a.nextAppt)-Date.parse(b.nextAppt)).slice(0,12);
+    left=`<div class="card" style="overflow:auto"><div style="padding:12px 15px;border-bottom:1px solid var(--line);font-weight:800">⏭ นัดที่ใกล้ถึง (${pool.length} นัดทั้งหมด)</div>
+      <table class="tbl click"><thead><tr><th>วันนัด</th><th>ลูกค้า</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>${fut.length?fut.map(r=>{const side=r.sales==="K"?"K":"W";return `<tr onclick="openTicket('${esc(r.key)}')"><td style="white-space:nowrap;font-weight:800">${esc(apptKeyLab(apptKey(r)))}<div style="font-size:11px;color:var(--muted);font-weight:600">${esc(apptTime(r.nextAppt))} น.</div></td><td><b>${esc(r.name||"(ไม่มีชื่อ)")}</b><div style="font-size:11px;color:var(--muted)">📞 ${esc(r.phone||"")} · ${esc(chName(r.source))}${r.step?" · "+esc(r.step):""}</div></td><td>${stPill(r.leadStatus)}</td><td><span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)}</td></tr>`;}).join(""):`<tr><td colspan="4" style="color:var(--muted);padding:16px">ยังไม่มีนัดหมายที่เซลล์ลงไว้</td></tr>`}</tbody></table>
+      <div style="padding:10px 15px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)">👉 คลิกวันที่ไฮไลต์ในปฏิทินด้านขวา เพื่อดูเฉพาะนัดของวันนั้น</div></div>`;
+  }
+  return `<div class="note" style="margin-bottom:12px">ปฏิทินรวมนัดหมายที่ <b>เซลล์ทั้งสองฝั่ง</b> ลงไว้ — ทุกช่องทาง (Marketplace · Facebook · T1/T2/T3) · หัวหน้าทีมดูได้อย่างเดียว คลิกวันเพื่อดูว่ามีลูกค้าคนไหน เบอร์อะไร นัดกี่โมง</div>
+    <div class="apptwrap" style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start">
+      <div>${left}</div>
+      <aside>${cal}</aside>
+    </div>`;
+}
+window.avPick=function(k){AVDATE=(AVDATE===k?"":k);paint();};
+window.avNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);let Y=thNow.getUTCFullYear(),M=thNow.getUTCMonth()+1;if(AVYM){const a=AVYM.split("-");Y=+a[0];M=+a[1];}M+=delta;if(M<1){M=12;Y--;}if(M>12){M=1;Y++;}AVYM=Y+"-"+String(M).padStart(2,"0");paint();};
+window.avSide=function(s){AVSIDE=s;AVDATE="";paint();};
 /* render */
-const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_calltoday:viewTelCallToday,tel_perf:viewTelPerf,tickets:viewTickets,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
+const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
 function paint(){renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";const fn=VIEWS[VIEW]||viewDashboard;$("#content").innerHTML=fn();window.scrollTo(0,0);}
 async function init(){
   const me=await getJSON("/api/me");if(!me)return;ME=me;

@@ -62,9 +62,26 @@ function buildSeed(records) {
 // Returns summary {added, addW, addK, dup, cut, round, date}
 // opts.dailyCapPerSide (e.g. 50): cap Evolution intake to N new leads per side PER Thai-day,
 // split evenly W/K. Leftover fresh records are left un-added (they reappear on the next pull/day).
+// ลูกค้าเก่าที่กลับมาซื้อซ้ำ → เบอร์เดียวกันเคยถูกแจก/ปิดงานให้เซลล์คนไหนมาก่อน (เอาครั้งล่าสุด)
+// ใช้ติดป้าย prevSales บนรายชื่อใหม่ เพื่อบอกว่า "เคยมีเซลล์คนไหนติดตามไว้"
+function priorOwnerMap(state) {
+  const m = new Map();
+  for (const a of (state.assigned || [])) {
+    const side = (a.sales === 'W' || a.sales === 'K') ? a.sales : null;
+    if (!side) continue;
+    const ph = cleanPhone(a.phone); if (!ph) continue;
+    const atIso = a.updatedAt || a.receivedAt || '';
+    const ats = Date.parse(atIso) || 0;
+    const prev = m.get(ph);
+    if (!prev || ats >= prev.ats) m.set(ph, { side, ats, atIso });
+  }
+  return m;
+}
+
 function applyNew(state, records, label, opts) {
   opts = opts || {};
   const cap = Number(opts.dailyCapPerSide) > 0 ? Number(opts.dailyCapPerSide) : 0;
+  const prior = priorOwnerMap(state);
   const seen = new Set(state.assigned.map(keyOf));
   // cross-source guard: never add a phone that is already an ACTIVE lead from any source
   const activePhones = new Set(state.assigned.filter((a) => !a.archived).map((a) => cleanPhone(a.phone)).filter(Boolean));
@@ -114,6 +131,8 @@ function applyNew(state, records, label, opts) {
       rec.date = date;
       rec.exported = false; // รายใหม่ ยังไม่เคยส่ง
       rec.receivedAt = new Date().toISOString();
+      const po = prior.get(rec.phone);
+      if (po) { rec.prevSales = po.side; rec.prevSalesAt = po.atIso; }
       state.assigned.push(rec);
       if (side === 'W') { addW++; capW--; } else { addK++; capK--; }
     }
@@ -155,6 +174,7 @@ function parseRows(text) {
 function applyManual(state, rows, opts) {
   opts = opts || {};
   const step = ['T1', 'T2', 'T3'].includes(opts.step) ? opts.step : 'T1';
+  const prior = priorOwnerMap(state);
   const activePhones = new Set(state.assigned.filter((a) => !a.archived).map((a) => cleanPhone(a.phone)).filter(Boolean));
   const parsed = [];
   let dup = 0, cut = 0;
@@ -200,6 +220,7 @@ function applyManual(state, rows, opts) {
         sales: side, round, date, exported: true, receivedAt: nowIso,
         source: opts.source || 'manual', step, stepManual: !!opts.stepManual, distributedBy: opts.distributedBy || opts.by || '',
         ...(opts.fromExcel ? { fromExcel: true } : {}),
+        ...(prior.get(p.phone) ? { prevSales: prior.get(p.phone).side, prevSalesAt: prior.get(p.phone).atIso } : {}),
         address: p.address, product: p.product, orderAmount: p.orderAmount,
         page: p.page, closer: p.closer, lastOrderAt: p.lastOrderAt || null,
         nextAppt: p.nextAppt || '',
@@ -222,6 +243,7 @@ const isFbSource = (s) => (s === 'pancake' || s === 'manual' || s === 'refill');
 function applyNewPool(state, records, opts) {
   opts = opts || {};
   const source = opts.source || 'evolution';
+  const prior = priorOwnerMap(state);
   const seen = new Set(state.assigned.map(keyOf));
   const activePhones = new Set(state.assigned.filter((a) => !a.archived).map((a) => cleanPhone(a.phone)).filter(Boolean));
   const nowIso = new Date().toISOString();
@@ -248,6 +270,7 @@ function applyNewPool(state, records, opts) {
       lastOrderAt: (r && r.lastOrderAt) || null,
       ...(r && typeof r.ltv === 'number' ? { ltv: r.ltv } : {}),
       ...(r && typeof r.succeedOrders === 'number' ? { succeedOrders: r.succeedOrders } : {}),
+      ...(prior.get(rec.phone) ? { prevSales: prior.get(rec.phone).side, prevSalesAt: prior.get(rec.phone).atIso } : {}),
       leadStatus: 'new', callCount: 0, calls: [],
       history: [{ at: nowIso, by: opts.by || 'admin', k: 'pool', v: source }],
     });

@@ -238,6 +238,7 @@ function leadCard(r){
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span>${vip}</div>
       <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation();logCall('${esc(r.key)}')">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
       ${r.fromExcel?`<div class="lc-urg u-mut">📋 รายชื่อเดิมจาก Excel (ฐานลูกค้าเก่า)</div>`:""}
+      ${r.prevSales?`<div class="lc-urg" style="color:#0369a1">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม":"พี่หวาน"} · กลับมาซื้อซ้ำ</div>`:""}
       ${(r.product||r.page)?`<div class="lc-urg u-mut">📦 ${esc(r.product||"—")}${r.page?` · เพจ: ${esc(r.page)}`:""}</div>`:""}
       ${(()=>{const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";})()}
       ${urgLine(r)}</div>
@@ -328,7 +329,7 @@ function renderList(){
     const p=pageSlice(list);
     main+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">${APPTDATE?"ไม่มีนัดในวันที่เลือก":"ไม่มีรายชื่อในกลุ่มนี้"}</div>`;
   }
-  box.innerHTML=apptPool.length?`<div class="listwrap"><div class="listmain">${main}</div><aside class="calside">${miniCal(apptPool)}</aside></div>`:main;
+  box.innerHTML=`<div class="listwrap"><div class="listmain">${main}</div><aside class="calside">${miniCal(apptPool)}</aside></div>`;
 }
 window.setPRound=function(k){PROUND=k;LPAGE=1;renderList();};
 window.setApptDate=function(k){APPTDATE=k;if(k)PROUND="all";LPAGE=1;renderList();};
@@ -439,7 +440,7 @@ function saleCard(r){
 function latestSummary(r){return r.note?esc(r.note):"ยังไม่มีสรุป — โทรและบันทึกผล/โน้ต แล้วจะเห็นสรุปล่าสุดตรงนี้";}
 function renderSheet(){
   const r=CUR;if(!r)return;
-  const tags=(r.tags||[]).map(t=>`<span class="ttag">${esc(t)}</span>`).join("");
+  const tags=(r.tags||[]).map((t,i)=>`<span class="ttag" title="คลิกเพื่อแก้ไข" onclick="editTag(${i})" style="cursor:pointer">${esc(t)}<b onclick="event.stopPropagation();delTag(${i})" title="ลบแท็ก" style="margin-left:7px;color:#ef4444;font-weight:900;cursor:pointer">×</b></span>`).join("");
   let fval="";try{const b=r.nextAppt?new Date(r.nextAppt):(()=>{const d=new Date();d.setDate(d.getDate()+1);d.setHours(10,0,0,0);return d;})();const p=n=>String(n).padStart(2,"0");fval=b.getFullYear()+"-"+p(b.getMonth()+1)+"-"+p(b.getDate())+"T"+p(b.getHours())+":"+p(b.getMinutes());}catch(e){}
   const days=v=>{const t=Date.parse(v);return isNaN(t)?null:Math.max(0,Math.floor((Date.now()-t)/864e5));};
   const lastD=days(r.lastOrderAt);
@@ -455,7 +456,7 @@ function renderSheet(){
         <div class="tk-id" style="margin:3px 0 0">ตั๋ว <span class="mono" style="color:var(--brand);font-weight:700">${esc(r.ticketId||"")}</span> · ลูกค้า <span class="mono">${esc(r.code)}</span></div>
       </div>
     </div>
-    <div class="tagbar" style="margin-bottom:14px">${r.fromExcel?`<span class="ttag" style="color:#b45309;border-color:#fde68a;background:#fffbeb">📋 รายชื่อเดิมจาก Excel</span>`:""}🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
+    <div class="tagbar" style="margin-bottom:14px">${r.fromExcel?`<span class="ttag" style="color:#b45309;border-color:#fde68a;background:#fffbeb">📋 รายชื่อเดิมจาก Excel</span>`:""}${r.prevSales?`<span class="ttag" style="color:#0369a1;border-color:#bae6fd;background:#f0f9ff">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม (K)":"พี่หวาน (W)"} · ซื้อซ้ำ</span>`:""}🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
     <div class="tksheet">
       <div>
         <div class="box" style="border:1.5px solid #ddd6fe"><h4>🤖 สรุปล่าสุด (ระบบสรุปให้อัตโนมัติ)</h4><div style="font-size:11.5px;color:var(--muted);margin-bottom:7px">${sumMeta}</div><div style="font-size:13.5px;line-height:1.6">${sumText}</div></div>
@@ -512,9 +513,9 @@ window.archiveLead=async function(reason){
   if(j&&j.ok){closeSheet();await reload();toast(lab+"แล้ว · กู้คืนได้ที่ถังขยะ");}
   else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");
 };
-const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",phone:"✏️",address:"🏠",calls:"📞",tracking:"📦",tstage:"🔄",transfer:"🔁",archive:"📁",delete:"🗑️",close:"📁",restore:"↩️",aisum:"🤖",import:"📥",distribute:"📤",recycle:"♻️",dayoff_move:"🌴",dayoff_return:"↩️"};
+const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",phone:"✏️",address:"🏠",calls:"📞",tracking:"📦",tstage:"🔄",transfer:"🔁",archive:"📁",delete:"🗑️",close:"📁",restore:"↩️",aisum:"🤖",import:"📥",distribute:"📤",recycle:"♻️",dayoff_move:"🌴",dayoff_return:"↩️",tag:"🏷️"};
 const EVLAB={import:"นำเข้ารายชื่อ",distribute:"แจกให้เซลล์",recycle:"คัดออกถาวร",dayoff_move:"ย้าย (วันลา)",dayoff_return:"คืน (ยกเลิกวันลา)",transfer:"โอนให้อีกฝั่ง",tag:"เพิ่มแท็ก"};
-function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;case"name":return"แก้ชื่อ → "+v;case"phone":return"แก้เบอร์โทร → "+v;case"address":return"แก้ที่อยู่";case"tstage":return"ปรับรอบ → "+v;case"tracking":return"ใส่เลขพัสดุ "+v;case"archive":return"เก็บเข้าคลัง"+(v?(" · "+v):"");case"delete":return"ลบเข้าถังขยะ"+(v?(" · "+v):"");case"close":return"ปิดงาน/จัดเก็บ"+(v?(" · "+v):"");case"restore":return"กู้คืนตั๋ว";case"aisum":return"AI สรุปสาย";case"transfer":return"โอนให้ฝั่ง "+v;case"import":return"นำเข้ารายชื่อ"+(v?(" · รอบ "+v):"");default:return EVLAB[e.k]||e.k;}}
+function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;case"name":return"แก้ชื่อ → "+v;case"phone":return"แก้เบอร์โทร → "+v;case"address":return"แก้ที่อยู่";case"tstage":return"ปรับรอบ → "+v;case"tracking":return"ใส่เลขพัสดุ "+v;case"archive":return"เก็บเข้าคลัง"+(v?(" · "+v):"");case"delete":return"ลบเข้าถังขยะ"+(v?(" · "+v):"");case"close":return"ปิดงาน/จัดเก็บ"+(v?(" · "+v):"");case"restore":return"กู้คืนตั๋ว";case"aisum":return"AI สรุปสาย";case"transfer":return"โอนให้ฝั่ง "+v;case"import":return"นำเข้ารายชื่อ"+(v?(" · รอบ "+v):"");case"tag":return v?("อัปเดตแท็ก → "+v):"ล้างแท็กทั้งหมด";default:return EVLAB[e.k]||e.k;}}
 function timeline(r){const h=(r.history||[]).slice().reverse();if(!h.length)return `<div style="color:var(--muted);font-size:12.5px">ยังไม่มีประวัติ</div>`;return h.map(e=>`<div class="ev"><span class="eic">${EVIC[e.k]||"•"}</span><div><div class="et">${esc(evText(e))}</div><div class="em">${esc(fmtShort(e.at))}${e.by?" · "+esc(e.by):""}</div></div></div>`).join("");}
 
 window.pickReach=function(ok){
@@ -551,7 +552,9 @@ window.saveAppt=async function(){const v=$("#fdate").value;if(!v){toast("เล�
 window.saveNote=async function(){await save({note:$("#noteInp").value},"บันทึกโน้ตแล้ว");};
 window.setCalls=async function(n){await save({callCount:n},n===0?"ล้างจำนวนโทร":"โทรครั้งที่ "+n);};
 window.addSaleItem=async function(){const name=($("#saleName").value||"").trim();const price=Number($("#salePrice").value||0)||0;if(!name&&!price){toast("กรอกสินค้า/ราคา");return;}const items=(CUR.saleItems||[]).slice();items.push({name,price});await save({saleItems:items},"เพิ่มรายการแล้ว");};
-window.addTag=async function(){const t=prompt("สร้างแท็กใหม่ (เช่น ผิวแพ้ง่าย)");if(!t)return;const tags=(CUR.tags||[]).slice();tags.push(t.trim());await save({tags},"เพิ่มแท็ก: "+t);};
+window.addTag=async function(){const t=prompt("สร้างแท็กใหม่ (เช่น ผิวแพ้ง่าย)");if(!t||!t.trim())return;const tags=(CUR.tags||[]).slice();tags.push(t.trim());await save({tags},"เพิ่มแท็ก: "+t.trim());};
+window.editTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;const t=prompt("แก้ไขแท็ก (เว้นว่างเพื่อลบ)",cur);if(t==null)return;const v=t.trim();const tags=(CUR.tags||[]).slice();if(!v)tags.splice(i,1);else tags[i]=v;await save({tags},v?("แก้ไขแท็ก → "+v):"ลบแท็ก");};
+window.delTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;if(!confirm("ลบแท็ก \""+cur+"\" ?"))return;const tags=(CUR.tags||[]).slice();tags.splice(i,1);await save({tags},"ลบแท็ก: "+cur);};
 window.logCall=function(key){api("/api/lead/call",{key}).then(()=>{toast("บันทึกการโทรแล้ว");reload();});};
 
 async function save(patch,msg){

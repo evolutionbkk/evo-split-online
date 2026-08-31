@@ -439,6 +439,8 @@ function leadView(r, ocMap) {
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     succeedOrders: (typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
     fromExcel: !!r.fromExcel,
+    receivedAt: r.receivedAt || null,
+    prevSales: r.prevSales || '', prevSalesAt: r.prevSalesAt || '',
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
     aiCalls: aiCallsForPhone(r.phone),
@@ -508,6 +510,21 @@ function returnToPool(rec, reason) {
 function isFollowupBase(rec) { const s = String(rec.step || '').toUpperCase(); return s === 'T2' || s === 'T3'; }
 
 function isMpSource(s) { s = s || 'evolution'; return s !== 'pancake' && s !== 'manual' && s !== 'refill'; }
+// แจกอัตโนมัติ: T1 (FB รายใหม่) + Marketplace ที่ยังอยู่ในคลัง → แบ่งคนละครึ่ง (50/50) ทันที เคารพวันลา
+// (T2/T3 ฐานเก่าถูกจ่ายให้เซลล์แล้ว ไม่ได้อยู่ในคลัง จึงไม่ถูกแตะ)
+let autoDistBusy = false;
+async function autoDistribute() {
+  if (autoDistBusy) return 0;
+  const poolCnt = state.assigned.filter((a) => a.pooled && a.sales == null && !a.archived).length;
+  if (!poolCnt) return 0;
+  autoDistBusy = true;
+  try {
+    const sum = S.distributePool(state, { source: 'all', mode: '50', by: 'ระบบ · แจกอัตโนมัติ', off: dof() });
+    if (sum.distributed) { state.updatedAt = new Date().toISOString(); state = await store.save(state); console.log('[auto-distribute] แจก', sum.distributed, '(W:' + sum.toW + ' K:' + sum.toK + ')'); }
+    return sum.distributed;
+  } catch (e) { console.warn('[auto-distribute] error', String(e)); return 0; }
+  finally { autoDistBusy = false; }
+}
 // ดึงลูกค้า Marketplace 1 รายจากคลัง (pooled) มาให้เซลล์ฝั่ง side — ใช้ตอน auto-replace เมื่อรายเดิมติดต่อไม่ได้
 // เพื่อให้คิว "ต้องโทร" ของเซลล์เต็มโควตาเสมอ (Marketplace วันละ 30/คน)
 function pullOneMP(side) {
@@ -674,7 +691,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   const p = (req.body && req.body.patch) || {};
   const by = whoami(req);
   // snapshot for the activity timeline
-  const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', phone: rec.phone || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length, trackingNo: rec.trackingNo || '' };
+  const b0 = { leadStatus: recStatus(rec), callResult: rec.callResult || '', interest: rec.interest || '', nextAction: rec.nextAction || '', lostReason: rec.lostReason || '', nextAppt: rec.nextAppt || '', note: rec.note || '', name: rec.name || '', phone: rec.phone || '', address: rec.address || '', callCount: rec.callCount || 0, saleN: (rec.saleItems || []).length, trackingNo: rec.trackingNo || '', tags: (rec.tags || []).join('|') };
   const contactBefore = rec.contact || '';
   // new CRM taxonomy
   if ('leadStatus' in p) rec.leadStatus = LEAD_STATUS_KEYS.includes(p.leadStatus) ? p.leadStatus : rec.leadStatus;
@@ -711,6 +728,7 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ((rec.callCount || 0) !== b0.callCount) pushHist(rec, 'calls', rec.callCount, by);
   if ((rec.saleItems || []).length !== b0.saleN) pushHist(rec, 'sale', (rec.saleItems || []).length, by);
   if ((rec.trackingNo || '') !== b0.trackingNo) pushHist(rec, 'tracking', rec.trackingNo, by);
+  if ((rec.tags || []).join('|') !== b0.tags) pushHist(rec, 'tag', (rec.tags || []).join(', '), by);
   // Marketplace auto-replace: พอเซลล์กด "ติดต่อไม่ได้" → นำรายนี้ออก (คืนคลัง) แล้วดึงรายใหม่มาแทนทันที
   // (เฉพาะ Marketplace · Facebook/T1-T2-T3 ไม่ใช้กฎนี้)
   let replaced = null;
@@ -792,9 +810,12 @@ function followupTiers() {
     if (day.slice(0, 7) === curMonth) t1Month[c.side].add(p);
     if (day === today) t1Today[c.side].add(p);
   }
-  const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, leads: 0 });
+  const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, T1recv: 0, T1done: 0, leads: 0 });
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
+  // T1 วันนี้ (ตามที่ Teamlead ต้องการ) = "ออเดอร์ FB ใหม่ที่แอดมินปิดวันนี้" แจกคนละครึ่ง
+  //   T1recv = จำนวนรายชื่อ T1 ที่เข้าใหม่วันนี้ (เป้ายืดหยุ่นต่อฝั่ง) · T1done = โทรไปแล้วกี่ราย
+  const t1RecvN = { W: 0, K: 0 }, t1DoneN = { W: 0, K: 0 };
   for (const r of state.assigned) {
     if (r.archived) continue;
     if (r.sales !== 'W' && r.sales !== 'K') continue;
@@ -802,6 +823,7 @@ function followupTiers() {
     // แหล่งกระจายข้อมูล: FB Page = แอดมินปิดการขาย (pancake/manual/refill) · Marketplace = เว็บ Evolution
     const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
     const o = out[r.sales][grp]; o.leads++;
+    if (grp === 'fbpage' && S.thaiDay(r.receivedAt) === today) { t1RecvN[r.sales]++; if ((r.callCount || 0) > 0) t1DoneN[r.sales]++; }
     // T2/T3 = เซลล์กดเลื่อนรอบเอง (ยังผูกกับ lead ที่แจกแล้ว)
     const fs = r.followStage || 1;
     const t2m = r.t2At && S.thaiDay(r.t2At).slice(0, 7) === curMonth;
@@ -810,7 +832,7 @@ function followupTiers() {
     if (fs >= 3 && t3m) { o.T3++; if (S.thaiDay(r.t3At) === today) o.T3d++; }  // กด T3 เดือนนี้
   }
   // T1 (fbpage) = ลูกค้า FB ที่คุยจริง (ไม่ซ้ำ) — เดือนนี้ / วันนี้ — จับจาก OneCall ตรง ๆ
-  for (const sd of ['W', 'K']) { out[sd].fbpage.T1 = t1Month[sd].size; out[sd].fbpage.T1d = t1Today[sd].size; }
+  for (const sd of ['W', 'K']) { out[sd].fbpage.T1 = t1Month[sd].size; out[sd].fbpage.T1d = t1Today[sd].size; out[sd].fbpage.T1recv = t1RecvN[sd]; out[sd].fbpage.T1done = t1DoneN[sd]; }
   return out;
 }
 app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
@@ -3131,6 +3153,8 @@ boot().then(() => {
   if (ONECALL_USER && ONECALL_PASS) {
     setTimeout(() => { if (!onecallAuth.token || !onecallAuth.alive) onecallLogin(true).then((ok) => { if (ok) onecallPull().catch(() => {}); }).catch(() => {}); }, 12 * 1000); // fallback auto-login if no valid restored token
   }
+  setTimeout(() => { autoDistribute().catch(() => {}); }, 20 * 1000);          // แจก T1+Marketplace ที่ค้างในคลังหลังบูต
+  setInterval(() => { autoDistribute().catch(() => {}); }, 60 * 1000);         // แจกอัตโนมัติ (50/50) ทุก 1 นาที — T1 + Marketplace ที่เข้ามาใหม่
   setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive (self-heals via auto-login on expiry)
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
   if (GROQ_API_KEY) {
