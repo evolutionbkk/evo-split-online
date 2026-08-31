@@ -70,6 +70,7 @@ async function boot() {
   let bf = false;
   for (const rec of state.assigned) { if (!rec.receivedAt) { rec.receivedAt = rec.updatedAt || new Date().toISOString(); bf = true; } }
   if (!Array.isArray(state.onecall)) state.onecall = [];
+  if (!state.onecallSummaries || typeof state.onecallSummaries !== 'object') state.onecallSummaries = {};
   if (!Array.isArray(state.pulls)) state.pulls = [];
   // Pancake baseline: set once, so we only forward orders CLOSED from now on (no 1,375 backfill).
   if (!state.pancake) { state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null }; bf = true; }
@@ -437,6 +438,7 @@ function leadView(r, ocMap) {
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
+    aiCalls: aiCallsForPhone(r.phone),
     trackingNo: r.trackingNo || '',
     tags: r.tags || [],
     handoffs: (r.handoffs || []).slice(-20),
@@ -598,7 +600,7 @@ app.get('/api/leads', requireCrm, async (req, res) => {
 });
 
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
-const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', name: 'แก้ชื่อลูกค้า', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', restore: 'กู้คืน' };
+const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', restore: 'กู้คืน' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
   const limit = Math.min(600, Math.max(20, parseInt(req.query.limit, 10) || 250));
   const activity = [], transfers = [];
@@ -1093,6 +1095,14 @@ app.post('/api/onecall/ingest', async (req, res) => {
 const ONECALL_HOST = 'https://onecallvoicerecord.dtac.co.th';
 const ONECALL_USER = process.env.ONECALL_USER || '';   // OrkTrack login user (e.g. 66948880323)
 const ONECALL_PASS = process.env.ONECALL_PASS || '';   // OrkTrack login password
+// ---------- AI call summary (Groq: Whisper STT + LLM) ----------
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_STT_MODEL = process.env.GROQ_STT_MODEL || 'whisper-large-v3-turbo';
+const GROQ_SUM_MODEL = process.env.GROQ_SUM_MODEL || 'llama-3.3-70b-versatile';
+const AISUM_MIN_SEC = Number(process.env.AISUM_MIN_SEC) || 20;    // only summarize talks longer than this
+const AISUM_BATCH = Number(process.env.AISUM_BATCH) || 5;         // max calls summarized per worker tick
+const AISUM_LOOKBACK_H = Number(process.env.AISUM_LOOKBACK_H) || 72;
+const AISUM_MAX_TRIES = 3;
 let onecallAuth = { token: null, updatedAt: null, alive: false, lastPullAt: null, lastAdded: 0, lastError: null,
   lastLoginAt: null, loginError: null, loginVia: null, loginAttempts: null, autoLogin: !!(ONECALL_USER && ONECALL_PASS) };
 function onecallHeaders() { return { 'Authorization': onecallAuth.token, 'Accept': 'application/json', 'Content-Type': 'application/json' }; }
@@ -1235,6 +1245,83 @@ async function onecallPull(_retried) {
   } catch (e) { onecallAuth.lastError = 'pull_failed'; console.warn('[onecall] pull failed:', String(e)); }
 }
 // Userscript relays the current OneCall token so the server can pull unattended.
+// ---------- AI call summary helpers ----------
+function aiCallsForPhone(phone) {
+  const p = digitsOnly(phone); if (!p) return [];
+  const out = [];
+  const S2 = state.onecallSummaries || {};
+  for (const k in S2) { const s = S2[k]; if (s && s.summary && digitsOnly(s.phone) === p) out.push(s); }
+  out.sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0));
+  return out.slice(0, 10).map((s) => ({ at: s.at, dir: s.dir, dur: s.dur, summary: s.summary, transcript: s.transcript || '' }));
+}
+async function groqTranscribe(id) {
+  if (!onecallAuth.token) throw new Error('no_onecall_token');
+  const url = ONECALL_HOST + '/orktrack/rest/mediastream/' + id + '?at=' + encodeURIComponent(onecallAuth.token) + '&usage=play';
+  const ar = await fetch(url, { headers: { Authorization: onecallAuth.token, Accept: '*/*' } });
+  if (!ar.ok && ar.status !== 206) throw new Error('audio_http_' + ar.status);
+  const buf = Buffer.from(await ar.arrayBuffer());
+  if (buf.length < 800) throw new Error('audio_empty_' + buf.length);
+  const fd = new FormData();
+  fd.append('file', new Blob([buf], { type: 'audio/wav' }), 'call-' + id + '.wav');
+  fd.append('model', GROQ_STT_MODEL);
+  fd.append('language', 'th');
+  fd.append('response_format', 'text');
+  const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY }, body: fd,
+  });
+  const t = await r.text();
+  if (!r.ok) throw new Error('stt_' + r.status + ':' + t.slice(0, 180));
+  return (t || '').trim();
+}
+async function groqSummarize(transcript, meta) {
+  const sys = 'คุณเป็นผู้ช่วยสรุปบทสนทนาการขายทางโทรศัพท์ของทีมเทเลเซลล์ YANHEE สรุปเป็นภาษาไทยแบบสั้น กระชับ อ่านเข้าใจใน 10 วินาที เพื่อให้เพื่อนร่วมทีมที่รับช่วงต่อรู้ว่าคุยอะไรไปแล้ว';
+  const user = 'ถอดเสียงสายโทร (' + (meta || '') + '):\n"""' + String(transcript).slice(0, 6000) + '"""\n\nสรุปเป็นหัวข้อสั้น ๆ:\n• ประเด็นที่คุย:\n• ท่าที/ความสนใจของลูกค้า:\n• สิ่งที่ต้องทำต่อ:\nถ้าข้อมูลน้อยหรือถอดเสียงไม่ชัด ให้บอกเท่าที่มี ห้ามแต่งข้อมูลเพิ่ม';
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + GROQ_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: GROQ_SUM_MODEL, temperature: 0.2, max_tokens: 400, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('llm_' + r.status + ':' + JSON.stringify(j).slice(0, 180));
+  return ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+}
+async function summarizeCall(rec) {
+  const id = rec.id;
+  const transcript = await groqTranscribe(id);
+  let summary;
+  if (transcript && transcript.replace(/\s/g, '').length >= 6) summary = await groqSummarize(transcript, (rec.dir || '') + ' ' + (rec.dur || 0) + 'วิ');
+  else summary = '(เสียงสั้น/ไม่ชัด — ถอดเสียงไม่ได้)';
+  const entry = { id, phone: rec.phone, side: rec.side, dur: rec.dur, at: rec.at, dir: rec.dir, transcript: String(transcript || '').slice(0, 4000), summary, summarizedAt: new Date().toISOString() };
+  const p = digitsOnly(rec.phone);
+  const lead = state.assigned.find((a) => !a.archived && a.sales === rec.side && digitsOnly(a.phone) === p) || state.assigned.find((a) => digitsOnly(a.phone) === p);
+  if (lead) { entry.ticketId = lead.ticketId || ''; if (summary) addHist(lead, 'aisum', summary, 'AI'); }
+  state.onecallSummaries[id] = entry;
+  return entry;
+}
+let aisumRunning = false;
+async function aisumWorker() {
+  if (aisumRunning || !GROQ_API_KEY || !onecallAuth.token) return;
+  aisumRunning = true;
+  try {
+    const since = Date.now() - AISUM_LOOKBACK_H * 3600000;
+    const S2 = state.onecallSummaries || (state.onecallSummaries = {});
+    const pending = (state.onecall || []).filter((c) => {
+      const prev = S2[c.id];
+      if (prev && (prev.summary || (prev.tries || 0) >= AISUM_MAX_TRIES)) return false;
+      if ((c.dur || 0) < AISUM_MIN_SEC) return false;
+      const t = Date.parse(c.at); if (isNaN(t) || t < since) return false;
+      return true;
+    }).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, AISUM_BATCH);
+    let done = 0;
+    for (const c of pending) {
+      try { await summarizeCall(c); done++; }
+      catch (e) { const prev = S2[c.id] || {}; S2[c.id] = { id: c.id, phone: c.phone, side: c.side, dur: c.dur, at: c.at, dir: c.dir, error: String(e).slice(0, 180), tries: (prev.tries || 0) + 1, summarizedAt: new Date().toISOString() }; }
+    }
+    if (done || pending.length) { state.updatedAt = new Date().toISOString(); state = await store.save(state); }
+    if (done) console.log('[aisum] summarized', done, 'call(s)');
+  } catch (e) { console.warn('[aisum] worker error', String(e)); }
+  finally { aisumRunning = false; }
+}
+
 app.post('/api/onecall/token', (req, res) => {
   const keyOk = INGEST_KEY && req.headers['x-ingest-key'] === INGEST_KEY;
   const adminOk = (readSession(req) || {}).role === 'admin';
@@ -1267,6 +1354,29 @@ app.post('/api/onecall/pull', requireAuth, async (req, res) => {
   if (!onecallAuth.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่มี token และ auto-login ไม่สำเร็จ — ตรวจ ONECALL_USER/ONECALL_PASS หรือเปิดหน้า OneCall (userscript) เพื่อส่ง token เข้ามา', loginError: onecallAuth.loginError });
   await onecallKeepalive(); await onecallPull();
   res.json({ ok: true, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError, alive: onecallAuth.alive, loginVia: onecallAuth.loginVia, total: (state.onecall || []).length });
+});
+// AI summary status (counts)
+app.get('/api/onecall/aisum-status', requireAuth, (req, res) => {
+  const S2 = state.onecallSummaries || {};
+  let ok = 0, err = 0; for (const k in S2) { if (S2[k].summary) ok++; else if (S2[k].error) err++; }
+  const eligible = (state.onecall || []).filter((c) => (c.dur || 0) >= AISUM_MIN_SEC).length;
+  res.json({ enabled: !!GROQ_API_KEY, sttModel: GROQ_STT_MODEL, sumModel: GROQ_SUM_MODEL, minSec: AISUM_MIN_SEC, summarized: ok, errors: err, eligibleCalls: eligible, totalCalls: (state.onecall || []).length });
+});
+// Admin: summarize ONE recording now (test the pipeline end-to-end). id = OneCall recording id.
+app.post('/api/onecall/summarize/:id', requireAuth, async (req, res) => {
+  if (!GROQ_API_KEY) return res.status(400).json({ error: 'no_groq_key', message: 'ยังไม่ได้ตั้ง GROQ_API_KEY บน Railway' });
+  const id = String(req.params.id || '').replace(/\D/g, '');
+  const rec = (state.onecall || []).find((c) => String(c.id) === id);
+  if (!rec) return res.status(404).json({ error: 'not_found', message: 'ไม่พบสายนี้ใน state.onecall' });
+  try { const entry = await summarizeCall(rec); state = await store.save(state); res.json({ ok: true, entry }); }
+  catch (e) { res.status(502).json({ error: 'summarize_failed', message: String(e) }); }
+});
+// Admin: run the batch worker now
+app.post('/api/onecall/aisum-run', requireAuth, async (req, res) => {
+  if (!GROQ_API_KEY) return res.status(400).json({ error: 'no_groq_key' });
+  await aisumWorker();
+  const S2 = state.onecallSummaries || {}; let ok = 0; for (const k in S2) if (S2[k].summary) ok++;
+  res.json({ ok: true, summarizedTotal: ok });
 });
 
 // Admin clicks "pull latest": the server fetches from Evolution using the relayed token.
@@ -2875,6 +2985,10 @@ boot().then(() => {
   }
   setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive (self-heals via auto-login on expiry)
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
+  if (GROQ_API_KEY) {
+    setTimeout(() => { aisumWorker().catch(() => {}); }, 45 * 1000);           // first AI-summary pass shortly after boot
+    setInterval(() => { aisumWorker().catch(() => {}); }, 5 * 60 * 1000);      // summarize new calls every 5 min (batch, rate-limited)
+  }
   if (PANCAKE_API_KEY) {
     setTimeout(() => { pancakePull({ hold: true }).catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot → holding pool (Teamlead distributes)
     setInterval(() => { pancakePull({ hold: true }).catch(() => {}); }, 10 * 60 * 1000);     // pull closed-sale orders every 10 min → holding pool
