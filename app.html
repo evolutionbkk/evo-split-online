@@ -586,8 +586,8 @@ function viewStock(){
   </div>`;
   if(dist.distributed){h+=`<div class="secttl">📈 สรุปการแจก · ${rlab()}<span class="ln"></span></div>
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th class="r">Marketplace</th><th class="r">Facebook</th><th class="r">รวม</th></tr></thead><tbody>
-    <tr><td>ดึงเข้าคลัง</td><td class="r tnum">${fmt(dist.pulled.mp)}</td><td class="r tnum">${fmt(dist.pulled.fb)}</td><td class="r tnum"><b>${fmt(dist.pulled.total)}</b></td></tr>
-    <tr><td>แจกให้เซลล์</td><td class="r tnum">${fmt(dist.distributed.mp)}</td><td class="r tnum">${fmt(dist.distributed.fb)}</td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
+    <tr><td>รายชื่อใหม่เข้าคลัง (รอแจก)</td><td class="r tnum">${fmt(dist.pulled.mp)}</td><td class="r tnum">${fmt(dist.pulled.fb)}</td><td class="r tnum"><b>${fmt(dist.pulled.total)}</b></td></tr>
+    <tr><td>แจกออกให้เซลล์แล้ว</td><td class="r tnum">${fmt(dist.distributed.mp)}</td><td class="r tnum">${fmt(dist.distributed.fb)}</td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
     <tr style="background:var(--surface-2)"><td><b>แยกตามเซลล์</b></td><td class="r" colspan="2">พี่หวาน (W): <b>${fmt(dist.distributed.W)}</b> · พี่เขม (K): <b>${fmt(dist.distributed.K)}</b></td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
   </tbody></table></div>`;}
   h+=`<div class="secttl">🌴 วันลา / วันหยุด — ทีมเซลล์ · เดือน ${esc(lv.month||"")}<span class="ln"></span></div>
