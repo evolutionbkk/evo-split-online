@@ -294,23 +294,43 @@ function viewTelOverview(){
   const stK=[["new","ใหม่"],["contacting","กำลังติดต่อ"],["interested","สนใจ"],["followup","นัดติดตาม"],["awaiting_payment","รอชำระเงิน"],["won","ปิดสำเร็จ"],["lost","ไม่สนใจ"]];
   let h=filterBar();
   const TW=(D.tiers&&D.tiers.W)||{},TK=(D.tiers&&D.tiers.K)||{};
-  const fw=TW.fbpage||{},fk=TK.fbpage||{},mEvoW=W.calledEvoToday||0,mEvoK=K.calledEvoToday||0;
-  const trow=(ic,lab,sub,wv,kv)=>`<tr><td>${ic} <b>${lab}</b> <span style="color:var(--muted);font-size:11px">${sub}</span></td><td class="r tnum">${fmt(wv)}</td><td class="r tnum">${fmt(kv)}</td><td class="r tnum"><b>${fmt(wv+kv)}</b></td></tr>`;
-  h+=`<div class="secttl">📊 KPI การติดตาม — Marketplace &amp; FB (T1/T2/T3) · วันนี้<span class="ln"></span></div>
-  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th class="r">พี่หวาน (W)</th><th class="r">พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
-    ${trow("📦","Marketplace","โทรแล้ว (ราย)",mEvoW,mEvoK)}
-    ${trow("💬","T1","คุย FB จริง (ไม่ซ้ำคน)",fw.T1d||0,fk.T1d||0)}
-    ${trow("💬","T2","ตามรอบ 2",fw.T2d||0,fk.T2d||0)}
-    ${trow("💬","T3","ตามรอบ 3",fw.T3d||0,fk.T3d||0)}
-  </tbody></table></div>`;
-  h+=`<div class="secttl">📞 การโทร — เทียบเป้าที่ระบบแจก/คน/วัน<span class="ln"></span></div>
-  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>ช่องทาง</th><th class="r">เป้า/คน</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th>รวมทีม</th></tr></thead><tbody>
-    <tr><td><b>📦 Marketplace</b><div style="font-size:11px;color:var(--muted)">รายชื่อจากเว็บ</div></td><td class="r tnum">${tEvo}</td>${cell(wEvo+"/"+tEvo,pc(wEvo,tEvo))}${cell(kEvo+"/"+tEvo,pc(kEvo,tEvo))}${cell((wEvo+kEvo)+"/"+(tEvo*2),pc(wEvo+kEvo,tEvo*2))}</tr>
-    <tr><td><b>💬 Facebook (Pancake)</b><div style="font-size:11px;color:var(--muted)">T1+T2+T3</div></td><td class="r tnum">${tMan}</td>${cell(wMan+"/"+tMan,pc(wMan,tMan))}${cell(kMan+"/"+tMan,pc(kMan,tMan))}${cell((wMan+kMan)+"/"+(tMan*2),pc(wMan+kMan,tMan*2))}</tr>
-    <tr style="background:var(--surface-2)"><td><b>รวมทั้งหมด</b></td><td class="r tnum">${tEvo+tMan}</td>${cell((wEvo+wMan)+"/"+(tEvo+tMan),pc(wEvo+wMan,tEvo+tMan))}${cell((kEvo+kMan)+"/"+(tEvo+tMan),pc(kEvo+kMan,tEvo+tMan))}${cell((wEvo+wMan+kEvo+kMan)+"/"+((tEvo+tMan)*2),pc(wEvo+wMan+kEvo+kMan,(tEvo+tMan)*2))}</tr>
-  </tbody></table><div style="padding:12px 15px;font-size:12px;color:var(--muted)">🟩 ถึงเป้า ≥90% · 🟦 ใกล้ 60–89% · 🟧 ต้องเร่ง 40–59% · 🟥 ห่างเป้า &lt;40% · เป้าเป็นรายวัน</div></div>`;
+  const fw=TW.fbpage||{},fk=TK.fbpage||{};
+  const COL={mk:"#a16207",t1:"#2563eb",t2:"#0891b2",t3:"#7c3aed"};
+  const cC=(v,tg,color,cat,side)=>{const pct=tg?Math.min(100,Math.round(v/tg*100)):0;return `<td onclick="drillKpi('${cat}','${side}')" style="cursor:pointer" title="กดดูรายชื่อ/เบอร์"><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${fmt(v)}<span style="color:var(--muted);font-weight:500">/${tg}</span></span><span class="tnum" style="color:${color}">${pct}%</span></div>${bar(pct,color)}</td>`;};
+  const row=(dot,lab,sub,tg,wv,kv,color,cat)=>`<tr><td><b style="color:${color}">${dot} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${cC(wv,tg,color,cat,'W')}${cC(kv,tg,color,cat,'K')}<td class="r tnum"><b style="font-size:15px">${fmt(wv+kv)}</b></td></tr>`;
+  h+=`<div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
+  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
+    ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",50,wEvo,kEvo,COL.mk,'mk')}
+    ${row("💬","T1 · คุย FB จริง","ลูกค้า FB ที่คุยจริง >7 วิ (ไม่ซ้ำคน)",5,fw.T1d||0,fk.T1d||0,COL.t1,'t1')}
+    ${row("💬","T2 · ตามรอบ 2","",5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
+    ${row("💬","T3 · ตามรอบ 3","",5,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
+  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · กดตัวเลข W/K เพื่อดูว่าเป็นเบอร์อะไร จากช่องทางไหน</div></div>`;
   return h;
 }
+
+/* ===== KPI drill-down (click a number → see the phones by channel) ===== */
+function showModal(title,html){closeModal();const o=document.createElement("div");o.id="kpiModal";o.style.cssText="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto";o.onclick=e=>{if(e.target===o)closeModal();};o.innerHTML=`<div style="background:var(--card,#fff);border-radius:14px;max-width:700px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35)"><div style="position:sticky;top:0;background:var(--navy,#1f3864);color:#fff;padding:13px 18px;display:flex;justify-content:space-between;align-items:center;border-radius:14px 14px 0 0"><b>${title}</b><span onclick="closeModal()" style="cursor:pointer;font-size:22px;line-height:1">×</span></div><div id="kpiModalBody" style="padding:16px 18px">${html}</div></div>`;document.body.appendChild(o);}
+window.closeModal=function(){const m=document.getElementById("kpiModal");if(m)m.remove();};
+window.drillKpi=async function(cat,side){
+  const nm=side==="W"?"พี่หวาน (W)":"พี่เขม (K)";
+  const LAB={mk:"Marketplace",t1:"T1 · คุย FB จริง",t2:"T2 · ตามรอบ 2",t3:"T3 · ตามรอบ 3"};
+  showModal((LAB[cat]||cat)+" — "+nm,'<div style="color:var(--muted);padding:10px">กำลังโหลด…</div>');
+  const setBody=h=>{const b=document.getElementById("kpiModalBody");if(b)b.innerHTML=h;};
+  try{
+    let rows=[];
+    if(cat==="mk"||cat==="t1"){
+      if(!window.__recon)window.__recon=await getJSON("/api/admin/onecall-recon");
+      const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
+      const cls=cat==="mk"?"Marketplace":"FB",seen=new Set();
+      rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return x.side===side&&x.classify===cls&&t>=tS&&t<tE&&(x.durationSec||0)>7;}).filter(x=>{if(seen.has(x.phone))return false;seen.add(x.phone);return true;}).map(x=>({name:x.matchedName||"—",phone:x.phone,extra:(x.durationSec||0)+" วิ · "+(x.direction||"")}));
+    }else{
+      const st=cat==="t2"?"T2":"T3";
+      rows=(D.leads||[]).filter(r=>r.sales===side&&String(r.step||"").toUpperCase()===st).map(r=>({name:r.name||"—",phone:r.phone||"",extra:chName(r.source)}));
+    }
+    if(!rows.length){setBody('<div class="empty" style="padding:24px">ยังไม่มีรายการในวันนี้</div>');return;}
+    setBody(`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">รวม ${rows.length} ราย</div><div style="overflow:auto"><table class="tbl"><thead><tr><th>ชื่อลูกค้า</th><th>เบอร์โทร</th><th>รายละเอียด</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="mono">${esc(r.phone)}</td><td style="color:var(--muted)">${esc(r.extra)}</td></tr>`).join("")}</tbody></table></div>`);
+  }catch(e){setBody('<div class="empty" style="padding:24px">โหลดข้อมูลไม่สำเร็จ</div>');}
+};
 
 /* ===== TEL CALL TODAY ===== */
 function ticketRow(r){const side=r.sales==="K"?"K":"W";
