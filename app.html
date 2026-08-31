@@ -352,15 +352,19 @@ function viewTelCallToday(){
 function viewTelPerf(){
   const W=D.kpi.W||{},K=D.kpi.K||{};
   const rate=a=>{const c=a.callsRange||0,w=a.wonRange||0;return c?Math.round(w/c*1000)/10+"%":"—";};
-  const cmp=(name,side,a)=>`<div class="card" style="padding:16px 18px"><div style="font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span class="sideb ${side}">${side.toUpperCase()}</span> ${name}</div>
-    ${[["ลูกค้าในมือ",fmt(a.total)],["โทรออก (นับสาย)",fmt(a.callsRange)],["คุยจริง >7 วิ",fmt(a.talk7Range)],["ปิดการขาย",fmt(a.wonRange)],["ไม่สนใจ",fmt(a.lostRange)],["ยอดขาย",fmtB(a.revRange)]].map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v tnum">${r[1]}</span></div>`).join("")}</div>`;
+  const cntBy=side=>{let mk=0,fb=0;for(const r of (D.leads||[])){if(r.sales!==side)continue;if(FB(r.source))fb++;else mk++;}return {mk,fb,tot:mk+fb};};
+  const cW=cntBy("W"),cK=cntBy("K");
+  const inhand=c=>`<b class="tnum">${fmt(c.tot)}</b><div style="font-size:11px;color:var(--muted);margin-top:2px">📦 ${fmt(c.mk)} · 💬 ${fmt(c.fb)}</div>`;
+  const cmp=(name,side,a,c)=>`<div class="card" style="padding:16px 18px"><div style="font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span class="sideb ${side}">${side.toUpperCase()}</span> ${name}</div>
+    ${[["ลูกค้าในมือ · ปัจจุบัน",fmt(c.tot)+"  ·  📦 "+fmt(c.mk)+" / 💬 "+fmt(c.fb)],["รับเข้าใหม่ (ช่วงนี้)",fmt(a.newRange)],["โทรออก (นับสาย)",fmt(a.callsRange)],["คุยจริง >7 วิ",fmt(a.talk7Range)],["ปิดการขาย",fmt(a.wonRange)],["ไม่สนใจ",fmt(a.lostRange)],["ยอดขาย",fmtB(a.revRange)]].map(r=>`<div class="kv"><span class="k">${r[0]}</span><span class="v tnum">${r[1]}</span></div>`).join("")}</div>`;
   let h=filterBar();
-  h+=`<div class="card" style="overflow:auto;margin-bottom:18px"><table class="tbl"><thead><tr><th>Telesales</th><th class="r">ลูกค้า</th><th class="r">โทรออก</th><th class="r">ได้คุย</th><th class="r">ปิดขาย</th><th class="r">ไม่สนใจ</th><th class="r">อัตราปิด</th><th class="r">ยอดขาย</th></tr></thead><tbody>
-    <tr><td><b>พี่หวาน (W)</b></td><td class="r tnum">${fmt(W.total)}</td><td class="r tnum">${fmt(W.callsRange)}</td><td class="r tnum">${fmt(W.talk7Range)}</td><td class="r tnum win">${fmt(W.wonRange)}</td><td class="r tnum">${fmt(W.lostRange)}</td><td class="r tnum">${rate(W)}</td><td class="r tnum win">${fmtB(W.revRange)}</td></tr>
-    <tr><td><b>พี่เขม (K)</b></td><td class="r tnum">${fmt(K.total)}</td><td class="r tnum">${fmt(K.callsRange)}</td><td class="r tnum">${fmt(K.talk7Range)}</td><td class="r tnum win">${fmt(K.wonRange)}</td><td class="r tnum">${fmt(K.lostRange)}</td><td class="r tnum">${rate(K)}</td><td class="r tnum win">${fmtB(K.revRange)}</td></tr>
+  h+=`<div class="card" style="overflow:auto;margin-bottom:8px"><table class="tbl"><thead><tr><th>Telesales</th><th class="r">ลูกค้าในมือ<div style="font-size:10px;font-weight:400;color:var(--muted)">📦MK·💬FB · ปัจจุบัน</div></th><th class="r">รับเข้าใหม่<div style="font-size:10px;font-weight:400;color:var(--muted)">ช่วงที่เลือก</div></th><th class="r">โทรออก</th><th class="r">ได้คุย</th><th class="r">ปิดขาย</th><th class="r">ไม่สนใจ</th><th class="r">อัตราปิด</th><th class="r">ยอดขาย</th></tr></thead><tbody>
+    <tr><td><b>พี่หวาน (W)</b></td><td class="r">${inhand(cW)}</td><td class="r tnum">${fmt(W.newRange)}</td><td class="r tnum">${fmt(W.callsRange)}</td><td class="r tnum">${fmt(W.talk7Range)}</td><td class="r tnum win">${fmt(W.wonRange)}</td><td class="r tnum">${fmt(W.lostRange)}</td><td class="r tnum">${rate(W)}</td><td class="r tnum win">${fmtB(W.revRange)}</td></tr>
+    <tr><td><b>พี่เขม (K)</b></td><td class="r">${inhand(cK)}</td><td class="r tnum">${fmt(K.newRange)}</td><td class="r tnum">${fmt(K.callsRange)}</td><td class="r tnum">${fmt(K.talk7Range)}</td><td class="r tnum win">${fmt(K.wonRange)}</td><td class="r tnum">${fmt(K.lostRange)}</td><td class="r tnum">${rate(K)}</td><td class="r tnum win">${fmtB(K.revRange)}</td></tr>
   </tbody></table></div>
+  <div style="font-size:11.5px;color:var(--muted);margin:0 4px 16px;line-height:1.6">📦 = Marketplace (เว็บ Evolution + Lazada) · 💬 = Facebook (Pancake) · <b>ลูกค้าในมือ</b> = ยอดสะสมปัจจุบัน (ไม่เปลี่ยนตามช่วงเวลา) · คอลัมน์อื่นเป็นยอด<b>ตามช่วงที่เลือก</b> (วันนี้/เมื่อวาน/สัปดาห์/เดือน)</div>
   <div class="secttl">⚖️ เปรียบเทียบตรง · ${rlab()}<span class="ln"></span></div>
-  <div class="two">${cmp("พี่หวาน","w",W)}${cmp("พี่เขม","k",K)}</div>`;
+  <div class="two">${cmp("พี่หวาน","w",W,cW)}${cmp("พี่เขม","k",K,cK)}</div>`;
   return h;
 }
 
