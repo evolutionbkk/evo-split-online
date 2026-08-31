@@ -2892,6 +2892,46 @@ app.get('/api/admin/chat-kpi', requireAuth, async (req, res) => {
   }
 });
 
+// Admin overview: per-admin chats replied (real Pancake) + closes & revenue (Pancake FB orders) + order detail.
+const _adminPerfCache = new Map();
+app.get('/api/admin/admin-perf', requireAuth, async (req, res) => {
+  const now = Date.now();
+  let to = req.query.to ? Date.parse(req.query.to) : now;
+  let from = req.query.from ? Date.parse(req.query.from) : thMonthStartMs();
+  if (isNaN(to)) to = now; if (isNaN(from)) from = thMonthStartMs();
+  const iso = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+  // chats — from the background snapshot (today vs month), human admins only
+  const snap = state.chatKpiSnap || null;
+  const wantToday = from >= thTodayStartMs() - 2 * 3600000;
+  const chatByNick = (snap && ((wantToday ? snap.today : snap.month) || {}).byNick) || {};
+  // sales by closer — cached 5 min (computePancakeSales is heavy)
+  const key = from + '_' + to;
+  let sc = _adminPerfCache.get(key);
+  if (!sc || now - sc.at > 5 * 60 * 1000) {
+    let data = { byCloser: {}, orders: [] };
+    if (PANCAKE_API_KEY) { try { data = await computePancakeSales(iso.from, iso.to, false); } catch (e) { data = { byCloser: {}, orders: [], error: String(e).slice(0, 120) }; } }
+    sc = { at: now, data }; _adminPerfCache.set(key, sc);
+  }
+  const byCloser = sc.data.byCloser || {}, orders = sc.data.orders || [];
+  const per = {};
+  const ensure = (nk) => per[nk] || (per[nk] = { name: nk, chats: 0, closes: 0, revenue: 0, orders: [] });
+  for (const nk of CHAT_ADMIN_NICKS) ensure(nk);           // always show the known admins
+  for (const c of CHAT_USERS) ensure(c.name);
+  for (const nk in chatByNick) if (isHumanChatAdmin(nk)) ensure(nk).chats = chatByNick[nk];
+  for (const closer in byCloser) {
+    const nk = nickName(closer) || closer; if (!isHumanChatAdmin(nk)) continue;
+    const a = byCloser[closer].admin || { orders: 0, revenue: 0 };
+    const e = ensure(nk); e.closes += a.orders || 0; e.revenue += a.revenue || 0;
+  }
+  for (const o of orders) {
+    if (o.src !== 'admin') continue; const nk = nickName(o.closer) || o.closer; if (!isHumanChatAdmin(nk)) continue;
+    const e = per[nk]; if (!e || e.orders.length >= 300) continue;
+    e.orders.push({ code: o.code, product: o.product, qty: o.qty, amount: o.amount, at: o.at, page: o.page });
+  }
+  const admins = Object.values(per).map((e) => { e.orders.sort((a, b) => (b.amount || 0) - (a.amount || 0)); return e; }).sort((a, b) => (b.closes - a.closes) || (b.chats - a.chats));
+  res.json({ ok: true, ...iso, admins });
+});
+
 app.get('/me', requireChat, (req, res) => res.sendFile(path.join(__dirname, 'me.html')));
 app.get('/inbox', requireChat, (req, res) => res.sendFile(path.join(__dirname, 'chat.html')));
 

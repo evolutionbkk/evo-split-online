@@ -203,11 +203,12 @@ const STCOL={new:"#4f46e5",contacting:"#0e7490",interested:"#7c3aed",followup:"#
 function stPill(s,ex){s=s||"new";return `<span class="pill ${STCLASS[s]||"st-new"}">${STLABEL[s]||s}${ex||""}</span>`;}
 async function load(){
   const{from,to}=rangeISO();const q=`?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-  const[kpi,calls,chat,pool,dist,leads,leave]=await Promise.all([
+  const[kpi,calls,chat,pool,dist,leads,leave,tiers,aperf]=await Promise.all([
     getJSON("/api/admin/kpi"+q),getJSON("/api/admin/callstats"+q),getJSON("/api/admin/chat-kpi"+q),
     getJSON("/api/pool"),getJSON("/api/dist-stats"+q),getJSON("/api/leads"),getJSON("/api/admin/leaves"),
+    getJSON("/api/admin/followup-tiers"),getJSON("/api/admin/admin-perf"+q),
   ]);
-  D={kpi:kpi||{},calls:calls||{},chat:chat||{},pool:pool||{},dist:dist||{},leave:leave||{}};
+  D={kpi:kpi||{},calls:calls||{},chat:chat||{},pool:pool||{},dist:dist||{},leave:leave||{},tiers:(tiers&&tiers.tiers)||{},adminPerf:aperf||{}};
   D.leads=(leads&&leads.active)||[];D.archived=(leads&&leads.archived)||[];
   D.src=srcAgg(D.leads);D.todo=todoAgg(D.leads);
 }
@@ -271,17 +272,19 @@ function viewDashboard(){
 
 /* ===== ADMIN OVERVIEW ===== */
 function viewAdminOverview(){
-  const admins=(D.chat.admins||[]).filter(Boolean);
+  const admins=((D.adminPerf&&D.adminPerf.admins)||[]).filter(Boolean);
   let h=filterBar();
-  if(!admins.length)return h+`<div class="empty">ยังไม่ได้ตั้งค่าทีมแอดมิน (ตอบแชท) หรือยังไม่มีข้อมูลในช่วง ${rlab()}<br><span style="font-size:12px">เพิ่มรายชื่อแอดมิน (ไลลา/ณชา/ยูกิ/พี่โม) ที่ตัวแปร CHAT_USERS บน Railway</span></div>`;
-  const aC=admins.reduce((s,a)=>s+(a.chats||0),0),aR=admins.reduce((s,a)=>s+(a.replies||0),0),aCl=admins.reduce((s,a)=>s+(a.closed||0),0);
-  h+=`<div style="${grid(160)};margin-bottom:22px">${statTile(fmt(admins.length),"จำนวนแอดมิน")}${statTile(fmt(aC),"แชทที่ดูแล","var(--brand)")}${statTile(fmt(aR),"ข้อความตอบ")}${statTile(fmt(aCl),"ปิดแชท","var(--ok)")}</div>
+  if(!admins.length)return h+`<div class="empty">ยังไม่มีข้อมูลแอดมินในช่วง ${rlab()}<br><span style="font-size:12px">ตั้งรายชื่อแอดมินที่ CHAT_USERS · เชื่อม Pancake แชท + PANCAKE_API_KEY บน Railway</span></div>`;
+  const tChat=admins.reduce((s,a)=>s+(a.chats||0),0),tClose=admins.reduce((s,a)=>s+(a.closes||0),0),tRev=admins.reduce((s,a)=>s+(a.revenue||0),0);
+  const D2=v=>{const t=Date.parse(v);if(isNaN(t))return"";const d=new Date(t+7*3600000),p=n=>String(n).padStart(2,"0");return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+String((d.getUTCFullYear()+543)).slice(-2);};
+  h+=`<div style="${grid(160)};margin-bottom:22px">${statTile(fmt(admins.length),"จำนวนแอดมิน")}${statTile(fmt(tChat),"แชทที่ตอบ","var(--brand)")}${statTile(fmt(tClose),"ปิดการขาย","var(--ok)")}${statTile(fmtB(tRev),"ยอดขายรวม","var(--ok)")}</div>
   <div class="secttl">👥 ผลงานรายคน · ${rlab()}<span class="ln"></span></div>
-  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>แอดมิน</th><th class="r">จำนวนแชท</th><th class="r">ข้อความตอบ</th><th class="r">ตอบเฉลี่ย</th><th class="r">ปิดแชท</th></tr></thead><tbody>
-    ${admins.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td class="r tnum">${fmt(a.chats)}</td><td class="r tnum">${fmt(a.replies)}</td><td class="r tnum">${a.avgRespSec!=null?a.avgRespSec+" วิ":"—"}</td><td class="r tnum win">${fmt(a.closed)}</td></tr>`).join("")}
-  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted);line-height:1.7"><b>จำนวนแชท</b> = แชทที่แอดมินดูแลในช่วงที่เลือก · <b>ปิดแชท</b> = แชทที่ปิดจ๊อบแล้ว · <b>ยอดขายรายแอดมิน (Pancake)</b> จะเพิ่มในด่านถัดไปเมื่อเชื่อม API</div></div>`;
+  <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>แอดมิน</th><th class="r">จำนวนแชทที่ตอบ</th><th class="r">ปิดการขาย (Pancake)</th></tr></thead><tbody>
+    ${admins.map((a,i)=>{const ords=a.orders||[];return `<tr><td><b>${esc(a.name)}</b></td><td class="r tnum">${fmt(a.chats)}</td><td class="r"><b class="win tnum" style="font-size:15px">${fmt(a.closes)}</b> ${ords.length?`<span onclick="tglAO(${i})" style="cursor:pointer;color:var(--brand)">▾</span>`:""}<div style="font-size:11px;color:var(--ok);font-weight:700">${fmtB(a.revenue)}</div></td></tr>`+(ords.length?`<tr id="ao${i}" style="display:none"><td colspan="3" style="background:var(--surface-2);padding:0"><div style="padding:10px 14px"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">📋 ออเดอร์ที่ ${esc(a.name)} ปิดการขาย (แสดง ${ords.length} จาก ${fmt(a.closes)})</div><div style="max-height:340px;overflow:auto"><table class="tbl" style="font-size:12px"><thead><tr><th>ออเดอร์</th><th>สินค้า</th><th class="r">จำนวน</th><th class="r">ยอด</th><th class="r">วันที่</th></tr></thead><tbody>${ords.map(o=>`<tr><td class="mono" style="color:var(--brand);font-weight:700">${esc(o.code||"")}</td><td>${esc(o.product||"")}</td><td class="r tnum">${fmt(o.qty||0)}</td><td class="r tnum win">${fmtB(o.amount||0)}</td><td class="r" style="color:var(--muted)">${D2(o.at)}</td></tr>`).join("")}</tbody></table></div></div></td></tr>`:"");}).join("")}
+  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted);line-height:1.7"><b>จำนวนแชทที่ตอบ</b> = แชทที่แอดมินเป็นคนตอบล่าสุด (นับจาก Pancake ในช่วงที่เลือก) · <b>ปิดการขาย</b> = ออเดอร์ที่ปิดจากแชท FB ใน Pancake (ยอดจริง)</div></div>`;
   return h;
 }
+window.tglAO=function(i){const el=document.getElementById("ao"+i);if(el)el.style.display=el.style.display==="none"?"":"none";};
 
 /* ===== TELESALES OVERVIEW (pipeline + target) ===== */
 function viewTelOverview(){
@@ -290,6 +293,16 @@ function viewTelOverview(){
   const wEvo=W.calledEvoToday||0,kEvo=K.calledEvoToday||0,wMan=W.calledManualToday||0,kMan=K.calledManualToday||0;
   const stK=[["new","ใหม่"],["contacting","กำลังติดต่อ"],["interested","สนใจ"],["followup","นัดติดตาม"],["awaiting_payment","รอชำระเงิน"],["won","ปิดสำเร็จ"],["lost","ไม่สนใจ"]];
   let h=filterBar();
+  const TW=(D.tiers&&D.tiers.W)||{},TK=(D.tiers&&D.tiers.K)||{};
+  const fw=TW.fbpage||{},fk=TK.fbpage||{},mEvoW=W.calledEvoToday||0,mEvoK=K.calledEvoToday||0;
+  const trow=(ic,lab,sub,wv,kv)=>`<tr><td>${ic} <b>${lab}</b> <span style="color:var(--muted);font-size:11px">${sub}</span></td><td class="r tnum">${fmt(wv)}</td><td class="r tnum">${fmt(kv)}</td><td class="r tnum"><b>${fmt(wv+kv)}</b></td></tr>`;
+  h+=`<div class="secttl">📊 KPI การติดตาม — Marketplace &amp; FB (T1/T2/T3) · วันนี้<span class="ln"></span></div>
+  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th class="r">พี่หวาน (W)</th><th class="r">พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
+    ${trow("📦","Marketplace","โทรแล้ว (ราย)",mEvoW,mEvoK)}
+    ${trow("💬","T1","คุย FB จริง (ไม่ซ้ำคน)",fw.T1d||0,fk.T1d||0)}
+    ${trow("💬","T2","ตามรอบ 2",fw.T2d||0,fk.T2d||0)}
+    ${trow("💬","T3","ตามรอบ 3",fw.T3d||0,fk.T3d||0)}
+  </tbody></table></div>`;
   h+=`<div class="secttl">📞 การโทร — เทียบเป้าที่ระบบแจก/คน/วัน<span class="ln"></span></div>
   <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>ช่องทาง</th><th class="r">เป้า/คน</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th>รวมทีม</th></tr></thead><tbody>
     <tr><td><b>📦 Marketplace</b><div style="font-size:11px;color:var(--muted)">รายชื่อจากเว็บ</div></td><td class="r tnum">${tEvo}</td>${cell(wEvo+"/"+tEvo,pc(wEvo,tEvo))}${cell(kEvo+"/"+tEvo,pc(kEvo,tEvo))}${cell((wEvo+kEvo)+"/"+(tEvo*2),pc(wEvo+kEvo,tEvo*2))}</tr>
@@ -408,14 +421,14 @@ function viewStock(){
     <tr style="background:var(--surface-2)"><td><b>แยกตามเซลล์</b></td><td class="r" colspan="2">พี่หวาน (W): <b>${fmt(dist.distributed.W)}</b> · พี่เขม (K): <b>${fmt(dist.distributed.K)}</b></td><td class="r tnum"><b>${fmt(dist.distributed.total)}</b></td></tr>
   </tbody></table></div>`;}
   h+=`<div class="secttl">🌴 วันลา / วันหยุด — ทีมเซลล์ · เดือน ${esc(lv.month||"")}<span class="ln"></span></div>
-  <div class="card" style="padding:16px 18px;margin-bottom:14px">${sales.map(p=>{const off=!!dof[p.who];return `<div class="dor"><div class="av ${p.who}">${p.who}</div><div><div style="font-weight:800;font-size:14.5px">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ลาเดือนนี้ ${fmt(p.monthCount)} วัน ${off?"· <b style='color:var(--warn)'>วันนี้ลา</b>":""}</div></div><div style="margin-left:auto"><button class="btn ${off?"g":"p"}" onclick="setOff('${p.who}',${off?"false":"true"})">${off?"ยกเลิกวันลา":"ลาวันนี้"}</button></div></div>`;}).join("")}</div>
+  <div class="card" style="padding:16px 18px;margin-bottom:14px">${sales.map(p=>{const off=!!dof[p.who];return `<div class="dor"><div class="av ${p.who}">${p.who}</div><div><div style="font-weight:800;font-size:14.5px">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted);margin-top:2px">ลาเดือนนี้ ${fmt(p.monthCount)} วัน ${off?"· <b style='color:var(--warn)'>วันนี้ลา</b>":""}</div></div><div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${off?`<button class="btn g" onclick="setOff('${p.who}',false)">ยกเลิก</button>`:`<button class="btn p" onclick="setOff('${p.who}',true,'leave')">ลาวันนี้</button><button class="btn" style="background:var(--surface-2);color:var(--ink);border:1px solid var(--line)" onclick="setOff('${p.who}',true,'holiday')">วันหยุด</button>`}</div></div>`;}).join("")}</div>
   <div class="note">เมื่อเซลล์ลา ระบบจะย้ายลูกค้าในมือไปให้อีกคนอัตโนมัติ และคืนกลับเมื่อยกเลิกวันลา · ต้องมีเซลล์ทำงานอย่างน้อย 1 คนเสมอ</div>`;
   if(admins.length)h+=`<div class="secttl" style="margin-top:22px">🌴 วันลา — ทีมแอดมิน<span class="ln"></span></div><div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>แอดมิน</th><th class="r">ลาเดือนนี้</th><th>วันนี้</th></tr></thead><tbody>${admins.map(p=>`<tr><td><b>${esc(p.name)}</b></td><td class="r tnum">${fmt(p.monthCount)} วัน</td><td>${p.onToday?'<span class="pill st-lost">ลา</span>':'<span class="pill st-won">ทำงาน</span>'}</td></tr>`).join("")}</tbody></table></div>`;
   return h;
 }
 window.setD=function(k,v){if(k==="source")dSource=v;if(k==="mode")dMode=v;if(k==="side")dSide=v;paint();};
 window.doDist=async function(){const pool=(D.pool.pool)||{total:0};if(!pool.total){toast("ยังไม่มีรายชื่อในคลัง");return;}const count=Number($("#dCount").value||0)||undefined;$("#dBtn").disabled=true;$("#dMsg").textContent="กำลังแจก…";const j=await postJSON("/api/distribute",{source:dSource,mode:dMode,side:dSide,count});if(j&&j.ok){toast(`แจกแล้ว ${j.summary.distributed} ราย (W:${j.summary.toW} · K:${j.summary.toK})`);await load();paint();}else{$("#dBtn").disabled=false;$("#dMsg").textContent=(j&&j.message)||"แจกไม่สำเร็จ";}};
-window.setOff=async function(side,on){const j=await postJSON("/api/admin/dayoff",{side,off:on,type:"leave"});if(j&&j.ok){toast(on?`บันทึกวันลา ${side} แล้ว (ย้าย ${j.moved} ราย)`:`ยกเลิกวันลา ${side} แล้ว`);await load();paint();}else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");};
+window.setOff=async function(side,on,type){type=type||"leave";const lab=type==="holiday"?"วันหยุด":"วันลา";const j=await postJSON("/api/admin/dayoff",{side,off:on,type});if(j&&j.ok){toast(on?`บันทึก${lab} ${side} แล้ว (ย้าย ${j.moved} ราย)`:`ยกเลิก ${side} แล้ว`);await load();paint();}else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");};
 
 /* ===== REPORTS ===== */
 function viewReports(){
