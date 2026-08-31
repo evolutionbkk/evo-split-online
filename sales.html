@@ -281,30 +281,30 @@ function renderList(){
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
   const base=pool.filter(r=>passFilter(r,FILTER)&&ms(r)).sort(urgCmp);
-  if(FILTER==="followup"){
-    // ฟิลเตอร์ตามวันนัดหมาย — เรียงจากใกล้ที่สุด เห็นชัดว่าวันไหนมีนัดอะไร
-    const chip=k=>{const s=APPTF;APPTF=k;const c=base.filter(apptInRange).length;APPTF=s;return c;};
+  // แถบกรอง "วันนัด" — ตัวกรองพิเศษเสริม ใช้ร่วมกับแท็บรอบ (นับจากชุด poolForCount)
+  const apptRow=poolForCount=>{const chip=k=>{const s=APPTF;APPTF=k;const c=poolForCount.filter(apptInRange).length;APPTF=s;return c;};
     const cs=[["all","ทั้งหมด"],["overdue","⏰ เลยกำหนด"],["today","วันนี้"],["tomorrow","พรุ่งนี้"],["week","7 วัน"]];
-    let list=base.filter(apptInRange).slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));
-    let html=`<div class="fbar" style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--muted);align-self:center;margin-right:2px;font-weight:700">📅 วันนัด:</span>${cs.map(([k,l])=>`<button class="chip ${APPTF===k?"on":""}" onclick="setApptF('${k}')">${l} <b class="tnum">${chip(k)}</b></button>`).join("")}</div>`;
-    const p=pageSlice(list);
-    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">ไม่มีนัดในช่วงที่เลือก</div>`;
-    box.innerHTML=html;return;
-  }
+    return `<div class="fbar" style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--muted);align-self:center;margin-right:2px;font-weight:700">📅 วันนัด:</span>${cs.map(([k,l])=>`<button class="chip ${APPTF===k?"on":""}" onclick="setApptF('${k}')">${l} <b class="tnum">${chip(k)}</b></button>`).join("")}</div>`;};
+  const applyAppt=arr=>{let x=arr.filter(apptInRange);if(APPTF!=="all")x=x.slice().sort((a,b)=>(Date.parse(a.nextAppt||"")||9e15)-(Date.parse(b.nextAppt||"")||9e15));return x;};
   if(isFB){
     // แท็บรอบ T1/T2/T3 — เลือกกรองเพื่อไม่ต้องเลื่อนยาว
     const cnt=t=>base.filter(r=>(r.step||"")===t).length;
     const tabs=[["all","ทั้งหมด "+base.length],["T1","T1 "+cnt("T1")],["T2","T2 "+cnt("T2")],["T3","T3 "+cnt("T3")]];
     let html=`<div class="fbar" style="margin-bottom:10px">${tabs.map(([k,l])=>`<button class="chip ${PROUND===k?"on":""}" onclick="setPRound('${k}')">${l}</button>`).join("")}</div>`;
-    const list=PROUND==="all"?base:base.filter(r=>(r.step||"")===PROUND);
+    const roundBase=PROUND==="all"?base:base.filter(r=>(r.step||"")===PROUND);
+    html+=apptRow(roundBase);
+    const list=applyAppt(roundBase);
     if(PROUND!=="all"){const t=PROUND,doneT=pool.filter(r=>(r.step||"")===t&&calledToday(r)).length;
       html+=`<div class="tg-head ${t}" style="border-radius:12px;margin-bottom:10px"><div><div class="tg-name">รอบ ${t} · ${ROUND_NAME[t]}</div><div class="tg-goal">🎯 ${ROUND_GOAL[t]}</div></div><div class="tg-prog">โทรแล้ว ${Math.min(doneT,FB_TG[t])}/${FB_TG[t]}</div></div>`;}
     const p=pageSlice(list);
-    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">— ไม่มีรายชื่อในกลุ่มนี้ —</div>`;
+    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">${APPTF==="all"?"— ไม่มีรายชื่อในกลุ่มนี้ —":"ไม่มีนัดในช่วงที่เลือก"}</div>`;
     box.innerHTML=html;
   }else{
-    const p=pageSlice(base);
-    box.innerHTML=base.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">ไม่มีรายชื่อในกลุ่มนี้</div>`;
+    let html=apptRow(base);
+    const list=applyAppt(base);
+    const p=pageSlice(list);
+    html+=list.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">${APPTF==="all"?"ไม่มีรายชื่อในกลุ่มนี้":"ไม่มีนัดในช่วงที่เลือก"}</div>`;
+    box.innerHTML=html;
   }
 }
 window.setPRound=function(k){PROUND=k;LPAGE=1;renderList();};
