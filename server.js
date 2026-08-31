@@ -433,7 +433,7 @@ function leadView(r, ocMap) {
     reachStatus: r.reachStatus || '', line: r.line || '', nextAppt: r.nextAppt || '', note: r.note || '', address: r.address || '',
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
-    source: r.source || 'evolution', step: r.step || '', product: r.product || '',
+    source: r.source || 'evolution', step: r.step || '', stepManual: !!r.stepManual, product: r.product || '',
     orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
@@ -518,10 +518,11 @@ function dailyReset() {
 //   T1 = 0..N1 days  (รายใหม่จากแอดมิน — โทรครั้งแรก/ยืนยันออเดอร์)
 //   T2 = N1+1..N2 days (ติดตามหลังรับของ)
 //   T3 = > N2 days     (ตามซื้อซ้ำ)
-const TSTAGE_T1_MAX = Number(process.env.TSTAGE_T1_MAX) || 6;   // days
-const TSTAGE_T2_MAX = Number(process.env.TSTAGE_T2_MAX) || 24;  // days
+const TSTAGE_T1_MAX = Number(process.env.TSTAGE_T1_MAX) || 4;   // days · T1 = 0–4 วัน
+const TSTAGE_T2_MAX = Number(process.env.TSTAGE_T2_MAX) || 9;   // days · T2 = 5–9 วัน · T3 = 10 วันขึ้นไป
 function autoTStage(rec) {
   if (!rec || rec.archived) return false;
+  if (rec.stepManual) return false;            // เซลล์กดเลื่อนรอบเอง → เคารพค่าที่กด ไม่เขียนทับด้วย auto
   const src = rec.source || 'evolution';
   if (src !== 'pancake' && src !== 'manual' && src !== 'refill') return false; // FB only
   const base = rec.lastOrderAt || rec.receivedAt;
@@ -725,10 +726,12 @@ app.post('/api/lead/tstage', requireCrm, async (req, res) => {
   if (![1, 2, 3].includes(stage)) return res.status(400).json({ error: 'bad_stage' });
   const by = whoami(req); const now = new Date().toISOString();
   rec.followStage = stage;
+  rec.step = 'T' + stage;        // เซลล์กดเลื่อนรอบ → ใช้เป็นรอบที่แสดงในหน้าเซลล์เลย
+  rec.stepManual = true;         // ล็อกว่าเป็นค่าที่คนกด — auto (อายุออเดอร์) จะไม่เขียนทับ
   rec.t2At = stage >= 2 ? (rec.t2At || now) : null;
   rec.t3At = stage >= 3 ? (rec.t3At || now) : null;
   rec.updatedAt = now; rec.updatedBy = by;
-  pushHist(rec, 'tstage', 'T' + stage, by);
+  pushHist(rec, 'tstage', 'T' + stage + ' (เซลล์กดเอง)', by);
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec) });
 });
