@@ -402,7 +402,38 @@ window.drillKpi=async function(cat,side){
   }catch(e){setBody('<div class="empty" style="padding:24px">โหลดข้อมูลไม่สำเร็จ</div>');}
 };
 
-/* ===== TEL CALL TODAY ===== */
+/* ===== TEL CALL TODAY — เบอร์ที่โทรจริงวันนี้ (จาก OneCall) ===== */
+let CLSIDE="all";  // ฟิลเตอร์ฝั่งของตารางสายที่โทรวันนี้
+window.setClSide=function(s){CLSIDE=s;renderCallLogToday();};
+function callLogRows(){
+  const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
+  const rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return (x.side==="W"||x.side==="K")&&t>=tS&&t<tE;});
+  rows.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  return rows;
+}
+function renderCallLogToday(){
+  const box=document.getElementById("callLogToday");if(!box)return;
+  const all=callLogRows();
+  const W=all.filter(x=>x.side==="W"),K=all.filter(x=>x.side==="K");
+  const talk=x=>((x.durationSec||0)>7);
+  const list=CLSIDE==="W"?W:(CLSIDE==="K"?K:all);
+  const chIcon=c=>c==="Marketplace"?"📦 Marketplace":(c==="FB"?"💬 Facebook":"❓ เบอร์อื่น");
+  const hhmm=iso=>{const TZ=7*3600000,d=new Date(Date.parse(iso)+TZ);const p=x=>String(x).padStart(2,"0");return p(d.getUTCHours())+":"+p(d.getUTCMinutes());};
+  const chips=[["all","ทั้งหมด "+all.length],["W","พี่หวาน "+W.length],["K","พี่เขม "+K.length]];
+  const body=list.length?list.map(x=>`<tr><td class="tnum" style="color:var(--muted)">${hhmm(x.at)}</td><td><span class="sideb ${x.side.toLowerCase()}">${x.side}</span></td><td class="mono">${esc(x.phone||"")}</td><td>${esc(x.matchedName||"—")}</td><td style="font-size:12px">${chIcon(x.classify)}</td><td class="tnum">${x.durationSec||0} วิ</td><td>${talk(x)?'<span style="color:#16a34a;font-weight:700">✓ ได้คุย</span>':'<span style="color:var(--muted)">สั้น</span>'}</td></tr>`).join(""):`<tr><td colspan="7" style="padding:16px;color:var(--muted)">ยังไม่มีสายที่โทรวันนี้ในฝั่งนี้</td></tr>`;
+  box.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:var(--muted)">
+      <span>📞 รวม <b style="color:var(--ink)">${all.length}</b> สาย</span>
+      <span>· พี่หวาน <b style="color:var(--ink)">${W.length}</b> (ได้คุย ${W.filter(talk).length})</span>
+      <span>· พี่เขม <b style="color:var(--ink)">${K.length}</b> (ได้คุย ${K.filter(talk).length})</span></div>
+    <div class="fbar2" style="margin-bottom:10px">${chips.map(([k,l])=>`<button class="chip ${CLSIDE===k?"on":""}" onclick="setClSide('${k}')">${l}</button>`).join("")}</div>
+    <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>เวลา</th><th>ฝั่ง</th><th>เบอร์โทร</th><th>ลูกค้า</th><th>ช่องทาง</th><th>คุยนาน</th><th>ผล</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+window.renderCallLogToday=renderCallLogToday;
+window.loadCallLogToday=async function(){
+  const box=document.getElementById("callLogToday");if(!box)return;
+  if(!window.__recon){box.innerHTML='<div class="empty" style="padding:18px">กำลังโหลดสายที่โทรวันนี้…</div>';window.__recon=await getJSON("/api/admin/onecall-recon");}
+  renderCallLogToday();
+};
 function ticketRow(r){const side=r.sales==="K"?"K":"W";
   return `<tr onclick="openTicket('${esc(r.key)}')"><td class="mono" style="color:var(--brand);font-weight:800">${esc(r.ticketId||r.code||"—")}<div style="font-size:10.5px;color:var(--muted);font-weight:600">${esc(r.code||"")}</div></td><td><b>${esc(r.name||"(ไม่มีชื่อ)")}</b></td><td>${esc(chName(r.source))}</td><td>${r.step?`<span class="rd">${esc(r.step)}</span>`:'<span style="color:var(--muted)">—</span>'}</td><td>${stPill(r.leadStatus,saleRev(r)?" · "+fmtB(saleRev(r)):"")}</td><td><span class="sideb ${side.toLowerCase()}">${side}</span> ${ownerLabel(side)}</td></tr>`;}
 function viewTelCallToday(){
@@ -411,10 +442,13 @@ function viewTelCallToday(){
   const notCalled=D.leads.filter(r=>(r.callCount||0)===0&&(r.leadStatus||"new")==="new").length;
   let h=filterBar();
   h+=`<div style="${grid(150)};margin-bottom:20px">${statTile(fmt(s("total")),"รายชื่อทั้งหมด")}${statTile(fmt(notCalled),"ยังไม่ได้โทร","var(--brand)")}${statTile(fmt(s("callsToday")),"โทรวันนี้")}${statTile(fmt(s("talk7Today")),"ได้คุย (>7วิ)","var(--ok)")}${statTile(fmt(s("wonToday")),"ปิดได้วันนี้","var(--ok)")}</div>
-  <div class="secttl">รายชื่อที่ต้องโทร (ยังไม่ปิด/ไม่ตัดออก)<span class="ln"></span></div>
+  <div class="secttl">📞 เบอร์ที่โทรวันนี้ (จริงจากระบบโทร OneCall) <span style="font-size:11px;color:var(--muted);font-weight:400">· รวมสายที่ปิดงาน/ยกเลิกไปแล้วด้วย</span><span class="ln"></span></div>
+  <div id="callLogToday"><div class="empty" style="padding:18px">กำลังโหลดสายที่โทรวันนี้…</div></div>
+  <div class="secttl" style="margin-top:22px">รายชื่อที่ต้องโทร (ยังไม่ปิด/ไม่ตัดออก)<span class="ln"></span></div>
   <div class="card" style="overflow:auto"><table class="tbl click"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ช่องทาง</th><th>รอบ</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>
     ${list.length?list.slice(0,200).map(ticketRow).join(""):'<tr><td colspan="6" style="color:var(--muted)">ไม่มีรายการ</td></tr>'}
   </tbody></table>${list.length>200?`<div style="padding:11px 15px;font-size:12px;color:var(--muted)">แสดง 200 จาก ${fmt(list.length)} ราย</div>`:""}</div>`;
+  setTimeout(()=>{if(window.loadCallLogToday)window.loadCallLogToday();},30);
   return h;
 }
 
