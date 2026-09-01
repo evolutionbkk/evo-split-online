@@ -213,7 +213,8 @@ function applyManual(state, rows, opts) {
     date = (opts.label && String(opts.label).trim()) ? String(opts.label).trim() : todayTH();
     for (const p of parsed) {
       let side = p.side || nextSide(state.assigned, opts.off);
-      const redir = offRedirect(opts.off, side); if (redir) side = redir; // on-leave side → other
+      // ฐาน Excel: อยู่กับเซลล์ที่กำหนดเสมอ ไม่ redirect เพราะวันลา · อื่น ๆ redirect ตามปกติ
+      if (!opts.fromExcel) { const redir = offRedirect(opts.off, side); if (redir) side = redir; }
       const nowIso = new Date().toISOString();
       state.assigned.push({
         code: p.code, name: p.name, phone: p.phone,

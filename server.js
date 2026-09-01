@@ -588,6 +588,7 @@ function maybeReturnPool(rec) {
 // Auto rule: after 3 calls without closing (won) and not an active follow-up.
 function maybeRecycle(rec) {
   if (rec.archived) return null;
+  if (rec.fromExcel) return null;   // ฐานลูกค้าเดิมจาก Excel = ของเซลล์คนนั้น ห้ามโอนสลับฝั่งอัตโนมัติ
   const st = recStatus(rec);
   if (st === 'won') return null;       // closed the sale — stop
   if (st === 'followup') return null;  // has a scheduled follow-up — hold (stale sweep covers overdue ones)
@@ -609,6 +610,7 @@ async function runSweep() {
     const st = recStatus(rec);
     if (st === 'won') continue;
     if (st === 'followup' && rec.nextAppt) { const t = Date.parse(rec.nextAppt); if (!isNaN(t) && t > now) continue; }
+    if (rec.fromExcel) continue;   // ฐาน Excel ไม่ auto-handoff สลับฝั่ง
     const la = lastActivityMs(rec); if (la == null) continue;
     if (now - la > STALE_DAYS * 86400000) { advanceStage(rec); changed = true; }
   }
@@ -743,6 +745,26 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   res.json({ ok: true, lead: leadView(rec), advanced: null, replaced });
 });
 
+// แก้ครั้งเดียว: คืนฝั่งให้รายชื่อ Excel ที่โดน auto-handoff โอนผิด → กลับไปฝั่งที่กำหนดในไฟล์นำเข้า
+app.post('/api/admin/fix-excel-sides', requireAuth, async (req, res) => {
+  let imp; try { imp = JSON.parse(fs.readFileSync(path.join(__dirname, 't2t3_import.json'), 'utf8')); }
+  catch (e) { return res.status(500).json({ error: 'no_file' }); }
+  const wantByPhone = new Map();
+  for (const r of imp) { const p = normPhoneTH(r.phone); if (p) wantByPhone.set(p, r.side === 'K' ? 'K' : 'W'); }
+  let fixed = 0; const changes = [];
+  for (const rec of state.assigned) {
+    if (!rec.fromExcel) continue;
+    const p = normPhoneTH(rec.phone); const want = wantByPhone.get(p);
+    if (!want || rec.sales === want) continue;
+    const from = rec.sales; rec.sales = want; rec.stage = 0; rec.handoffs = [];
+    rec.updatedAt = new Date().toISOString();
+    pushHist(rec, 'transfer', want, 'ระบบ · คืนฝั่งตามไฟล์ Excel');
+    if (changes.length < 60) changes.push({ phone: rec.phone, name: rec.name, from, to: want });
+    fixed++;
+  }
+  if (fixed) { state = await store.save(state); }
+  res.json({ ok: true, fixed, changes });
+});
 app.post('/api/lead/archive', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });

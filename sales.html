@@ -242,8 +242,9 @@ function leadCard(r){
       ${r.prevSales?`<div class="lc-urg" style="color:#0369a1">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม":"พี่หวาน"} · กลับมาซื้อซ้ำ</div>`:""}
       ${(r.product||r.page)?`<div class="lc-urg u-mut">📦 ${esc(r.product||"—")}${r.page?` · เพจ: ${esc(r.page)}`:""}</div>`:""}
       ${(()=>{const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";})()}
+      ${r.nextAppt?`<div class="lc-urg" style="color:#7c3aed;font-weight:700">📅 นัดวันที่ ${esc(fmtShort(r.nextAppt))}</div>`:""}
       ${urgLine(r)}
-      ${r.note?`<div style="color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12px;line-height:1.5;white-space:normal;text-align:left">📝 ${esc(r.note.length>110?r.note.slice(0,110)+"…":r.note)}</div>`:""}</div>
+      ${r.note?`<div style="color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12px;line-height:1.5;white-space:normal;text-align:left">📝 โน้ตล่าสุด: ${esc(r.note.length>110?r.note.slice(0,110)+"…":r.note)}</div>`:""}</div>
     <div class="lc-right">${statusPill(r)}${amt?`<span class="lc-amt tnum">${amt}</span>`:""}</div></button>`;
 }
 function passFilter(r,f){const st=r.leadStatus||"new";
