@@ -875,7 +875,8 @@ function followupTiers() {
   for (const sd of ['W', 'K']) {
     const f = out[sd].fbpage;
     f.T1 = t1Month[sd].size; f.T1d = t1Today[sd].size;
-    f.T1recv = t1RecvN[sd]; f.T1done = t1DoneN[sd];
+    f.T1recv = t1RecvN[sd];
+    f.T1done = cToday[sd].T1.size;   // โทรหาลูกค้า T1 จริงวันนี้ (ทั้งออเดอร์ใหม่ + ตามเดิม รวมที่ปิดงาน)
     f.T2d = cToday[sd].T2.size; f.T3d = cToday[sd].T3.size;
   }
   return out;

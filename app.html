@@ -335,7 +335,7 @@ function viewTelOverview(){
   h+=`<div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
     ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,wEvo,kEvo,COL.mk,'mk')}
-    ${(()=>{const wr=fw.T1recv||0,kr=fk.T1recv||0,wd=fw.T1done||0,kd=fk.T1done||0;return `<tr><td><b style="color:${COL.t1}">💬 T1 · ออเดอร์ใหม่วันนี้</b><div style="font-size:11px;color:var(--muted)">แอดมินปิดวันนี้ · แจกคนละครึ่ง · (โทรแล้ว / ที่ได้รับ)</div></td>${cC(wd,wr,COL.t1,'t1','W')}${cC(kd,kr,COL.t1,'t1','K')}<td class="r tnum"><b style="font-size:15px">${fmt(wd+kd)}<span style="color:var(--muted);font-weight:500;font-size:12px">/${fmt(wr+kr)}</span></b></td></tr>`;})()}
+    ${(()=>{const wd=fw.T1done||0,kd=fk.T1done||0,wr=(fw.T1recv||0)||(TG.t1||5),kr=(fk.T1recv||0)||(TG.t1||5);return `<tr><td><b style="color:${COL.t1}">💬 T1 · โทรวันนี้</b><div style="font-size:11px;color:var(--muted)">โทรลูกค้ารอบ T1 วันนี้ (ออเดอร์ใหม่ + ตามเดิม) · เป้า/ที่ได้รับ</div></td>${cC(wd,wr,COL.t1,'t1','W')}${cC(kd,kr,COL.t1,'t1','K')}<td class="r tnum"><b style="font-size:15px">${fmt(wd+kd)}</b></td></tr>`;})()}
     ${row("💬","T2 · ตามรอบ 2","",TG.t2||5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
     ${row("💬","T3 · ตามรอบ 3","",TG.t3||20,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
     ${revRow}
