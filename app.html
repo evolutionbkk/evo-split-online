@@ -180,13 +180,14 @@ const NAV=[
   {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
   {k:"appts",ic:"📅",t:"นัดหมาย (ปฏิทิน)"},
   {k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)"},
+  {k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ"},
   {k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)"},
   {k:"stock",ic:"📥",t:"คลังรายชื่อ & แจก"},
   {k:"reports",ic:"📄",t:"รายงาน"},
   {k:"staff",ic:"🧑‍💼",t:"พนักงาน"},
   {k:"settings",ic:"⚙️",t:"ตั้งค่า"},
 ];
-const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",archive:"จัดเก็บ (ปิดงาน)",trash:"ถังขยะ (ลบ)",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
+const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",archive:"จัดเก็บ (ปิดงาน)",stopped:"ยกเลิกการติดต่อ",trash:"ถังขยะ (ลบ)",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
 function renderNav(){
   $("#side").innerHTML=`<div class="brand">EVO E-COMMERCE<small>${esc((ME&&ME.name)||"หัวหน้าทีม")} · Console</small></div>`+
     NAV.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`
@@ -495,19 +496,20 @@ window.openTicket=function(key){CURKEY=key;PREV=(VIEW==="ticket"?PREV:VIEW);VIEW
 
 const HLAB={call:"โทรหาลูกค้า",status:"เปลี่ยนสถานะ",result:"ผลการโทร",interest:"ระดับความสนใจ",action:"ตั้ง Next Action",lost:"เหตุผลที่ไม่สนใจ",followup:"ตั้งนัดติดตาม",note:"บันทึกโน้ต",name:"แก้ชื่อ",phone:"แก้เบอร์โทร",address:"แก้ที่อยู่",calls:"ปรับจำนวนสาย",sale:"บันทึกรายการขาย",tracking:"เลขพัสดุ",tstage:"ปรับรอบติดตาม",distribute:"แจกให้เซลล์",dayoff_move:"ย้าย(วันลา)",dayoff_return:"คืน(ยกเลิกลา)",transfer:"โอนให้อีกฝั่ง",archive:"เก็บเข้าคลัง",delete:"ลบเข้าถังขยะ",close:"ปิดงาน/จัดเก็บ",restore:"กู้คืน",aisum:"AI สรุปสาย"};
 /* ===== TRASH / ARCHIVE (ประวัติการลบ + กู้คืน — หัวหน้าทีมเห็นทั้งหมด) ===== */
-function reasonLabel(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออกถาวร (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"เลิกติดตาม"};return m[r.archiveReason||""]||("เก็บเข้าคลัง"+(r.archiveReason?(" · "+r.archiveReason):""));}
+function reasonLabel(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออกถาวร (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"🚫 ยกเลิกการติดต่อ"};return m[r.archiveReason||""]||("เก็บเข้าคลัง"+(r.archiveReason?(" · "+r.archiveReason):""));}
 function trBinOf(r){const rs=r.archiveReason||"";return rs==="deleted"?"deleted":(rs==="closed"?"closed":"other");}
 function whoArchived(r){const h=(r.history||[]).slice().reverse().find(e=>e.k==="delete"||e.k==="close"||e.k==="archive");return h?(h.by||""):(r.updatedBy||"");}
 function renderTrBody(){
-  const isArch=VIEW==="archive";
   const q=(TRQ||"").trim().toLowerCase();
-  // แยกโฟลเดอร์: จัดเก็บ (ปิดงาน) = closed เท่านั้น · ถังขยะ = ลบ + อื่นๆ (ไม่รวม closed)
-  const src=isArch
+  // แยกโฟลเดอร์: จัดเก็บ (ปิดงาน)=closed · ยกเลิกการติดต่อ=stopped · ถังขยะ=ลบ+อื่นๆ (ไม่รวม closed/stopped)
+  const src=VIEW==="archive"
     ? (D.archived||[]).filter(r=>trBinOf(r)==="closed")
-    : (D.archived||[]).filter(r=>trBinOf(r)!=="closed").filter(r=>(r.archiveReason||"")!=="recycled_out"||TRBIN==="other"||TRBIN==="all");
+    : VIEW==="stopped"
+    ? (D.archived||[]).filter(r=>(r.archiveReason||"")==="stopped")
+    : (D.archived||[]).filter(r=>trBinOf(r)!=="closed"&&(r.archiveReason||"")!=="stopped").filter(r=>(r.archiveReason||"")!=="recycled_out"||TRBIN==="other"||TRBIN==="all");
   const base=src.filter(r=>tkMatch(r,q));
   let list=base, chips=[];
-  if(isArch){ list=base; }
+  if(VIEW==="archive"||VIEW==="stopped"){ list=base; }
   else{
     const cnt={all:base.length,deleted:base.filter(r=>trBinOf(r)==="deleted").length,other:base.filter(r=>trBinOf(r)==="other").length};
     if(TRBIN==="closed")TRBIN="all";  // closed ย้ายไปโฟลเดอร์จัดเก็บแล้ว
@@ -533,6 +535,12 @@ function viewTrash(){
 }
 function viewArchive(){
   let h=`<div class="note" style="margin-bottom:12px">📁 ตั๋วที่ <b>ปิดงาน / จัดเก็บ</b> (ปิดการขายหรือจบงานแล้ว) — เก็บไว้อ้างอิง เห็นโน้ตตอนปิดงาน · หัวหน้าทีมเห็นทุกฝั่งและกู้คืนกลับเข้าคิวได้</div>`;
+  h+=`<div style="margin-bottom:10px"><input class="inp" placeholder="🔍 ค้นหาชื่อ / เบอร์ / รหัสตั๋ว" value="${esc(TRQ)}" oninput="trSearch(this.value)" style="width:100%;padding:9px 13px;font-size:13.5px"></div>
+  <div id="trBody">${renderTrBody()}</div>`;
+  return h;
+}
+function viewStopped(){
+  let h=`<div class="note" style="margin-bottom:12px">🚫 ตั๋วที่ <b>ยกเลิกการติดต่อ</b> — ลูกค้าที่ Telesales จะไม่ติดตามต่อแล้ว (เห็นเหตุผลที่ยกเลิก) · หัวหน้าทีมเห็นทุกฝั่งและกู้คืนกลับเข้าคิวได้</div>`;
   h+=`<div style="margin-bottom:10px"><input class="inp" placeholder="🔍 ค้นหาชื่อ / เบอร์ / รหัสตั๋ว" value="${esc(TRQ)}" oninput="trSearch(this.value)" style="width:100%;padding:9px 13px;font-size:13.5px"></div>
   <div id="trBody">${renderTrBody()}</div>`;
   return h;
@@ -791,7 +799,7 @@ window.avPick=function(k){AVDATE=(AVDATE===k?"":k);paint();};
 window.avNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);let Y=thNow.getUTCFullYear(),M=thNow.getUTCMonth()+1;if(AVYM){const a=AVYM.split("-");Y=+a[0];M=+a[1];}M+=delta;if(M<1){M=12;Y--;}if(M>12){M=1;Y++;}AVYM=Y+"-"+String(M).padStart(2,"0");paint();};
 window.avSide=function(s){AVSIDE=s;AVDATE="";paint();};
 /* render */
-const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
+const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,stopped:viewStopped,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
 function paint(){renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";const fn=VIEWS[VIEW]||viewDashboard;$("#content").innerHTML=fn();window.scrollTo(0,0);}
 async function init(){
   const me=await getJSON("/api/me");if(!me)return;ME=me;

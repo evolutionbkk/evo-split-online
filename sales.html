@@ -212,14 +212,15 @@ async function api(url,body){const r=await fetch(url,{method:"POST",headers:{"Co
 function renderNav(){
   const fbCount=ACTIVE.filter(r=>!r.archived&&leadPanel(r)==="mkt"&&isToCall(r)).length;
   const closedCount=ARCHIVED.filter(r=>r.archiveReason==="closed").length;
-  const arcCount=ARCHIVED.filter(r=>r.archiveReason!=="closed").length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
+  const stoppedCount=ARCHIVED.filter(r=>r.archiveReason==="stopped").length;
+  const arcCount=ARCHIVED.filter(r=>r.archiveReason!=="closed"&&r.archiveReason!=="stopped").length;
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
-      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="archive"&&it.k==="archive")||(VIEW==="tickets"&&it.k==="tickets"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
+      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="archive"&&it.k==="archive")||(VIEW==="stopped"&&it.k==="stopped")||(VIEW==="tickets"&&it.k==="tickets"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
 }
-function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="archive"){VIEW="archive";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else{VIEW="list";PANEL=k;FILTER="today";Q="";PROUND="all";LPAGE=1;}render();}
+function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="archive"){VIEW="archive";TQ="";}else if(k==="stopped"){VIEW="stopped";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else{VIEW="list";PANEL=k;FILTER="today";Q="";PROUND="all";LPAGE=1;}render();}
 
 function statusPill(r){const st=r.leadStatus||"new";return `<span class="pill st-${st}">${STLABEL[st]||st}</span>`;}
 function urgLine(r){
@@ -259,7 +260,7 @@ function render(){
   const c=$("#content");
   if(VIEW==="ticket"){$("#viewTitle").textContent="ตั๋วลูกค้า";renderSheet();return;}
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
-  if(VIEW==="trash"||VIEW==="archive"){$("#viewTitle").textContent=VIEW==="archive"?"จัดเก็บ (ปิดงาน)":"ถังขยะ (ลบ)";c.innerHTML=viewTrash2();return;}
+  if(VIEW==="trash"||VIEW==="archive"||VIEW==="stopped"){$("#viewTitle").textContent=VIEW==="archive"?"จัดเก็บ (ปิดงาน)":(VIEW==="stopped"?"ยกเลิกการติดต่อ":"ถังขยะ (ลบ)");c.innerHTML=viewTrash2();return;}
   if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
@@ -341,13 +342,13 @@ window.calNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);l
 function setFilter(f){FILTER=f;LPAGE=1;PROUND="all";APPTDATE="";CALYM="";render();}
 
 /* ===== ถังขยะ / กู้คืน (ของเซลล์เอง) ===== */
-function trReason(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออก (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"เลิกติดตาม"};return m[r.archiveReason||""]||"เก็บเข้าคลัง";}
-function trBucket(){return ARCHIVED.filter(r=>VIEW==="archive"?r.archiveReason==="closed":r.archiveReason!=="closed");}
+function trReason(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออก (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"🚫 ยกเลิกการติดต่อ"};return m[r.archiveReason||""]||"เก็บเข้าคลัง";}
+function trBucket(){return ARCHIVED.filter(r=>VIEW==="archive"?r.archiveReason==="closed":VIEW==="stopped"?r.archiveReason==="stopped":(r.archiveReason!=="closed"&&r.archiveReason!=="stopped"));}
 function renderTrList(){
   const q=(TQ||"").trim().toLowerCase(),dq=q.replace(/\D/g,"");
   let list=trBucket().filter(r=>!q||[r.code,r.name].some(v=>String(v||"").toLowerCase().includes(q))||(dq&&String(r.phone||"").replace(/\D/g,"").includes(dq)));
   list=list.slice().sort((a,b)=>(Date.parse(b.archivedAt||0)||0)-(Date.parse(a.archivedAt||0)||0));
-  if(!list.length)return `<div class="empty">${q?"ไม่พบรายการที่ตรงกับคำค้น":(VIEW==="archive"?"ยังไม่มีตั๋วที่ปิดงาน/จัดเก็บ":"ยังไม่มีตั๋วในถังขยะ")}</div>`;
+  if(!list.length)return `<div class="empty">${q?"ไม่พบรายการที่ตรงกับคำค้น":(VIEW==="archive"?"ยังไม่มีตั๋วที่ปิดงาน/จัดเก็บ":VIEW==="stopped"?"ยังไม่มีตั๋วที่ยกเลิกการติดต่อ":"ยังไม่มีตั๋วในถังขยะ")}</div>`;
   return `<div class="cards">`+list.map(r=>`<div class="lcard" style="border-left:4px solid #94a3b8"><div class="av" style="background:#94a3b8">${esc((r.name||"?").trim()[0]||"?")}</div>
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span></div>
       <div class="lc-sub">📞 ${esc(r.phone)} · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
@@ -358,6 +359,8 @@ function viewTrash2(){
   const n=trBucket().length;
   const head=VIEW==="archive"
     ? `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">📁 <b>ตั๋วที่ปิดงาน / จัดเก็บ</b> — ปิดการขาย/จบงานแล้ว เก็บไว้อ้างอิง · กู้คืนกลับเข้าคิวได้ · หัวหน้าทีมเห็นด้วย (${n} ราย)</div>`
+    : VIEW==="stopped"
+    ? `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">🚫 <b>ยกเลิกการติดต่อ</b> — ลูกค้าที่จะไม่ติดตามต่อแล้ว · เก็บเหตุผลไว้อ้างอิง · กู้คืนกลับเข้าคิวได้ · หัวหน้าทีมเห็นด้วย (${n} ราย)</div>`
     : `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">🗑 <b>ถังขยะ (ตั๋วที่ลบ)</b> — ลบออกจากคิว · กู้คืนได้ · หัวหน้าทีมเห็นประวัตินี้ด้วย (${n} ราย)</div>`;
   return `${head}
   <input class="search" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / รหัส" value="${esc(TQ)}" oninput="TQ=this.value;renderTrListBox()">
@@ -495,7 +498,9 @@ function renderSheet(){
           <textarea class="inp" id="closeNote" rows="2" placeholder="✍️ รายละเอียดตอนปิดงาน — จะถูกเก็บไว้ในประวัติ และเห็นในเมนูถังขยะ/จัดเก็บ">${esc(r.archiveNote||"")}</textarea>
           <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:10px">
             <button class="btn" style="flex:1;min-width:130px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);font-weight:800" onclick="archiveLead('closed')">📁 จัดเก็บ (ปิดงาน)</button>
+            <button class="btn" style="flex:1;min-width:130px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-weight:800" onclick="archiveLead('stopped')">🚫 ยกเลิกการติดต่อ</button>
             <button class="btn" style="flex:1;min-width:130px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;font-weight:800" onclick="archiveLead('deleted')">🗑 ลบเข้าถังขยะ</button></div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:6px">🚫 <b>ยกเลิกการติดต่อ</b> = ลูกค้าที่จะไม่ตามต่อแล้ว (ต้องใส่เหตุผลในช่องด้านบน) → ย้ายไปเมนู "ยกเลิกการติดต่อ"</div>
           <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:8px">ลบ/จัดเก็บแล้ว ตั๋วจะออกจากคิว แต่ยังกู้คืนได้ที่เมนู "ถังขยะ" · สายที่โทรวันนี้ยังนับใน KPI</div></div>
       </div>
       <div>
@@ -521,9 +526,11 @@ window.saveEdit=async function(){
 window.archiveLead=async function(reason){
   if(!CUR)return;
   const note=(($("#closeNote")||{}).value||"").trim();
-  const key=CUR.key,lab=reason==="deleted"?"ลบเข้าถังขยะ":"จัดเก็บ (ปิดงาน)";
+  if(reason==="stopped"&&!note){toast("กรุณาใส่เหตุผลที่ยกเลิกการติดต่อ (ช่องด้านบน)");const el=$("#closeNote");if(el)el.focus();return;}
+  const lab=reason==="deleted"?"ลบเข้าถังขยะ":(reason==="stopped"?"ยกเลิกการติดต่อ":"จัดเก็บ (ปิดงาน)");
+  const key=CUR.key;
   const j=await api("/api/lead/archive",{key,reason,note});
-  if(j&&j.ok){closeSheet();await reload();toast(lab+"แล้ว"+(note?" · บันทึกโน้ตปิดงานแล้ว":"")+" · กู้คืนได้ที่ถังขยะ");}
+  if(j&&j.ok){closeSheet();await reload();toast(lab+"แล้ว"+(note?" · บันทึกเหตุผลแล้ว":"")+" · กู้คืนได้ในเมนูที่เกี่ยวข้อง");}
   else toast((j&&j.message)||"ทำรายการไม่สำเร็จ");
 };
 const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",phone:"✏️",address:"🏠",calls:"📞",tracking:"📦",tstage:"🔄",transfer:"🔁",archive:"📁",delete:"🗑️",close:"📁",restore:"↩️",aisum:"🤖",import:"📥",distribute:"📤",recycle:"♻️",dayoff_move:"🌴",dayoff_return:"↩️",tag:"🏷️"};
