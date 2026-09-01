@@ -801,44 +801,56 @@ function followupTiers() {
     if (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill') fbSet.add(p);
   }
   for (const p of (state.fbPhones || [])) fbSet.add(normPhoneTH(p));
+  // จับคู่เบอร์ FB → รอบ (T1/T2/T3) จาก "ทุกลีด รวมที่ปิดงาน/จัดเก็บ" เพื่อจัดหมวดสายที่โทร (สายที่โทรแล้วปิดการขายก็ต้องนับ)
+  const roundOf = new Map();  // side|phone → 'T1'|'T2'|'T3'
+  for (const r of state.assigned) {
+    if (r.sales !== 'W' && r.sales !== 'K') continue;
+    const src = r.source || 'evolution';
+    if (!(src === 'pancake' || src === 'manual' || src === 'refill')) continue;
+    const p = normPhoneTH(r.phone); if (!p) continue;
+    const step = String(r.step || 'T1').toUpperCase();
+    roundOf.set(r.sales + '|' + p, ['T1', 'T2', 'T3'].includes(step) ? step : 'T1');
+  }
+  // นับ "สายที่โทรจริง" (>7วิ, ไม่ซ้ำเบอร์) แยกตามรอบ — วันนี้/เดือนนี้ — รวมตั๋วที่ปิดงานแล้ว
+  const cToday = { W: { T1: new Set(), T2: new Set(), T3: new Set() }, K: { T1: new Set(), T2: new Set(), T3: new Set() } };
   const t1Month = { W: new Set(), K: new Set() }, t1Today = { W: new Set(), K: new Set() };
   for (const c of (state.onecall || [])) {
     if ((c.dur || 0) <= ONECALL_MIN_TALK) continue;
     if (c.side !== 'W' && c.side !== 'K') continue;
-    const p = normPhoneTH(c.phone); if (!p || !fbSet.has(p)) continue;   // เฉพาะลูกค้า FB
+    const p = normPhoneTH(c.phone); if (!p) continue;
+    const step = roundOf.get(c.side + '|' + p) || (fbSet.has(p) ? 'T1' : null);
+    if (!step) continue;   // เฉพาะลูกค้า FB
     const day = S.thaiDay(c.at); if (!day) continue;
     if (day.slice(0, 7) === curMonth) t1Month[c.side].add(p);
-    if (day === today) t1Today[c.side].add(p);
+    if (day === today) { t1Today[c.side].add(p); cToday[c.side][step].add(p); }
   }
   const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, T1recv: 0, T1done: 0, leads: 0 });
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
-  // T1 วันนี้ (ตามที่ Teamlead ต้องการ) = "ออเดอร์ FB ใหม่ที่แอดมินปิดวันนี้" แจกคนละครึ่ง
-  //   T1recv = จำนวนรายชื่อ T1 ที่เข้าใหม่วันนี้ (เป้ายืดหยุ่นต่อฝั่ง) · T1done = โทรไปแล้วกี่ราย
   const t1RecvN = { W: 0, K: 0 }, t1DoneN = { W: 0, K: 0 };
-  // วันที่ "เข้าระบบครั้งแรก" (สร้างจากออเดอร์) — ใช้ประวัติรายการแรก (import/pool) ซึ่งจะไม่เปลี่ยนตอนแจกซ้ำ/โอนฝั่ง
-  // (ต่างจาก receivedAt ที่ถูกสแตมป์ใหม่ทุกครั้งที่แจก จึงพองเกินจริง)
   const firstDay = (r) => { const h = (r.history && r.history.length) ? r.history[0].at : r.receivedAt; return S.thaiDay(h); };
   for (const r of state.assigned) {
-    if (r.archived) continue;
     if (r.sales !== 'W' && r.sales !== 'K') continue;
     const src = r.source || 'evolution';
-    // แหล่งกระจายข้อมูล: FB Page = แอดมินปิดการขาย (pancake/manual/refill) · Marketplace = เว็บ Evolution
     const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
-    const o = out[r.sales][grp]; o.leads++;
-    // T1 วันนี้ = ออเดอร์ FB "ใหม่จริง" ที่แอดมินปิดวันนี้ (pancake/manual · รอบ T1 · ไม่ใช่ Excel · สร้างวันนี้)
+    const o = out[r.sales][grp]; if (!r.archived) o.leads++;
+    // T1 วันนี้ = ออเดอร์ FB ใหม่ที่แอดมินปิดวันนี้ (รวมที่โทรแล้วปิดงาน) · done = โทรแล้ววันนี้
     if ((src === 'pancake' || src === 'manual') && !r.fromExcel && String(r.step || '').toUpperCase() === 'T1' && firstDay(r) === today) {
-      t1RecvN[r.sales]++; if ((r.callCount || 0) > 0) t1DoneN[r.sales]++;
+      t1RecvN[r.sales]++; if (t1Today[r.sales].has(normPhoneTH(r.phone))) t1DoneN[r.sales]++;
     }
-    // T2/T3 = เซลล์กดเลื่อนรอบเอง (ยังผูกกับ lead ที่แจกแล้ว)
-    const fs = r.followStage || 1;
-    const t2m = r.t2At && S.thaiDay(r.t2At).slice(0, 7) === curMonth;
-    const t3m = r.t3At && S.thaiDay(r.t3At).slice(0, 7) === curMonth;
-    if (fs >= 2 && t2m) { o.T2++; if (S.thaiDay(r.t2At) === today) o.T2d++; }  // กด T2 เดือนนี้
-    if (fs >= 3 && t3m) { o.T3++; if (S.thaiDay(r.t3At) === today) o.T3d++; }  // กด T3 เดือนนี้
+    if (!r.archived) {   // จำนวนที่อยู่รอบ T2/T3 เดือนนี้ (เฉพาะที่ยังไม่ปิด)
+      const fs = r.followStage || 1;
+      if (fs >= 2 && r.t2At && S.thaiDay(r.t2At).slice(0, 7) === curMonth) o.T2++;
+      if (fs >= 3 && r.t3At && S.thaiDay(r.t3At).slice(0, 7) === curMonth) o.T3++;
+    }
   }
-  // T1 (fbpage) = ลูกค้า FB ที่คุยจริง (ไม่ซ้ำ) — เดือนนี้ / วันนี้ — จับจาก OneCall ตรง ๆ
-  for (const sd of ['W', 'K']) { out[sd].fbpage.T1 = t1Month[sd].size; out[sd].fbpage.T1d = t1Today[sd].size; out[sd].fbpage.T1recv = t1RecvN[sd]; out[sd].fbpage.T1done = t1DoneN[sd]; }
+  // แสดงผล: T1done/T2d/T3d = "สายที่โทรจริงวันนี้" แยกตามรอบ (รวมตั๋วที่ปิดงานแล้ว) → Teamlead เห็นว่าเซลล์โทรอะไรบ้างวันนี้
+  for (const sd of ['W', 'K']) {
+    const f = out[sd].fbpage;
+    f.T1 = t1Month[sd].size; f.T1d = t1Today[sd].size;
+    f.T1recv = t1RecvN[sd]; f.T1done = t1DoneN[sd];
+    f.T2d = cToday[sd].T2.size; f.T3d = cToday[sd].T3.size;
+  }
   return out;
 }
 app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
