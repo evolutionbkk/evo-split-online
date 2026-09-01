@@ -350,11 +350,16 @@ function renderTrList(){
   let list=trBucket().filter(r=>!q||[r.code,r.name].some(v=>String(v||"").toLowerCase().includes(q))||(dq&&String(r.phone||"").replace(/\D/g,"").includes(dq)));
   list=list.slice().sort((a,b)=>(Date.parse(b.archivedAt||0)||0)-(Date.parse(a.archivedAt||0)||0));
   if(!list.length)return `<div class="empty">${q?"ไม่พบรายการที่ตรงกับคำค้น":(VIEW==="archive"?"ยังไม่มีตั๋วที่ปิดงาน/จัดเก็บ":VIEW==="stopped"?"ยังไม่มีตั๋วที่ยกเลิกการติดต่อ":"ยังไม่มีตั๋วในถังขยะ")}</div>`;
-  return `<div class="cards">`+list.map(r=>`<div class="lcard" style="border-left:4px solid #94a3b8"><div class="av" style="background:#94a3b8">${esc((r.name||"?").trim()[0]||"?")}</div>
+  const amtOf=r=>{const t=saleTotal(r);return t>0?fmtB(t):(r.orderAmount>0?fmtB(r.orderAmount):"");};
+  return `<div class="cards">`+list.map(r=>`<div class="lcard" style="border-left:4px solid #94a3b8;align-items:flex-start"><div class="av" style="background:#94a3b8">${esc((r.name||"?").trim()[0]||"?")}</div>
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span></div>
-      <div class="lc-sub">📞 ${esc(r.phone)} · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
-      <div class="lc-urg u-mut">${trReason(r)} · ${esc(fmtShort(r.archivedAt))}${r.archiveNote?" · "+esc(r.archiveNote):""}</div></div>
-    <div class="lc-right"><button class="btn p" style="padding:8px 14px" onclick="restoreLead2('${esc(r.key)}')">↩︎ กู้คืน</button></div></div>`).join("")+`</div>`;
+      <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
+      ${(r.product||r.page)?`<div class="lc-urg u-mut">📦 ${esc(r.product||"—")}${r.page?` · เพจ: ${esc(r.page)}`:""}</div>`:""}
+      ${r.nextAppt?`<div class="lc-urg" style="color:#7c3aed;font-weight:700">📅 นัดวันที่ ${esc(fmtShort(r.nextAppt))}</div>`:""}
+      <div class="lc-urg u-mut">${trReason(r)} · ${esc(fmtShort(r.archivedAt))}</div>
+      ${r.archiveNote?`<div style="color:#075985;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12px;line-height:1.5;white-space:normal;text-align:left">📌 รายละเอียดตอนปิดงาน: ${esc(r.archiveNote)}</div>`:""}
+      ${r.note?`<div style="color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12px;line-height:1.5;white-space:normal;text-align:left">📝 โน้ตล่าสุด: ${esc(r.note.length>160?r.note.slice(0,160)+"…":r.note)}</div>`:""}</div>
+    <div class="lc-right">${amtOf(r)?`<span class="lc-amt tnum">${amtOf(r)}</span>`:""}<button class="btn p" style="padding:8px 14px" onclick="restoreLead2('${esc(r.key)}')">↩︎ กู้คืน</button></div></div>`).join("")+`</div>`;
 }
 function viewTrash2(){
   const n=trBucket().length;
@@ -444,7 +449,7 @@ function roundInfo(r){const isFB=(r.source==="pancake"||r.source==="manual"||r.s
 window.setRound=function(key,stage){api("/api/lead/tstage",{key,stage:Number(stage)}).then(j=>{if(j&&j.ok){if(j.lead)CUR=j.lead;const i=ACTIVE.findIndex(x=>x.key===key);if(i>=0&&j.lead)ACTIVE[i]=j.lead;renderSheet();renderList();renderNav();toast("เปลี่ยนเป็นรอบ T"+stage+" แล้ว");}else toast((j&&j.message)||"เปลี่ยนรอบไม่สำเร็จ");});};
 function saleCard(r){
   const items=r.saleItems||[];const label=(r.leadStatus==="awaiting_payment")?"🧾 รอชำระเงิน — รายการที่ตกลงซื้อ":"✅ ปิดการขายสำเร็จ";
-  const rows=items.length?items.map(i=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line)"><span><b>${esc(i.name)||"(ไม่ระบุ)"}</b></span><span class="tnum" style="font-weight:800;color:var(--ok)">${fmtB(i.price)}</span></div>`).join(""):`<div style="color:var(--muted);font-size:12.5px">ยังไม่มีรายการ</div>`;
+  const rows=items.length?items.map((i,ix)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line)"><span><b>${esc(i.name)||"(ไม่ระบุ)"}</b></span><span style="display:flex;align-items:center;gap:8px"><span class="tnum" style="font-weight:800;color:var(--ok)">${fmtB(i.price)}</span><button onclick="delSaleItem(${ix})" title="ลบรายการนี้" style="border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:6px;font-weight:900;padding:1px 8px;cursor:pointer;line-height:1.4">✕</button></span></div>`).join(""):`<div style="color:var(--muted);font-size:12.5px">ยังไม่มีรายการ</div>`;
   return `<div class="box" style="border:1.5px solid #86efac"><h4>${label}</h4>
     <div class="kv"><span class="k">วันที่</span><span class="v">${esc(fmtShort(r.updatedAt)||"วันนี้")}</span></div>
     <div style="margin-top:6px">${rows}</div>
@@ -550,7 +555,7 @@ window.pickReach=function(ok){
 };
 function isOutcomeSel(r,o){const st=r.leadStatus;if(o.k==="won")return st==="won";if(o.k==="pay")return st==="awaiting_payment";if(o.k==="hot")return st==="interested"&&r.interest==="hot";if(o.k==="warm")return st==="interested"&&r.interest==="warm";if(o.k==="later")return st==="interested"&&r.interest==="cold";if(o.k==="info")return st==="interested"&&r.nextAction==="send_info";if(o.k==="reject")return st==="lost";if(o.k==="think"||o.k==="appt")return st==="followup";return false;}
 function revealHTML(o){
-  if(o.field==="sale")return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="inp" id="saleName" style="flex:1;min-width:130px" placeholder="ชื่อสินค้า/เซต"><input class="inp" id="salePrice" style="width:90px" placeholder="ราคา"><button class="btn p" onclick="addSaleItem()">+ เพิ่ม</button></div><div id="saleMini" style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.7">${(CUR.saleItems||[]).map(i=>"• "+esc(i.name)+" = "+fmtB(i.price)).join("<br>")}${(CUR.saleItems||[]).length?("<br>รวม "+fmtB(saleTotal(CUR))):""}</div>`;
+  if(o.field==="sale")return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="inp" id="saleName" style="flex:1;min-width:130px" placeholder="ชื่อสินค้า/เซต"><input class="inp" id="salePrice" style="width:90px" placeholder="ราคา"><button class="btn p" onclick="addSaleItem()">+ เพิ่ม</button></div><div id="saleMini" style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.7">${(CUR.saleItems||[]).map((i,ix)=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><span style="flex:1">• ${esc(i.name)||"(ไม่ระบุ)"} = ${fmtB(i.price)}</span><button onclick="delSaleItem(${ix})" title="ลบรายการนี้" style="border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:6px;font-weight:900;padding:1px 8px;cursor:pointer;line-height:1.4">✕</button></div>`).join("")}${(CUR.saleItems||[]).length?(`<div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--line);font-weight:800;color:var(--ink)">รวม ${fmtB(saleTotal(CUR))}</div>`):""}</div>`;
   if(o.field==="date")return `<input type="datetime-local" class="inp" id="revDate" style="width:100%"><button class="btn p" style="margin-top:8px" onclick="saveApptFromReveal()">บันทึกวันนัด</button>`;
   if(o.field==="reason")return `<div class="reasons">${REJECT_REASONS.map(x=>`<button class="rchip ${CUR.lostReason===x?"on":""}" onclick="pickReason('${x}')">${x}</button>`).join("")}</div>`;
   return "";
@@ -573,6 +578,7 @@ window.saveAppt=async function(){const v=$("#fdate").value;if(!v){toast("เล�
 window.saveNote=async function(){await save({note:$("#noteInp").value},"บันทึกโน้ตแล้ว");};
 window.setCalls=async function(n){await save({callCount:n},n===0?"ล้างจำนวนโทร":"โทรครั้งที่ "+n);};
 window.addSaleItem=async function(){const name=($("#saleName").value||"").trim();const price=Number($("#salePrice").value||0)||0;if(!name&&!price){toast("กรอกสินค้า/ราคา");return;}const items=(CUR.saleItems||[]).slice();items.push({name,price});await save({saleItems:items},"เพิ่มรายการแล้ว");};
+window.delSaleItem=async function(ix){const items=(CUR.saleItems||[]).slice();if(ix<0||ix>=items.length)return;items.splice(ix,1);await save({saleItems:items},"ลบรายการแล้ว");};
 window.addTag=async function(){const t=prompt("สร้างแท็กใหม่ (เช่น ผิวแพ้ง่าย)");if(!t||!t.trim())return;const tags=(CUR.tags||[]).slice();tags.push(t.trim());await save({tags},"เพิ่มแท็ก: "+t.trim());};
 window.editTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;const t=prompt("แก้ไขแท็ก (เว้นว่างเพื่อลบ)",cur);if(t==null)return;const v=t.trim();const tags=(CUR.tags||[]).slice();if(!v)tags.splice(i,1);else tags[i]=v;await save({tags},v?("แก้ไขแท็ก → "+v):"ลบแท็ก");};
 window.delTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;if(!confirm("ลบแท็ก \""+cur+"\" ?"))return;const tags=(CUR.tags||[]).slice();tags.splice(i,1);await save({tags},"ลบแท็ก: "+cur);};

@@ -770,6 +770,30 @@ app.post('/api/admin/fix-excel-sides', requireAuth, async (req, res) => {
   if (fixed) { state = await store.save(state); }
   res.json({ ok: true, fixed, changes });
 });
+// แก้ช่องทาง (source) ของรายชื่อทีละเบอร์ — เช่น รายชื่อที่จริง ๆ เป็น Lazada แต่ถูกดึงเข้ามาเป็น Facebook
+// bigseller/evolution = Marketplace (ไม่มีรอบ T1/T2/T3) · pancake = Facebook
+app.post('/api/admin/set-channel', requireAuth, async (req, res) => {
+  const SRC_OK = ['bigseller', 'evolution', 'pancake', 'manual', 'refill'];
+  const phones = (req.body && (Array.isArray(req.body.phones) ? req.body.phones : [req.body.phone])).filter(Boolean);
+  const source = SRC_OK.includes(req.body && req.body.source) ? req.body.source : null;
+  if (!source || !phones.length) return res.status(400).json({ error: 'bad_args', message: 'ต้องระบุ phone และ source ที่ถูกต้อง' });
+  const want = new Set(phones.map((p) => normPhoneTH(p)));
+  let fixed = 0; const changes = [];
+  for (const rec of state.assigned) {
+    if (!want.has(normPhoneTH(rec.phone))) continue;
+    const from = rec.source || 'evolution';
+    if (from === source) continue;
+    rec.source = source;
+    if (isMpSource(source)) { rec.step = ''; rec.stepManual = false; }   // Marketplace ไม่มีรอบติดตาม
+    rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+    pushHist(rec, 'transfer', 'ช่องทาง → ' + (isMpSource(source) ? 'Marketplace (' + source + ')' : 'Facebook'), whoami(req) || 'ระบบ');
+    changes.push({ phone: rec.phone, name: rec.name, from, to: source });
+    fixed++;
+  }
+  if (isMpSource(source)) addMpPhones(phones);   // ให้สายที่โทรนับเป็น Marketplace
+  if (fixed) { state = await store.save(state); }
+  res.json({ ok: true, fixed, changes });
+});
 app.post('/api/lead/archive', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
