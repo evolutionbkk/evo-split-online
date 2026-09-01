@@ -211,14 +211,15 @@ async function api(url,body){const r=await fetch(url,{method:"POST",headers:{"Co
 
 function renderNav(){
   const fbCount=ACTIVE.filter(r=>!r.archived&&leadPanel(r)==="mkt"&&isToCall(r)).length;
-  const arcCount=ARCHIVED.length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"trash",ic:"🗑",t:"ถังขยะ / กู้คืน",badge:arcCount||0}];
+  const closedCount=ARCHIVED.filter(r=>r.archiveReason==="closed").length;
+  const arcCount=ARCHIVED.filter(r=>r.archiveReason!=="closed").length;
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
-      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="tickets"&&it.k==="tickets"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
+      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="archive"&&it.k==="archive")||(VIEW==="tickets"&&it.k==="tickets"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
 }
-function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else{VIEW="list";PANEL=k;FILTER="today";Q="";PROUND="all";LPAGE=1;}render();}
+function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="archive"){VIEW="archive";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else{VIEW="list";PANEL=k;FILTER="today";Q="";PROUND="all";LPAGE=1;}render();}
 
 function statusPill(r){const st=r.leadStatus||"new";return `<span class="pill st-${st}">${STLABEL[st]||st}</span>`;}
 function urgLine(r){
@@ -258,7 +259,7 @@ function render(){
   const c=$("#content");
   if(VIEW==="ticket"){$("#viewTitle").textContent="ตั๋วลูกค้า";renderSheet();return;}
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
-  if(VIEW==="trash"){c.innerHTML=viewTrash2();return;}
+  if(VIEW==="trash"||VIEW==="archive"){$("#viewTitle").textContent=VIEW==="archive"?"จัดเก็บ (ปิดงาน)":"ถังขยะ (ลบ)";c.innerHTML=viewTrash2();return;}
   if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
@@ -341,11 +342,12 @@ function setFilter(f){FILTER=f;LPAGE=1;PROUND="all";APPTDATE="";CALYM="";render(
 
 /* ===== ถังขยะ / กู้คืน (ของเซลล์เอง) ===== */
 function trReason(r){const m={deleted:"🗑 ถังขยะ (ลบ)",closed:"📁 ปิดงาน/จัดเก็บ",recycled_out:"♻️ คัดออก (ระบบ)",unreachable:"ติดต่อไม่ได้",bad_data:"ข้อมูลผิด",duplicate:"ซ้ำ",stopped:"เลิกติดตาม"};return m[r.archiveReason||""]||"เก็บเข้าคลัง";}
+function trBucket(){return ARCHIVED.filter(r=>VIEW==="archive"?r.archiveReason==="closed":r.archiveReason!=="closed");}
 function renderTrList(){
   const q=(TQ||"").trim().toLowerCase(),dq=q.replace(/\D/g,"");
-  let list=ARCHIVED.filter(r=>!q||[r.code,r.name].some(v=>String(v||"").toLowerCase().includes(q))||(dq&&String(r.phone||"").replace(/\D/g,"").includes(dq)));
+  let list=trBucket().filter(r=>!q||[r.code,r.name].some(v=>String(v||"").toLowerCase().includes(q))||(dq&&String(r.phone||"").replace(/\D/g,"").includes(dq)));
   list=list.slice().sort((a,b)=>(Date.parse(b.archivedAt||0)||0)-(Date.parse(a.archivedAt||0)||0));
-  if(!list.length)return `<div class="empty">${q?"ไม่พบรายการที่ตรงกับคำค้น":"ยังไม่มีตั๋วในถังขยะ"}</div>`;
+  if(!list.length)return `<div class="empty">${q?"ไม่พบรายการที่ตรงกับคำค้น":(VIEW==="archive"?"ยังไม่มีตั๋วที่ปิดงาน/จัดเก็บ":"ยังไม่มีตั๋วในถังขยะ")}</div>`;
   return `<div class="cards">`+list.map(r=>`<div class="lcard" style="border-left:4px solid #94a3b8"><div class="av" style="background:#94a3b8">${esc((r.name||"?").trim()[0]||"?")}</div>
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span></div>
       <div class="lc-sub">📞 ${esc(r.phone)} · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
@@ -353,7 +355,11 @@ function renderTrList(){
     <div class="lc-right"><button class="btn p" style="padding:8px 14px" onclick="restoreLead2('${esc(r.key)}')">↩︎ กู้คืน</button></div></div>`).join("")+`</div>`;
 }
 function viewTrash2(){
-  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">ตั๋วที่คุณ <b>ลบ</b> (ถังขยะ) หรือ <b>จัดเก็บ</b> (ปิดงาน) — กู้คืนกลับเข้าคิวได้ทันที · หัวหน้าทีมเห็นประวัตินี้ด้วย (${ARCHIVED.length} ราย)</div>
+  const n=trBucket().length;
+  const head=VIEW==="archive"
+    ? `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">📁 <b>ตั๋วที่ปิดงาน / จัดเก็บ</b> — ปิดการขาย/จบงานแล้ว เก็บไว้อ้างอิง · กู้คืนกลับเข้าคิวได้ · หัวหน้าทีมเห็นด้วย (${n} ราย)</div>`
+    : `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">🗑 <b>ถังขยะ (ตั๋วที่ลบ)</b> — ลบออกจากคิว · กู้คืนได้ · หัวหน้าทีมเห็นประวัตินี้ด้วย (${n} ราย)</div>`;
+  return `${head}
   <input class="search" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / รหัส" value="${esc(TQ)}" oninput="TQ=this.value;renderTrListBox()">
   <div id="trlist">${renderTrList()}</div>`;
 }

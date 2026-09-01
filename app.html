@@ -179,13 +179,14 @@ const NAV=[
   {lab:"ทั่วไป"},
   {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
   {k:"appts",ic:"📅",t:"นัดหมาย (ปฏิทิน)"},
-  {k:"trash",ic:"🗑",t:"ถังขยะ / กู้คืน"},
+  {k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)"},
+  {k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)"},
   {k:"stock",ic:"📥",t:"คลังรายชื่อ & แจก"},
   {k:"reports",ic:"📄",t:"รายงาน"},
   {k:"staff",ic:"🧑‍💼",t:"พนักงาน"},
   {k:"settings",ic:"⚙️",t:"ตั้งค่า"},
 ];
-const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",trash:"ถังขยะ / กู้คืน",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
+const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",archive:"จัดเก็บ (ปิดงาน)",trash:"ถังขยะ (ลบ)",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
 function renderNav(){
   $("#side").innerHTML=`<div class="brand">EVO E-COMMERCE<small>${esc((ME&&ME.name)||"หัวหน้าทีม")} · Console</small></div>`+
     NAV.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`
@@ -498,27 +499,40 @@ function reasonLabel(r){const m={deleted:"🗑 ถังขยะ (ลบ)",clos
 function trBinOf(r){const rs=r.archiveReason||"";return rs==="deleted"?"deleted":(rs==="closed"?"closed":"other");}
 function whoArchived(r){const h=(r.history||[]).slice().reverse().find(e=>e.k==="delete"||e.k==="close"||e.k==="archive");return h?(h.by||""):(r.updatedBy||"");}
 function renderTrBody(){
-  const all=(D.archived||[]).filter(r=>(r.archiveReason||"")!=="recycled_out"||TRBIN==="other"||TRBIN==="all");
+  const isArch=VIEW==="archive";
   const q=(TRQ||"").trim().toLowerCase();
-  const base=all.filter(r=>tkMatch(r,q));
-  const cnt={all:base.length,deleted:base.filter(r=>trBinOf(r)==="deleted").length,closed:base.filter(r=>trBinOf(r)==="closed").length,other:base.filter(r=>trBinOf(r)==="other").length};
-  let list=base;
-  if(TRBIN==="deleted")list=base.filter(r=>trBinOf(r)==="deleted");
-  else if(TRBIN==="closed")list=base.filter(r=>trBinOf(r)==="closed");
-  else if(TRBIN==="other")list=base.filter(r=>trBinOf(r)==="other");
+  // แยกโฟลเดอร์: จัดเก็บ (ปิดงาน) = closed เท่านั้น · ถังขยะ = ลบ + อื่นๆ (ไม่รวม closed)
+  const src=isArch
+    ? (D.archived||[]).filter(r=>trBinOf(r)==="closed")
+    : (D.archived||[]).filter(r=>trBinOf(r)!=="closed").filter(r=>(r.archiveReason||"")!=="recycled_out"||TRBIN==="other"||TRBIN==="all");
+  const base=src.filter(r=>tkMatch(r,q));
+  let list=base, chips=[];
+  if(isArch){ list=base; }
+  else{
+    const cnt={all:base.length,deleted:base.filter(r=>trBinOf(r)==="deleted").length,other:base.filter(r=>trBinOf(r)==="other").length};
+    if(TRBIN==="closed")TRBIN="all";  // closed ย้ายไปโฟลเดอร์จัดเก็บแล้ว
+    if(TRBIN==="deleted")list=base.filter(r=>trBinOf(r)==="deleted");
+    else if(TRBIN==="other")list=base.filter(r=>trBinOf(r)==="other");
+    chips=[["all","ทั้งหมด "+cnt.all],["deleted","🗑 ถังขยะ "+cnt.deleted],["other","อื่นๆ "+cnt.other]];
+  }
   list=list.slice().sort((a,b)=>(Date.parse(b.archivedAt||0)||0)-(Date.parse(a.archivedAt||0)||0));
-  const chips=[["all","ทั้งหมด "+cnt.all],["deleted","🗑 ถังขยะ "+cnt.deleted],["closed","📁 ปิดงาน "+cnt.closed],["other","อื่นๆ "+cnt.other]];
   const PER=10,totalPages=Math.max(1,Math.ceil(list.length/PER));
   if(TRPAGE>totalPages)TRPAGE=totalPages; if(TRPAGE<1)TRPAGE=1;
   const start=(TRPAGE-1)*PER,rows=list.slice(start,start+PER);
   const D2=v=>{const t=Date.parse(v);if(isNaN(t))return"—";const d=new Date(t+7*3600000),p=n=>String(n).padStart(2,"0");return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+String(d.getUTCFullYear()+543).slice(-2)+" "+p(d.getUTCHours())+":"+p(d.getUTCMinutes());};
-  return `<div class="fbar2">${chips.map(([k,l])=>`<button class="chip ${TRBIN===k?"on":""}" onclick="setTrBin('${k}')">${l}</button>`).join("")}</div>
+  return `${chips.length?`<div class="fbar2">${chips.map(([k,l])=>`<button class="chip ${TRBIN===k?"on":""}" onclick="setTrBin('${k}')">${l}</button>`).join("")}</div>`:""}
   <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ประเภท</th><th>โดย</th><th>เมื่อ</th><th></th></tr></thead><tbody>
     ${rows.length?rows.map(r=>`<tr><td class="mono" style="color:var(--brand);font-weight:800">${esc(r.ticketId||r.code||"—")}</td><td><b>${esc(r.name||"(ไม่มีชื่อ)")}</b><div style="font-size:11px;color:var(--muted)">📞 ${esc(r.phone||"")} · ${esc(chName(r.source))} · <span class="sideb ${(r.sales==="K"?"k":"w")}">${esc(r.sales||"")}</span></div>${r.archiveNote?`<div style="font-size:11px;color:var(--muted)">📝 ${esc(r.archiveNote)}</div>`:""}</td><td style="font-size:12px">${reasonLabel(r)}</td><td style="font-size:12px;color:var(--muted)">${esc(whoArchived(r))}</td><td style="font-size:12px;color:var(--muted)">${D2(r.archivedAt)}</td><td><button onclick="restoreLead('${esc(r.key)}')" style="padding:6px 12px;border:1px solid var(--brand,#2563eb);color:var(--brand,#2563eb);background:transparent;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">↩︎ กู้คืน</button></td></tr>`).join(""):`<tr><td colspan="6" style="color:var(--muted);padding:16px">${q?"ไม่พบรายการที่ตรงกับคำค้น":"ไม่มีรายการในถังนี้"}</td></tr>`}
   </tbody></table>${list.length?`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:11px 15px;border-top:1px solid var(--line)"><span style="font-size:12px;color:var(--muted)">แสดง ${fmt(start+1)}–${fmt(start+rows.length)} จาก ${fmt(list.length)} ราย</span>${pager(totalPages,TRPAGE,'setTrPage')}</div>`:""}</div>`;
 }
 function viewTrash(){
-  let h=`<div class="note" style="margin-bottom:12px">ตั๋วที่ถูก <b>ลบ (ถังขยะ)</b> หรือ <b>ปิดงาน (จัดเก็บ)</b> — หัวหน้าทีมเห็นทุกฝั่งและกู้คืนได้ · กู้คืนแล้วตั๋วจะกลับเข้าระบบให้เจ้าของเดิมทันที</div>`;
+  let h=`<div class="note" style="margin-bottom:12px">🗑 ตั๋วที่ถูก <b>ลบ</b> ออกจากคิว (ไม่รวมตั๋วปิดงาน — ดูที่เมนู "จัดเก็บ") · หัวหน้าทีมเห็นทุกฝั่งและกู้คืนได้ · กู้คืนแล้วตั๋วจะกลับเข้าระบบให้เจ้าของเดิมทันที</div>`;
+  h+=`<div style="margin-bottom:10px"><input class="inp" placeholder="🔍 ค้นหาชื่อ / เบอร์ / รหัสตั๋ว" value="${esc(TRQ)}" oninput="trSearch(this.value)" style="width:100%;padding:9px 13px;font-size:13.5px"></div>
+  <div id="trBody">${renderTrBody()}</div>`;
+  return h;
+}
+function viewArchive(){
+  let h=`<div class="note" style="margin-bottom:12px">📁 ตั๋วที่ <b>ปิดงาน / จัดเก็บ</b> (ปิดการขายหรือจบงานแล้ว) — เก็บไว้อ้างอิง เห็นโน้ตตอนปิดงาน · หัวหน้าทีมเห็นทุกฝั่งและกู้คืนกลับเข้าคิวได้</div>`;
   h+=`<div style="margin-bottom:10px"><input class="inp" placeholder="🔍 ค้นหาชื่อ / เบอร์ / รหัสตั๋ว" value="${esc(TRQ)}" oninput="trSearch(this.value)" style="width:100%;padding:9px 13px;font-size:13.5px"></div>
   <div id="trBody">${renderTrBody()}</div>`;
   return h;
@@ -777,7 +791,7 @@ window.avPick=function(k){AVDATE=(AVDATE===k?"":k);paint();};
 window.avNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);let Y=thNow.getUTCFullYear(),M=thNow.getUTCMonth()+1;if(AVYM){const a=AVYM.split("-");Y=+a[0];M=+a[1];}M+=delta;if(M<1){M=12;Y--;}if(M>12){M=1;Y++;}AVYM=Y+"-"+String(M).padStart(2,"0");paint();};
 window.avSide=function(s){AVSIDE=s;AVDATE="";paint();};
 /* render */
-const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
+const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
 function paint(){renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";const fn=VIEWS[VIEW]||viewDashboard;$("#content").innerHTML=fn();window.scrollTo(0,0);}
 async function init(){
   const me=await getJSON("/api/me");if(!me)return;ME=me;
