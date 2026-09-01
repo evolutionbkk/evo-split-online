@@ -1811,23 +1811,23 @@ async function computeSalesKpi(fromQ, toQ) {
   // these counts as a Marketplace call, whether or not the lead has been handed out yet (mirrors fbPhones).
   const mkPhones = new Set();
   for (const r of state.assigned) {
-    if (r.archived) continue; const p = digitsOnly(r.phone); if (!p) continue;
+    if (r.archived) continue; const p = normPhoneTH(r.phone); if (!p) continue;
     const isFb = (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill');
     leadSrc.set(r.sales + '|' + p, isFb ? 'manual' : 'evolution');
     if (isFb) fbPhones.add(p); else mkPhones.add(p);
   }
   // include ALL Pancake buyers (past closed-sale customers) so follow-up calls count as FB,
   // even when that customer isn't in the current (this-month) lead list.
-  for (const p of (state.fbPhones || [])) fbPhones.add(p);
+  for (const p of (state.fbPhones || [])) fbPhones.add(normPhoneTH(p));
   // include ALL Marketplace (Evolution + Big Seller) customers ever pulled — so a call to any
   // Evolution/Laz customer counts as Marketplace, even if not currently a pooled/assigned lead.
-  for (const p of (state.mpPhones || [])) if (!fbPhones.has(p)) mkPhones.add(p);
+  for (const p of (state.mpPhones || [])) if (!fbPhones.has(normPhoneTH(p))) mkPhones.add(normPhoneTH(p));
   const mkSets = () => ({ evo: new Set(), manual: new Set() });
   const calledR = { W: mkSets(), K: mkSets() }, calledT = { W: mkSets(), K: mkSets() };
   for (const c of (state.onecall || [])) {
     const A = sides[c.side]; if (!A) continue;
     const t = Date.parse(c.at); if (isNaN(t)) continue;
-    const dp = digitsOnly(c.phone);
+    const dp = normPhoneTH(c.phone);
     const inR = t >= from && t <= to, inT = t >= tStart && t <= tEnd;
     // "โทรแล้ว ... ราย" = unique customers called, matched by phone to the FB / Marketplace customer lists
     // (side-agnostic on both sides now — a Marketplace call is caught even before the lead is handed out).
