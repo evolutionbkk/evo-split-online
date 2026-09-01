@@ -1810,8 +1810,9 @@ async function computeSalesKpi(fromQ, toQ) {
   // side-AGNOSTIC set of Marketplace (Evolution + Big Seller/Laz) customer phones — a call to any of
   // these counts as a Marketplace call, whether or not the lead has been handed out yet (mirrors fbPhones).
   const mkPhones = new Set();
+  // นับรวมรายที่ปิดงาน/จัดเก็บด้วย — สายที่โทร "วันนี้" ต้องนับ แม้ตั๋วจะถูกปิดไปแล้วหลังโทร (เซลล์โทรแล้วปิดการขาย)
   for (const r of state.assigned) {
-    if (r.archived) continue; const p = normPhoneTH(r.phone); if (!p) continue;
+    const p = normPhoneTH(r.phone); if (!p) continue;
     const isFb = (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill');
     leadSrc.set(r.sales + '|' + p, isFb ? 'manual' : 'evolution');
     if (isFb) fbPhones.add(p); else mkPhones.add(p);

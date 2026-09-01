@@ -262,7 +262,9 @@ function render(){
   if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
-  const target=isFB?FB_TOTAL:MP_TARGET,doneToday=pool.filter(calledToday).length,remain=pool.filter(isToCall).length;
+  // โทรแล้ววันนี้ = นับสายที่โทรวันนี้ รวมตั๋วที่ปิดงาน/จัดเก็บไปแล้วด้วย (เซลล์โทรแล้วปิดการขาย ก็ต้องนับ)
+  const calledPool=[...ACTIVE,...(typeof ARCHIVED!=="undefined"?ARCHIVED:[])].filter(r=>leadPanel(r)===PANEL);
+  const target=isFB?FB_TOTAL:MP_TARGET,doneToday=calledPool.filter(calledToday).length,remain=pool.filter(isToCall).length;
   const pct=Math.min(100,Math.round(doneToday/target*100));
   let html=`<div class="phead"><div class="ph-top"><div class="ph-title">${isFB?"💬 Facebook (Pancake)":"📦 Marketplace"}</div>
     <span class="ph-target">เป้าวันละ ${isFB?(FB_TOTAL+" (T1·"+FB_TG.T1+" T2·"+FB_TG.T2+" T3·"+FB_TG.T3+")"):MP_TARGET}</span></div>
