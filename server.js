@@ -747,10 +747,15 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
 
 // แก้ครั้งเดียว: คืนฝั่งให้รายชื่อ Excel ที่โดน auto-handoff โอนผิด → กลับไปฝั่งที่กำหนดในไฟล์นำเข้า
 app.post('/api/admin/fix-excel-sides', requireAuth, async (req, res) => {
-  let imp; try { imp = JSON.parse(fs.readFileSync(path.join(__dirname, 't2t3_import.json'), 'utf8')); }
-  catch (e) { return res.status(500).json({ error: 'no_file' }); }
   const wantByPhone = new Map();
-  for (const r of imp) { const p = normPhoneTH(r.phone); if (p) wantByPhone.set(p, r.side === 'K' ? 'K' : 'W'); }
+  const override = req.body && req.body.sides;   // { phone: 'W'|'K' } — จากคอลัมน์ผู้ปิดการขายในชีต (แม่นกว่าไฟล์)
+  if (override && typeof override === 'object') {
+    for (const ph in override) { const p = normPhoneTH(ph); const s = override[ph] === 'K' ? 'K' : 'W'; if (p) wantByPhone.set(p, s); }
+  } else {
+    let imp; try { imp = JSON.parse(fs.readFileSync(path.join(__dirname, 't2t3_import.json'), 'utf8')); }
+    catch (e) { return res.status(500).json({ error: 'no_file' }); }
+    for (const r of imp) { const p = normPhoneTH(r.phone); if (p) wantByPhone.set(p, r.side === 'K' ? 'K' : 'W'); }
+  }
   let fixed = 0; const changes = [];
   for (const rec of state.assigned) {
     if (!rec.fromExcel) continue;
