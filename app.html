@@ -332,7 +332,18 @@ function viewTelOverview(){
   const wRev=revOf("W"),kRev=revOf("K");
   const revCell=(side,amt,cnt)=>`<td onclick="drillKpi('rev','${side}')" style="cursor:pointer" title="กดดูรายการขายวันนี้"><div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:14px"><span class="tnum win">${fmtB(amt)}</span><span class="tnum" style="color:var(--muted);font-weight:600;font-size:11px">${fmt(cnt)} ปิด</span></div><div style="height:7px;margin-top:5px"></div></td>`;
   const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">ปิดได้วันนี้ · จากที่เซลล์บันทึก</div></td>${revCell("W",wRev,W.wonToday||0)}${revCell("K",kRev,K.wonToday||0)}<td class="r tnum win"><b style="font-size:15px">${fmtB(wRev+kRev)}</b></td></tr>`;
-  h+=`<div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
+  // แอดมินปิดการขายจากแชทวันนี้ = ต้นทางของลูกค้า T1 ที่ส่งให้เทเลเซลล์
+  const AP=(D.adminPerf&&D.adminPerf.admins)||[];
+  const adminClosed=AP.reduce((s,a)=>s+(a.closes||0),0);
+  const apList=AP.filter(a=>(a.closes||0)>0).sort((a,b)=>(b.closes||0)-(a.closes||0)).map(a=>`${esc(a.name)} <b>${fmt(a.closes)}</b>`).join(" · ")||"—";
+  const t1W=fw.T1recv||0,t1K=fk.T1recv||0;
+  h+=`<div class="card" style="margin-bottom:16px;padding:14px 16px;border-left:4px solid ${COL.t1};background:var(--surface-2,#f1f5f9)">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px">
+      <div><b style="font-size:14px;color:${COL.t1}">📥 แอดมินปิดการขายจากแชทวันนี้</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">ลูกค้าใหม่ที่จะกลายเป็น T1 ส่งให้เทเลเซลล์โทร</div></div>
+      <div class="tnum" style="font-size:26px;font-weight:800;color:${COL.t1}">${fmt(adminClosed)} <span style="font-size:13px;color:var(--muted);font-weight:600">ราย</span></div></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:9px">รายคน: ${apList}</div>
+    <div style="font-size:12.5px;margin-top:7px;padding-top:9px;border-top:1px dashed var(--line)">→ เข้าเป็น T1 ของเทเลเซลล์วันนี้: <b style="color:${COL.t1}">พี่หวาน ${fmt(t1W)}</b> · <b style="color:${COL.t1}">พี่เขม ${fmt(t1K)}</b> ราย</div></div>
+  <div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
     ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,wEvo,kEvo,COL.mk,'mk')}
     ${(()=>{const wd=fw.T1done||0,kd=fk.T1done||0,wr=(fw.T1recv||0)||(TG.t1||5),kr=(fk.T1recv||0)||(TG.t1||5);return `<tr><td><b style="color:${COL.t1}">💬 T1 · โทรวันนี้</b><div style="font-size:11px;color:var(--muted)">โทรลูกค้ารอบ T1 วันนี้ (ออเดอร์ใหม่ + ตามเดิม) · เป้า/ที่ได้รับ</div></td>${cC(wd,wr,COL.t1,'t1','W')}${cC(kd,kr,COL.t1,'t1','K')}<td class="r tnum"><b style="font-size:15px">${fmt(wd+kd)}</b></td></tr>`;})()}
