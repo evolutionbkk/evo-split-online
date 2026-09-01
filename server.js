@@ -794,6 +794,31 @@ app.post('/api/admin/set-channel', requireAuth, async (req, res) => {
   if (fixed) { state = await store.save(state); }
   res.json({ ok: true, fixed, changes });
 });
+// เติมชื่อ/ที่อยู่/สินค้า ให้ลูกค้า Marketplace (Evolution) ที่ข้อมูลว่าง โดย match เบอร์กับรายชื่อในระบบ
+// ที่มีข้อมูลครบ (Big Seller/Lazada มาก่อน แล้วค่อย Facebook/Pancake) — เบอร์เดียวกันคนละช่องทางก็เติมให้
+app.post('/api/admin/enrich-mp', requireAuth, async (req, res) => {
+  const addrMap = new Map(), prodMap = new Map(), nameMap = new Map();
+  const rank = (x) => x.source === 'bigseller' ? 0 : ((x.source === 'pancake' || x.source === 'manual' || x.source === 'refill') ? 1 : 2);
+  const ranked = [...state.assigned].sort((a, b) => rank(a) - rank(b));   // bigseller ชนะก่อน
+  for (const r of ranked) {
+    const p = normPhoneTH(r.phone); if (!p) continue;
+    if (r.address && String(r.address).trim() && !addrMap.has(p)) addrMap.set(p, String(r.address).trim());
+    if (r.product && String(r.product).trim() && !prodMap.has(p)) prodMap.set(p, String(r.product).trim());
+    if (r.name && String(r.name).trim() && !nameMap.has(p)) nameMap.set(p, String(r.name).trim());
+  }
+  let filledAddr = 0, filledProd = 0, filledName = 0; const samples = [];
+  for (const r of state.assigned) {
+    if (!isMpSource(r.source)) continue;   // เฉพาะลูกค้า Marketplace
+    const p = normPhoneTH(r.phone); if (!p) continue;
+    let changed = false;
+    if ((!r.address || !String(r.address).trim()) && addrMap.has(p)) { r.address = addrMap.get(p); filledAddr++; changed = true; }
+    if ((!r.product || !String(r.product).trim()) && prodMap.has(p)) { r.product = prodMap.get(p); filledProd++; changed = true; }
+    if ((!r.name || !String(r.name).trim()) && nameMap.has(p)) { r.name = nameMap.get(p); filledName++; changed = true; }
+    if (changed) { r.updatedAt = new Date().toISOString(); pushHist(r, 'address', 'เติมจากช่องทางอื่น (match เบอร์)', 'ระบบ'); if (samples.length < 20) samples.push({ phone: r.phone, name: r.name, address: r.address, product: r.product }); }
+  }
+  if (filledAddr || filledProd || filledName) state = await store.save(state);
+  res.json({ ok: true, filledAddr, filledProd, filledName, samples, srcAddr: addrMap.size, srcProd: prodMap.size });
+});
 app.post('/api/lead/archive', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
