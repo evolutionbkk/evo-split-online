@@ -2998,6 +2998,27 @@ app.get('/api/sales/my-kpi', requireCrm, async (req, res) => {
   });
 });
 
+// สายที่ "ฉัน" (เซลล์) โทรออกวันนี้ทั้งหมด — รวมสายที่คุยสั้นกว่า 7 วิด้วย (จาก OneCall เฉพาะฝั่งตัวเอง)
+app.get('/api/sales/my-calls', requireCrm, (req, res) => {
+  const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : 'W');
+  const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
+  const from = Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
+  const to = from + 86400000;
+  const infoBy = new Map();   // phone → {name, source} (รวมที่ปิดงาน/ลบแล้ว เพื่อให้สายสั้นยังรู้ว่าโทรหาใคร)
+  for (const r of state.assigned) { const p = normPhoneTH(r.phone); if (p && !infoBy.has(p)) infoBy.set(p, { name: r.name || '', source: r.source || 'evolution' }); }
+  const isFb = (s) => (s === 'manual' || s === 'pancake' || s === 'refill');
+  const calls = [];
+  for (const c of (state.onecall || [])) {
+    if (c.side !== side) continue;
+    const t = Date.parse(c.at); if (isNaN(t) || t < from || t >= to) continue;
+    const info = infoBy.get(normPhoneTH(c.phone)) || null;
+    calls.push({ phone: c.phone, name: info ? info.name : '', channel: info ? (isFb(info.source) ? 'FB' : 'MP') : '', dur: Number(c.dur) || 0, at: c.at, dir: c.dir || '' });
+  }
+  calls.sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0));
+  const talk = calls.filter((c) => c.dur > ONECALL_MIN_TALK).length;
+  res.json({ ok: true, side, minTalk: ONECALL_MIN_TALK, total: calls.length, talk, short: calls.length - talk, calls });
+});
+
 // Dashboard ภาพรวมของฉัน — แอดมินตอบแชท เห็นเฉพาะ KPI ของตัวเอง · เลือกช่วงเวลาได้
 app.get('/api/chat/my-kpi', requireChat, async (req, res) => {
   const myNick = sessName(req);   // ชื่อเล่นของแอดมินที่ล็อกอิน (ไลลา/ยูกิ)
