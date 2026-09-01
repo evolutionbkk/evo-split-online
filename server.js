@@ -424,7 +424,7 @@ function pushHist(rec, k, v, by) {
   if (rec.history.length > 100) rec.history = rec.history.slice(-100);
 }
 function leadView(r, ocMap) {
-  const oc = ocMap ? ocMap.get(r.sales + '|' + digitsOnly(r.phone)) : null;
+  const oc = ocMap ? ocMap.get(r.sales + '|' + normPhoneTH(r.phone)) : null;
   return {
     key: S.keyOf(r), code: r.code, ticketId: r.ticketId || '', name: r.name, phone: r.phone, sales: r.sales, round: r.round, date: r.date,
     realCalls: oc ? oc.calls : 0, realTalkCalls: oc ? oc.talk : 0, realLastCallAt: oc ? oc.lastAt : null,
@@ -797,15 +797,15 @@ function followupTiers() {
   // (assigned FB leads + closed-sale/pancake buyers ทั้งหมด) แบบ side-agnostic — ไม่ต้องรอแจก ไม่ต้องเป็นครั้งแรก.
   const fbSet = new Set();
   for (const r of state.assigned) {
-    if (r.archived) continue; const p = digitsOnly(r.phone); if (!p) continue;
+    if (r.archived) continue; const p = normPhoneTH(r.phone); if (!p) continue;
     if (r.source === 'manual' || r.source === 'pancake' || r.source === 'refill') fbSet.add(p);
   }
-  for (const p of (state.fbPhones || [])) fbSet.add(p);
+  for (const p of (state.fbPhones || [])) fbSet.add(normPhoneTH(p));
   const t1Month = { W: new Set(), K: new Set() }, t1Today = { W: new Set(), K: new Set() };
   for (const c of (state.onecall || [])) {
     if ((c.dur || 0) <= ONECALL_MIN_TALK) continue;
     if (c.side !== 'W' && c.side !== 'K') continue;
-    const p = digitsOnly(c.phone); if (!p || !fbSet.has(p)) continue;   // เฉพาะลูกค้า FB
+    const p = normPhoneTH(c.phone); if (!p || !fbSet.has(p)) continue;   // เฉพาะลูกค้า FB
     const day = S.thaiDay(c.at); if (!day) continue;
     if (day.slice(0, 7) === curMonth) t1Month[c.side].add(p);
     if (day === today) t1Today[c.side].add(p);
@@ -1102,13 +1102,13 @@ async function pancakePull(opts) {
 function digitsOnly(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
 function normLine(p) { let d = digitsOnly(p); if (d.length === 10 && d[0] === '0') d = '66' + d.slice(1); return d; }
 function onecallSide(localParty) { return ONECALL_LINES[normLine(localParty)] || null; }
-function normPhoneTH(p) { let d = digitsOnly(p); if (d.startsWith('66')) d = '0' + d.slice(2); return d; }
+function normPhoneTH(p) { let d = digitsOnly(p); if (d.startsWith('66')) d = '0' + d.slice(2); if (d.length === 9 && d[0] !== '0') d = '0' + d; return d; }  // 66xxxxxxxxx→0xxxxxxxxx และ 8xxxxxxxx(ตกเลข 0)→08xxxxxxxx
 // Aggregate OneCall calls per (side|phone): total calls + talks(>7s) + last call time.
 // Used to auto-mark leads as "called" and to compute per-lead KPI coverage.
 function onecallStatsMap() {
   const m = new Map();
   for (const c of (state.onecall || [])) {
-    const key = c.side + '|' + digitsOnly(c.phone);
+    const key = c.side + '|' + normPhoneTH(c.phone);
     let s = m.get(key); if (!s) { s = { calls: 0, talk: 0, lastAt: null }; m.set(key, s); }
     s.calls++; if ((c.dur || 0) > ONECALL_MIN_TALK) s.talk++;
     if (!s.lastAt || String(c.at) > s.lastAt) s.lastAt = c.at;
@@ -1317,10 +1317,10 @@ async function onecallPull(_retried) {
 // Userscript relays the current OneCall token so the server can pull unattended.
 // ---------- AI call summary helpers ----------
 function aiCallsForPhone(phone) {
-  const p = digitsOnly(phone); if (!p) return [];
+  const p = normPhoneTH(phone); if (!p) return [];
   const out = [];
   const S2 = state.onecallSummaries || {};
-  for (const k in S2) { const s = S2[k]; if (s && s.summary && digitsOnly(s.phone) === p) out.push(s); }
+  for (const k in S2) { const s = S2[k]; if (s && s.summary && normPhoneTH(s.phone) === p) out.push(s); }
   out.sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0));
   return out.slice(0, 10).map((s) => ({ at: s.at, dir: s.dir, dur: s.dur, summary: s.summary, transcript: s.transcript || '' }));
 }
@@ -1963,17 +1963,17 @@ app.get('/api/admin/onecall-recon', requireAuth, (req, res) => {
   const fbPhones = new Set(), mkPhones = new Set();
   const leadByPhone = new Map();
   for (const r of state.assigned) {
-    const p = digitsOnly(r.phone); if (!p) continue;
+    const p = normPhoneTH(r.phone); if (!p) continue;
     if (!leadByPhone.has(p)) leadByPhone.set(p, { name: r.name || '', source: r.source || 'evolution', sales: r.sales || '', archived: !!r.archived, pooled: !!r.pooled });
     if (r.archived) continue;
     if (isFb(r.source)) fbPhones.add(p); else mkPhones.add(p);
   }
-  for (const p of (state.fbPhones || [])) fbPhones.add(p);
-  for (const p of (state.mpPhones || [])) if (!fbPhones.has(p)) mkPhones.add(p);
+  for (const p of (state.fbPhones || [])) fbPhones.add(normPhoneTH(p));
+  for (const p of (state.mpPhones || [])) if (!fbPhones.has(normPhoneTH(p))) mkPhones.add(normPhoneTH(p));
   const rows = [];
   const sum = { W: { FB: 0, Marketplace: 0, Other: 0, total: 0 }, K: { FB: 0, Marketplace: 0, Other: 0, total: 0 } };
   for (const c of (state.onecall || [])) {
-    const p = digitsOnly(c.phone);
+    const p = normPhoneTH(c.phone);
     const cls = fbPhones.has(p) ? 'FB' : (mkPhones.has(p) ? 'Marketplace' : 'Other');
     const lead = leadByPhone.get(p);
     const side = c.side;
