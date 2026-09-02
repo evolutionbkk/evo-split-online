@@ -790,8 +790,8 @@ app.post('/api/admin/set-channel', requireAuth, async (req, res) => {
     changes.push({ phone: rec.phone, name: rec.name, from, to: source });
     fixed++;
   }
-  if (isMpSource(source)) addMpPhones(phones);   // ให้สายที่โทรนับเป็น Marketplace
-  if (fixed) { state = await store.save(state); }
+  const mpAdded = isMpSource(source) ? addMpPhones(phones) : 0;   // ให้สายที่โทรนับเป็น Marketplace
+  if (fixed || mpAdded) { state = await store.save(state); }     // เซฟด้วยถ้ามีการเพิ่ม mpPhones (กันหายตอนรีสตาร์ท)
   res.json({ ok: true, fixed, changes });
 });
 // เติมชื่อ/ที่อยู่/สินค้า ให้ลูกค้า Marketplace (Evolution) ที่ข้อมูลว่าง โดย match เบอร์กับรายชื่อในระบบ

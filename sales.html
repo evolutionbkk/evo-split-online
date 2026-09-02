@@ -418,7 +418,7 @@ let MCFILTER="all";  // all | talk | short
 window.__mycalls=null;
 window.setMcFilter=function(k){MCFILTER=k;renderMyCallsBody();};
 function viewMyCalls(){
-  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">สายที่คุณโทรออกวันนี้ทั้งหมด — <b>รวมสายที่คุยสั้นกว่า 7 วินาที</b>ด้วย (ข้อมูลจริงจากระบบโทร OneCall)</div><div id="mcBody"><div class="empty">กำลังโหลดสายที่โทรวันนี้…</div></div>`;
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">สายของคุณวันนี้ทั้งหมด (โทรออก + ลูกค้าโทรกลับ) — <b>รวมสายที่คุยสั้นกว่า 7 วินาที</b>ด้วย (ข้อมูลจริงจากระบบโทร OneCall)</div><div id="mcBody"><div class="empty">กำลังโหลดสายวันนี้…</div></div>`;
 }
 window.loadMyCalls=async function(){
   const box=$("#mcBody");if(!box)return;
@@ -431,12 +431,15 @@ function renderMyCallsBody(){
   const talk=calls.filter(c=>(c.dur||0)>MIN),short=calls.filter(c=>(c.dur||0)<=MIN);
   const hhmm=iso=>{try{const d=new Date(iso),p=n=>String(n).padStart(2,"0");return p(d.getHours())+":"+p(d.getMinutes());}catch(e){return"";}};
   const chIcon=c=>c==="MP"?"📦":(c==="FB"?"💬":"❓");
+  const isIn=c=>String(c.dir||"").toUpperCase().includes("IN");
+  const dirCell=c=>isIn(c)?'<span style="color:#0369a1;font-weight:700">↙ เข้า</span>':'<span style="color:var(--muted)">↗ ออก</span>';
+  const outN=calls.filter(c=>!isIn(c)).length,inN=calls.filter(isIn).length;
   let list=MCFILTER==="talk"?talk:(MCFILTER==="short"?short:calls);
   const chips=[["all","ทั้งหมด "+calls.length],["talk","ได้คุย >"+MIN+"วิ "+talk.length],["short","สั้น ≤"+MIN+"วิ "+short.length]];
-  const rows=list.length?list.map(c=>`<tr style="border-top:1px solid var(--line)"><td class="tnum" style="padding:9px 12px;color:var(--muted)">${hhmm(c.at)}</td><td class="mono" style="padding:9px 12px">${esc(c.phone||"")}</td><td style="padding:9px 12px">${esc(c.name||"—")}</td><td style="padding:9px 12px">${chIcon(c.channel)}</td><td class="tnum" style="padding:9px 12px;font-weight:700;color:${(c.dur||0)>MIN?"var(--ok)":"var(--warn)"}">${c.dur||0} วิ</td><td style="padding:9px 12px">${(c.dur||0)>MIN?'<span style="color:var(--ok);font-weight:700">✓ ได้คุย</span>':'<span style="color:var(--warn);font-weight:700">สั้น</span>'}</td></tr>`).join(""):`<tr><td colspan="6" style="padding:16px;color:var(--muted)">ยังไม่มีสายในกลุ่มนี้</td></tr>`;
-  box.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:13px"><span>📞 โทรออกวันนี้ <b>${calls.length}</b> สาย</span><span style="color:var(--ok)">· ได้คุย <b>${talk.length}</b></span><span style="color:var(--warn)">· สั้น (≤${MIN}วิ) <b>${short.length}</b></span></div>
+  const rows=list.length?list.map(c=>`<tr style="border-top:1px solid var(--line)"><td class="tnum" style="padding:9px 12px;color:var(--muted)">${hhmm(c.at)}</td><td style="padding:9px 12px;font-size:12px">${dirCell(c)}</td><td class="mono" style="padding:9px 12px">${esc(c.phone||"")}</td><td style="padding:9px 12px">${esc(c.name||"—")}</td><td style="padding:9px 12px">${chIcon(c.channel)}</td><td class="tnum" style="padding:9px 12px;font-weight:700;color:${(c.dur||0)>MIN?"var(--ok)":"var(--warn)"}">${c.dur||0} วิ</td><td style="padding:9px 12px">${(c.dur||0)>MIN?'<span style="color:var(--ok);font-weight:700">✓ ได้คุย</span>':'<span style="color:var(--warn);font-weight:700">สั้น</span>'}</td></tr>`).join(""):`<tr><td colspan="7" style="padding:16px;color:var(--muted)">ยังไม่มีสายในกลุ่มนี้</td></tr>`;
+  box.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:13px"><span>📞 สายวันนี้ <b>${calls.length}</b> สาย <span style="color:var(--muted);font-size:12px">(ออก ${outN} · เข้า ${inN})</span></span><span style="color:var(--ok)">· ได้คุย <b>${talk.length}</b></span><span style="color:var(--warn)">· สั้น (≤${MIN}วิ) <b>${short.length}</b></span></div>
   <div class="fbar" style="margin-bottom:10px">${chips.map(([k,l])=>`<button class="chip ${MCFILTER===k?"on":""}" onclick="setMcFilter('${k}')">${l}</button>`).join("")}</div>
-  <div class="card" style="overflow:auto;padding:0"><table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr>${["เวลา","เบอร์","ลูกค้า","ช่องทาง","คุยนาน","ผล"].map(t=>`<th style="text-align:left;padding:10px 12px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">${t}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  <div class="card" style="overflow:auto;padding:0"><table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr>${["เวลา","ทิศ","เบอร์","ลูกค้า","ช่องทาง","คุยนาน","ผล"].map(t=>`<th style="text-align:left;padding:10px 12px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">${t}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 window.renderMyCallsBody=renderMyCallsBody;
 function viewKpi(){

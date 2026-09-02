@@ -231,6 +231,7 @@ const STCLASS={new:"st-new",contacting:"st-ct",interested:"st-int",followup:"st-
 const STCOL={new:"#4f46e5",contacting:"#0e7490",interested:"#7c3aed",followup:"#0369a1",awaiting_payment:"#d97706",won:"#16a34a",lost:"#b91c1c"};
 function stPill(s,ex){s=s||"new";return `<span class="pill ${STCLASS[s]||"st-new"}">${STLABEL[s]||s}${ex||""}</span>`;}
 async function load(){
+  window.__recon=null;   // ล้าง cache สายวันนี้ ทุกครั้งที่รีเฟรช (กันตารางสายค้างของเก่า/ข้ามวัน)
   const{from,to}=rangeISO();const q=`?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
   const[kpi,calls,chat,pool,dist,leads,leave,tiers,aperf]=await Promise.all([
     getJSON("/api/admin/kpi"+q),getJSON("/api/admin/callstats"+q),getJSON("/api/admin/chat-kpi"+q),
@@ -339,10 +340,10 @@ function viewTelOverview(){
   const t1W=fw.T1recv||0,t1K=fk.T1recv||0;
   h+=`<div class="card" style="margin-bottom:16px;padding:14px 16px;border-left:4px solid ${COL.t1};background:var(--surface-2,#f1f5f9)">
     <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px">
-      <div><b style="font-size:14px;color:${COL.t1}">📥 แอดมินปิดการขายจากแชทวันนี้</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">ลูกค้าใหม่ที่จะกลายเป็น T1 ส่งให้เทเลเซลล์โทร</div></div>
+      <div><b style="font-size:14px;color:${COL.t1}">📥 แอดมินปิดการขายจากแชท · ${rlab()}</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">ลูกค้าใหม่ที่จะกลายเป็น T1 ส่งให้เทเลเซลล์โทร (ตัวเลขตามช่วงเวลาที่เลือกด้านบน)</div></div>
       <div class="tnum" style="font-size:26px;font-weight:800;color:${COL.t1}">${fmt(adminClosed)} <span style="font-size:13px;color:var(--muted);font-weight:600">ราย</span></div></div>
     <div style="font-size:12px;color:var(--muted);margin-top:9px">รายคน: ${apList}</div>
-    <div style="font-size:12.5px;margin-top:7px;padding-top:9px;border-top:1px dashed var(--line)">→ เข้าเป็น T1 ของเทเลเซลล์วันนี้: <b style="color:${COL.t1}">พี่หวาน ${fmt(t1W)}</b> · <b style="color:${COL.t1}">พี่เขม ${fmt(t1K)}</b> ราย</div></div>
+    <div style="font-size:12.5px;margin-top:7px;padding-top:9px;border-top:1px dashed var(--line)">→ T1 ที่เข้าเทเลเซลล์ <b>วันนี้</b>: <b style="color:${COL.t1}">พี่หวาน ${fmt(t1W)}</b> · <b style="color:${COL.t1}">พี่เขม ${fmt(t1K)}</b> ราย</div></div>
   <div class="secttl">📊 KPI การติดตาม — วันนี้ <span style="font-size:11px;color:var(--muted);font-weight:400">· กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
     ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,wEvo,kEvo,COL.mk,'mk')}

@@ -323,7 +323,9 @@ function distributePool(state, opts) {
   // single-lead batch restarts at 0/0 and always picks W). Keeps T1 + Marketplace balanced คนละครึ่ง.
   if (mode === '50' && !forced50) {
     for (const a of state.assigned) {
-      if (a.archived || a.pooled || a.date !== date) continue;
+      // นับเฉพาะรายที่ "แจกจากคลังแบบ 50/50" วันนี้เท่านั้น — ข้ามรายที่ปักฝั่งไว้ (Excel/นำเข้าระบุฝั่งเอง)
+      // ไม่งั้นการปักฝั่งจะทำให้ยอดเอียงแล้วเทลูกค้าใหม่ไปอีกฝั่งหมด
+      if (a.archived || a.pooled || a.fromExcel || a.date !== date) continue;
       if (a.sales === 'W') toW++; else if (a.sales === 'K') toK++;
     }
   }
