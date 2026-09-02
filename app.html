@@ -175,6 +175,7 @@ const NAV=[
   {k:"admin_overview",t:"ภาพรวม Admin",sub:1},
   {lab:"Telesales (โทร)"},
   {k:"tel_overview",t:"ภาพรวม Telesales",sub:1},
+  {k:"tel_calltoday",t:"โทรวันนี้ (รายสาย)",sub:1},
   {k:"tel_perf",t:"ผลงาน Telesales",sub:1},
   {lab:"ทั่วไป"},
   {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
@@ -352,6 +353,9 @@ function viewTelOverview(){
     ${row("💬","T3 · ตามรอบ 3","",TG.t3||20,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
     ${revRow}
   </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · <b>ยอดขาย</b> = ยอดที่ปิดได้วันนี้ (จากรายการที่เซลล์บันทึกในระบบ) · กดตัวเลขเพื่อดูรายละเอียด</div></div>`;
+  h+=`<div class="secttl" style="margin-top:6px">📞 เบอร์ที่โทรวันนี้ (จริงจากระบบโทร OneCall) <span style="font-size:11px;color:var(--muted);font-weight:400">· รวมสายที่ปิดงาน/ยกเลิกไปแล้วด้วย</span><span class="ln"></span></div>
+  <div id="callLogToday"><div class="empty" style="padding:18px">กำลังโหลดสายที่โทรวันนี้…</div></div>`;
+  setTimeout(()=>{if(window.loadCallLogToday)window.loadCallLogToday();},30);
   return h;
 }
 
@@ -845,7 +849,7 @@ window.avPick=function(k){AVDATE=(AVDATE===k?"":k);paint();};
 window.avNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);let Y=thNow.getUTCFullYear(),M=thNow.getUTCMonth()+1;if(AVYM){const a=AVYM.split("-");Y=+a[0];M=+a[1];}M+=delta;if(M<1){M=12;Y--;}if(M>12){M=1;Y++;}AVYM=Y+"-"+String(M).padStart(2,"0");paint();};
 window.avSide=function(s){AVSIDE=s;AVDATE="";paint();};
 /* render */
-const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,stopped:viewStopped,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
+const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_calltoday:viewTelCallToday,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,stopped:viewStopped,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
 function paint(){renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";const fn=VIEWS[VIEW]||viewDashboard;$("#content").innerHTML=fn();window.scrollTo(0,0);}
 async function init(){
   const me=await getJSON("/api/me");if(!me)return;ME=me;
