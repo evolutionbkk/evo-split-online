@@ -836,6 +836,21 @@ app.post('/api/lead/archive', requireCrm, async (req, res) => {
   res.json({ ok: true, lead: leadView(rec) });
 });
 
+// เซลล์กด "ย้ายผู้ดูแล" → สลับรายชื่อไปให้อีกฝั่ง (กรณีรายชื่อมั่วคน) — เงียบ ๆ ไม่ลง history/handoff
+// ที่ Teamlead เห็น (ตามที่ขอ) · เก็บไว้เป็น field ส่วนตัว movedBySales เผื่อ audit ภายหลังเท่านั้น
+app.post('/api/lead/move-owner', requireCrm, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  const from = rec.sales || '';
+  const to = (req.body && (req.body.to === 'W' || req.body.to === 'K')) ? req.body.to : (from === 'K' ? 'W' : 'K');
+  if (to === from) return res.json({ ok: true, to, lead: leadView(rec) });
+  rec.sales = to; rec.pooled = false;
+  rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  rec.movedBySales = { from, to, at: rec.updatedAt, by: whoami(req) };   // private — ไม่แสดงใน activity/transfers ของ Teamlead
+  state = await store.save(state);
+  res.json({ ok: true, to, lead: leadView(rec) });
+});
+
 app.post('/api/lead/restore', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });

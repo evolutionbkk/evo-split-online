@@ -502,6 +502,7 @@ function renderSheet(){
       </div>
     </div>
     <div class="tagbar" style="margin-bottom:14px">${r.fromExcel?`<span class="ttag" style="color:#b45309;border-color:#fde68a;background:#fffbeb">📋 รายชื่อเดิมจาก Excel</span>`:""}${r.prevSales?`<span class="ttag" style="color:#0369a1;border-color:#bae6fd;background:#f0f9ff">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม (K)":"พี่หวาน (W)"} · ซื้อซ้ำ</span>`:""}🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
+    <div style="margin-bottom:14px"><button onclick="moveOwner('${esc(r.key)}')" title="ย้ายรายชื่อนี้ให้เซลล์อีกฝั่ง (กรณีรายชื่อมั่วคน)" style="border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;border-radius:9px;padding:8px 14px;font-weight:800;font-size:12.5px;cursor:pointer">↔️ ย้ายผู้ดูแล → ${ME&&ME.side==="W"?"พี่เขม (K)":"พี่หวาน (W)"}</button></div>
     <div class="tksheet">
       <div>
         <div class="box" style="border:1.5px solid #ddd6fe"><h4>🤖 สรุปล่าสุด (ระบบสรุปให้อัตโนมัติ)</h4><div style="font-size:11.5px;color:var(--muted);margin-bottom:7px">${sumMeta}</div><div style="font-size:13.5px;line-height:1.6">${sumText}</div></div>
@@ -606,6 +607,7 @@ window.saveNote=async function(){await save({note:$("#noteInp").value},"บั�
 window.setCalls=async function(n){await save({callCount:n},n===0?"ล้างจำนวนโทร":"โทรครั้งที่ "+n);};
 window.addSaleItem=async function(){const name=($("#saleName").value||"").trim();const price=Number($("#salePrice").value||0)||0;if(!name&&!price){toast("กรอกสินค้า/ราคา");return;}const items=(CUR.saleItems||[]).slice();items.push({name,price});await save({saleItems:items},"เพิ่มรายการแล้ว");};
 window.delSaleItem=async function(ix){const items=(CUR.saleItems||[]).slice();if(ix<0||ix>=items.length)return;items.splice(ix,1);await save({saleItems:items},"ลบรายการแล้ว");};
+window.moveOwner=async function(key){const other=(ME&&ME.side==="W")?"พี่เขม (K)":"พี่หวาน (W)";if(!confirm("ย้ายรายชื่อนี้ไปให้ "+other+" ?\nรายชื่อจะออกจากลิสต์ของคุณ (ไม่บันทึกประวัติให้หัวหน้าทีมเห็น)"))return;const j=await api("/api/lead/move-owner",{key});if(j&&j.ok){toast("ย้ายให้ "+other+" แล้ว");closeSheet();await reload();}else toast((j&&j.message)||"ย้ายไม่สำเร็จ");};
 window.addTag=async function(){const t=prompt("สร้างแท็กใหม่ (เช่น ผิวแพ้ง่าย)");if(!t||!t.trim())return;const tags=(CUR.tags||[]).slice();tags.push(t.trim());await save({tags},"เพิ่มแท็ก: "+t.trim());};
 window.editTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;const t=prompt("แก้ไขแท็ก (เว้นว่างเพื่อลบ)",cur);if(t==null)return;const v=t.trim();const tags=(CUR.tags||[]).slice();if(!v)tags.splice(i,1);else tags[i]=v;await save({tags},v?("แก้ไขแท็ก → "+v):"ลบแท็ก");};
 window.delTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;if(!confirm("ลบแท็ก \""+cur+"\" ?"))return;const tags=(CUR.tags||[]).slice();tags.splice(i,1);await save({tags},"ลบแท็ก: "+cur);};
