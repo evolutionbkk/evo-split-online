@@ -192,7 +192,7 @@ window.setKR=function(r){KR=r;MTPAGE=1;if(r==="custom"&&(!kcf||!kct)){const TZ=7
 window.applyKC=function(){const f=$("#kcf").value,t=$("#kct").value;if(!f||!t){toast("เลือกวันที่ให้ครบ");return;}if(f>t){toast("วันเริ่มต้องไม่เกินวันสิ้นสุด");return;}kcf=f;kct=t;MTPAGE=1;render();};
 const MP_TARGET=30,FB_TG={T1:5,T2:5,T3:20},FB_TOTAL=FB_TG.T1+FB_TG.T2+FB_TG.T3;
 
-function leadPanel(r){if(r.source==="refill")return"refill";return (r.source==="pancake"||r.source==="manual")?"mkt":"ecom";}
+function leadPanel(r){return (r.source==="pancake"||r.source==="manual"||r.source==="refill")?"mkt":"ecom";}
 function neverCalled(r){return !((r.realCalls>0)||(r.callCount>0));}
 function overdueDays(r){const s=r.source||"evolution";return (s==="pancake"||s==="manual"||s==="refill")?2:5;}
 function isStale(r){const st=r.leadStatus||"new";if(r.archived||st==="won"||st==="lost")return false;if(st==="followup"&&r.nextAppt){const t=Date.parse(r.nextAppt);if(!isNaN(t)&&t>Date.now())return false;}return daysIdle(r)>=overdueDays(r);}

@@ -784,7 +784,7 @@ app.post('/api/admin/set-channel', requireAuth, async (req, res) => {
     const from = rec.source || 'evolution';
     if (from === source) continue;
     rec.source = source;
-    if (isMpSource(source)) { rec.step = ''; rec.stepManual = false; }   // Marketplace ไม่มีรอบติดตาม
+    if (isMpSource(source)) { rec.step = ''; rec.stepManual = false; rec.followStage = 1; rec.t2At = null; rec.t3At = null; }   // Marketplace ไม่มีรอบติดตาม — ล้างสถานะรอบทั้งหมด
     rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
     pushHist(rec, 'transfer', 'ช่องทาง → ' + (isMpSource(source) ? 'Marketplace (' + source + ')' : 'Facebook'), whoami(req) || 'ระบบ');
     changes.push({ phone: rec.phone, name: rec.name, from, to: source });

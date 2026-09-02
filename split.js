@@ -318,14 +318,20 @@ function distributePool(state, opts) {
   let round = state.maxRound || 0;
   if (batch.length) { round = (state.maxRound || 0) + 1; state.maxRound = Math.max(state.maxRound || 0, round); }
   let toW = 0, toK = 0;
-  // Seed the running counter with what each side already RECEIVED today (all channels), so the 50/50
-  // split stays even across the whole day even when leads trickle in one-per-cycle (otherwise every
-  // single-lead batch restarts at 0/0 and always picks W). Keeps T1 + Marketplace balanced คนละครึ่ง.
+  // Seed the running counter with what each side already got FROM THE 50/50 POOL today, so the split
+  // stays even across the whole day even when leads trickle in one-per-cycle (otherwise every single-lead
+  // batch restarts at 0/0 and always picks W). We count ONLY leads that carry a 'distribute' history
+  // event dated today (written solely by this function) — so side-pinned imports (k:'import', Excel or
+  // manual explicit-side) are never counted and cannot skew the pool split. Counts by the lead's CURRENT
+  // side, so a move-owner reassignment is reflected correctly. Uses Thai-day (UTC+7) consistently.
   if (mode === '50' && !forced50) {
+    const todayKey = thaiDay(new Date().toISOString());
     for (const a of state.assigned) {
-      // นับเฉพาะรายที่ "แจกจากคลังแบบ 50/50" วันนี้เท่านั้น — ข้ามรายที่ปักฝั่งไว้ (Excel/นำเข้าระบุฝั่งเอง)
-      // ไม่งั้นการปักฝั่งจะทำให้ยอดเอียงแล้วเทลูกค้าใหม่ไปอีกฝั่งหมด
-      if (a.archived || a.pooled || a.fromExcel || a.date !== date) continue;
+      if (a.archived || a.pooled) continue;
+      const h = a.history || [];
+      let distdToday = false;
+      for (let i = h.length - 1; i >= 0; i--) { const e = h[i]; if (e && e.k === 'distribute' && thaiDay(e.at) === todayKey) { distdToday = true; break; } }
+      if (!distdToday) continue;
       if (a.sales === 'W') toW++; else if (a.sales === 'K') toK++;
     }
   }
