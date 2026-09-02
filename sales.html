@@ -202,7 +202,9 @@ function dueToday(r){if((r.leadStatus||"new")==="followup"&&r.nextAppt){const t=
 function isToday(v){if(!v)return false;const d=new Date(v),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
 function wonToday(r){if(r.archived||(r.leadStatus||"new")!=="won")return false;const h=r.history||[];for(let i=h.length-1;i>=0;i--){if(h[i].k==="status"&&h[i].v==="won")return isToday(h[i].at);}return isToday(r.updatedAt);}
 function isToCall(r){if(r.archived)return false;const st=r.leadStatus||"new";if(st==="won"||st==="lost")return false;if(isOverdue(r))return true;if(dueToday(r))return true;if(st==="new"&&neverCalled(r))return true;return false;}
-function calledToday(r){if(r.realLastCallAt&&isToday(r.realLastCallAt))return true;if(r.lastCallAt&&isToday(r.lastCallAt))return true;for(const e of (r.history||[]))if((e.k==="call"||e.k==="calls")&&isToday(e.at))return true;return false;}
+function calledToday(r){if(r.realLastCallAt&&isToday(r.realLastCallAt))return true;for(const e of (r.history||[]))if(e.k==="call"&&isToday(e.at))return true;return false;}
+// ^ นับ "โทรแล้ววันนี้" เฉพาะสายจริง: จากระบบโทร OneCall (realLastCallAt) หรือการล็อกสายจริง (k:'call')
+//   ไม่นับ k:'calls' (การปรับจำนวนสาย = ตั้งค่าตัวเลข ไม่ใช่โทรจริง) และไม่นับ lastCallAt ที่กำกวม → ให้ตรงกับ Teamlead
 function saleTotal(r){return (r.saleItems||[]).reduce((s,i)=>s+(Number(i.price)||0),0);}
 function urgRank(r){const st=r.leadStatus||"new";if(st==="won"||st==="lost")return 9;if(isOverdue(r))return 0;if(dueToday(r))return 1;if(st==="new"&&neverCalled(r))return 2;if(st==="followup")return 3;if(st==="contacting")return 4;return 5;}
 function urgCmp(a,b){const x=urgRank(a)-urgRank(b);if(x)return x;if(a.nextAppt&&b.nextAppt){const t=Date.parse(a.nextAppt)-Date.parse(b.nextAppt);if(t)return t;}return daysIdle(b)-daysIdle(a);}
