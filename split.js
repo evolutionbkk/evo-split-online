@@ -318,12 +318,21 @@ function distributePool(state, opts) {
   let round = state.maxRound || 0;
   if (batch.length) { round = (state.maxRound || 0) + 1; state.maxRound = Math.max(state.maxRound || 0, round); }
   let toW = 0, toK = 0;
+  // Seed the running counter with what each side already RECEIVED today (all channels), so the 50/50
+  // split stays even across the whole day even when leads trickle in one-per-cycle (otherwise every
+  // single-lead batch restarts at 0/0 and always picks W). Keeps T1 + Marketplace balanced คนละครึ่ง.
+  if (mode === '50' && !forced50) {
+    for (const a of state.assigned) {
+      if (a.archived || a.pooled || a.date !== date) continue;
+      if (a.sales === 'W') toW++; else if (a.sales === 'K') toK++;
+    }
+  }
   for (let i = 0; i < batch.length; i++) {
     const a = batch[i];
     let side;
     if (mode === 'one') side = oneSide;
     else if (forced50) side = forced50;
-    else side = (toW <= toK) ? 'W' : 'K'; // keep the running split even
+    else side = (toW <= toK) ? 'W' : 'K'; // keep the running split even (seeded from today's totals)
     a.sales = side; a.pooled = false; a.round = round; a.date = date;
     a.exported = false; a.receivedAt = nowIso;
     a.distributedBy = opts.by || 'Teamlead';
