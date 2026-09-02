@@ -268,9 +268,11 @@ function render(){
   if(VIEW==="mycalls"){$("#viewTitle").textContent="สายที่โทรวันนี้";c.innerHTML=viewMyCalls();setTimeout(loadMyCalls,30);return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
-  // โทรแล้ววันนี้ = นับสายที่โทรวันนี้ รวมตั๋วที่ปิดงาน/จัดเก็บไปแล้วด้วย (เซลล์โทรแล้วปิดการขาย ก็ต้องนับ)
+  // โทรแล้ววันนี้ = จำนวนสายจริง (OneCall) วันนี้ของช่องทางนี้ — แหล่งเดียวกับ Teamlead จึงตรงกันเป๊ะ
+  // (ถ้าโหลดข้อมูลสายไม่ได้ ค่อยถอยไปนับจากรายชื่อที่มีสายวันนี้แทน)
   const calledPool=[...ACTIVE,...(typeof ARCHIVED!=="undefined"?ARCHIVED:[])].filter(r=>leadPanel(r)===PANEL);
-  const target=isFB?FB_TOTAL:MP_TARGET,doneToday=calledPool.filter(calledToday).length,remain=pool.filter(isToCall).length;
+  const callsCh=callsTodayByChannel(isFB);
+  const target=isFB?FB_TOTAL:MP_TARGET,doneToday=(callsCh!=null?callsCh:calledPool.filter(calledToday).length),remain=pool.filter(isToCall).length;
   const pct=Math.min(100,Math.round(doneToday/target*100));
   let html=`<div class="phead"><div class="ph-top"><div class="ph-title">${isFB?"💬 Facebook (Pancake)":"📦 Marketplace"}</div>
     <span class="ph-target">เป้าวันละ ${isFB?(FB_TOTAL+" (T1·"+FB_TG.T1+" T2·"+FB_TG.T2+" T3·"+FB_TG.T3+")"):MP_TARGET}</span></div>
@@ -635,9 +637,13 @@ async function save(patch,msg){
 async function reload(){
   const r=await fetch("/api/leads");if(r.status===401){location.href="/login";return;}
   const j=await r.json();ACTIVE=j.active||[];ARCHIVED=j.archived||[];
+  // โหลดสายจริงวันนี้ (OneCall) — ใช้เป็นตัวนับ "โทรแล้ววันนี้" ให้ตรงกับ Teamlead เป๊ะ (แหล่งเดียวกัน)
+  try{const mc=await fetch("/api/sales/my-calls").then(x=>x.json());window.MYCALLS=(mc&&mc.ok)?mc:null;}catch(e){window.MYCALLS=null;}
   if(CUR){const f=findLead(CUR.key);if(f)CUR=JSON.parse(JSON.stringify(f));}
   render();
 }
+// จำนวนสายจริงที่โทรวันนี้ต่อช่องทาง (จาก OneCall) — FB=Facebook, MP=Marketplace · ใช้ให้ตรงกับ Teamlead
+function callsTodayByChannel(isFB){const mc=window.MYCALLS;if(!mc||!mc.calls)return null;const want=isFB?"FB":"MP";return mc.calls.filter(c=>c.channel===want).length;}
 async function init(){
   const r=await fetch("/api/me");if(r.status===401){location.href="/login";return;}
   ME=await r.json();
