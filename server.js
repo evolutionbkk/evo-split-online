@@ -440,6 +440,7 @@ function leadView(r, ocMap) {
     succeedOrders: (typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
     fromExcel: !!r.fromExcel,
     receivedAt: r.receivedAt || null,
+    lastLineAt: r.lastLineAt || null, lineCount: r.lineCount || 0,
     prevSales: r.prevSales || '', prevSalesAt: r.prevSalesAt || '',
     vip: (typeof r.ltv === 'number') ? vipTier(r.ltv, r.succeedOrders || 0) : null,
     history: (r.history || []).slice(-40),
@@ -643,7 +644,7 @@ app.get('/api/leads', requireCrm, async (req, res) => {
 });
 
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
-const HIST_LABEL = { call: 'โทรหาลูกค้า', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน', import: 'นำเข้ารายชื่อ' };
+const HIST_LABEL = { call: 'โทรหาลูกค้า', line: 'ติดตามผ่าน LINE', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน', import: 'นำเข้ารายชื่อ' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
   const limit = Math.min(600, Math.max(20, parseInt(req.query.limit, 10) || 250));
   const activity = [], transfers = [];
@@ -685,6 +686,21 @@ app.post('/api/lead/call', requireCrm, async (req, res) => {
   const advanced = maybeReturnPool(rec);
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec), advanced });
+});
+
+// เซลล์กด "ติดตามผ่าน LINE" — เคสที่คุยผ่าน LINE (แชท/โทรผ่าน LINE/ส่งโปรฯ) โดยไม่ได้โทรเข้าเบอร์มือถือ
+// นับเป็น "การได้คุย" ผ่าน LINE · เก็บแยกจากสายโทรจริง (OneCall) เพื่อให้ตัวเลขสายโทรยังตรงกับ Teamlead
+app.post('/api/lead/line-contact', requireCrm, async (req, res) => {
+  const rec = leadFor(req, req.body && req.body.key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  const note = String((req.body && req.body.note) || '').trim().slice(0, 200) || 'ติดตามผ่าน LINE';
+  const nowIso = new Date().toISOString();
+  rec.lastLineAt = nowIso; rec.lineCount = (rec.lineCount || 0) + 1;
+  if (rec.contact !== 'reached') rec.contact = 'reached';   // ถือว่าติดต่อลูกค้าได้แล้ว (ออกจากคิวต้องโทร)
+  rec.updatedAt = nowIso; rec.updatedBy = whoami(req);
+  pushHist(rec, 'line', note, whoami(req));
+  state = await store.save(state);
+  res.json({ ok: true, lead: leadView(rec) });
 });
 
 app.post('/api/lead/update', requireCrm, async (req, res) => {

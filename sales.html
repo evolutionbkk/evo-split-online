@@ -246,6 +246,7 @@ function leadCard(r){
       ${(()=>{const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";})()}
       ${r.nextAppt?`<div class="lc-urg" style="color:#7c3aed;font-weight:700">📅 นัดวันที่ ${esc(fmtShort(r.nextAppt))}</div>`:""}
       ${urgLine(r)}
+      ${r.lastLineAt?`<div class="lc-urg" style="color:#1a7f37;font-weight:700">💬 ติดตามผ่าน LINE ${esc(fmtShort(r.lastLineAt))}${r.lineCount>1?` · ${r.lineCount} ครั้ง`:""}</div>`:""}
       ${r.note?`<div style="color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12px;line-height:1.5;white-space:normal;text-align:left">📝 โน้ตล่าสุด: ${esc(r.note.length>110?r.note.slice(0,110)+"…":r.note)}</div>`:""}</div>
     <div class="lc-right">${statusPill(r)}${amt?`<span class="lc-amt tnum">${amt}</span>`:""}</div></button>`;
 }
@@ -273,11 +274,13 @@ function render(){
   const calledPool=[...ACTIVE,...(typeof ARCHIVED!=="undefined"?ARCHIVED:[])].filter(r=>leadPanel(r)===PANEL);
   const callsCh=callsTodayByChannel(isFB);
   const target=isFB?FB_TOTAL:MP_TARGET,doneToday=(callsCh!=null?callsCh:calledPool.filter(calledToday).length),remain=pool.filter(isToCall).length;
+  const lineToday=calledPool.filter(r=>r.lastLineAt&&isToday(r.lastLineAt)).length;
   const pct=Math.min(100,Math.round(doneToday/target*100));
   let html=`<div class="phead"><div class="ph-top"><div class="ph-title">${isFB?"💬 Facebook (Pancake)":"📦 Marketplace"}</div>
     <span class="ph-target">เป้าวันละ ${isFB?(FB_TOTAL+" (T1·"+FB_TG.T1+" T2·"+FB_TG.T2+" T3·"+FB_TG.T3+")"):MP_TARGET}</span></div>
     <div class="ph-stats"><div class="ph-st"><div class="n tnum" style="color:var(--warn)">${remain}</div><div class="l">เหลือต้องโทร</div></div>
       <div class="ph-st"><div class="n tnum" style="color:var(--brand)">${doneToday} / ${target}</div><div class="l">โทรแล้ววันนี้</div></div>
+      ${lineToday?`<div class="ph-st"><div class="n tnum" style="color:#1a7f37">${lineToday}</div><div class="l">คุยผ่าน LINE วันนี้</div></div>`:""}
       <div class="ph-st"><div class="n tnum" style="color:var(--ok)">${pool.filter(wonToday).length}</div><div class="l">ปิดได้วันนี้</div></div></div>
     <div class="ph-bar"><i style="width:${pct}%"></i></div>
     <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:8px">ความคืบหน้าวันนี้ ${pct}%</div></div>`;
@@ -517,7 +520,16 @@ function renderSheet(){
         ${roundInfo(r)}
         <div class="box"><div class="step-h"><span class="step-n">1</span><span class="step-t">โทรหาลูกค้า</span></div>
           <a class="dial" href="tel:${esc(r.phone)}" onclick="logCall('${esc(r.key)}')">📞 โทรออก ${esc(r.phone)}</a>
-          <div class="seg"><button class="${(r.callCount||0)>=1?"on":""}" onclick="setCalls(1)">ครั้งที่ 1</button><button class="${(r.callCount||0)>=2?"on":""}" onclick="setCalls(2)">2</button><button class="${(r.callCount||0)>=3?"on":""}" onclick="setCalls(3)">3</button><button onclick="setCalls(0)" style="flex:0 0 auto;min-width:54px;color:var(--muted)">ล้าง</button></div></div>
+          <div class="seg"><button class="${(r.callCount||0)>=1?"on":""}" onclick="setCalls(1)">ครั้งที่ 1</button><button class="${(r.callCount||0)>=2?"on":""}" onclick="setCalls(2)">2</button><button class="${(r.callCount||0)>=3?"on":""}" onclick="setCalls(3)">3</button><button onclick="setCalls(0)" style="flex:0 0 auto;min-width:54px;color:var(--muted)">ล้าง</button></div>
+          <div style="margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)">
+            <div style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:7px">หรือติดตามผ่าน LINE (ไม่ได้โทรเข้าเบอร์ — นับเป็นการได้คุย)</div>
+            <div style="display:flex;gap:7px;flex-wrap:wrap">
+              <button class="btn" style="flex:1;min-width:120px;background:#eafaef;color:#1a7f37;border:1px solid #a7e3ba;font-weight:800" onclick="lineContact('${esc(r.key)}','💬 แชท LINE')">💬 แชท LINE</button>
+              <button class="btn" style="flex:1;min-width:120px;background:#eafaef;color:#1a7f37;border:1px solid #a7e3ba;font-weight:800" onclick="lineContact('${esc(r.key)}','📞 โทรผ่าน LINE')">📞 โทรผ่าน LINE</button>
+              <button class="btn" style="flex:1;min-width:120px;background:#eafaef;color:#1a7f37;border:1px solid #a7e3ba;font-weight:800" onclick="lineContact('${esc(r.key)}','🎁 ส่งโปรฯ LINE')">🎁 ส่งโปรฯ LINE</button>
+            </div>
+            ${r.lastLineAt?`<div style="font-size:12px;color:#1a7f37;font-weight:700;margin-top:8px">💬 ติดตามผ่าน LINE ล่าสุด ${esc(fmtShort(r.lastLineAt))}${(r.lineCount||0)>1?` · รวม ${r.lineCount} ครั้ง`:""}</div>`:""}
+          </div></div>
         <div class="box"><div class="step-h"><span class="step-n">2</span><span class="step-t">ผลการติดต่อ</span></div>
           <div class="toggle"><button class="tg2 ${r.contact==="reached"?"ok":""}" id="tgOk" onclick="pickReach(true)">✅ ติดต่อได้</button><button class="tg2 ${r.contact==="unreachable"?"no":""}" id="tgNo" onclick="pickReach(false)">📵 ติดต่อไม่ได้</button></div>
           <div id="reachBox"></div></div>
@@ -576,7 +588,7 @@ window.archiveLead=async function(reason){
 };
 const EVIC={call:"📞",status:"◐",result:"📞",interest:"⭐",action:"➡️",followup:"📅",note:"📝",sale:"🛒",name:"✏️",phone:"✏️",address:"🏠",calls:"📞",tracking:"📦",tstage:"🔄",transfer:"🔁",archive:"📁",delete:"🗑️",close:"📁",restore:"↩️",aisum:"🤖",import:"📥",distribute:"📤",recycle:"♻️",dayoff_move:"🌴",dayoff_return:"↩️",tag:"🏷️"};
 const EVLAB={import:"นำเข้ารายชื่อ",distribute:"แจกให้เซลล์",recycle:"คัดออกถาวร",dayoff_move:"ย้าย (วันลา)",dayoff_return:"คืน (ยกเลิกวันลา)",transfer:"โอนให้อีกฝั่ง",tag:"เพิ่มแท็ก"};
-function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;case"name":return"แก้ชื่อ → "+v;case"phone":return"แก้เบอร์โทร → "+v;case"address":return"แก้ที่อยู่";case"tstage":return"ปรับรอบ → "+v;case"tracking":return"ใส่เลขพัสดุ "+v;case"archive":return"เก็บเข้าคลัง"+(v?(" · "+v):"");case"delete":return"ลบเข้าถังขยะ"+(v?(" · "+v):"");case"close":return"ปิดงาน/จัดเก็บ"+(v?(" · "+v):"");case"restore":return"กู้คืนตั๋ว";case"aisum":return"AI สรุปสาย";case"transfer":return"โอนให้ฝั่ง "+v;case"import":return"นำเข้ารายชื่อ"+(v?(" · รอบ "+v):"");case"tag":return v?("อัปเดตแท็ก → "+v):"ล้างแท็กทั้งหมด";default:return EVLAB[e.k]||e.k;}}
+function evText(e){const v=e.v||"";switch(e.k){case"call":return"โทรออก";case"line":return"ติดตามผ่าน LINE"+(v?(" · "+v):"");case"status":return"เปลี่ยนสถานะ → "+(STLABEL[v]||v);case"result":return"ผลการโทร: "+v;case"interest":return"ความสนใจ: "+v;case"followup":return v?"นัดติดตาม "+fmtShort(v):"ล้างวันนัด";case"note":return"อัปเดตโน้ต";case"sale":return"อัปเดตสินค้า/ยอด ("+v+" รายการ)";case"calls":return"ปรับจำนวนโทรเป็น "+v;case"name":return"แก้ชื่อ → "+v;case"phone":return"แก้เบอร์โทร → "+v;case"address":return"แก้ที่อยู่";case"tstage":return"ปรับรอบ → "+v;case"tracking":return"ใส่เลขพัสดุ "+v;case"archive":return"เก็บเข้าคลัง"+(v?(" · "+v):"");case"delete":return"ลบเข้าถังขยะ"+(v?(" · "+v):"");case"close":return"ปิดงาน/จัดเก็บ"+(v?(" · "+v):"");case"restore":return"กู้คืนตั๋ว";case"aisum":return"AI สรุปสาย";case"transfer":return"โอนให้ฝั่ง "+v;case"import":return"นำเข้ารายชื่อ"+(v?(" · รอบ "+v):"");case"tag":return v?("อัปเดตแท็ก → "+v):"ล้างแท็กทั้งหมด";default:return EVLAB[e.k]||e.k;}}
 function timeline(r){const h=(r.history||[]).slice().reverse();if(!h.length)return `<div style="color:var(--muted);font-size:12.5px">ยังไม่มีประวัติ</div>`;return h.map(e=>`<div class="ev"><span class="eic">${EVIC[e.k]||"•"}</span><div><div class="et">${esc(evText(e))}</div><div class="em">${esc(fmtShort(e.at))}${e.by?" · "+esc(e.by):""}</div></div></div>`).join("");}
 
 window.pickReach=function(ok){
@@ -619,6 +631,7 @@ window.addTag=async function(){const t=prompt("สร้างแท็กให
 window.editTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;const t=prompt("แก้ไขแท็ก (เว้นว่างเพื่อลบ)",cur);if(t==null)return;const v=t.trim();const tags=(CUR.tags||[]).slice();if(!v)tags.splice(i,1);else tags[i]=v;await save({tags},v?("แก้ไขแท็ก → "+v):"ลบแท็ก");};
 window.delTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;if(!confirm("ลบแท็ก \""+cur+"\" ?"))return;const tags=(CUR.tags||[]).slice();tags.splice(i,1);await save({tags},"ลบแท็ก: "+cur);};
 window.logCall=function(key){api("/api/lead/call",{key}).then(()=>{toast("บันทึกการโทรแล้ว");reload();});};
+window.lineContact=async function(key,how){const j=await api("/api/lead/line-contact",{key,note:how||"ติดตามผ่าน LINE"});if(j&&j.ok){if(j.lead){CUR=j.lead;const i=ACTIVE.findIndex(x=>x.key===key);if(i>=0)ACTIVE[i]=j.lead;}toast("บันทึกติดตามผ่าน LINE แล้ว 💬");renderSheet();renderList();}else toast((j&&j.message)||"บันทึกไม่สำเร็จ");};
 
 async function save(patch,msg){
   if(!CUR)return;
