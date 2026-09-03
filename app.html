@@ -159,7 +159,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const fmt=n=>Number(n||0).toLocaleString("th-TH");
 const fmtB=n=>"฿"+fmt(Math.round(n||0));
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1900);}
-let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",TKPAGE=1,TKQ="",TRQ="",TRPAGE=1,TRBIN="all",AVDATE="",AVYM="",AVSIDE="all",D={};
+let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",TKPAGE=1,TKQ="",TRQ="",TRPAGE=1,TRBIN="all",AVDATE="",AVYM="",AVSIDE="all",TCPAGE=1,CLPAGE=1,D={};
 function apptKey(r){const t=Date.parse(r.nextAppt||"");if(isNaN(t))return null;const TZ=7*3600000,d=new Date(t+TZ),p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+"-"+p(d.getUTCMonth()+1)+"-"+p(d.getUTCDate());}
 function apptKeyLab(k){const a=k.split("-");return a[2]+"/"+a[1]+"/"+String((+a[0])+543).slice(-2);}
 function apptTime(v){const t=Date.parse(v);if(isNaN(t))return"";const TZ=7*3600000,d=new Date(t+TZ),p=n=>String(n).padStart(2,"0");return p(d.getUTCHours())+":"+p(d.getUTCMinutes());}
@@ -439,7 +439,7 @@ window.drillOffList=async function(side){
 
 /* ===== TEL CALL TODAY — เบอร์ที่โทรจริงวันนี้ (จาก OneCall) ===== */
 let CLSIDE="all";  // ฟิลเตอร์ฝั่งของตารางสายที่โทรวันนี้
-window.setClSide=function(s){CLSIDE=s;renderCallLogToday();};
+window.setClSide=function(s){CLSIDE=s;CLPAGE=1;renderCallLogToday();};
 function callLogRows(){
   const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
   const rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return (x.side==="W"||x.side==="K")&&t>=tS&&t<tE;});
@@ -455,14 +455,19 @@ function renderCallLogToday(){
   const chIcon=c=>c==="Marketplace"?"📦 Marketplace":(c==="FB"?"💬 Facebook":"❓ เบอร์อื่น");
   const hhmm=iso=>{const TZ=7*3600000,d=new Date(Date.parse(iso)+TZ);const p=x=>String(x).padStart(2,"0");return p(d.getUTCHours())+":"+p(d.getUTCMinutes());};
   const chips=[["all","ทั้งหมด "+all.length],["W","พี่หวาน "+W.length],["K","พี่เขม "+K.length]];
-  const body=list.length?list.map(x=>`<tr><td class="tnum" style="color:var(--muted)">${hhmm(x.at)}</td><td><span class="sideb ${x.side.toLowerCase()}">${x.side}</span></td><td class="mono">${esc(x.phone||"")}</td><td>${esc(x.matchedName||"—")}</td><td style="font-size:12px">${chIcon(x.classify)}</td><td class="tnum">${x.durationSec||0} วิ</td><td>${talk(x)?'<span style="color:#16a34a;font-weight:700">✓ ได้คุย</span>':'<span style="color:var(--muted)">สั้น</span>'}</td></tr>`).join(""):`<tr><td colspan="7" style="padding:16px;color:var(--muted)">ยังไม่มีสายที่โทรวันนี้ในฝั่งนี้</td></tr>`;
+  // แบ่งหน้า หน้าละ 10 สาย + ปุ่มเลขหน้า 1 2 3 4 5 (รายชื่อยาว ไม่ต้องเลื่อนทีเดียวหมด)
+  const PER=10,totalPages=Math.max(1,Math.ceil(list.length/PER));
+  if(CLPAGE>totalPages)CLPAGE=totalPages; if(CLPAGE<1)CLPAGE=1;
+  const start=(CLPAGE-1)*PER,pageRows=list.slice(start,start+PER);
+  const body=list.length?pageRows.map(x=>`<tr><td class="tnum" style="color:var(--muted)">${hhmm(x.at)}</td><td><span class="sideb ${x.side.toLowerCase()}">${x.side}</span></td><td class="mono">${esc(x.phone||"")}</td><td>${esc(x.matchedName||"—")}</td><td style="font-size:12px">${chIcon(x.classify)}</td><td class="tnum">${x.durationSec||0} วิ</td><td>${talk(x)?'<span style="color:#16a34a;font-weight:700">✓ ได้คุย</span>':'<span style="color:var(--muted)">สั้น</span>'}</td></tr>`).join(""):`<tr><td colspan="7" style="padding:16px;color:var(--muted)">ยังไม่มีสายที่โทรวันนี้ในฝั่งนี้</td></tr>`;
   box.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:var(--muted)">
       <span>📞 รวม <b style="color:var(--ink)">${all.length}</b> สาย</span>
       <span>· พี่หวาน <b style="color:var(--ink)">${W.length}</b> (ได้คุย ${W.filter(talk).length})</span>
       <span>· พี่เขม <b style="color:var(--ink)">${K.length}</b> (ได้คุย ${K.filter(talk).length})</span></div>
     <div class="fbar2" style="margin-bottom:10px">${chips.map(([k,l])=>`<button class="chip ${CLSIDE===k?"on":""}" onclick="setClSide('${k}')">${l}</button>`).join("")}</div>
-    <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>เวลา</th><th>ฝั่ง</th><th>เบอร์โทร</th><th>ลูกค้า</th><th>ช่องทาง</th><th>คุยนาน</th><th>ผล</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>เวลา</th><th>ฝั่ง</th><th>เบอร์โทร</th><th>ลูกค้า</th><th>ช่องทาง</th><th>คุยนาน</th><th>ผล</th></tr></thead><tbody>${body}</tbody></table>${list.length?`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:11px 15px;border-top:1px solid var(--line)"><span style="font-size:12px;color:var(--muted)">แสดง ${fmt(start+1)}–${fmt(start+pageRows.length)} จาก ${fmt(list.length)} สาย</span>${pager(totalPages,CLPAGE,'setClPage')}</div>`:""}</div>`;
 }
+window.setClPage=function(n){CLPAGE=n;renderCallLogToday();window.scrollTo(0,0);};
 window.renderCallLogToday=renderCallLogToday;
 window.loadCallLogToday=async function(){
   const box=document.getElementById("callLogToday");if(!box)return;
@@ -479,13 +484,18 @@ function viewTelCallToday(){
   h+=`<div style="${grid(150)};margin-bottom:20px">${statTile(fmt(s("total")),"รายชื่อทั้งหมด")}${statTile(fmt(notCalled),"ยังไม่ได้โทร","var(--brand)")}${statTile(fmt(s("callsToday")),"โทรวันนี้")}${statTile(fmt(s("talk7Today")),"ได้คุย (>7วิ)","var(--ok)")}${statTile(fmt(s("wonToday")),"ปิดได้วันนี้","var(--ok)")}</div>
   <div class="secttl">📞 เบอร์ที่โทรวันนี้ (จริงจากระบบโทร OneCall) <span style="font-size:11px;color:var(--muted);font-weight:400">· รวมสายที่ปิดงาน/ยกเลิกไปแล้วด้วย</span><span class="ln"></span></div>
   <div id="callLogToday"><div class="empty" style="padding:18px">กำลังโหลดสายที่โทรวันนี้…</div></div>
-  <div class="secttl" style="margin-top:22px">รายชื่อที่ต้องโทร (ยังไม่ปิด/ไม่ตัดออก)<span class="ln"></span></div>
-  <div class="card" style="overflow:auto"><table class="tbl click"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ช่องทาง</th><th>รอบ</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>
-    ${list.length?list.slice(0,200).map(ticketRow).join(""):'<tr><td colspan="6" style="color:var(--muted)">ไม่มีรายการ</td></tr>'}
-  </tbody></table>${list.length>200?`<div style="padding:11px 15px;font-size:12px;color:var(--muted)">แสดง 200 จาก ${fmt(list.length)} ราย</div>`:""}</div>`;
+  <div class="secttl" style="margin-top:22px">รายชื่อที่ต้องโทร (ยังไม่ปิด/ไม่ตัดออก)<span class="ln"></span></div>`;
+  // แบ่งหน้า หน้าละ 10 ราย + ปุ่มเลขหน้า 1 2 3 4 5 (รายชื่อยาว เลื่อนทีละหน้าแทนการเลื่อนยาว)
+  const PER=10,totalPages=Math.max(1,Math.ceil(list.length/PER));
+  if(TCPAGE>totalPages)TCPAGE=totalPages; if(TCPAGE<1)TCPAGE=1;
+  const start=(TCPAGE-1)*PER,pageRows=list.slice(start,start+PER);
+  h+=`<div class="card" style="overflow:auto"><table class="tbl click"><thead><tr><th>รหัส</th><th>ลูกค้า</th><th>ช่องทาง</th><th>รอบ</th><th>สถานะ</th><th>ผู้ดูแล</th></tr></thead><tbody>
+    ${list.length?pageRows.map(ticketRow).join(""):'<tr><td colspan="6" style="color:var(--muted)">ไม่มีรายการ</td></tr>'}
+  </tbody></table>${list.length?`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:11px 15px;border-top:1px solid var(--line)"><span style="font-size:12px;color:var(--muted)">แสดง ${fmt(start+1)}–${fmt(start+pageRows.length)} จาก ${fmt(list.length)} ราย</span>${pager(totalPages,TCPAGE,'setTcPage')}</div>`:""}</div>`;
   setTimeout(()=>{if(window.loadCallLogToday)window.loadCallLogToday();},30);
   return h;
 }
+window.setTcPage=function(n){TCPAGE=n;paint();window.scrollTo(0,0);};
 
 /* ===== TEL PERFORMANCE ===== */
 function viewTelPerf(){
