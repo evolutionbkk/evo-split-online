@@ -959,6 +959,20 @@ function followupTiers() {
     f.T1done = cToday[sd].T1.size;   // โทรหาลูกค้า T1 จริงวันนี้ (ทั้งออเดอร์ใหม่ + ตามเดิม รวมที่ปิดงาน)
     f.T2d = cToday[sd].T2.size; f.T3d = cToday[sd].T3.size;
   }
+  // "สายนอกเกณฑ์วันนี้" — สายจริงที่ได้คุย (>เกณฑ์) แต่โทรออกหาเบอร์ที่ "ไม่มีในระบบเลย"
+  // จึงไม่มีเคสให้ผูก ลงเกณฑ์ T1/T2/T3/MP ไม่ได้ — นับแยกให้หัวหน้าเห็นภาระงานนอกลิสต์ (นับไม่ซ้ำเบอร์/ฝั่ง)
+  const knownPhones = new Set();
+  for (const r of state.assigned) { const p = normPhoneTH(r.phone); if (p) knownPhones.add(p); }
+  const offSet = { W: new Set(), K: new Set() };
+  for (const c of (state.onecall || [])) {
+    if (c.side !== 'W' && c.side !== 'K') continue;
+    if ((c.dur || 0) <= ONECALL_MIN_TALK) continue;      // เฉพาะสายที่ได้คุยจริง
+    if (S.thaiDay(c.at) !== today) continue;
+    const p = normPhoneTH(c.phone); if (!p) continue;
+    if (knownPhones.has(p)) continue;                     // มีในระบบ → ไม่ใช่สายนอกเกณฑ์
+    offSet[c.side].add(p);
+  }
+  out.offToday = { W: offSet.W.size, K: offSet.K.size, total: offSet.W.size + offSet.K.size };
   return out;
 }
 app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
@@ -2055,12 +2069,16 @@ app.get('/api/admin/calllog', requireAuth, (req, res) => {
   if (isNaN(to)) to = now;
   if (isNaN(from)) from = to - 6 * 86400000;
   const sideF = (req.query.side === 'W' || req.query.side === 'K') ? req.query.side : null;
+  const nk = (v) => digitsOnly(v).replace(/^66/, '0'); // normalize a phone to 0-prefixed digits
   // phone -> customer name (from active leads) so the log shows who was called
   const nameMap = new Map();
+  // ทุกเบอร์ที่ "มีในระบบ" (ทุกสถานะ ทั้ง active + จัดเก็บ) — ใช้เช็กว่าสายไหนเป็นเบอร์นอกระบบ
+  const knownPhones = new Set();
   for (const a of state.assigned) {
-    if (a.archived) continue;
-    const p = digitsOnly(a.phone);
-    if (p && !nameMap.has(p)) nameMap.set(p, a.name || '');
+    const p = nk(a.phone);
+    if (!p) continue;
+    knownPhones.add(p);
+    if (!a.archived && !nameMap.has(p)) nameMap.set(p, a.name || '');
   }
   const calls = [];
   for (const c of (state.onecall || [])) {
@@ -2068,12 +2086,29 @@ app.get('/api/admin/calllog', requireAuth, (req, res) => {
     if (sideF && sd !== sideF) continue;
     const t = Date.parse(c.at); if (isNaN(t)) continue;
     if (t < from || t > to) continue;
-    calls.push({ id: c.id, side: sd, phone: c.phone, name: nameMap.get(digitsOnly(c.phone)) || '', dur: Number(c.dur) || 0, at: c.at, dir: c.dir || '' });
+    calls.push({ id: c.id, side: sd, phone: c.phone, name: nameMap.get(nk(c.phone)) || '', dur: Number(c.dur) || 0, at: c.at, dir: c.dir || '' });
   }
   calls.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  // "สายนอกเกณฑ์วันนี้" — สายจริง (ได้คุย > เกณฑ์) ที่โทรออกหาเบอร์ที่ "ไม่มีในระบบเลย"
+  // จึงลงเกณฑ์ T1/T2/T3/MP ไม่ได้ (ไม่มีเคสให้ผูก) — นับแยกให้หัวหน้าเห็นภาระงานนอกลิสต์
+  const todayKey = S.thaiDay();
+  const offToday = { total: 0, W: 0, K: 0, talk: 0, phones: [] };
+  const seenOff = new Set();
+  for (const c of (state.onecall || [])) {
+    const sd = c.side; if (sd !== 'W' && sd !== 'K') continue;
+    if (S.thaiDay(c.at) !== todayKey) continue;
+    const p = nk(c.phone); if (!p) continue;
+    if (knownPhones.has(p)) continue;            // มีในระบบ → ไม่ใช่สายนอกเกณฑ์
+    offToday.total++;
+    if (sd === 'W') offToday.W++; else offToday.K++;
+    if ((Number(c.dur) || 0) > ONECALL_MIN_TALK) offToday.talk++;
+    const dk = sd + '|' + p;
+    if (!seenOff.has(dk) && offToday.phones.length < 300) { seenOff.add(dk); offToday.phones.push({ side: sd, phone: c.phone, dur: Number(c.dur) || 0, at: c.at }); }
+  }
   res.json({
     names: SALES_NAMES, minTalk: ONECALL_MIN_TALK,
     total: calls.length, capped: calls.length > 3000, calls: calls.slice(0, 3000),
+    offToday,
   });
 });
 
@@ -2104,6 +2139,7 @@ app.get('/api/admin/onecall-recon', requireAuth, (req, res) => {
       side, phone: c.phone, durationSec: c.dur || 0, over7s: (c.dur || 0) > ONECALL_MIN_TALK ? 'ใช่' : 'ไม่',
       at: c.at, direction: c.dir || '', classify: cls,
       matchedName: lead ? lead.name : '', matchedSource: lead ? lead.source : '', assignedTo: lead ? lead.sales : '',
+      inSystem: !!lead,   // เบอร์นี้มีรายชื่อในระบบไหม (ไม่มี = สายนอกเกณฑ์ T1/T2/T3)
     });
   }
   rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));

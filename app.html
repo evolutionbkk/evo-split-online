@@ -351,6 +351,7 @@ function viewTelOverview(){
     ${(()=>{const wd=fw.T1done||0,kd=fk.T1done||0,wr=(fw.T1recv||0)||(TG.t1||5),kr=(fk.T1recv||0)||(TG.t1||5);return `<tr><td><b style="color:${COL.t1}">💬 T1 · โทรวันนี้</b><div style="font-size:11px;color:var(--muted)">โทรลูกค้ารอบ T1 วันนี้ (ออเดอร์ใหม่ + ตามเดิม) · เป้า/ที่ได้รับ</div></td>${cC(wd,wr,COL.t1,'t1','W')}${cC(kd,kr,COL.t1,'t1','K')}<td class="r tnum"><b style="font-size:15px">${fmt(wd+kd)}</b></td></tr>`;})()}
     ${row("💬","T2 · ตามรอบ 2","",TG.t2||5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
     ${row("💬","T3 · ตามรอบ 3","",TG.t3||20,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
+    ${(()=>{const o=(D.tiers&&D.tiers.offToday)||{W:0,K:0,total:0};return `<tr style="background:#fff7ed"><td><b style="color:#c2410c">📵 สายนอกเกณฑ์วันนี้</b><div style="font-size:11px;color:var(--muted)">โทรออก<b>ได้คุย</b> แต่เป็น<b>เบอร์ที่ไม่มีในระบบ</b> จึงไม่เข้า T1/T2/T3 — เช่น ลูกค้าโทรเข้าเอง · เบอร์จาก LINE · ลูกค้านอกลิสต์</div></td><td onclick="drillOffList('W')" style="cursor:pointer" title="กดดูเบอร์"><b class="tnum" style="font-size:14px;color:#c2410c">${fmt(o.W)}</b> <span style="font-size:11px;color:var(--muted)">สาย</span></td><td onclick="drillOffList('K')" style="cursor:pointer" title="กดดูเบอร์"><b class="tnum" style="font-size:14px;color:#c2410c">${fmt(o.K)}</b> <span style="font-size:11px;color:var(--muted)">สาย</span></td><td class="r tnum"><b style="font-size:15px;color:#c2410c">${fmt(o.total)}</b></td></tr>`;})()}
     ${revRow}
   </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · <b>ยอดขาย</b> = ยอดที่ปิดได้วันนี้ (จากรายการที่เซลล์บันทึกในระบบ) · กดตัวเลขเพื่อดูรายละเอียด</div></div>`;
   h+=`<div class="secttl" style="margin-top:6px">📞 เบอร์ที่โทรวันนี้ (จริงจากระบบโทร OneCall) <span style="font-size:11px;color:var(--muted);font-weight:400">· รวมสายที่ปิดงาน/ยกเลิกไปแล้วด้วย</span><span class="ln"></span></div>
@@ -414,6 +415,24 @@ window.drillKpi=async function(cat,side){
       head=`<tr><th>ชื่อลูกค้า</th><th>เบอร์โทร</th><th>ช่องทาง</th></tr>`;
       trs=inRound.map(r=>{const t=Date.parse(r[key]||"");const today=t>=tS&&t<tE;return `<tr><td>${esc(r.name||"—")}${today?' <span style="font-size:10px;color:var(--brand);font-weight:700">• วันนี้</span>':""}</td><td class="mono">${esc(r.phone||"")}</td><td style="color:var(--muted)">${esc(chName(r.source))}</td></tr>`;});
     }
+    window.__drill={trs,head,sub,page:1};drillRender();
+  }catch(e){setBody('<div class="empty" style="padding:24px">โหลดข้อมูลไม่สำเร็จ</div>');}
+};
+// สายนอกเกณฑ์วันนี้ (เบอร์ไม่มีในระบบ) — ดึงจาก recon: inSystem===false, ได้คุย >7วิ, วันนี้
+window.drillOffList=async function(side){
+  const nm=side==="W"?"พี่หวาน (W)":"พี่เขม (K)";
+  showModal("📵 สายนอกเกณฑ์วันนี้ (เบอร์ไม่มีในระบบ) — "+nm,'<div style="color:var(--muted);padding:10px">กำลังโหลด…</div>');
+  const setBody=h=>{const b=document.getElementById("kpiModalBody");if(b)b.innerHTML=h;};
+  try{
+    if(!window.__recon)window.__recon=await getJSON("/api/admin/onecall-recon");
+    const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
+    const hhmm=iso=>{const d=new Date(Date.parse(iso)+TZ);const p=x=>String(x).padStart(2,"0");return p(d.getUTCHours())+":"+p(d.getUTCMinutes());};
+    const seen=new Set();
+    const rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return x.side===side&&x.inSystem===false&&t>=tS&&t<tE&&(x.durationSec||0)>7;}).filter(x=>{if(seen.has(x.phone))return false;seen.add(x.phone);return true;});
+    if(!rows.length){setBody('<div class="empty" style="padding:24px">วันนี้ไม่มีสายนอกเกณฑ์ในฝั่งนี้</div>');return;}
+    const sub=`โทรออกได้คุย <b>${fmt(rows.length)}</b> เบอร์ที่ไม่มีในระบบ · ยังไม่มีเคสให้ผูก (กด "เพิ่มเป็นลูกค้า" ที่ฝั่งเซลล์ได้ถ้าต้องการติดตาม)`;
+    const head=`<tr><th>เวลา</th><th>เบอร์โทร</th><th>คุยนาน</th><th>ทิศ</th></tr>`;
+    const trs=rows.map(x=>`<tr><td class="tnum" style="color:var(--muted)">${hhmm(x.at)}</td><td class="mono">${esc(x.phone||"")}</td><td class="tnum">${fmt(x.durationSec||0)} วิ</td><td style="color:var(--muted)">${x.direction==="IN"?"เข้า":(x.direction==="OUT"?"ออก":esc(x.direction||"—"))}</td></tr>`);
     window.__drill={trs,head,sub,page:1};drillRender();
   }catch(e){setBody('<div class="empty" style="padding:24px">โหลดข้อมูลไม่สำเร็จ</div>');}
 };
