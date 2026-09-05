@@ -1809,12 +1809,13 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
     if (!isMpSource(r.source)) return false;
     if (!r.code || !/^CTM|^\d/i.test(String(r.code))) return false;
     const noAddr = !r.address || !String(r.address).trim();
-    const noProd = wantProduct && (!r.product || !String(r.product).trim());
+    // ต้องยังไม่มีสินค้า และยังไม่เคยเช็ก (evoProdChecked) — กันวนซ้ำลูกค้าที่ไม่มีออเดอร์
+    const noProd = wantProduct && (!r.product || !String(r.product).trim()) && !r.evoProdChecked;
     return force || noAddr || noProd;
   });
   const totalPending = targets.length;
   const batch = targets.slice(0, limit);
-  let attempted = 0, filledAddr = 0, filledProd = 0, notFound = 0, errors = 0, tokenExpired = false;
+  let attempted = 0, filledAddr = 0, filledProd = 0, notFound = 0, errors = 0, marked = 0, tokenExpired = false;
   const samples = [];
   for (const r of batch) {
     attempted++;
@@ -1833,7 +1834,8 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
       if (wantProduct && (force || !r.product || !String(r.product).trim())) {
         const pr = await evoCustomerProduct(r.code);
         if (pr.tokenExpired) { tokenExpired = true; }
-        else if (pr.product) { r.product = pr.product; filledProd++; changed = true; did.push('สินค้า'); }
+        else if (pr.product) { r.product = pr.product; filledProd++; changed = true; did.push('สินค้า'); r.evoProdChecked = true; }
+        else if (!pr.error) { r.evoProdChecked = true; marked++; }   // เช็กแล้วไม่มีออเดอร์/ไม่มีสินค้า → กันวนซ้ำ
       }
       if (changed) {
         r.updatedAt = new Date().toISOString();
@@ -1844,9 +1846,9 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
     } catch (e) { errors++; }
     await sleep(120);   // throttle เบา ๆ กันยิงถี่เกิน
   }
-  if (filledAddr || filledProd) state = await store.save(state);
+  if (filledAddr || filledProd || marked) state = await store.save(state);
   const remaining = Math.max(0, totalPending - attempted);
-  res.json({ ok: true, totalPending, attempted, filledAddr, filledProd, notFound, errors, tokenExpired, remaining, samples,
+  res.json({ ok: true, totalPending, attempted, filledAddr, filledProd, marked, notFound, errors, tokenExpired, remaining, samples,
     message: tokenExpired ? 'token หมดอายุกลางทาง — วาง token ใหม่แล้วกดต่อ' : (remaining ? ('เหลืออีก ' + remaining + ' ราย — กดต่อได้') : 'เติมครบแล้ว') });
 });
 
