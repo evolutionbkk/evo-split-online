@@ -317,18 +317,28 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
   await reconcileDayoff();
   const other = side === 'W' ? 'K' : 'W';
   const today = S.thaiDay();
-  if (off && state.dayoff[other] === today) return res.status(400).json({ error: 'both_off', message: 'อีกคนลาอยู่แล้ว — ต้องมีเซลล์ทำงานอย่างน้อย 1 คน' });
   const now = new Date().toISOString();
   let moved = 0;
   if (off) {
+    const otherOff = state.dayoff[other] === today;   // อีกฝั่งลาอยู่แล้ว = ลาพร้อมกันทั้งคู่ (วันหยุด)
     state.dayoff[side] = today; // on leave for today only; resets on the next Thai day
     state.dayoffType[side] = type;
     leaveAdd(side, today);      // record the leave for the monthly count
-    for (const a of state.assigned) {
-      if (a.archived || a.sales !== side) continue;
-      a.sales = other; a.dayoffMoved = side;
-      (a.history = a.history || []).push({ at: now, by: 'admin', k: 'dayoff_move', v: side + '→' + other });
-      moved++;
+    if (otherOff) {
+      // ทั้งคู่ลา — ไม่มีใครทำงาน ไม่ต้องย้ายลูกค้าไปไหน · คืนรายที่เคยถูกย้ายเพราะวันลากลับเจ้าของเดิม
+      for (const a of state.assigned) {
+        if (a.archived || !a.dayoffMoved) continue;
+        a.sales = a.dayoffMoved; delete a.dayoffMoved;
+        (a.history = a.history || []).push({ at: now, by: 'admin', k: 'dayoff_return', v: 'ลาพร้อมกันทั้งคู่ คืนเจ้าของเดิม' });
+        moved++;
+      }
+    } else {
+      for (const a of state.assigned) {
+        if (a.archived || a.sales !== side) continue;
+        a.sales = other; a.dayoffMoved = side;
+        (a.history = a.history || []).push({ at: now, by: 'admin', k: 'dayoff_move', v: side + '→' + other });
+        moved++;
+      }
     }
   } else {
     state.dayoff[side] = null; // cancel leave now → return the moved leads
@@ -344,6 +354,47 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
   state.updatedAt = now;
   state = await store.save(state);
   res.json({ ok: true, side, off, type, moved, dayoff: dof(), dayoffType: state.dayoffType });
+});
+
+// บันทึกวันลาย้อนหลัง (เช่น ลืมกดวันลา / ลาพร้อมกันทั้งคู่เมื่อวาน) — บันทึกลง log นับวันลาอย่างเดียว ไม่ย้ายลูกค้า
+app.post('/api/admin/leave-backfill', requireAuth, async (req, res) => {
+  const date = String((req.body && req.body.date) || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad_date', message: 'ต้องระบุวันที่รูปแบบ YYYY-MM-DD' });
+  const sides = ((req.body && req.body.sides) || []).filter((s) => s === 'W' || s === 'K');
+  if (!sides.length) return res.status(400).json({ error: 'no_sides', message: 'ต้องระบุ sides อย่างน้อย 1 ฝั่ง' });
+  const on = !(req.body && req.body.on === false);
+  let changed = 0;
+  for (const s of sides) {
+    if (on) { if (!leaveHas(s, date)) { leaveAdd(s, date); changed++; } }
+    else { if (leaveHas(s, date)) { leaveDel(s, date); changed++; } }
+  }
+  if (changed) { state.updatedAt = new Date().toISOString(); state = await store.save(state); }
+  res.json({ ok: true, date, sides, on, changed, summary: leaveSummary(date.slice(0, 7)) });
+});
+
+// เกลี่ยรายชื่อ active ให้สองฝั่งเท่ากัน — ย้ายเฉพาะรายที่ "ยังไม่ได้ทำงาน" (ยังไม่โทร + สถานะใหม่ + ไม่ใช่ฐาน Excel)
+// จากฝั่งที่เยอะ → ฝั่งที่น้อย โดยเอารายที่รับเข้ามาล่าสุดก่อน (มักเป็นก้อน import/แจกที่เพิ่งเข้า) · ทำครั้งเดียวจบ ไม่ยิงทีละราย
+app.post('/api/admin/rebalance', requireAuth, async (req, res) => {
+  const activeOf = (sd) => state.assigned.filter((a) => !a.archived && a.sales === sd);
+  const W0 = activeOf('W').length, K0 = activeOf('K').length;
+  const moveN = Math.floor(Math.abs(W0 - K0) / 2);
+  if (moveN <= 0) return res.json({ ok: true, moved: 0, before: { W: W0, K: K0 }, after: { W: W0, K: K0 }, message: 'สมดุลอยู่แล้ว' });
+  const from = W0 > K0 ? 'W' : 'K', to = W0 > K0 ? 'K' : 'W';
+  const movable = activeOf(from)
+    .filter((a) => (a.callCount || 0) === 0 && (a.leadStatus || 'new') === 'new' && !a.fromExcel && !a.pinned)
+    .sort((a, b) => String(b.receivedAt || '').localeCompare(String(a.receivedAt || '')));
+  const now = new Date().toISOString();
+  let moved = 0;
+  for (const rec of movable) {
+    if (moved >= moveN) break;
+    rec.sales = to; rec.pooled = false;
+    rec.updatedAt = now; rec.updatedBy = 'ระบบ · เกลี่ยสมดุล';
+    (rec.history = rec.history || []).push({ at: now, by: 'ระบบ', k: 'rebalance', v: from + '→' + to });
+    moved++;
+  }
+  if (moved) { state.updatedAt = now; state = await store.save(state); }
+  const W1 = activeOf('W').length, K1 = activeOf('K').length;
+  res.json({ ok: true, moved, from, to, target: moveN, movableFound: movable.length, before: { W: W0, K: K0 }, after: { W: W1, K: K1 } });
 });
 
 // ---------- Leave tracking (วันลา) — sales + chat admins, monthly count ----------
@@ -644,7 +695,7 @@ app.get('/api/leads', requireCrm, async (req, res) => {
 });
 
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
-const HIST_LABEL = { call: 'โทรหาลูกค้า', line: 'ติดตามผ่าน LINE', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน', import: 'นำเข้ารายชื่อ' };
+const HIST_LABEL = { call: 'โทรหาลูกค้า', line: 'ติดตามผ่าน LINE', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน', import: 'นำเข้ารายชื่อ', rebalance: 'เกลี่ยสมดุลรายชื่อ', dayoff_move: 'ย้ายเพราะวันลา', dayoff_return: 'คืนหลังวันลา' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
   const limit = Math.min(600, Math.max(20, parseInt(req.query.limit, 10) || 250));
   const activity = [], transfers = [];
