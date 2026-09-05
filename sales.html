@@ -240,7 +240,7 @@ function leadCard(r){
     <div class="av" style="background:${scol}">${esc((r.name||"?").trim()[0]||"?")}</div>
     <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span>${vip}</div>
       <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation();logCall('${esc(r.key)}')">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
-      ${r.fromExcel?`<div class="lc-urg u-mut">📋 รายชื่อเดิมจาก Excel (ฐานลูกค้าเก่า)</div>`:""}
+      <div style="display:inline-block;margin-top:4px;font-size:11.5px;font-weight:800;color:${srcColor(r)};background:color-mix(in srgb,${srcColor(r)} 12%,var(--surface));border:1px solid color-mix(in srgb,${srcColor(r)} 30%,var(--surface));border-radius:7px;padding:2px 8px">มาจาก: ${srcLabel(r)}</div>
       ${r.prevSales?`<div class="lc-urg" style="color:#0369a1">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม":"พี่หวาน"} · กลับมาซื้อซ้ำ</div>`:""}
       ${(r.product||r.page)?`<div class="lc-urg u-mut">📦 ${esc(r.product||"—")}${r.page?` · เพจ: ${esc(r.page)}`:""}</div>`:""}
       ${(()=>{const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";})()}
@@ -392,6 +392,17 @@ function pagerS(total,cur,fnName){if(total<=1)return "";
 function mtTime(r){let t=Date.parse(r.lastActivity||r.updatedAt||r.date||"");if(isNaN(t)&&r.lastOrderAt)t=Date.parse(r.lastOrderAt);if(isNaN(t)&&r.history&&r.history.length)t=Date.parse(r.history[r.history.length-1].at);return isNaN(t)?null:t;}
 function mtMatch(r,q){if(!q)return true;const dq=q.replace(/\D/g,"");return [r.name,r.ticketId,r.code].some(v=>String(v||"").toLowerCase().includes(q))||(!!dq&&String(r.phone||"").replace(/\D/g,"").includes(dq));}
 function chLabel(r){return leadPanel(r)==="ecom"?"📦 Marketplace":"💬 Facebook";}
+// แหล่งที่มาแบบละเอียด — ให้ Telesales รู้ว่ารายชื่อนี้มาจากช่องทางไหน
+function srcLabel(r){
+  if(r.fromExcel) return "📋 ฐานลูกค้าเก่า (Excel)";
+  const s=r.source||"evolution";
+  if(s==="pancake") return "💬 Facebook · ปิดจากแชท";
+  if(s==="manual")  return "💬 Facebook · แอดมินส่งให้";
+  if(s==="refill")  return "💬 Facebook · เติมรายชื่อ";
+  if(s==="bigseller") return "📦 Marketplace · Lazada (Big Seller)";
+  return "📦 Marketplace · Evolution";
+}
+function srcColor(r){ if(r.fromExcel)return "#a16207"; return leadPanel(r)==="ecom"?"#c2410c":"#2563eb"; }
 function renderMtBody(){
   const b=krBounds(),q=(MTQ||"").trim().toLowerCase();
   const base=ACTIVE.filter(r=>!r.archived).filter(r=>{const t=mtTime(r);return t!=null&&t>=b.from&&t<=b.to;}).filter(r=>mtMatch(r,q));
@@ -511,7 +522,7 @@ function renderSheet(){
         <div class="tk-id" style="margin:3px 0 0">ตั๋ว <span class="mono" style="color:var(--brand);font-weight:700">${esc(r.ticketId||"")}</span> · ลูกค้า <span class="mono">${esc(r.code)}</span></div>
       </div>
     </div>
-    <div class="tagbar" style="margin-bottom:14px">${r.fromExcel?`<span class="ttag" style="color:#b45309;border-color:#fde68a;background:#fffbeb">📋 รายชื่อเดิมจาก Excel</span>`:""}${r.prevSales?`<span class="ttag" style="color:#0369a1;border-color:#bae6fd;background:#f0f9ff">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม (K)":"พี่หวาน (W)"} · ซื้อซ้ำ</span>`:""}🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
+    <div class="tagbar" style="margin-bottom:14px"><span class="ttag" style="color:${srcColor(r)};border-color:color-mix(in srgb,${srcColor(r)} 35%,var(--surface));background:color-mix(in srgb,${srcColor(r)} 12%,var(--surface));font-weight:800">มาจาก: ${srcLabel(r)}</span>${r.prevSales?`<span class="ttag" style="color:#0369a1;border-color:#bae6fd;background:#f0f9ff">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม (K)":"พี่หวาน (W)"} · ซื้อซ้ำ</span>`:""}🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
     <div style="margin-bottom:14px"><button onclick="moveOwner('${esc(r.key)}')" title="ย้ายรายชื่อนี้ให้เซลล์อีกฝั่ง (กรณีรายชื่อมั่วคน)" style="border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;border-radius:9px;padding:8px 14px;font-weight:800;font-size:12.5px;cursor:pointer">↔️ ย้ายผู้ดูแล → ${ME&&ME.side==="W"?"พี่เขม (K)":"พี่หวาน (W)"}</button></div>
     <div class="tksheet">
       <div>
