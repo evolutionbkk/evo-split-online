@@ -983,6 +983,20 @@ function followupTiers() {
     if (day.slice(0, 7) === curMonth) t1Month[c.side].add(p);
     if (day === today) { t1Today[c.side].add(p); cToday[c.side][step].add(p); }
   }
+  // LINE follow-up นับเข้ารอบ T1/T2/T3 ด้วย (ตามสเตปของลูกค้า) — dedupe กับสายโทรด้วยเบอร์ (Set)
+  for (const r of state.assigned) {
+    if (r.sales !== 'W' && r.sales !== 'K') continue;
+    const src = r.source || 'evolution';
+    if (!(src === 'pancake' || src === 'manual' || src === 'refill')) continue;   // เฉพาะลูกค้า FB
+    const p = normPhoneTH(r.phone); if (!p) continue;
+    const step = roundOf.get(r.sales + '|' + p) || (fbSet.has(p) ? 'T1' : null); if (!step) continue;
+    for (const h of (r.history || [])) {
+      if (h.k !== 'line') continue;
+      const day = S.thaiDay(h.at); if (!day) continue;
+      if (day.slice(0, 7) === curMonth) t1Month[r.sales].add(p);
+      if (day === today) { t1Today[r.sales].add(p); cToday[r.sales][step].add(p); }
+    }
+  }
   const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, T1recv: 0, T1done: 0, leads: 0 });
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
@@ -2049,6 +2063,18 @@ async function computeSalesKpi(fromQ, toQ) {
       const b = fbPhones.has(dp) ? 'Manual' : (mkPhones.has(dp) ? 'Evo' : 'Other');
       if (inR) { A.talk7Range++; A['talk7' + b + 'Range']++; }
       if (inT) { A.talk7Today++; A['talk7' + b + 'Today']++; }
+    }
+  }
+  // LINE follow-up นับเป็น "ติดต่อได้" เข้าเกณฑ์ตามช่องทางของลูกค้า (Marketplace/FB) — dedupe ด้วยเบอร์ (Set)
+  for (const a of state.assigned) {
+    if (!sides[a.sales]) continue;
+    const dp = normPhoneTH(a.phone); if (!dp) continue;
+    const mSrc = fbPhones.has(dp) ? 'manual' : (mkPhones.has(dp) ? 'evo' : null); if (!mSrc) continue;
+    for (const h of (a.history || [])) {
+      if (h.k !== 'line') continue;
+      const t = Date.parse(h.at); if (isNaN(t)) continue;
+      if (t >= from && t <= to) calledR[a.sales][mSrc].add(dp);
+      if (t >= tStart && t <= tEnd) calledT[a.sales][mSrc].add(dp);
     }
   }
   for (const sd of ['W', 'K']) {
