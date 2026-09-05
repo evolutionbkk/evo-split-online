@@ -335,6 +335,7 @@ app.post('/api/admin/dayoff', requireAuth, async (req, res) => {
     } else {
       for (const a of state.assigned) {
         if (a.archived || a.sales !== side) continue;
+        if (a.fromExcel) continue;   // ฐานที่มีผู้ดูแลจากชีทแล้ว — ไม่สลับผู้ดูแลตอนลา/หยุด (ให้ Sales กดย้ายเองเท่านั้น)
         a.sales = other; a.dayoffMoved = side;
         (a.history = a.history || []).push({ at: now, by: 'admin', k: 'dayoff_move', v: side + '→' + other });
         moved++;
