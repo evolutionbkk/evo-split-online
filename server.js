@@ -1699,17 +1699,106 @@ app.post('/api/pull', requireAuth, async (req, res) => {
   }
 });
 
-// DEBUG (ชั่วคราว): ดูโครงสร้างข้อมูลดิบจาก Evolution 1 รายการ เพื่อดูว่ามีฟิลด์ที่อยู่/รายละเอียดอะไรบ้าง
-app.get('/api/evo-raw', requireAuth, async (req, res) => {
+// ---- Evolution customer-detail enrichment ----
+// getCustomer/{PARTY_ID} → { person, address:[{address1,address2,postalCode,thruDate}], phone:{...} }
+// getCustomerProductOrder/{PARTY_ID} → รายการสินค้าที่เคยสั่ง
+const EVO_BASE = 'https://app.evolutionecommerce.co.th:8443';
+function evoAddrOf(detail) {
+  const arr = (detail && Array.isArray(detail.address)) ? detail.address : [];
+  if (!arr.length) return '';
+  // เลือกที่อยู่ปัจจุบัน (ยังไม่ thruDate) ก่อน ไม่งั้นเอาตัวแรก
+  const cur = arr.find((a) => a && !a.thruDate) || arr[0];
+  return [cur.address1, cur.address2, cur.postalCode].map((x) => (x == null ? '' : String(x).trim())).filter(Boolean).join(' ').trim();
+}
+function evoProductsOf(po) {
+  // ยอมรับหลายทรง: array ตรง ๆ หรือ {items:[...]} / {orders:[...]}
+  let list = [];
+  if (Array.isArray(po)) list = po;
+  else if (po && Array.isArray(po.items)) list = po.items;
+  else if (po && Array.isArray(po.orders)) list = po.orders;
+  else if (po && Array.isArray(po.products)) list = po.products;
+  const names = [];
+  for (const it of list) {
+    if (!it) continue;
+    const n = it.PRODUCT_NAME || it.productName || it.PRODUCT || it.product || it.itemDescription || it.INTERNAL_NAME || it.name;
+    if (n && String(n).trim()) names.push(String(n).trim());
+  }
+  return [...new Set(names)].slice(0, 8).join(', ');
+}
+async function evoGet(pathUrl) {
+  const r = await fetch(EVO_BASE + pathUrl, { headers: { 'x-access-token': evo.token } });
+  return r;
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// PROBE: ดูโครงสร้าง detail ดิบของลูกค้า 1 ราย  →  /api/admin/enrich-evo?probe=CTM106117
+app.get('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   if (!evo.token) return res.status(400).json({ error: 'no_token' });
+  const code = String(req.query.probe || '').trim();
+  if (!code) return res.status(400).json({ error: 'need_probe', message: 'ใส่ ?probe=<PARTY_ID> เพื่อดูโครงสร้าง (การเติมจริงใช้ POST)' });
   try {
-    const body = evoBody(); body.paginator.pageSize = 3;
-    const r = await fetch(EVO_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(body) });
-    if (!r.ok) return res.status(502).json({ error: 'evo_http_' + r.status });
-    const j = await r.json();
-    const it0 = (j.items || [])[0] || null;
-    res.json({ ok: true, topKeys: Object.keys(j || {}), count: (j.items || []).length, itemKeys: it0 ? Object.keys(it0) : [], personKeys: it0 && it0.person ? Object.keys(it0.person) : [], sampleItem: it0 });
-  } catch (e) { res.status(502).json({ error: 'raw_failed', message: String(e) }); }
+    const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(code));
+    const detail = rc.ok ? await rc.json() : null;
+    const rp = await evoGet('/api/person/getCustomerProductOrder/' + encodeURIComponent(code));
+    const po = rp.ok ? await rp.json() : null;
+    res.json({ ok: true, custStatus: rc.status, prodStatus: rp.status,
+      addressExtracted: evoAddrOf(detail), productsExtracted: evoProductsOf(po),
+      detailKeys: detail ? Object.keys(detail) : [], addressSample: detail && detail.address, productSample: po });
+  } catch (e) { res.status(502).json({ error: 'probe_failed', message: String(e) }); }
+});
+
+// เติมที่อยู่ (+สินค้า) ให้ลูกค้า Marketplace จาก Evolution detail API แบบทยอยทีละล็อต
+// body: { limit=250, product=true, force=false }
+app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
+  if (!evo.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่ได้เชื่อม Evolution — วาง token ก่อน' });
+  const b = req.body || {};
+  const limit = Math.max(1, Math.min(1500, parseInt(b.limit, 10) || 250));
+  const wantProduct = b.product !== false;
+  const force = b.force === true;
+  // เป้าหมาย: ลูกค้า Marketplace ที่มี code (PARTY_ID) และยังไม่มีที่อยู่ (หรือ force)
+  const targets = state.assigned.filter((r) => {
+    if (r.archived) return false;
+    if (!isMpSource(r.source)) return false;
+    if (!r.code || !/^CTM|^\d/i.test(String(r.code))) return false;
+    const noAddr = !r.address || !String(r.address).trim();
+    const noProd = wantProduct && (!r.product || !String(r.product).trim());
+    return force || noAddr || noProd;
+  });
+  const totalPending = targets.length;
+  const batch = targets.slice(0, limit);
+  let attempted = 0, filledAddr = 0, filledProd = 0, notFound = 0, errors = 0, tokenExpired = false;
+  const samples = [];
+  for (const r of batch) {
+    attempted++;
+    try {
+      const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(r.code));
+      if (rc.status === 401 || rc.status === 403) { tokenExpired = true; attempted--; break; }
+      if (rc.status === 404) { notFound++; continue; }
+      if (!rc.ok) { errors++; continue; }
+      const detail = await rc.json();
+      const addr = evoAddrOf(detail);
+      let changed = false;
+      if (addr && (force || !r.address || !String(r.address).trim())) { r.address = addr; filledAddr++; changed = true; }
+      if (wantProduct && (force || !r.product || !String(r.product).trim())) {
+        try {
+          const rp = await evoGet('/api/person/getCustomerProductOrder/' + encodeURIComponent(r.code));
+          if (rp.status === 401 || rp.status === 403) { tokenExpired = true; }
+          else if (rp.ok) { const prod = evoProductsOf(await rp.json()); if (prod) { r.product = prod; filledProd++; changed = true; } }
+        } catch (_) { /* product optional */ }
+      }
+      if (changed) {
+        r.updatedAt = new Date().toISOString();
+        pushHist(r, 'address', 'เติมจาก Evolution (' + r.code + ')', 'ระบบ');
+        if (samples.length < 15) samples.push({ code: r.code, phone: r.phone, name: r.name, address: r.address, product: r.product });
+      }
+      if (tokenExpired) break;
+    } catch (e) { errors++; }
+    await sleep(120);   // throttle เบา ๆ กันยิงถี่เกิน
+  }
+  if (filledAddr || filledProd) state = await store.save(state);
+  const remaining = Math.max(0, totalPending - attempted);
+  res.json({ ok: true, totalPending, attempted, filledAddr, filledProd, notFound, errors, tokenExpired, remaining, samples,
+    message: tokenExpired ? 'token หมดอายุกลางทาง — วาง token ใหม่แล้วกดต่อ' : (remaining ? ('เหลืออีก ' + remaining + ' ราย — กดต่อได้') : 'เติมครบแล้ว') });
 });
 
 // Sync the FULL Evolution customer base into the Marketplace match-set (mpPhones) ONLY —
