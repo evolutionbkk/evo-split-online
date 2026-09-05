@@ -1731,6 +1731,55 @@ async function evoGet(pathUrl) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ---- Product-from-orders resolution ----
+// getCustomerProductOrder คืน {} สำหรับลูกค้า Marketplace เกือบทุกราย → ต้องดึงจากคำสั่งซื้อจริงแทน:
+//   findCustomerOrder/{code}/find → รายการ ORDER_ID  →  getOrderItems?orderId=..  → PRODUCT_ID + QUANTITY
+//   getProduct/{PRODUCT_ID} → internalName (ชื่อเต็ม)  [แคชไว้ เพราะสินค้าซ้ำกันเยอะ]
+const evoProdNameCache = new Map();   // PRODUCT_ID → ชื่อสินค้าเต็ม
+async function evoProductName(pid) {
+  if (!pid) return '';
+  if (evoProdNameCache.has(pid)) return evoProdNameCache.get(pid);
+  let nm = '';
+  try {
+    const r = await evoGet('/api/product/getProduct/' + encodeURIComponent(pid));
+    if (r.ok) { const p = await r.json(); nm = String(p.internalName || p.productName || '').trim(); }
+  } catch (_) {}
+  evoProdNameCache.set(pid, nm);
+  return nm;
+}
+// คืน { product, tokenExpired } — สรุปสินค้าจากคำสั่งซื้อล่าสุด (สูงสุด 3 ออเดอร์ล่าสุด, รวมชนิดไม่ซ้ำ)
+async function evoCustomerProduct(code) {
+  const findBody = { filter: {}, paginator: { page: 1, pageSize: 3, total: 0, pageSizes: [] }, sorting: { column: 'ORDER_DATE', direction: 'desc' }, searchTerm: '', grouping: { selectedRowIds: {}, itemIds: [], selectAll: false } };
+  let rf;
+  try {
+    rf = await fetch(EVO_BASE + '/api/person/findCustomerOrder/' + encodeURIComponent(code) + '/find', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(findBody) });
+  } catch (e) { return { error: true }; }
+  if (rf.status === 401 || rf.status === 403) return { tokenExpired: true };
+  if (!rf.ok) return { error: true };
+  let fj; try { fj = await rf.json(); } catch (_) { return { error: true }; }
+  const orders = (fj.items || []).filter((o) => o && o.ORDER_ID).slice(0, 3);
+  if (!orders.length) return { product: '' };
+  const seen = new Set(); const parts = [];
+  for (const o of orders) {
+    let ri; try { ri = await evoGet('/api/order/getOrderItems?orderId=' + encodeURIComponent(o.ORDER_ID)); } catch (_) { continue; }
+    if (ri.status === 401 || ri.status === 403) return { tokenExpired: true };
+    if (!ri.ok) continue;
+    let oj; try { oj = await ri.json(); } catch (_) { continue; }
+    const items = oj.orderHeaderAndItem || [];
+    for (const it of items) {
+      const pid = it.PRODUCT_ID; if (!pid) continue;
+      const qty = parseInt(it.QUANTITY, 10) || 1;
+      let nm = await evoProductName(pid);
+      if (!nm) nm = String(it.ITEM_DESCRIPTION || pid).trim();
+      const key = nm; if (seen.has(key)) continue; seen.add(key);
+      parts.push(nm + (qty > 1 ? (' ×' + qty) : ''));
+    }
+    // ถ้าดึง item ไม่ได้เลยแต่มี ORDER_NAME ย่อ ("YF*1") ก็ใช้เป็น fallback
+    if (!parts.length && oj.ORDER_NAME) parts.push(String(oj.ORDER_NAME).trim());
+  }
+  return { product: [...new Set(parts)].slice(0, 10).join(', ') };
+}
+
 // PROBE: ดูโครงสร้าง detail ดิบของลูกค้า 1 ราย  →  /api/admin/enrich-evo?probe=CTM106117
 app.get('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   if (!evo.token) return res.status(400).json({ error: 'no_token' });
@@ -1739,11 +1788,10 @@ app.get('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   try {
     const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(code));
     const detail = rc.ok ? await rc.json() : null;
-    const rp = await evoGet('/api/person/getCustomerProductOrder/' + encodeURIComponent(code));
-    const po = rp.ok ? await rp.json() : null;
-    res.json({ ok: true, custStatus: rc.status, prodStatus: rp.status,
-      addressExtracted: evoAddrOf(detail), productsExtracted: evoProductsOf(po),
-      detailKeys: detail ? Object.keys(detail) : [], addressSample: detail && detail.address, productSample: po });
+    const prod = await evoCustomerProduct(code);
+    res.json({ ok: true, custStatus: rc.status,
+      addressExtracted: evoAddrOf(detail), productExtracted: prod.product || '', prodTokenExpired: !!prod.tokenExpired,
+      detailKeys: detail ? Object.keys(detail) : [], addressSample: detail && detail.address });
   } catch (e) { res.status(502).json({ error: 'probe_failed', message: String(e) }); }
 });
 
@@ -1771,24 +1819,25 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   for (const r of batch) {
     attempted++;
     try {
-      const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(r.code));
-      if (rc.status === 401 || rc.status === 403) { tokenExpired = true; attempted--; break; }
-      if (rc.status === 404) { notFound++; continue; }
-      if (!rc.ok) { errors++; continue; }
-      const detail = await rc.json();
-      const addr = evoAddrOf(detail);
-      let changed = false;
-      if (addr && (force || !r.address || !String(r.address).trim())) { r.address = addr; filledAddr++; changed = true; }
+      let changed = false, did = [];
+      const needAddr = force || !r.address || !String(r.address).trim();
+      if (needAddr) {
+        const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(r.code));
+        if (rc.status === 401 || rc.status === 403) { tokenExpired = true; attempted--; break; }
+        if (rc.status === 404) { notFound++; continue; }
+        if (!rc.ok) { errors++; continue; }
+        const detail = await rc.json();
+        const addr = evoAddrOf(detail);
+        if (addr) { r.address = addr; filledAddr++; changed = true; did.push('ที่อยู่'); }
+      }
       if (wantProduct && (force || !r.product || !String(r.product).trim())) {
-        try {
-          const rp = await evoGet('/api/person/getCustomerProductOrder/' + encodeURIComponent(r.code));
-          if (rp.status === 401 || rp.status === 403) { tokenExpired = true; }
-          else if (rp.ok) { const prod = evoProductsOf(await rp.json()); if (prod) { r.product = prod; filledProd++; changed = true; } }
-        } catch (_) { /* product optional */ }
+        const pr = await evoCustomerProduct(r.code);
+        if (pr.tokenExpired) { tokenExpired = true; }
+        else if (pr.product) { r.product = pr.product; filledProd++; changed = true; did.push('สินค้า'); }
       }
       if (changed) {
         r.updatedAt = new Date().toISOString();
-        pushHist(r, 'address', 'เติมจาก Evolution (' + r.code + ')', 'ระบบ');
+        pushHist(r, 'address', 'เติม' + did.join('+') + 'จาก Evolution (' + r.code + ')', 'ระบบ');
         if (samples.length < 15) samples.push({ code: r.code, phone: r.phone, name: r.name, address: r.address, product: r.product });
       }
       if (tokenExpired) break;
