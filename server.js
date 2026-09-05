@@ -1699,6 +1699,19 @@ app.post('/api/pull', requireAuth, async (req, res) => {
   }
 });
 
+// DEBUG (ชั่วคราว): ดูโครงสร้างข้อมูลดิบจาก Evolution 1 รายการ เพื่อดูว่ามีฟิลด์ที่อยู่/รายละเอียดอะไรบ้าง
+app.get('/api/evo-raw', requireAuth, async (req, res) => {
+  if (!evo.token) return res.status(400).json({ error: 'no_token' });
+  try {
+    const body = evoBody(); body.paginator.pageSize = 3;
+    const r = await fetch(EVO_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(body) });
+    if (!r.ok) return res.status(502).json({ error: 'evo_http_' + r.status });
+    const j = await r.json();
+    const it0 = (j.items || [])[0] || null;
+    res.json({ ok: true, topKeys: Object.keys(j || {}), count: (j.items || []).length, itemKeys: it0 ? Object.keys(it0) : [], personKeys: it0 && it0.person ? Object.keys(it0.person) : [], sampleItem: it0 });
+  } catch (e) { res.status(502).json({ error: 'raw_failed', message: String(e) }); }
+});
+
 // Sync the FULL Evolution customer base into the Marketplace match-set (mpPhones) ONLY —
 // does NOT pool anyone as a lead. Lets the KPI credit OneCall calls to ANY Evolution customer as
 // Marketplace (so the "เบอร์ใหม่/อื่น ๆ" bucket shrinks when those are really Evolution customers).
