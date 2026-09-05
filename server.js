@@ -1025,6 +1025,19 @@ function followupTiers() {
     offSet[c.side].add(p);
   }
   out.offToday = { W: offSet.W.size, K: offSet.K.size, total: offSet.W.size + offSet.K.size };
+  // การติดต่อวันนี้ แยกช่องทาง — โทร (ได้คุย/สั้น) + LINE (แชท/โทร LINE/ส่งโปรฯ) → ให้ Teamlead เห็นครบทุกช่องทาง
+  const contactToday = { W: { phoneTalk: 0, phoneShort: 0, line: 0 }, K: { phoneTalk: 0, phoneShort: 0, line: 0 } };
+  for (const c of (state.onecall || [])) {
+    if (c.side !== 'W' && c.side !== 'K') continue;
+    if (S.thaiDay(c.at) !== today) continue;
+    if ((c.dur || 0) > ONECALL_MIN_TALK) contactToday[c.side].phoneTalk++; else contactToday[c.side].phoneShort++;
+  }
+  for (const a of state.assigned) {
+    const sd = a.sales; if (sd !== 'W' && sd !== 'K') continue;
+    for (const h of (a.history || [])) { if (h.k === 'line' && S.thaiDay(h.at) === today) contactToday[sd].line++; }
+  }
+  for (const sd of ['W', 'K']) contactToday[sd].total = contactToday[sd].phoneTalk + contactToday[sd].line; // "ได้คุย" รวม = โทรได้คุย + LINE
+  out.contactToday = contactToday;
   return out;
 }
 app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
