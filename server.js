@@ -487,6 +487,7 @@ function leadView(r, ocMap) {
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
     source: r.source || 'evolution', step: r.step || '', stepManual: !!r.stepManual, product: r.product || '',
+    orders: Array.isArray(r.orders) ? r.orders : null, orderCount: (typeof r.orderCount === 'number') ? r.orderCount : (Array.isArray(r.orders) ? r.orders.length : 0),
     orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     succeedOrders: (typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
@@ -1747,9 +1748,19 @@ async function evoProductName(pid) {
   evoProdNameCache.set(pid, nm);
   return nm;
 }
-// คืน { product, tokenExpired } — สรุปสินค้าจากคำสั่งซื้อล่าสุด (สูงสุด 3 ออเดอร์ล่าสุด, รวมชนิดไม่ซ้ำ)
-async function evoCustomerProduct(code) {
-  const findBody = { filter: {}, paginator: { page: 1, pageSize: 3, total: 0, pageSizes: [] }, sorting: { column: 'ORDER_DATE', direction: 'desc' }, searchTerm: '', grouping: { selectedRowIds: {}, itemIds: [], selectAll: false } };
+// แปลงรหัสสถานะคำสั่งซื้อ → ไทย (ให้ใกล้เคียงที่ Evolution แสดง)
+function evoStatusTH(s) {
+  const m = {
+    ORDER_CREATED: 'รอยืนยัน', ORDER_CONFIRMED: 'รอส่ง', ORDER_APPROVED: 'รอส่ง',
+    ORDER_PROCESSING: 'กำลังจัดส่ง', ORDER_SHIPPED: 'ส่งแล้ว', ORDER_COMPLETED: 'สำเร็จ',
+    ORDER_HOLD: 'พักไว้', ORDER_CANCELLED: 'ยกเลิก', ORDER_REJECTED: 'ตีกลับ',
+  };
+  return m[s] || (s ? String(s).replace(/^ORDER_/, '') : '');
+}
+// คืน { product, orders, orderCount, tokenExpired } — ประวัติการสั่งซื้อแบบ POS
+//   orders = [{ id, date, dateStr, status, statusId, amount, items:[{name, qty}] }] เรียงใหม่→เก่า (เก็บสูงสุด 10 ออเดอร์)
+async function evoCustomerOrders(code) {
+  const findBody = { filter: {}, paginator: { page: 1, pageSize: 50, total: 0, pageSizes: [] }, sorting: { column: 'ORDER_DATE', direction: 'desc' }, searchTerm: '', grouping: { selectedRowIds: {}, itemIds: [], selectAll: false } };
   let rf;
   try {
     rf = await fetch(EVO_BASE + '/api/person/findCustomerOrder/' + encodeURIComponent(code) + '/find', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(findBody) });
@@ -1757,27 +1768,32 @@ async function evoCustomerProduct(code) {
   if (rf.status === 401 || rf.status === 403) return { tokenExpired: true };
   if (!rf.ok) return { error: true };
   let fj; try { fj = await rf.json(); } catch (_) { return { error: true }; }
-  const orders = (fj.items || []).filter((o) => o && o.ORDER_ID).slice(0, 3);
-  if (!orders.length) return { product: '' };
-  const seen = new Set(); const parts = [];
-  for (const o of orders) {
-    let ri; try { ri = await evoGet('/api/order/getOrderItems?orderId=' + encodeURIComponent(o.ORDER_ID)); } catch (_) { continue; }
-    if (ri.status === 401 || ri.status === 403) return { tokenExpired: true };
-    if (!ri.ok) continue;
-    let oj; try { oj = await ri.json(); } catch (_) { continue; }
-    const items = oj.orderHeaderAndItem || [];
-    for (const it of items) {
-      const pid = it.PRODUCT_ID; if (!pid) continue;
-      const qty = parseInt(it.QUANTITY, 10) || 1;
-      let nm = await evoProductName(pid);
-      if (!nm) nm = String(it.ITEM_DESCRIPTION || pid).trim();
-      const key = nm; if (seen.has(key)) continue; seen.add(key);
-      parts.push(nm + (qty > 1 ? (' ×' + qty) : ''));
-    }
-    // ถ้าดึง item ไม่ได้เลยแต่มี ORDER_NAME ย่อ ("YF*1") ก็ใช้เป็น fallback
-    if (!parts.length && oj.ORDER_NAME) parts.push(String(oj.ORDER_NAME).trim());
+  const raw = (fj.items || []).filter((o) => o && o.ORDER_ID);
+  const orderCount = raw.length;
+  if (!orderCount) return { product: '', orders: [], orderCount: 0 };
+  const distinct = []; const orders = [];
+  for (const o of raw.slice(0, 10)) {
+    const items = [];
+    try {
+      const ri = await evoGet('/api/order/getOrderItems?orderId=' + encodeURIComponent(o.ORDER_ID));
+      if (ri.status === 401 || ri.status === 403) return { tokenExpired: true };
+      if (ri.ok) {
+        const oj = await ri.json();
+        for (const it of (oj.orderHeaderAndItem || [])) {
+          const pid = it.PRODUCT_ID; if (!pid) continue;
+          const qty = parseInt(it.QUANTITY, 10) || 1;
+          let nm = await evoProductName(pid);
+          if (!nm) nm = String(it.ITEM_DESCRIPTION || pid).trim();
+          items.push({ name: nm, qty });
+          if (!distinct.includes(nm)) distinct.push(nm);
+        }
+        if (!items.length && oj.ORDER_NAME) items.push({ name: String(oj.ORDER_NAME).trim(), qty: 1 });
+      }
+    } catch (_) {}
+    orders.push({ id: o.ORDER_ID, date: o.ORDER_DATE || null, dateStr: o.ORDER_DATE_STRING || '', status: evoStatusTH(o.STATUS_ID), statusId: o.STATUS_ID || '', amount: parseFloat(o.GRAND_TOTAL || '0') || 0, items });
   }
-  return { product: [...new Set(parts)].slice(0, 10).join(', ') };
+  const product = distinct.slice(0, 10).join(', ');
+  return { product, orders, orderCount };
 }
 
 // PROBE: ดูโครงสร้าง detail ดิบของลูกค้า 1 ราย  →  /api/admin/enrich-evo?probe=CTM106117
@@ -1788,9 +1804,9 @@ app.get('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   try {
     const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(code));
     const detail = rc.ok ? await rc.json() : null;
-    const prod = await evoCustomerProduct(code);
+    const oh = await evoCustomerOrders(code);
     res.json({ ok: true, custStatus: rc.status,
-      addressExtracted: evoAddrOf(detail), productExtracted: prod.product || '', prodTokenExpired: !!prod.tokenExpired,
+      addressExtracted: evoAddrOf(detail), productExtracted: oh.product || '', orderCount: oh.orderCount || 0, orders: oh.orders || [], prodTokenExpired: !!oh.tokenExpired,
       detailKeys: detail ? Object.keys(detail) : [], addressSample: detail && detail.address });
   } catch (e) { res.status(502).json({ error: 'probe_failed', message: String(e) }); }
 });
@@ -1809,9 +1825,9 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
     if (!isMpSource(r.source)) return false;
     if (!r.code || !/^CTM|^\d/i.test(String(r.code))) return false;
     const noAddr = !r.address || !String(r.address).trim();
-    // ต้องยังไม่มีสินค้า และยังไม่เคยเช็ก (evoProdChecked) — กันวนซ้ำลูกค้าที่ไม่มีออเดอร์
-    const noProd = wantProduct && (!r.product || !String(r.product).trim()) && !r.evoProdChecked;
-    return force || noAddr || noProd;
+    // ยังไม่มีประวัติออเดอร์ (r.orders) → ต้องดึง (ตั้ง r.orders=[] เมื่อไม่มีออเดอร์ กันวนซ้ำ)
+    const noOrders = wantProduct && !Array.isArray(r.orders);
+    return force || noAddr || noOrders;
   });
   const totalPending = targets.length;
   const batch = targets.slice(0, limit);
@@ -1831,16 +1847,22 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
         const addr = evoAddrOf(detail);
         if (addr) { r.address = addr; filledAddr++; changed = true; did.push('ที่อยู่'); }
       }
-      if (wantProduct && (force || !r.product || !String(r.product).trim())) {
-        const pr = await evoCustomerProduct(r.code);
-        if (pr.tokenExpired) { tokenExpired = true; }
-        else if (pr.product) { r.product = pr.product; filledProd++; changed = true; did.push('สินค้า'); r.evoProdChecked = true; }
-        else if (!pr.error) { r.evoProdChecked = true; marked++; }   // เช็กแล้วไม่มีออเดอร์/ไม่มีสินค้า → กันวนซ้ำ
+      if (wantProduct && (force || !Array.isArray(r.orders))) {
+        const oh = await evoCustomerOrders(r.code);
+        if (oh.tokenExpired) { tokenExpired = true; }
+        else if (!oh.error) {
+          r.orders = oh.orders || [];
+          r.orderCount = oh.orderCount || 0;
+          r.evoProdChecked = true;
+          if (oh.product && (force || !r.product || !String(r.product).trim())) { r.product = oh.product; changed = true; }
+          if (r.orders.length) { filledProd++; changed = true; did.push('ประวัติสั่งซื้อ'); }
+          else { marked++; changed = true; }
+        }
       }
-      if (changed) {
+      if (changed && did.length) {
         r.updatedAt = new Date().toISOString();
         pushHist(r, 'address', 'เติม' + did.join('+') + 'จาก Evolution (' + r.code + ')', 'ระบบ');
-        if (samples.length < 15) samples.push({ code: r.code, phone: r.phone, name: r.name, address: r.address, product: r.product });
+        if (samples.length < 15) samples.push({ code: r.code, phone: r.phone, name: r.name, product: r.product, orderCount: r.orderCount });
       }
       if (tokenExpired) break;
     } catch (e) { errors++; }
