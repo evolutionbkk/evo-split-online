@@ -3425,8 +3425,20 @@ app.get('/api/sales/my-kpi', requireCrm, async (req, res) => {
 app.get('/api/sales/my-calls', requireCrm, (req, res) => {
   const side = req.session.role === 'sales' ? req.session.side : (req.query.side === 'K' ? 'K' : 'W');
   const TZ = 7 * 3600000; const nowTh = new Date(Date.now() + TZ);
-  const from = Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
-  const to = from + 86400000;
+  const todayStart = Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
+  // ช่วงเวลา: ค่าเริ่มต้น = วันนี้ · ?day=YYYY-MM-DD = วันเดียว · ?days=N = N วันล่าสุด
+  let from, to, dayLabel = '';
+  const dayStr = String(req.query.day || '');
+  const days = Math.max(1, Math.min(31, parseInt(req.query.days, 10) || 1));
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dayStr)) {
+    const base = Date.parse(dayStr + 'T00:00:00Z') - TZ;
+    if (!isNaN(base)) { from = base; to = base + 86400000; dayLabel = dayStr; }
+  }
+  if (from == null) {
+    to = todayStart + 86400000;
+    from = todayStart - (days - 1) * 86400000;
+    dayLabel = days > 1 ? (days + 'd') : 'today';
+  }
   const infoBy = new Map();   // phone → {name, source} (รวมที่ปิดงาน/ลบแล้ว เพื่อให้สายสั้นยังรู้ว่าโทรหาใคร)
   for (const r of state.assigned) { const p = normPhoneTH(r.phone); if (p && !infoBy.has(p)) infoBy.set(p, { name: r.name || '', source: r.source || 'evolution' }); }
   const isFb = (s) => (s === 'manual' || s === 'pancake' || s === 'refill');
@@ -3439,7 +3451,7 @@ app.get('/api/sales/my-calls', requireCrm, (req, res) => {
   }
   calls.sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0));
   const talk = calls.filter((c) => c.dur > ONECALL_MIN_TALK).length;
-  res.json({ ok: true, side, minTalk: ONECALL_MIN_TALK, total: calls.length, talk, short: calls.length - talk, calls });
+  res.json({ ok: true, side, minTalk: ONECALL_MIN_TALK, total: calls.length, talk, short: calls.length - talk, calls, dayLabel, from: new Date(from).toISOString(), to: new Date(to).toISOString() });
 });
 
 // Dashboard ภาพรวมของฉัน — แอดมินตอบแชท เห็นเฉพาะ KPI ของตัวเอง · เลือกช่วงเวลาได้

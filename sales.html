@@ -240,7 +240,7 @@ function renderNav(){
   const closedCount=ARCHIVED.filter(r=>r.archiveReason==="closed").length;
   const stoppedCount=ARCHIVED.filter(r=>r.archiveReason==="stopped").length;
   const arcCount=ARCHIVED.filter(r=>r.archiveReason!=="closed"&&r.archiveReason!=="stopped").length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"mycalls",ic:"📞",t:"สายที่โทรวันนี้"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"mycalls",ic:"📞",t:"สายที่โทรของฉัน"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
@@ -293,7 +293,7 @@ function render(){
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
   if(VIEW==="trash"||VIEW==="archive"||VIEW==="stopped"){$("#viewTitle").textContent=VIEW==="archive"?"จัดเก็บ (ปิดงาน)":(VIEW==="stopped"?"ยกเลิกการติดต่อ":"ถังขยะ (ลบ)");c.innerHTML=viewTrash2();return;}
   if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
-  if(VIEW==="mycalls"){$("#viewTitle").textContent="สายที่โทรวันนี้";c.innerHTML=viewMyCalls();setTimeout(loadMyCalls,30);return;}
+  if(VIEW==="mycalls"){$("#viewTitle").textContent="สายที่โทร · "+mcDayLabel();c.innerHTML=viewMyCalls();setTimeout(loadMyCalls,30);return;}
   const isFB=PANEL==="mkt";
   const pool=ACTIVE.filter(r=>!r.archived&&leadPanel(r)===PANEL);
   // โทรแล้ววันนี้ = จำนวนสายจริง (OneCall) วันนี้ของช่องทางนี้ — แหล่งเดียวกับ Teamlead จึงตรงกันเป๊ะ
@@ -460,14 +460,28 @@ window.setMtFilter=function(k){MTFILTER=k;MTPAGE=1;mtRefresh();};
 
 /* ===== สายที่โทรวันนี้ (ของเซลล์เอง — รวมสายสั้น <7 วิ) ===== */
 let MCFILTER="all";  // all | talk | short
+let MCDAY="today";   // today | 7d | YYYY-MM-DD
+function mcQuery(){ if(MCDAY==="today")return ""; if(MCDAY==="7d")return "?days=7"; if(/^\d{4}-\d{2}-\d{2}$/.test(MCDAY))return "?day="+MCDAY; return ""; }
+function mcDayLabel(){ if(MCDAY==="today")return "วันนี้"; if(MCDAY==="7d")return "7 วันล่าสุด"; if(/^\d{4}-\d{2}-\d{2}$/.test(MCDAY)){const[y,m,d]=MCDAY.split("-");const TH=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];return +d+" "+TH[+m-1]+" "+(+y+543);} return "วันนี้"; }
+function todayISO(){const d=new Date(Date.now()+7*3600000);return d.toISOString().slice(0,10);}
+window.setMcDay=function(v){MCDAY=v;MCFILTER="all";render();};
 window.__mycalls=null;
 window.setMcFilter=function(k){MCFILTER=k;renderMyCallsBody();};
 function viewMyCalls(){
-  return `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">สายของคุณวันนี้ทั้งหมด (โทรออก + ลูกค้าโทรกลับ) — <b>รวมสายที่คุยสั้นกว่า 7 วินาที</b>ด้วย (ข้อมูลจริงจากระบบโทร OneCall)</div><div id="mcBody"><div class="empty">กำลังโหลดสายวันนี้…</div></div>`;
+  const dchips=[["today","วันนี้"],["7d","7 วันล่าสุด"]];
+  const isCustom=/^\d{4}-\d{2}-\d{2}$/.test(MCDAY);
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">สายของคุณ (โทรออก + ลูกค้าโทรกลับ) — <b>รวมสายที่คุยสั้นกว่า 7 วินาที</b>ด้วย (ข้อมูลจริงจากระบบโทร OneCall)</div>
+  <div class="fbar" style="margin-bottom:12px;align-items:center;gap:8px">
+    ${dchips.map(([k,l])=>`<button class="chip ${MCDAY===k?"on":""}" onclick="setMcDay('${k}')">${l}</button>`).join("")}
+    <span style="font-size:12px;color:var(--muted)">หรือเลือกวัน:</span>
+    <input type="date" value="${isCustom?MCDAY:""}" max="${todayISO()}" onchange="if(this.value)setMcDay(this.value)" style="border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:13px;background:var(--surface);color:var(--ink)">
+    <span style="font-size:12px;font-weight:700;color:var(--brand)">📅 ${mcDayLabel()}</span>
+  </div>
+  <div id="mcBody"><div class="empty">กำลังโหลดสาย…</div></div>`;
 }
 window.loadMyCalls=async function(){
   const box=$("#mcBody");if(!box)return;
-  try{const r=await fetch("/api/sales/my-calls");if(r.status===401){location.href="/login";return;}window.__mycalls=await r.json();}catch(e){window.__mycalls={calls:[]};}
+  try{const r=await fetch("/api/sales/my-calls"+mcQuery());if(r.status===401){location.href="/login";return;}window.__mycalls=await r.json();}catch(e){window.__mycalls={calls:[]};}
   renderMyCallsBody();
 };
 function renderMyCallsBody(){
@@ -482,7 +496,7 @@ function renderMyCallsBody(){
   let list=MCFILTER==="talk"?talk:(MCFILTER==="short"?short:calls);
   const chips=[["all","ทั้งหมด "+calls.length],["talk","ได้คุย >"+MIN+"วิ "+talk.length],["short","สั้น ≤"+MIN+"วิ "+short.length]];
   const rows=list.length?list.map(c=>`<tr style="border-top:1px solid var(--line)"><td class="tnum" style="padding:9px 12px;color:var(--muted)">${hhmm(c.at)}</td><td style="padding:9px 12px;font-size:12px">${dirCell(c)}</td><td class="mono" style="padding:9px 12px">${esc(c.phone||"")}</td><td style="padding:9px 12px">${esc(c.name||"—")}</td><td style="padding:9px 12px">${chIcon(c.channel)}</td><td class="tnum" style="padding:9px 12px;font-weight:700;color:${(c.dur||0)>MIN?"var(--ok)":"var(--warn)"}">${c.dur||0} วิ</td><td style="padding:9px 12px">${(c.dur||0)>MIN?'<span style="color:var(--ok);font-weight:700">✓ ได้คุย</span>':'<span style="color:var(--warn);font-weight:700">สั้น</span>'}</td></tr>`).join(""):`<tr><td colspan="7" style="padding:16px;color:var(--muted)">ยังไม่มีสายในกลุ่มนี้</td></tr>`;
-  box.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:13px"><span>📞 สายวันนี้ <b>${calls.length}</b> สาย <span style="color:var(--muted);font-size:12px">(ออก ${outN} · เข้า ${inN})</span></span><span style="color:var(--ok)">· ได้คุย <b>${talk.length}</b></span><span style="color:var(--warn)">· สั้น (≤${MIN}วิ) <b>${short.length}</b></span></div>
+  box.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:13px"><span>📞 ${esc(mcDayLabel())} <b>${calls.length}</b> สาย <span style="color:var(--muted);font-size:12px">(ออก ${outN} · เข้า ${inN})</span></span><span style="color:var(--ok)">· ได้คุย <b>${talk.length}</b></span><span style="color:var(--warn)">· สั้น (≤${MIN}วิ) <b>${short.length}</b></span></div>
   <div class="fbar" style="margin-bottom:10px">${chips.map(([k,l])=>`<button class="chip ${MCFILTER===k?"on":""}" onclick="setMcFilter('${k}')">${l}</button>`).join("")}</div>
   <div class="card" style="overflow:auto;padding:0"><table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr>${["เวลา","ทิศ","เบอร์","ลูกค้า","ช่องทาง","คุยนาน","ผล"].map(t=>`<th style="text-align:left;padding:10px 12px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">${t}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }

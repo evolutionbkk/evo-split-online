@@ -447,10 +447,18 @@ window.drillOffList=async function(side){
 };
 
 /* ===== TEL CALL TODAY — เบอร์ที่โทรจริงวันนี้ (จาก OneCall) ===== */
-let CLSIDE="all";  // ฟิลเตอร์ฝั่งของตารางสายที่โทรวันนี้
+let CLSIDE="all";  // ฟิลเตอร์ฝั่งของตารางสายที่โทร
+let CLDAY="today"; // today | 7d | YYYY-MM-DD
 window.setClSide=function(s){CLSIDE=s;CLPAGE=1;renderCallLogToday();};
+window.setClDay=function(v){CLDAY=v;CLPAGE=1;renderCallLogToday();};
+function clTodayISO(){const d=new Date(Date.now()+7*3600000);return d.toISOString().slice(0,10);}
+function clDayLabel(){if(CLDAY==="today")return"วันนี้";if(CLDAY==="7d")return"7 วันล่าสุด";if(/^\d{4}-\d{2}-\d{2}$/.test(CLDAY)){const[y,m,d]=CLDAY.split("-");const TH=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];return +d+" "+TH[+m-1]+" "+(+y+543);}return"วันนี้";}
+function clRange(){const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ;
+  if(CLDAY==="7d")return[tS-6*86400000,tS+86400000];
+  if(/^\d{4}-\d{2}-\d{2}$/.test(CLDAY)){const b=Date.parse(CLDAY+"T00:00:00Z")-TZ;return[b,b+86400000];}
+  return[tS,tS+86400000];}
 function callLogRows(){
-  const TZ=7*3600000,n=new Date(Date.now()+TZ),tS=Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-TZ,tE=tS+86400000;
+  const[tS,tE]=clRange();
   const rows=(((window.__recon)||{}).rows||[]).filter(x=>{const t=Date.parse(x.at);return (x.side==="W"||x.side==="K")&&t>=tS&&t<tE;});
   rows.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
   return rows;
@@ -473,6 +481,11 @@ function renderCallLogToday(){
       <span>📞 รวม <b style="color:var(--ink)">${all.length}</b> สาย</span>
       <span>· พี่หวาน <b style="color:var(--ink)">${W.length}</b> (ได้คุย ${W.filter(talk).length})</span>
       <span>· พี่เขม <b style="color:var(--ink)">${K.length}</b> (ได้คุย ${K.filter(talk).length})</span></div>
+    <div class="fbar2" style="margin-bottom:8px;align-items:center;gap:8px;flex-wrap:wrap">
+      <button class="chip ${CLDAY==="today"?"on":""}" onclick="setClDay('today')">วันนี้</button>
+      <button class="chip ${CLDAY==="7d"?"on":""}" onclick="setClDay('7d')">7 วันล่าสุด</button>
+      <input type="date" value="${/^\d{4}-\d{2}-\d{2}$/.test(CLDAY)?CLDAY:""}" max="${clTodayISO()}" onchange="if(this.value)setClDay(this.value)" style="border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:13px;background:var(--surface);color:var(--ink)">
+      <span style="font-size:12px;font-weight:700;color:var(--brand)">📅 ${clDayLabel()}</span></div>
     <div class="fbar2" style="margin-bottom:10px">${chips.map(([k,l])=>`<button class="chip ${CLSIDE===k?"on":""}" onclick="setClSide('${k}')">${l}</button>`).join("")}</div>
     <div class="card" style="overflow:auto"><table class="tbl"><thead><tr><th>เวลา</th><th>ฝั่ง</th><th>เบอร์โทร</th><th>ลูกค้า</th><th>ช่องทาง</th><th>คุยนาน</th><th>ผล</th></tr></thead><tbody>${body}</tbody></table>${list.length?`<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:11px 15px;border-top:1px solid var(--line)"><span style="font-size:12px;color:var(--muted)">แสดง ${fmt(start+1)}–${fmt(start+pageRows.length)} จาก ${fmt(list.length)} สาย</span>${pager(totalPages,CLPAGE,'setClPage')}</div>`:""}</div>`;
 }
