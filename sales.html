@@ -504,7 +504,7 @@ window.renderMyCallsBody=renderMyCallsBody;
 function viewKpi(){
   const b=krBounds(),rl=krLabel();
   const inR=t=>{const p=Date.parse(t);return !isNaN(p)&&p>=b.from&&p<=b.to;};
-  const calledInR=r=>{if(r.lastCallAt&&inR(r.lastCallAt))return true;for(const e of(r.history||[]))if(e.k==="call"&&inR(e.at))return true;return false;};
+  const calledInR=r=>{if(r.lastCallAt&&inR(r.lastCallAt))return true;if(r.realLastCallAt&&inR(r.realLastCallAt))return true;for(const e of(r.history||[]))if(e.k==="call"&&inR(e.at))return true;return false;};
   const wonInR=r=>{if(r.archived||(r.leadStatus||"new")!=="won")return false;const h=r.history||[];for(let i=h.length-1;i>=0;i--){if(h[i].k==="status"&&h[i].v==="won")return inR(h[i].at);}return inR(r.updatedAt);};
   const days=Math.max(1,Math.round((b.to-b.from)/86400000));
   const A=ACTIVE.filter(r=>!r.archived);

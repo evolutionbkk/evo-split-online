@@ -2242,6 +2242,7 @@ async function computeSalesKpi(fromQ, toQ) {
     total: 0, notCalled: 0, called: 0, pending: 0, hand2: 0,
     callsRange: 0, wonRange: 0, newRange: 0, lostRange: 0, revRange: 0,
     callsToday: 0, wonToday: 0, rev: 0, talk7Range: 0, talk7Today: 0,
+    realCallsRange: 0, realCallsToday: 0,   // สายจริงจาก OneCall (ทุกความยาว) — ใช้เป็น "โทรวันนี้" แทนการกดนับมือ
     talk7EvoRange: 0, talk7ManualRange: 0, talk7OtherRange: 0,
     talk7EvoToday: 0, talk7ManualToday: 0, talk7OtherToday: 0,
     calledEvoRange: 0, calledManualRange: 0, calledEvoToday: 0, calledManualToday: 0,
@@ -2308,6 +2309,9 @@ async function computeSalesKpi(fromQ, toQ) {
     const t = Date.parse(c.at); if (isNaN(t)) continue;
     const dp = normPhoneTH(c.phone);
     const inR = t >= from && t <= to, inT = t >= tStart && t <= tEnd;
+    // นับสายจริง (ทุกความยาว) เป็น "โทรวันนี้/ช่วงนี้" — สายที่ต่อติดจาก OneCall
+    if (inR) A.realCallsRange++;
+    if (inT) A.realCallsToday++;
     // "โทรแล้ว ... ราย" = unique customers called, matched by phone to the FB / Marketplace customer lists
     // (side-agnostic on both sides now — a Marketplace call is caught even before the lead is handed out).
     const mSrc = fbPhones.has(dp) ? 'manual' : (mkPhones.has(dp) ? 'evo' : null);
@@ -2329,6 +2333,12 @@ async function computeSalesKpi(fromQ, toQ) {
       if (inR) { A.talk7Range++; A['talk7' + b + 'Range']++; }
       if (inT) { A.talk7Today++; A['talk7' + b + 'Today']++; }
     }
+  }
+  // "โทรวันนี้/ช่วงนี้" ใช้สายจริงจาก OneCall เป็นหลัก (สายที่ต่อติด) — เผื่อกดนับมือไว้ด้วย เอาค่ามากกว่า
+  for (const sd of ['W', 'K']) {
+    const A = sides[sd]; if (!A) continue;
+    A.callsToday = Math.max(A.callsToday || 0, A.realCallsToday || 0);
+    A.callsRange = Math.max(A.callsRange || 0, A.realCallsRange || 0);
   }
   // LINE follow-up นับเป็น "ติดต่อได้" เข้าเกณฑ์ตามช่องทางของลูกค้า (Marketplace/FB) — dedupe ด้วยเบอร์ (Set)
   for (const a of state.assigned) {
