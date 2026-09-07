@@ -487,7 +487,6 @@ function leadView(r, ocMap) {
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
     source: r.source || 'evolution', step: r.step || '', stepManual: !!r.stepManual, product: r.product || '',
-    orders: Array.isArray(r.orders) ? r.orders : null, orderCount: (typeof r.orderCount === 'number') ? r.orderCount : (Array.isArray(r.orders) ? r.orders.length : 0),
     orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     succeedOrders: (typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
@@ -1748,19 +1747,9 @@ async function evoProductName(pid) {
   evoProdNameCache.set(pid, nm);
   return nm;
 }
-// แปลงรหัสสถานะคำสั่งซื้อ → ไทย (ให้ใกล้เคียงที่ Evolution แสดง)
-function evoStatusTH(s) {
-  const m = {
-    ORDER_CREATED: 'รอยืนยัน', ORDER_CONFIRMED: 'รอส่ง', ORDER_APPROVED: 'รอส่ง',
-    ORDER_PROCESSING: 'กำลังจัดส่ง', ORDER_SHIPPED: 'ส่งแล้ว', ORDER_COMPLETED: 'สำเร็จ',
-    ORDER_HOLD: 'พักไว้', ORDER_CANCELLED: 'ยกเลิก', ORDER_REJECTED: 'ตีกลับ',
-  };
-  return m[s] || (s ? String(s).replace(/^ORDER_/, '') : '');
-}
-// คืน { product, orders, orderCount, tokenExpired } — ประวัติการสั่งซื้อแบบ POS
-//   orders = [{ id, date, dateStr, status, statusId, amount, items:[{name, qty}] }] เรียงใหม่→เก่า (เก็บสูงสุด 10 ออเดอร์)
-async function evoCustomerOrders(code) {
-  const findBody = { filter: {}, paginator: { page: 1, pageSize: 50, total: 0, pageSizes: [] }, sorting: { column: 'ORDER_DATE', direction: 'desc' }, searchTerm: '', grouping: { selectedRowIds: {}, itemIds: [], selectAll: false } };
+// คืน { product, tokenExpired } — สรุปสินค้าจากคำสั่งซื้อล่าสุด (สูงสุด 3 ออเดอร์ล่าสุด, รวมชนิดไม่ซ้ำ)
+async function evoCustomerProduct(code) {
+  const findBody = { filter: {}, paginator: { page: 1, pageSize: 3, total: 0, pageSizes: [] }, sorting: { column: 'ORDER_DATE', direction: 'desc' }, searchTerm: '', grouping: { selectedRowIds: {}, itemIds: [], selectAll: false } };
   let rf;
   try {
     rf = await fetch(EVO_BASE + '/api/person/findCustomerOrder/' + encodeURIComponent(code) + '/find', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(findBody) });
@@ -1768,32 +1757,27 @@ async function evoCustomerOrders(code) {
   if (rf.status === 401 || rf.status === 403) return { tokenExpired: true };
   if (!rf.ok) return { error: true };
   let fj; try { fj = await rf.json(); } catch (_) { return { error: true }; }
-  const raw = (fj.items || []).filter((o) => o && o.ORDER_ID);
-  const orderCount = raw.length;
-  if (!orderCount) return { product: '', orders: [], orderCount: 0 };
-  const distinct = []; const orders = [];
-  for (const o of raw.slice(0, 10)) {
-    const items = [];
-    try {
-      const ri = await evoGet('/api/order/getOrderItems?orderId=' + encodeURIComponent(o.ORDER_ID));
-      if (ri.status === 401 || ri.status === 403) return { tokenExpired: true };
-      if (ri.ok) {
-        const oj = await ri.json();
-        for (const it of (oj.orderHeaderAndItem || [])) {
-          const pid = it.PRODUCT_ID; if (!pid) continue;
-          const qty = parseInt(it.QUANTITY, 10) || 1;
-          let nm = await evoProductName(pid);
-          if (!nm) nm = String(it.ITEM_DESCRIPTION || pid).trim();
-          items.push({ name: nm, qty });
-          if (!distinct.includes(nm)) distinct.push(nm);
-        }
-        if (!items.length && oj.ORDER_NAME) items.push({ name: String(oj.ORDER_NAME).trim(), qty: 1 });
-      }
-    } catch (_) {}
-    orders.push({ id: o.ORDER_ID, date: o.ORDER_DATE || null, dateStr: o.ORDER_DATE_STRING || '', status: evoStatusTH(o.STATUS_ID), statusId: o.STATUS_ID || '', amount: parseFloat(o.GRAND_TOTAL || '0') || 0, items });
+  const orders = (fj.items || []).filter((o) => o && o.ORDER_ID).slice(0, 3);
+  if (!orders.length) return { product: '' };
+  const seen = new Set(); const parts = [];
+  for (const o of orders) {
+    let ri; try { ri = await evoGet('/api/order/getOrderItems?orderId=' + encodeURIComponent(o.ORDER_ID)); } catch (_) { continue; }
+    if (ri.status === 401 || ri.status === 403) return { tokenExpired: true };
+    if (!ri.ok) continue;
+    let oj; try { oj = await ri.json(); } catch (_) { continue; }
+    const items = oj.orderHeaderAndItem || [];
+    for (const it of items) {
+      const pid = it.PRODUCT_ID; if (!pid) continue;
+      const qty = parseInt(it.QUANTITY, 10) || 1;
+      let nm = await evoProductName(pid);
+      if (!nm) nm = String(it.ITEM_DESCRIPTION || pid).trim();
+      const key = nm; if (seen.has(key)) continue; seen.add(key);
+      parts.push(nm + (qty > 1 ? (' ×' + qty) : ''));
+    }
+    // ถ้าดึง item ไม่ได้เลยแต่มี ORDER_NAME ย่อ ("YF*1") ก็ใช้เป็น fallback
+    if (!parts.length && oj.ORDER_NAME) parts.push(String(oj.ORDER_NAME).trim());
   }
-  const product = distinct.slice(0, 10).join(', ');
-  return { product, orders, orderCount };
+  return { product: [...new Set(parts)].slice(0, 10).join(', ') };
 }
 
 // PROBE: ดูโครงสร้าง detail ดิบของลูกค้า 1 ราย  →  /api/admin/enrich-evo?probe=CTM106117
@@ -1804,9 +1788,9 @@ app.get('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   try {
     const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(code));
     const detail = rc.ok ? await rc.json() : null;
-    const oh = await evoCustomerOrders(code);
+    const prod = await evoCustomerProduct(code);
     res.json({ ok: true, custStatus: rc.status,
-      addressExtracted: evoAddrOf(detail), productExtracted: oh.product || '', orderCount: oh.orderCount || 0, orders: oh.orders || [], prodTokenExpired: !!oh.tokenExpired,
+      addressExtracted: evoAddrOf(detail), productExtracted: prod.product || '', prodTokenExpired: !!prod.tokenExpired,
       detailKeys: detail ? Object.keys(detail) : [], addressSample: detail && detail.address });
   } catch (e) { res.status(502).json({ error: 'probe_failed', message: String(e) }); }
 });
@@ -1825,9 +1809,9 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
     if (!isMpSource(r.source)) return false;
     if (!r.code || !/^CTM|^\d/i.test(String(r.code))) return false;
     const noAddr = !r.address || !String(r.address).trim();
-    // ยังไม่มีประวัติออเดอร์ (r.orders) → ต้องดึง (ตั้ง r.orders=[] เมื่อไม่มีออเดอร์ กันวนซ้ำ)
-    const noOrders = wantProduct && !Array.isArray(r.orders);
-    return force || noAddr || noOrders;
+    // ต้องยังไม่มีสินค้า และยังไม่เคยเช็ก (evoProdChecked) — กันวนซ้ำลูกค้าที่ไม่มีออเดอร์
+    const noProd = wantProduct && (!r.product || !String(r.product).trim()) && !r.evoProdChecked;
+    return force || noAddr || noProd;
   });
   const totalPending = targets.length;
   const batch = targets.slice(0, limit);
@@ -1847,22 +1831,16 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
         const addr = evoAddrOf(detail);
         if (addr) { r.address = addr; filledAddr++; changed = true; did.push('ที่อยู่'); }
       }
-      if (wantProduct && (force || !Array.isArray(r.orders))) {
-        const oh = await evoCustomerOrders(r.code);
-        if (oh.tokenExpired) { tokenExpired = true; }
-        else if (!oh.error) {
-          r.orders = oh.orders || [];
-          r.orderCount = oh.orderCount || 0;
-          r.evoProdChecked = true;
-          if (oh.product && (force || !r.product || !String(r.product).trim())) { r.product = oh.product; changed = true; }
-          if (r.orders.length) { filledProd++; changed = true; did.push('ประวัติสั่งซื้อ'); }
-          else { marked++; changed = true; }   // ไม่มีออเดอร์ → ตั้ง orders=[] แล้วกันวนซ้ำ
-        }
+      if (wantProduct && (force || !r.product || !String(r.product).trim())) {
+        const pr = await evoCustomerProduct(r.code);
+        if (pr.tokenExpired) { tokenExpired = true; }
+        else if (pr.product) { r.product = pr.product; filledProd++; changed = true; did.push('สินค้า'); r.evoProdChecked = true; }
+        else if (!pr.error) { r.evoProdChecked = true; marked++; }   // เช็กแล้วไม่มีออเดอร์/ไม่มีสินค้า → กันวนซ้ำ
       }
-      if (changed && did.length) {
+      if (changed) {
         r.updatedAt = new Date().toISOString();
         pushHist(r, 'address', 'เติม' + did.join('+') + 'จาก Evolution (' + r.code + ')', 'ระบบ');
-        if (samples.length < 15) samples.push({ code: r.code, phone: r.phone, name: r.name, product: r.product, orderCount: r.orderCount, orders: (r.orders || []).slice(0, 2) });
+        if (samples.length < 15) samples.push({ code: r.code, phone: r.phone, name: r.name, address: r.address, product: r.product });
       }
       if (tokenExpired) break;
     } catch (e) { errors++; }
@@ -1928,6 +1906,50 @@ async function evoPullHoldAuto() {
     return summary.added || 0;
   } catch (e) { console.warn('[evo-auto] error', String(e)); return 0; }
   finally { evoAutoBusy = false; }
+}
+// ----- server-side auto-enrich: เติมที่อยู่ + สินค้า + ประวัติออเดอร์ ให้ลูกค้า Marketplace ใหม่อัตโนมัติ -----
+// ทำงานเงียบ ๆ เป็นระยะ · ใช้ evo.token ที่ relay ไว้ · token หมดอายุจะข้ามไปจนกว่าจะ relay ใหม่
+// ทยอยทีละล็อตเล็ก ๆ เพื่อไม่ยิง Evolution ถี่เกิน — ลูกค้าใหม่จะถูกเติมภายในไม่กี่นาทีหลังเข้าระบบ
+let evoEnrichBusy = false;
+async function evoEnrichAuto(limit = 25) {
+  if (evoEnrichBusy || !evo.token) return 0;
+  evoEnrichBusy = true;
+  try {
+    const targets = state.assigned.filter((r) => {
+      if (r.archived) return false;
+      if (!isMpSource(r.source)) return false;
+      if (!r.code || !/^CTM|^\d/i.test(String(r.code))) return false;
+      const noAddr = !r.address || !String(r.address).trim();
+      const noOrders = !Array.isArray(r.orders);   // ยังไม่เคยดึงประวัติออเดอร์
+      return noAddr || noOrders;
+    }).slice(0, Math.max(1, limit));
+    if (!targets.length) return 0;
+    let filled = 0, expired = false;
+    for (const r of targets) {
+      const needAddr = !r.address || !String(r.address).trim();
+      if (needAddr) {
+        try {
+          const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(r.code));
+          if (rc.status === 401 || rc.status === 403) { expired = true; break; }
+          if (rc.ok) { const d = await rc.json(); const a = evoAddrOf(d); if (a) { r.address = a; filled++; } }
+        } catch (_) {}
+      }
+      if (!Array.isArray(r.orders)) {
+        const oh = await evoCustomerOrders(r.code);
+        if (oh.tokenExpired) { expired = true; break; }
+        if (!oh.error) {
+          r.orders = oh.orders || []; r.orderCount = oh.orderCount || 0; r.evoProdChecked = true;
+          if (oh.product && (!r.product || !String(r.product).trim())) r.product = oh.product;
+          filled++;
+        }
+      }
+      await sleep(150);
+    }
+    if (expired) { evo.expired = true; console.warn('[evo-enrich] token expired — ต้อง relay ใหม่'); }
+    if (filled) { state = await store.save(state); evo.lastEnrichAt = new Date().toISOString(); console.log('[evo-enrich] filled', filled, 'field(s)'); }
+    return filled;
+  } catch (e) { console.warn('[evo-enrich] error', String(e)); return 0; }
+  finally { evoEnrichBusy = false; }
 }
 // Pull Pancake (Facebook closed sales) into the pool. Backfills the last N days (default 30) of
 // closed-sale orders and pools any whose phone isn't already an active/pooled lead (dedup by phone).
@@ -3634,6 +3656,8 @@ boot().then(() => {
   setInterval(() => { autoDistribute().catch(() => {}); }, 60 * 1000);         // แจกอัตโนมัติ (50/50) ทุก 1 นาที — T1 + Marketplace ที่เข้ามาใหม่
   setTimeout(() => { evoPullHoldAuto().catch(() => {}); }, 30 * 1000);         // ดึง Marketplace (Evolution) เข้าคลังอัตโนมัติหลังบูต
   setInterval(() => { evoPullHoldAuto().catch(() => {}); }, 10 * 60 * 1000);   // ดึง Marketplace อัตโนมัติทุก 10 นาที (ใช้ token ที่ relay ไว้ · หมดอายุจะข้ามเงียบ ๆ จนกว่าจะ relay ใหม่)
+  setTimeout(() => { evoEnrichAuto(25).catch(() => {}); }, 75 * 1000);         // เติมที่อยู่+สินค้า+ประวัติออเดอร์ ครั้งแรกหลังบูต
+  setInterval(() => { evoEnrichAuto(25).catch(() => {}); }, 5 * 60 * 1000);    // เติมข้อมูล Evolution ให้ลูกค้าใหม่อัตโนมัติทุก 5 นาที (ทยอยทีละ 25 ราย · เงียบ ๆ · หมดอายุจะข้ามจนกว่าจะ relay ใหม่)
   setInterval(() => { onecallKeepalive().catch(() => {}); }, 4 * 60 * 1000);  // keep OneCall token alive (self-heals via auto-login on expiry)
   setInterval(() => { onecallPull().catch(() => {}); }, 12 * 60 * 1000);       // auto-pull OneCall recordings
   if (GROQ_API_KEY) {
