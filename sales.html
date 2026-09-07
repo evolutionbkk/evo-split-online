@@ -151,6 +151,29 @@ function daysIdle(r){if(!r.lastActivity)return 0;const t=Date.parse(r.lastActivi
 function fmtDay(v){if(!v)return"";try{const d=new Date(v),p=n=>String(n).padStart(2,"0");return p(d.getDate())+"/"+p(d.getMonth()+1)+"/"+String(d.getFullYear()+543).slice(-2);}catch(e){return"";}}
 // ฐานอ้างอิงของรอบ T1/T2/T3 = วันสั่งซื้อล่าสุด (lastOrderAt) ถ้าไม่มีใช้วันรับเข้าระบบ (receivedAt) — ตรงกับที่ระบบใช้คำนวณอายุออเดอร์
 function orderBase(r){const raw=(r&&(r.lastOrderAt||r.receivedAt))||"";if(!raw)return null;const t=Date.parse(raw);if(isNaN(t))return null;return {label:r.lastOrderAt?"วันสั่งซื้อ":"วันรับเข้าระบบ",raw,day:fmtDay(raw),days:Math.max(0,Math.floor((Date.now()-t)/864e5))};}
+// ---- ประวัติการสั่งซื้อ (POS) จาก Evolution ----
+const TH_MON=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+function odDate(o){if(!o)return"";let s=(o.dateStr||"").trim();if(s)return s.replace(/^[฀-๿]+\s+/,"");if(o.date){try{const d=new Date(o.date);return d.getDate()+" "+TH_MON[d.getMonth()]+" "+(d.getFullYear()+543);}catch(e){}}return"";}
+function odItemsText(o){return (o&&o.items&&o.items.length)?o.items.map(it=>it.name+(it.qty>1?(" ×"+it.qty):"")).join(", "):"";}
+function odStatusColor(s){s=s||"";if(/สำเร็จ|ส่งแล้ว/.test(s))return"#16a34a";if(/ยกเลิก|ตีกลับ/.test(s))return"#dc2626";if(/รอส่ง|จัดส่ง/.test(s))return"#d97706";if(/รอยืนยัน|พัก/.test(s))return"#6b7280";return"#2563eb";}
+function ordersBlock(r){
+  if(!Array.isArray(r.orders)||!r.orders.length)return"";
+  const n=r.orderCount||r.orders.length;
+  const rows=r.orders.map(o=>{
+    const col=odStatusColor(o.status);
+    const items=(o.items&&o.items.length)?o.items.map(it=>`<div style="font-size:13px;line-height:1.6">• ${esc(it.name)} <b>×${it.qty}</b></div>`).join(""):`<div style="font-size:13px;color:var(--muted)">—</div>`;
+    return `<div style="border-top:1px solid var(--line);padding:9px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-weight:800;font-size:13px">📅 ${esc(odDate(o))}</span>
+        <span style="font-size:11px;font-weight:800;color:${col};background:color-mix(in srgb,${col} 12%,var(--surface));border:1px solid color-mix(in srgb,${col} 32%,var(--surface));border-radius:6px;padding:1px 8px;white-space:nowrap">${esc(o.status||"—")}</span>
+      </div>
+      <div style="margin-top:4px">${items}</div>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:3px" class="mono">${esc(o.id||"")}</div>
+    </div>`;
+  }).join("");
+  const more=n>r.orders.length?`<div style="font-size:11.5px;color:var(--muted);padding-top:8px;text-align:center">แสดง ${r.orders.length} จาก ${n} ออเดอร์ล่าสุด</div>`:"";
+  return `<div class="box"><h4>🛒 ประวัติการสั่งซื้อ · ${n} ครั้ง</h4>${rows}${more}</div>`;
+}
 
 const STLABEL={new:"ใหม่",contacting:"กำลังติดต่อ",interested:"สนใจ",followup:"นัดติดตาม",awaiting_payment:"รอชำระเงิน",won:"ปิดการขาย",lost:"ไม่สนใจ"};
 const STCOL={new:"#4f46e5",contacting:"#0e7490",interested:"#7c3aed",followup:"#0e7490",awaiting_payment:"#c2660c",won:"#16a34a",lost:"#b91c1c"};
@@ -243,7 +266,10 @@ function leadCard(r){
       <div style="display:inline-block;margin-top:4px;font-size:11.5px;font-weight:800;color:${srcColor(r)};background:color-mix(in srgb,${srcColor(r)} 12%,var(--surface));border:1px solid color-mix(in srgb,${srcColor(r)} 30%,var(--surface));border-radius:7px;padding:2px 8px">มาจาก: ${srcLabel(r)}</div>
       ${r.prevSales?`<div class="lc-urg" style="color:#0369a1">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม":"พี่หวาน"} · กลับมาซื้อซ้ำ</div>`:""}
       ${(r.product||r.page)?`<div class="lc-urg u-mut">📦 ${esc(r.product||"—")}${r.page?` · เพจ: ${esc(r.page)}`:""}</div>`:""}
-      ${(()=>{const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";})()}
+      ${(()=>{
+        if(Array.isArray(r.orders)&&r.orders.length){const o=r.orders[0];const n=r.orderCount||r.orders.length;const it=odItemsText(o);return `<div class="lc-urg u-mut">🛒 สั่งซื้อ ${n} ครั้ง · ล่าสุด ${esc(odDate(o))}${it?` · ${esc(it.length>50?it.slice(0,50)+"…":it)}`:""}</div>`;}
+        const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";
+      })()}
       ${r.nextAppt?`<div class="lc-urg" style="color:#7c3aed;font-weight:700">📅 นัดวันที่ ${esc(fmtShort(r.nextAppt))}</div>`:""}
       ${urgLine(r)}
       ${r.lastLineAt?`<div class="lc-urg" style="color:#1a7f37;font-weight:700">💬 ติดตามผ่าน LINE ${esc(fmtShort(r.lastLineAt))}${r.lineCount>1?` · ${r.lineCount} ครั้ง`:""}</div>`:""}
@@ -576,6 +602,7 @@ function renderSheet(){
           ${r.nextAppt?`<div class="pk-kv"><span>นัดถัดไป</span><b>${esc(fmtShort(r.nextAppt))}</b></div>`:""}
           ${r.address?`<div class="pk-kv" style="align-items:flex-start"><span>ที่อยู่</span><b style="text-align:right;max-width:62%">${esc(r.address)}</b></div>`:""}
         </div>
+        ${ordersBlock(r)}
         <div class="box"><h4>🕑 ไทม์ไลน์การติดต่อ</h4><div>${timeline(r)}</div></div>
       </div>
     </div>`;
