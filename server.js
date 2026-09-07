@@ -487,7 +487,7 @@ function leadView(r, ocMap) {
     leadStatus: recStatus(r), callResult: r.callResult || '', interest: r.interest || '',
     nextAction: r.nextAction || '', lostReason: r.lostReason || '', saleItems: r.saleItems || [],
     source: r.source || 'evolution', step: r.step || '', stepManual: !!r.stepManual, product: r.product || '',
-    orders: Array.isArray(r.orders) ? r.orders : null, orderCount: (typeof r.orderCount === 'number') ? r.orderCount : (Array.isArray(r.orders) ? r.orders.length : 0),
+    orders: Array.isArray(r.orders) ? r.orders : null, orderCount: (typeof r.orderCount === 'number') ? r.orderCount : (Array.isArray(r.orders) ? r.orders.length : 0), ordersFromSheet: !!r.ordersFromSheet,
     orderAmount: r.orderAmount || 0, page: r.page || '', closer: r.closer || '', lastOrderAt: r.lastOrderAt || null,
     ltv: (typeof r.ltv === 'number') ? r.ltv : null,
     succeedOrders: (typeof r.succeedOrders === 'number') ? r.succeedOrders : null,
@@ -1872,6 +1872,52 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   const remaining = Math.max(0, totalPending - attempted);
   res.json({ ok: true, totalPending, attempted, filledAddr, filledProd, marked, notFound, errors, tokenExpired, remaining, samples,
     message: tokenExpired ? 'token หมดอายุกลางทาง — วาง token ใหม่แล้วกดต่อ' : (remaining ? ('เหลืออีก ' + remaining + ' ราย — กดต่อได้') : 'เติมครบแล้ว') });
+});
+
+// นำเข้าประวัติการสั่งซื้อจาก Google Sheet (ฐานลูกค้าเก่า) → จับคู่ด้วยเบอร์ → สร้าง orders ให้ลูกค้า Excel
+// body: { groups: { "<phone>": [{ dateStr, date, items:[{name,qty}], status }] } }
+// จะไม่ทับลูกค้าที่มีออเดอร์จริงจาก Evolution (order ที่มี id ขึ้นต้น SO)
+app.post('/api/admin/import-sheet-orders', requireAuth, async (req, res) => {
+  const groups = (req.body && req.body.groups) || {};
+  const phones = Object.keys(groups);
+  if (!phones.length) return res.status(400).json({ error: 'no_data', message: 'ไม่มีข้อมูลส่งมา' });
+  // index leads by normalized phone (รวมทุกฝั่ง W/K ที่ยังไม่ archived)
+  const byPhone = new Map();
+  for (const r of state.assigned) {
+    if (r.archived) continue;
+    const p = normPhoneTH(r.phone); if (!p) continue;
+    if (!byPhone.has(p)) byPhone.set(p, []);
+    byPhone.get(p).push(r);
+  }
+  let matched = 0, leadsUpdated = 0, skippedEvo = 0, noMatch = 0, sampleUpd = [];
+  for (const ph of phones) {
+    const p = normPhoneTH(ph);
+    const leads = byPhone.get(p);
+    if (!leads || !leads.length) { noMatch++; continue; }
+    // เตรียม orders (เรียงใหม่→เก่า, จำกัด 20) พร้อมติดธง src:'sheet'
+    let orders = (groups[ph] || []).filter((o) => o && (o.dateStr || (o.items && o.items.length)))
+      .map((o) => ({ id: '', date: o.date || null, dateStr: String(o.dateStr || '').slice(0, 40), status: o.status || 'ซื้อแล้ว', statusId: 'SHEET', amount: 0, items: Array.isArray(o.items) ? o.items.slice(0, 12).map((it) => ({ name: String(it.name || '').slice(0, 80), qty: parseInt(it.qty, 10) || 1 })) : [], src: 'sheet' }));
+    orders.sort((a, b) => (Date.parse(b.date || 0) || 0) - (Date.parse(a.date || 0) || 0));
+    orders = orders.slice(0, 20);
+    if (!orders.length) continue;
+    matched++;
+    for (const r of leads) {
+      // มีออเดอร์จริงจาก Evolution แล้ว (id ขึ้นต้น SO) → ไม่ทับ
+      const hasEvo = Array.isArray(r.orders) && r.orders.some((o) => o && o.src !== 'sheet' && /^SO/i.test(String(o.id || '')));
+      if (hasEvo) { skippedEvo++; continue; }
+      r.orders = orders;
+      r.orderCount = orders.length;
+      r.ordersFromSheet = true;
+      if (!r.product || !String(r.product).trim()) {
+        const prods = [...new Set(orders.flatMap((o) => (o.items || []).map((it) => it.name)))].filter(Boolean);
+        if (prods.length) r.product = prods.join(', ');
+      }
+      leadsUpdated++;
+      if (sampleUpd.length < 12) sampleUpd.push({ phone: r.phone, name: r.name, orderCount: r.orderCount, first: orders[0] });
+    }
+  }
+  if (leadsUpdated) state = await store.save(state);
+  res.json({ ok: true, groups: phones.length, matched, leadsUpdated, skippedEvo, noMatch, samples: sampleUpd });
 });
 
 // Sync the FULL Evolution customer base into the Marketplace match-set (mpPhones) ONLY —
