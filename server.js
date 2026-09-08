@@ -950,7 +950,13 @@ app.post('/api/lead/tstage', requireCrm, async (req, res) => {
   res.json({ ok: true, lead: leadView(rec) });
 });
 // Teamlead report: per-salesperson T1/T2/T3 counts over the admin-handed leads.
-function followupTiers() {
+// รับช่วงเวลา [fromMs,toMs] — ค่าเริ่มต้น = วันนี้ (เขต Thai). ตัวเลข "กิจกรรม" (โทร/LINE/รับเข้า) นับตามช่วงที่เลือก
+function followupTiers(fromMs, toMs) {
+  const TZ = 7 * 3600000;
+  const nowTh = new Date(Date.now() + TZ);
+  const todayStartMs = Date.UTC(nowTh.getUTCFullYear(), nowTh.getUTCMonth(), nowTh.getUTCDate(), 0, 0, 0) - TZ;
+  if (fromMs == null || toMs == null || isNaN(fromMs) || isNaN(toMs)) { fromMs = todayStartMs; toMs = todayStartMs + 86400000; }
+  const inRange = (iso) => { const t = Date.parse(iso); return !isNaN(t) && t >= fromMs && t < toMs; };
   const today = S.thaiDay();
   const curMonth = today.slice(0, 7);   // เดือนปัจจุบัน (เขต Thai) — นับเฉพาะเดือนนี้ ไม่ย้อนเดือนเก่า
   // T1 = "สาย FB ที่โทรจริง" — นับลูกค้า FB (ไม่ซ้ำ) ที่เซลล์คุยจริง >7วิ โดยจับจากเบอร์ลูกค้า FB ทั้งคลัง
@@ -982,7 +988,7 @@ function followupTiers() {
     if (!step) continue;   // เฉพาะลูกค้า FB
     const day = S.thaiDay(c.at); if (!day) continue;
     if (day.slice(0, 7) === curMonth) t1Month[c.side].add(p);
-    if (day === today) { t1Today[c.side].add(p); cToday[c.side][step].add(p); }
+    if (inRange(c.at)) { t1Today[c.side].add(p); cToday[c.side][step].add(p); }
   }
   // LINE follow-up นับเข้ารอบ T1/T2/T3 ด้วย (ตามสเตปของลูกค้า) — dedupe กับสายโทรด้วยเบอร์ (Set)
   for (const r of state.assigned) {
@@ -995,21 +1001,21 @@ function followupTiers() {
       if (h.k !== 'line') continue;
       const day = S.thaiDay(h.at); if (!day) continue;
       if (day.slice(0, 7) === curMonth) t1Month[r.sales].add(p);
-      if (day === today) { t1Today[r.sales].add(p); cToday[r.sales][step].add(p); }
+      if (inRange(h.at)) { t1Today[r.sales].add(p); cToday[r.sales][step].add(p); }
     }
   }
   const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, T1recv: 0, T1done: 0, leads: 0 });
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
   const t1RecvN = { W: 0, K: 0 }, t1DoneN = { W: 0, K: 0 };
-  const firstDay = (r) => { const h = (r.history && r.history.length) ? r.history[0].at : r.receivedAt; return S.thaiDay(h); };
+    const firstAt = (r) => (r.history && r.history.length) ? r.history[0].at : r.receivedAt;
   for (const r of state.assigned) {
     if (r.sales !== 'W' && r.sales !== 'K') continue;
     const src = r.source || 'evolution';
     const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
     const o = out[r.sales][grp]; if (!r.archived) o.leads++;
-    // T1 วันนี้ = ออเดอร์ FB ใหม่ที่แอดมินปิดวันนี้ (รวมที่โทรแล้วปิดงาน) · done = โทรแล้ววันนี้
-    if ((src === 'pancake' || src === 'manual') && !r.fromExcel && String(r.step || '').toUpperCase() === 'T1' && firstDay(r) === today) {
+    // T1 รับเข้าในช่วงที่เลือก = ออเดอร์ FB ใหม่ที่แอดมินปิด (รวมที่โทรแล้วปิดงาน) · done = โทรแล้วในช่วงนั้น
+    if ((src === 'pancake' || src === 'manual') && !r.fromExcel && String(r.step || '').toUpperCase() === 'T1' && inRange(firstAt(r))) {
       t1RecvN[r.sales]++; if (t1Today[r.sales].has(normPhoneTH(r.phone))) t1DoneN[r.sales]++;
     }
     if (!r.archived) {   // จำนวนที่อยู่รอบ T2/T3 เดือนนี้ (เฉพาะที่ยังไม่ปิด)
@@ -1034,7 +1040,7 @@ function followupTiers() {
   for (const c of (state.onecall || [])) {
     if (c.side !== 'W' && c.side !== 'K') continue;
     if ((c.dur || 0) <= ONECALL_MIN_TALK) continue;      // เฉพาะสายที่ได้คุยจริง
-    if (S.thaiDay(c.at) !== today) continue;
+    if (!inRange(c.at)) continue;
     const p = normPhoneTH(c.phone); if (!p) continue;
     if (knownPhones.has(p)) continue;                     // มีในระบบ → ไม่ใช่สายนอกเกณฑ์
     offSet[c.side].add(p);
@@ -1044,19 +1050,21 @@ function followupTiers() {
   const contactToday = { W: { phoneTalk: 0, phoneShort: 0, line: 0 }, K: { phoneTalk: 0, phoneShort: 0, line: 0 } };
   for (const c of (state.onecall || [])) {
     if (c.side !== 'W' && c.side !== 'K') continue;
-    if (S.thaiDay(c.at) !== today) continue;
+    if (!inRange(c.at)) continue;
     if ((c.dur || 0) > ONECALL_MIN_TALK) contactToday[c.side].phoneTalk++; else contactToday[c.side].phoneShort++;
   }
   for (const a of state.assigned) {
     const sd = a.sales; if (sd !== 'W' && sd !== 'K') continue;
-    for (const h of (a.history || [])) { if (h.k === 'line' && S.thaiDay(h.at) === today) contactToday[sd].line++; }
+    for (const h of (a.history || [])) { if (h.k === 'line' && inRange(h.at)) contactToday[sd].line++; }
   }
   for (const sd of ['W', 'K']) contactToday[sd].total = contactToday[sd].phoneTalk + contactToday[sd].line; // "ได้คุย" รวม = โทรได้คุย + LINE
   out.contactToday = contactToday;
   return out;
 }
 app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
-  res.json({ ok: true, names: SALES_NAMES, tiers: followupTiers() });
+  const from = req.query.from ? Date.parse(req.query.from) : null;
+  const to = req.query.to ? Date.parse(req.query.to) : null;
+  res.json({ ok: true, names: SALES_NAMES, tiers: followupTiers(from, to) });
 });
 
 // ----- Cross-source duplicate detection: same phone in 2+ ACTIVE leads -----
