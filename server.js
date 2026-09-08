@@ -2077,6 +2077,16 @@ app.post('/api/admin/import-customer-sheet', requireAuth, async (req, res) => {
   const customers = Array.isArray(b.customers) ? b.customers : [];
   const apply = b.apply !== false;
   if (!customers.length) return res.status(400).json({ error: 'no_data' });
+  // stopPhones: รายที่ "เลิกติดตาม" ในชีท → เอาลีดที่ดึงจากชีท (SHT*) ออกจากคิว (archive)
+  const stopSet = new Set((Array.isArray(b.stopPhones) ? b.stopPhones : []).map((p) => normPhoneTH(p)).filter(Boolean));
+  let archivedStop = 0;
+  if (apply && stopSet.size) {
+    for (const r of state.assigned) {
+      if (r.archived) continue;
+      if (!String(r.code || '').startsWith('SHT')) continue;   // เฉพาะที่ดึงมาจากชีท
+      if (stopSet.has(normPhoneTH(r.phone))) { r.archived = true; r.archiveReason = 'stopped'; r.archiveNote = 'เลิกติดตาม (จากชีท)'; r.archivedAt = new Date().toISOString(); archivedStop++; }
+    }
+  }
   const byPhone = new Map();
   for (const r of state.assigned) { if (r.archived) continue; const p = normPhoneTH(r.phone); if (p && !byPhone.has(p)) byPhone.set(p, r); }
   const validSide = (s) => (s === 'K' ? 'K' : (s === 'W' ? 'W' : null));
@@ -2123,8 +2133,8 @@ app.post('/api/admin/import-customer-sheet', requireAuth, async (req, res) => {
     created++;
     if (samples.length < 10) samples.push({ phone: p, name: c.name, sales: validSide(c.sales) || '(สลับ50/50)', product: c.product });
   }
-  if (apply && (created || enriched)) state = await store.save(state);
-  res.json({ ok: true, apply, received: customers.length, created, enriched, skipped, addW, addK, samples });
+  if (apply && (created || enriched || archivedStop)) state = await store.save(state);
+  res.json({ ok: true, apply, received: customers.length, created, enriched, skipped, archivedStop, addW, addK, samples });
 });
 
 // Sync the FULL Evolution customer base into the Marketplace match-set (mpPhones) ONLY —
