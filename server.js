@@ -1029,6 +1029,8 @@ function followupTiers(fromMs, toMs) {
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
   const t1RecvN = { W: 0, K: 0 }, t1DoneN = { W: 0, K: 0 };
+  // แยกตาม "ใครเป็นคนปิดการขาย" ของลูกค้า T1 ที่เข้าเทเลเซลล์ในช่วงนี้ (ยึดวันเดียวกัน = วันที่แจกเข้าเซลล์) → ให้ยอดย่อยรวมกันได้พอดี
+  const t1RecvByCloser = {}; let t1RecvAdmin = 0, t1RecvTele = 0;
     for (const r of state.assigned) {
     if (r.sales !== 'W' && r.sales !== 'K') continue;
     const src = r.source || 'evolution';
@@ -1037,6 +1039,9 @@ function followupTiers(fromMs, toMs) {
     // T1 รับเข้าในช่วงที่เลือก = ออเดอร์ FB ที่เข้ารอบใหม่ (receivedAt อยู่ในช่วง — รวมลูกค้าเก่าสั่งซ้ำที่เด้งเป็น T1 ใหม่) · done = โทรแล้วในช่วงนั้น
     if ((src === 'pancake' || src === 'manual') && !r.fromExcel && String(r.step || '').toUpperCase() === 'T1' && inRange(r.receivedAt)) {
       t1RecvN[r.sales]++; if (t1Today[r.sales].has(normPhoneTH(r.phone))) t1DoneN[r.sales]++;
+      const nk = nickName(r.closer) || r.closer || '(ไม่ระบุผู้ปิด)';
+      t1RecvByCloser[nk] = (t1RecvByCloser[nk] || 0) + 1;
+      if (isHumanChatAdmin(nk)) t1RecvAdmin++; else t1RecvTele++;
     }
     if (!r.archived) {   // จำนวนที่อยู่รอบ T2/T3 เดือนนี้ (เฉพาะที่ยังไม่ปิด)
       const fs = r.followStage || 1;
@@ -1079,6 +1084,12 @@ function followupTiers(fromMs, toMs) {
   }
   for (const sd of ['W', 'K']) contactToday[sd].total = contactToday[sd].phoneTalk + contactToday[sd].line; // "ได้คุย" รวม = โทรได้คุย + LINE
   out.contactToday = contactToday;
+  // ลูกค้าใหม่ที่เข้าเทเลเซลล์ในช่วงนี้ — ชุดข้อมูลเดียว วันเดียว (receivedAt) · ยอดย่อยรวมกันได้พอดี
+  out.t1Recv = {
+    W: t1RecvN.W, K: t1RecvN.K, total: t1RecvN.W + t1RecvN.K,
+    admin: t1RecvAdmin, telesales: t1RecvTele,
+    byCloser: Object.entries(t1RecvByCloser).sort((a, b) => b[1] - a[1]).map(([name, n]) => ({ name, n, admin: isHumanChatAdmin(name) })),
+  };
   return out;
 }
 app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
