@@ -1886,11 +1886,14 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   const limit = Math.max(1, Math.min(1500, parseInt(b.limit, 10) || 250));
   const wantProduct = b.product !== false;
   const force = b.force === true;
-  // เป้าหมาย: ลูกค้า Marketplace ที่มี code (PARTY_ID) และยังไม่มีที่อยู่ (หรือ force)
+  const skuBackfill = b.skuBackfill === true;   // เติม SKU ให้ออเดอร์เดิม (ดึงเฉพาะออเดอร์ ไม่แตะที่อยู่) — เฉพาะรายที่ยังไม่มี SKU
+  const hasSku = (r) => Array.isArray(r.orders) && r.orders.some((o) => (o.items || []).some((it) => it.sku));
+  // เป้าหมาย: ลูกค้า Marketplace ที่มี code (PARTY_ID) และยังไม่มีที่อยู่ (หรือ force / เติม SKU)
   const targets = state.assigned.filter((r) => {
     if (r.archived) return false;
     if (!isMpSource(r.source)) return false;
     if (!r.code || !/^CTM|^\d/i.test(String(r.code))) return false;
+    if (skuBackfill) return Array.isArray(r.orders) && r.orders.length > 0 && !hasSku(r);   // มีออเดอร์แต่ยังไม่มี SKU
     const noAddr = !r.address || !String(r.address).trim();
     // ยังไม่มีประวัติออเดอร์ (r.orders) → ต้องดึง (ตั้ง r.orders=[] เมื่อไม่มีออเดอร์ กันวนซ้ำ)
     const noOrders = wantProduct && !Array.isArray(r.orders);
@@ -1904,7 +1907,7 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
     attempted++;
     try {
       let changed = false, did = [];
-      const needAddr = force || !r.address || !String(r.address).trim();
+      const needAddr = !skuBackfill && (force || !r.address || !String(r.address).trim());   // skuBackfill = ข้ามที่อยู่ (ดึงเฉพาะออเดอร์)
       if (needAddr) {
         const rc = await evoGet('/api/person/getCustomer/' + encodeURIComponent(r.code));
         if (rc.status === 401 || rc.status === 403) { tokenExpired = true; attempted--; break; }
@@ -1914,15 +1917,15 @@ app.post('/api/admin/enrich-evo', requireAuth, async (req, res) => {
         const addr = evoAddrOf(detail);
         if (addr) { r.address = addr; filledAddr++; changed = true; did.push('ที่อยู่'); }
       }
-      if (wantProduct && (force || !Array.isArray(r.orders))) {
+      if (wantProduct && (force || skuBackfill || !Array.isArray(r.orders))) {
         const oh = await evoCustomerOrders(r.code);
         if (oh.tokenExpired) { tokenExpired = true; }
         else if (!oh.error) {
           r.orders = oh.orders || [];
           r.orderCount = oh.orderCount || 0;
           r.evoProdChecked = true;
-          if (oh.product && (force || !r.product || !String(r.product).trim())) { r.product = oh.product; changed = true; }
-          if (r.orders.length) { filledProd++; changed = true; did.push('ประวัติสั่งซื้อ'); }
+          if (oh.product && (force || skuBackfill || !r.product || !String(r.product).trim())) { r.product = oh.product; changed = true; }
+          if (r.orders.length) { filledProd++; changed = true; did.push(skuBackfill ? 'SKU' : 'ประวัติสั่งซื้อ'); }
           else { marked++; changed = true; }
         }
       }
