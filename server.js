@@ -1341,25 +1341,42 @@ function onecallAt(ts) {
 }
 // Normalize + dedupe a batch of OneCall recordings into state.onecall (shared by the userscript
 // push endpoint and the server-side auto-pull). Does NOT save — caller persists.
+// เบอร์กลาง — OneCall ตั้งโอนสายอัตโนมัติมาที่นี่เมื่อสายหลัก (324=W / 326=K) ไม่ว่าง/ติดสาย
+// สายที่มาเบอร์กลางจึงเป็นสายของลูกค้าที่โทรหาเซลล์ → ให้เครดิตเจ้าของลูกค้า (จับจากเบอร์ปลายทาง)
+const ONECALL_CENTRAL = new Set(['66948880325']);
 function applyOnecallRecords(records) {
   if (!Array.isArray(state.onecall)) state.onecall = [];
   const seen = new Set(state.onecall.map((r) => r.id));
-  let added = 0, dup = 0, skipped = 0;
+  // เบอร์ลูกค้า → ฝั่งเจ้าของ (W/K) สำหรับจับคู่สายที่โอนมาเบอร์กลาง
+  const ownerByPhone = new Map();
+  for (const a of state.assigned) {
+    if (a.archived || (a.sales !== 'W' && a.sales !== 'K')) continue;
+    const p = normPhoneTH(a.phone); if (p && !ownerByPhone.has(p)) ownerByPhone.set(p, a.sales);
+  }
+  let added = 0, dup = 0, skipped = 0, central = 0;
   for (const rec of (records || [])) {
     const id = String((rec && rec.id) != null ? rec.id : '').trim();
     if (!id) { skipped++; continue; }
     if (seen.has(id)) { dup++; continue; }
-    const side = onecallSide(rec.localParty);
-    if (!side) { skipped++; continue; } // other lines (e.g. ...325) are not W/K
+    const rp = normPhoneTH(rec.remoteParty);
+    let side = onecallSide(rec.localParty), via = '';
+    if (!side) {
+      if (ONECALL_CENTRAL.has(normLine(rec.localParty))) {
+        via = 'central';
+        side = ownerByPhone.get(rp) || 'central';   // โอนมาเบอร์กลาง → เครดิตเจ้าของลูกค้า · ไม่เจอเจ้าของ = เก็บเป็น central (ไม่ทิ้ง)
+      } else { skipped++; continue; }   // เบอร์อื่นที่ไม่รู้จักจริง ๆ → ข้าม
+    }
     let dur = parseInt(rec.duration, 10); if (!isFinite(dur) || dur < 0) dur = 0;
     const at = onecallAt(rec.timestamp) || new Date().toISOString();
     seen.add(id);
-    state.onecall.push({ id, side, phone: normPhoneTH(rec.remoteParty), dur, at, dir: String(rec.direction || '').slice(0, 12) });
+    const row = { id, side, phone: rp, dur, at, dir: String(rec.direction || '').slice(0, 12) };
+    if (via) { row.via = via; central++; }
+    state.onecall.push(row);
     added++;
   }
   if (state.onecall.length > ONECALL_MAX) state.onecall = state.onecall.slice(-ONECALL_MAX);
   state.onecallUpdatedAt = new Date().toISOString();
-  return { added, dup, skipped };
+  return { added, dup, skipped, central };
 }
 
 // Userscript on the OneCall page relays recordings here (auth via INGEST_KEY or admin session).
