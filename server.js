@@ -3085,6 +3085,84 @@ app.post('/api/admin/enrich-vip', requireAuth, async (req, res) => {
   const out = await pancakeEnrichVip();
   res.json(out);
 });
+
+// ---- Pancake cross-fill: หา "ประวัติการซื้อจาก Pancake (FB)" ด้วยเบอร์ → เติมสินค้าให้ลูกค้าที่ยังว่าง ----
+// รายการสินค้า/SKU จากออเดอร์ Pancake (ให้รูปแบบเดียวกับ Evolution: {name, qty, sku})
+function pancakeOrderItems(o) {
+  const out = [];
+  for (const it of (o.items || [])) {
+    const vi = it.variation_info || {};
+    const nm = vi.name || vi.detail || it.name || it.product_name || (it.product_display_id ? ('#' + it.product_display_id) : 'สินค้า');
+    const qty = Number(it.quantity || 1) || 1;
+    const sku = String(vi.display_id || it.product_display_id || it.variation_id || '').trim();
+    out.push({ name: String(nm).slice(0, 120), qty, sku });
+  }
+  return out;
+}
+function pancakeOrderRow(o) {
+  const at = o.inserted_at || o.updated_at || null;
+  const amount = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
+  const items = pancakeOrderItems(o);
+  const distinct = [];
+  for (const it of items) { const lbl = it.name + (it.sku ? (' (' + it.sku + ')') : ''); if (!distinct.includes(lbl)) distinct.push(lbl); }
+  return { id: 'PC' + (o.system_id || o.id), date: at, dateStr: fmtThaiDate(at), status: String(o.status_name || '').trim() || 'Pancake', statusId: 'PANCAKE', amount, items, _product: distinct.join(', ').slice(0, 200) };
+}
+// ยิงถาม Pancake ด้วยเบอร์ → คืนออเดอร์ที่เบอร์ตรงกันจริง (กรองซ้ำอีกชั้นกันผลค้นหลวม)
+async function pancakeOrdersByPhone(phone) {
+  if (!PANCAKE_API_KEY) return { error: 'no_api_key', orders: [] };
+  const want = digitsOnly(normPhoneTH(phone));
+  if (!want) return { orders: [], raw: 0 };
+  let raw = 0; const matched = []; const samplePhones = [];
+  try {
+    const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=1&page_size=50&search=' + encodeURIComponent(phone);
+    const j = await (await fetch(url)).json().catch(() => null);
+    if (j && Array.isArray(j.data)) {
+      raw = j.data.length;
+      for (const o of j.data) {
+        const oph = digitsOnly(normPhoneTH(o.bill_phone_number || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')));
+        if (samplePhones.length < 3) samplePhones.push(oph);
+        if (oph && oph === want) matched.push(o);
+      }
+    }
+  } catch (e) { return { error: String(e), orders: [] }; }
+  matched.sort((a, b) => Date.parse(b.inserted_at || b.updated_at || 0) - Date.parse(a.inserted_at || a.updated_at || 0));
+  return { orders: matched.slice(0, 10).map(pancakeOrderRow), raw, samplePhones };
+}
+// PROBE: /api/admin/pancake-probe?phone=0990640223
+app.get('/api/admin/pancake-probe', requireAuth, async (req, res) => {
+  const phone = String(req.query.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'need_phone' });
+  const out = await pancakeOrdersByPhone(phone);
+  res.json({ ok: true, phone, matched: out.orders.length, searchRaw: out.raw || 0, sampleRawPhones: out.samplePhones || [], orders: out.orders, error: out.error });
+});
+// CROSS-FILL: POST { apply=false, limit=200 } — เติมสินค้า/ประวัติจาก Pancake ให้ลูกค้าที่ product ว่าง
+app.post('/api/admin/pancake-crossfill', requireAuth, async (req, res) => {
+  if (!PANCAKE_API_KEY) return res.status(400).json({ error: 'no_api_key' });
+  const b = req.body || {};
+  const apply = b.apply === true;
+  const limit = Math.max(1, Math.min(400, parseInt(b.limit, 10) || 200));
+  const targets = state.assigned.filter((r) => !r.archived && (!r.product || !String(r.product).trim())).slice(0, limit);
+  let scanned = 0, found = 0, filled = 0; const samples = [];
+  for (const r of targets) {
+    scanned++;
+    const out = await pancakeOrdersByPhone(r.phone);
+    if (out.orders && out.orders.length) {
+      found++;
+      const prod = out.orders.map((o) => o._product).filter(Boolean).join(', ').slice(0, 200);
+      if (samples.length < 20) samples.push({ code: r.code, phone: r.phone, name: r.name, product: prod, orderN: out.orders.length });
+      if (apply) {
+        if (prod && (!r.product || !String(r.product).trim())) r.product = prod;
+        r.orders = out.orders.map(({ _product, ...o }) => o);
+        r.orderCount = r.orders.length;
+        r.ordersFromPancake = true;
+        filled++;
+      }
+    }
+    await sleep(120);
+  }
+  if (apply && filled) state = await store.save(state);
+  res.json({ ok: true, apply, scanned, found, filled, samples });
+});
 app.get('/api/pancake/status', requireAuth, (req, res) => {
   const p = state.pancake || {};
   res.json({
