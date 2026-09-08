@@ -1847,10 +1847,12 @@ async function evoCustomerOrders(code) {
         for (const it of (oj.orderHeaderAndItem || [])) {
           const pid = it.PRODUCT_ID; if (!pid) continue;
           const qty = parseInt(it.QUANTITY, 10) || 1;
+          const sku = String(pid);   // รหัสสินค้า (SKU) ที่ Evolution แสดงในใบสั่งซื้อ
           let nm = await evoProductName(pid);
           if (!nm) nm = String(it.ITEM_DESCRIPTION || pid).trim();
-          items.push({ name: nm, qty });
-          if (!distinct.includes(nm)) distinct.push(nm);
+          items.push({ name: nm, qty, sku });
+          const label = nm + ' (' + sku + ')';   // แบบ FB + SKU: ชื่อสินค้า (รหัส)
+          if (!distinct.includes(label)) distinct.push(label);
         }
         if (!items.length && oj.ORDER_NAME) items.push({ name: String(oj.ORDER_NAME).trim(), qty: 1 });
       }

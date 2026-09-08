@@ -161,7 +161,7 @@ function ordersBlock(r){
   const n=r.orderCount||r.orders.length;
   const rows=r.orders.map(o=>{
     const col=odStatusColor(o.status);
-    const items=(o.items&&o.items.length)?o.items.map(it=>`<div style="font-size:13px;line-height:1.6">• ${esc(it.name)} <b>×${it.qty}</b></div>`).join(""):`<div style="font-size:13px;color:var(--muted)">—</div>`;
+    const items=(o.items&&o.items.length)?o.items.map(it=>`<div style="font-size:13px;line-height:1.6">• ${esc(it.name)}${it.sku?` <span style="color:var(--muted);font-size:11px">[SKU ${esc(it.sku)}]</span>`:""} <b>×${it.qty}</b></div>`).join(""):`<div style="font-size:13px;color:var(--muted)">—</div>`;
     return `<div style="border-top:1px solid var(--line);padding:9px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <span style="font-weight:800;font-size:13px">📅 ${esc(odDate(o))}</span>
