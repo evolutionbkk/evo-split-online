@@ -222,7 +222,7 @@ window.setKR=function(r){KR=r;MTPAGE=1;if(r==="custom"&&(!kcf||!kct)){const TZ=7
 window.applyKC=function(){const f=$("#kcf").value,t=$("#kct").value;if(!f||!t){toast("เลือกวันที่ให้ครบ");return;}if(f>t){toast("วันเริ่มต้องไม่เกินวันสิ้นสุด");return;}kcf=f;kct=t;MTPAGE=1;render();};
 const MP_TARGET=30,FB_TG={T1:5,T2:5,T3:20},FB_TOTAL=FB_TG.T1+FB_TG.T2+FB_TG.T3;
 
-function isLegacy(r){return !!r.fromExcel||String(r.code||"").startsWith("SHT");}
+function isLegacy(r){return String(r.code||"").startsWith("SHT");}
 function leadPanel(r){if(isLegacy(r))return "legacy";return (r.source==="pancake"||r.source==="manual"||r.source==="refill")?"mkt":"ecom";}
 function neverCalled(r){return !((r.realCalls>0)||(r.callCount>0));}
 function overdueDays(r){const s=r.source||"evolution";return (s==="pancake"||s==="manual"||s==="refill")?2:5;}
