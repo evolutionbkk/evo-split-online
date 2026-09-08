@@ -1008,14 +1008,13 @@ function followupTiers(fromMs, toMs) {
   const mk = () => ({ fbpage: blank(), marketplace: blank() });
   const out = { W: mk(), K: mk() };
   const t1RecvN = { W: 0, K: 0 }, t1DoneN = { W: 0, K: 0 };
-    const firstAt = (r) => (r.history && r.history.length) ? r.history[0].at : r.receivedAt;
-  for (const r of state.assigned) {
+    for (const r of state.assigned) {
     if (r.sales !== 'W' && r.sales !== 'K') continue;
     const src = r.source || 'evolution';
     const grp = (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fbpage' : 'marketplace';
     const o = out[r.sales][grp]; if (!r.archived) o.leads++;
-    // T1 รับเข้าในช่วงที่เลือก = ออเดอร์ FB ใหม่ที่แอดมินปิด (รวมที่โทรแล้วปิดงาน) · done = โทรแล้วในช่วงนั้น
-    if ((src === 'pancake' || src === 'manual') && !r.fromExcel && String(r.step || '').toUpperCase() === 'T1' && inRange(firstAt(r))) {
+    // T1 รับเข้าในช่วงที่เลือก = ออเดอร์ FB ที่เข้ารอบใหม่ (receivedAt อยู่ในช่วง — รวมลูกค้าเก่าสั่งซ้ำที่เด้งเป็น T1 ใหม่) · done = โทรแล้วในช่วงนั้น
+    if ((src === 'pancake' || src === 'manual') && !r.fromExcel && String(r.step || '').toUpperCase() === 'T1' && inRange(r.receivedAt)) {
       t1RecvN[r.sales]++; if (t1Today[r.sales].has(normPhoneTH(r.phone))) t1DoneN[r.sales]++;
     }
     if (!r.archived) {   // จำนวนที่อยู่รอบ T2/T3 เดือนนี้ (เฉพาะที่ยังไม่ปิด)
@@ -1272,7 +1271,46 @@ function pancakeOrderToRow(o) {
   const page = String((o.page && o.page.name) || o.order_sources_name || '').slice(0, 120);
   // Pancake stores money in the smallest unit (satang) → divide by 100 for THB.
   const amount = (Math.round(Number(o.total_price_after_sub_discount || o.total_price || 0)) || 0) / 100;
-  return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page, address: pancakeAddress(o), closer: pancakeCloser(o) };
+  return { code: 'PC' + (o.system_id || o.id), name, phone, product: pancakeItems(o), amount, page, address: pancakeAddress(o), closer: pancakeCloser(o), at: o.inserted_at || o.updated_at || null };
+}
+// วันที่แบบไทย (สำหรับโน้ต/ประวัติ)
+function fmtThaiDate(iso) {
+  try { const t = new Date(Date.parse(iso) + 7 * 3600000); const TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']; return t.getUTCDate() + ' ' + TH[t.getUTCMonth()] + ' ' + (t.getUTCFullYear() + 543); } catch (e) { return ''; }
+}
+// ลูกค้าเก่ากลับมาสั่งซ้ำ (เบอร์มีในระบบแล้ว) → เด้งตั๋วเดิมเป็นลูกค้าใหม่รอบ T1 (เซลล์คนเดิม) + ลงโน้ตให้เซลล์รู้
+// คืน { fresh } = แถวที่เป็นเบอร์ใหม่จริง (ส่งต่อให้ applyNew ตามปกติ) และจำนวนที่ reactivated
+function applyPancakeReorders(rows) {
+  const byPhone = new Map();
+  for (const a of state.assigned) { const p = normPhoneTH(a.phone); if (p && !byPhone.has(p)) byPhone.set(p, a); }
+  const fresh = []; let reactivated = 0; const nowIso = new Date().toISOString();
+  for (const row of (rows || [])) {
+    const p = normPhoneTH(row.phone);
+    const rec = p ? byPhone.get(p) : null;
+    if (!rec) { fresh.push(row); continue; }   // เบอร์ใหม่จริง → ปล่อยให้ applyNew สร้างตั๋วใหม่
+    const orderDate = row.at ? new Date(Date.parse(row.at) || Date.now()).toISOString() : nowIso;
+    const items = String(row.product || '').trim();
+    const amt = Math.round((Number(row.amount) || 0) * 100) / 100;
+    const noteLine = ('🔁 ลูกค้าเก่ากลับมาซื้อซ้ำ · ซื้อ ' + fmtThaiDate(orderDate) + (items ? (' · ' + items) : '') + (amt ? (' · ยอด ฿' + amt.toLocaleString()) : '')).slice(0, 220);
+    // เด้งกลับเป็นลูกค้าใหม่รอบ T1 (คงเซลล์เจ้าของเดิม)
+    rec.archived = false; rec.archiveReason = ''; rec.archiveNote = ''; rec.archivedAt = null;
+    rec.step = 'T1'; rec.stepManual = false; rec.followStage = 1; rec.t2At = null; rec.t3At = null;
+    rec.leadStatus = 'new'; rec.contact = ''; rec.reachStatus = ''; rec.unreachableReason = ''; rec.nextAppt = '';
+    rec.callCount = 0; rec.calls = [];
+    rec.receivedAt = nowIso;               // เข้ารอบใหม่วันนี้ → นับ T1 รับเข้าวันนี้
+    rec.lastOrderAt = orderDate;
+    if (items) rec.product = items.slice(0, 200);
+    if (amt) rec.orderAmount = amt;
+    if (row.closer) rec.closer = String(row.closer).slice(0, 120);
+    rec.note = (noteLine + (rec.note ? ('\n— โน้ตเดิม: ' + rec.note) : '')).slice(0, 500);
+    rec.updatedAt = nowIso;
+    pushHist(rec, 'note', noteLine, 'ระบบ');
+    // ลงประวัติการสั่งซื้อ (POS) ด้วย
+    if (!Array.isArray(rec.orders)) rec.orders = [];
+    rec.orders.unshift({ id: row.code || '', date: orderDate, dateStr: fmtThaiDate(orderDate), status: 'ปิดการขาย', statusId: 'PANCAKE', amount: amt, items: items ? [{ name: items.slice(0, 90), qty: 1 }] : [], src: 'pancake' });
+    rec.orders = rec.orders.slice(0, 20); rec.orderCount = rec.orders.length;
+    reactivated++;
+  }
+  return { fresh, reactivated };
 }
 async function pancakePull(opts) {
   opts = opts || {};
@@ -1302,10 +1340,12 @@ async function pancakePull(opts) {
       seen.add(id);
     }
     if (rows.length) {
+      // ลูกค้าเก่าสั่งซ้ำ → เด้งตั๋วเดิมเป็น T1 ใหม่ (เซลล์คนเดิม) · เบอร์ใหม่จริงค่อยสร้างตั๋วใหม่
+      const { fresh, reactivated } = applyPancakeReorders(rows);
       const sum = opts.hold
-        ? S.applyNewPool(state, rows, { source: 'pancake', by: 'Pancake' })
-        : S.applyManual(state, rows, { source: 'pancake', by: 'Pancake', step: 'T1', off: dof() });
-      added = sum.added;
+        ? S.applyNewPool(state, fresh, { source: 'pancake', by: 'Pancake' })
+        : S.applyManual(state, fresh, { source: 'pancake', by: 'Pancake', step: 'T1', off: dof() });
+      added = (sum.added || 0) + reactivated;
     }
     state.pancake.seen = Array.from(seen).slice(-8000);
     state.pancake.lastRun = new Date().toISOString();
