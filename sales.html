@@ -222,7 +222,8 @@ window.setKR=function(r){KR=r;MTPAGE=1;if(r==="custom"&&(!kcf||!kct)){const TZ=7
 window.applyKC=function(){const f=$("#kcf").value,t=$("#kct").value;if(!f||!t){toast("เลือกวันที่ให้ครบ");return;}if(f>t){toast("วันเริ่มต้องไม่เกินวันสิ้นสุด");return;}kcf=f;kct=t;MTPAGE=1;render();};
 const MP_TARGET=30,FB_TG={T1:5,T2:5,T3:20},FB_TOTAL=FB_TG.T1+FB_TG.T2+FB_TG.T3;
 
-function leadPanel(r){return (r.source==="pancake"||r.source==="manual"||r.source==="refill")?"mkt":"ecom";}
+function isLegacy(r){return !!r.fromExcel||String(r.code||"").startsWith("SHT");}
+function leadPanel(r){if(isLegacy(r))return "legacy";return (r.source==="pancake"||r.source==="manual"||r.source==="refill")?"mkt":"ecom";}
 function neverCalled(r){return !((r.realCalls>0)||(r.callCount>0));}
 function overdueDays(r){const s=r.source||"evolution";return (s==="pancake"||s==="manual"||s==="refill")?2:5;}
 function isStale(r){const st=r.leadStatus||"new";if(r.archived||st==="won"||st==="lost")return false;if(st==="followup"&&r.nextAppt){const t=Date.parse(r.nextAppt);if(!isNaN(t)&&t>Date.now())return false;}return daysIdle(r)>=overdueDays(r);}
@@ -243,10 +244,11 @@ async function api(url,body){const r=await fetch(url,{method:"POST",headers:{"Co
 
 function renderNav(){
   const fbCount=ACTIVE.filter(r=>!r.archived&&leadPanel(r)==="mkt"&&isToCall(r)).length;
+  const legacyCount=ACTIVE.filter(r=>!r.archived&&leadPanel(r)==="legacy").length;
   const closedCount=ARCHIVED.filter(r=>r.archiveReason==="closed").length;
   const stoppedCount=ARCHIVED.filter(r=>r.archiveReason==="stopped").length;
   const arcCount=ARCHIVED.filter(r=>r.archiveReason!=="closed"&&r.archiveReason!=="stopped").length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"อื่นๆ"},{k:"mycalls",ic:"📞",t:"สายที่โทรของฉัน"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"ฐานลูกค้าเก่า"},{k:"legacy",ic:"📋",t:"ฐานเก่า (จากชีท)",badge:legacyCount||0},{lab:"อื่นๆ"},{k:"mycalls",ic:"📞",t:"สายที่โทรของฉัน"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
@@ -324,7 +326,7 @@ function xLeadCard(r){
 
 function render(){
   renderNav();
-  $("#viewTitle").textContent = VIEW==="kpi"?"สรุป & KPI ของฉัน":(PANEL==="mkt"?"Facebook (Pancake)":"Marketplace");
+  $("#viewTitle").textContent = VIEW==="kpi"?"สรุป & KPI ของฉัน":(PANEL==="mkt"?"Facebook (Pancake)":(PANEL==="legacy"?"ฐานเก่า (จากชีท)":"Marketplace"));
   const c=$("#content");
   if(VIEW==="ticket"){$("#viewTitle").textContent="ตั๋วลูกค้า";renderSheet();return;}
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
@@ -340,8 +342,9 @@ function render(){
   const target=isFB?FB_TOTAL:MP_TARGET,doneToday=(callsCh!=null?callsCh:calledPool.filter(calledToday).length),remain=pool.filter(isToCall).length;
   const lineToday=calledPool.filter(r=>r.lastLineAt&&isToday(r.lastLineAt)).length;
   const pct=Math.min(100,Math.round(doneToday/target*100));
-  let html=`<div class="phead"><div class="ph-top"><div class="ph-title">${isFB?"💬 Facebook (Pancake)":"📦 Marketplace"}</div>
-    <span class="ph-target">เป้าวันละ ${isFB?(FB_TOTAL+" (T1·"+FB_TG.T1+" T2·"+FB_TG.T2+" T3·"+FB_TG.T3+")"):MP_TARGET}</span></div>
+  const isLeg=PANEL==="legacy";
+  let html=`<div class="phead"><div class="ph-top"><div class="ph-title">${isLeg?"📋 ฐานลูกค้าเก่า (จากชีท)":(isFB?"💬 Facebook (Pancake)":"📦 Marketplace")}</div>
+    <span class="ph-target">${isLeg?("ทั้งหมด "+pool.length+" ราย · ทยอยโทรได้เรื่อย ๆ"):("เป้าวันละ "+(isFB?(FB_TOTAL+" (T1·"+FB_TG.T1+" T2·"+FB_TG.T2+" T3·"+FB_TG.T3+")"):MP_TARGET))}</span></div>
     <div class="ph-stats"><div class="ph-st"><div class="n tnum" style="color:var(--warn)">${remain}</div><div class="l">เหลือต้องโทร</div></div>
       <div class="ph-st"><div class="n tnum" style="color:var(--brand)">${doneToday} / ${target}</div><div class="l">โทรแล้ววันนี้</div></div>
       ${lineToday?`<div class="ph-st"><div class="n tnum" style="color:#1a7f37">${lineToday}</div><div class="l">คุยผ่าน LINE วันนี้</div></div>`:""}
@@ -464,7 +467,7 @@ function pagerS(total,cur,fnName){if(total<=1)return "";
   return `<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${btn(cur-1,"‹",false,cur<=1)}${mid}${btn(cur+1,"›",false,cur>=total)}</div>`;}
 function mtTime(r){let t=Date.parse(r.lastActivity||r.updatedAt||r.date||"");if(isNaN(t)&&r.lastOrderAt)t=Date.parse(r.lastOrderAt);if(isNaN(t)&&r.history&&r.history.length)t=Date.parse(r.history[r.history.length-1].at);return isNaN(t)?null:t;}
 function mtMatch(r,q){if(!q)return true;const dq=q.replace(/\D/g,"");return [r.name,r.ticketId,r.code].some(v=>String(v||"").toLowerCase().includes(q))||(!!dq&&String(r.phone||"").replace(/\D/g,"").includes(dq));}
-function chLabel(r){return leadPanel(r)==="ecom"?"📦 Marketplace":"💬 Facebook";}
+function chLabel(r){const p=leadPanel(r);return p==="ecom"?"📦 Marketplace":(p==="legacy"?"📋 ฐานเก่า":"💬 Facebook");}
 // แหล่งที่มาแบบละเอียด — ให้ Telesales รู้ว่ารายชื่อนี้มาจากช่องทางไหน
 function mpChanName(s){return s==="lazada"?"Lazada":s==="tiktok"?"TikTok":s==="shopee"?"Shopee":s==="bigseller"?"Lazada (Big Seller)":"Evolution";}
 function srcLabel(r){
