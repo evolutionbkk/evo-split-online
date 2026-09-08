@@ -3526,6 +3526,40 @@ app.post('/api/restore-backup', requireAuth, async (req, res) => {
   res.json({ ok: true, day, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
 });
 
+// กู้ประวัติออเดอร์ที่ถูกเขียนทับจากการนำเข้าชีท (bug 2026-09-08): ดึง orders เดิมจากไฟล์สำรองมาทับคืน
+// เฉพาะลีดที่ "ไม่ใช่ SHT" และ orders ปัจจุบันเป็นของชีท (src:'sheet') — จับคู่ด้วย code(keyOf) ก่อน แล้ว fallback เบอร์
+// ไม่แตะ field อื่นเลย (โน้ต/สถานะ/สาย/การปิดการขาย/นัด ของวันนี้ยังอยู่ครบ) · apply=false = ทดลอง
+app.post('/api/admin/repair-orders', requireAuth, async (req, res) => {
+  const day = String((req.body && req.body.day) || '');
+  const apply = !!(req.body && req.body.apply);
+  let bk = null;
+  try { bk = await store.loadBackup(day); } catch (e) { return res.status(400).json({ error: 'load_failed', message: String(e) }); }
+  if (!bk || !Array.isArray(bk.assigned) || !bk.assigned.length) return res.status(400).json({ error: 'no_backup', message: 'ไม่พบไฟล์สำรองของวันนั้น หรือว่างเปล่า' });
+  const byKey = new Map(), byPhone = new Map();
+  for (const b of bk.assigned) { byKey.set(S.keyOf(b), b); const p = normPhoneTH(b.phone); if (p && !byPhone.has(p)) byPhone.set(p, b); }
+  let scanned = 0, restored = 0, noMatch = 0, sameEmpty = 0; const samples = [];
+  for (const r of state.assigned) {
+    if (String(r.code || '').startsWith('SHT')) continue; // ลีดนำเข้าชีท — ออเดอร์ชีทคือข้อมูลจริงของมัน ไม่แตะ
+    const overwritten = r.ordersFromSheet || (Array.isArray(r.orders) && r.orders.some((o) => o && o.src === 'sheet'));
+    if (!overwritten) continue;
+    scanned++;
+    const b = byKey.get(S.keyOf(r)) || byPhone.get(normPhoneTH(r.phone));
+    if (!b) { noMatch++; continue; }
+    const bOrders = Array.isArray(b.orders) ? b.orders : [];
+    // backup ก็ไม่มี orders จริง (ลูกค้าเดิมไม่เคยมีออเดอร์) → แค่ล้างออเดอร์ชีทปลอมออก (คืนความจริง)
+    if (!bOrders.length && (!Array.isArray(r.orders) || !r.orders.length)) { sameEmpty++; }
+    if (apply) {
+      r.orders = bOrders;
+      r.orderCount = (typeof b.orderCount === 'number') ? b.orderCount : bOrders.length;
+      r.ordersFromSheet = !!b.ordersFromSheet;
+    }
+    restored++;
+    if (samples.length < 10) samples.push({ code: r.code, name: r.name, phone: r.phone, sheetNow: (r.orders || []).length, restoreTo: bOrders.length });
+  }
+  if (apply && restored) state = await store.save(state);
+  res.json({ ok: true, day, apply, scanned, restored, noMatch, sameEmpty, samples });
+});
+
 // ================= Pancake Chat — in-app omnichannel inbox =================
 // Reply to Facebook / Line / etc. chats inside this app via the Pancake Public API.
 // Docs: https://developer.pancake.biz  (base https://pages.fm/api/public_api/v1|v2 ; token as query param)
