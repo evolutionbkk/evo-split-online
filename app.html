@@ -689,7 +689,7 @@ function viewTicket(){
         <div class="stat2">${tile(r.ltv!=null?fmtB(r.ltv):"—","ยอดซื้อสะสม")}${tile(r.succeedOrders!=null?(fmt(r.succeedOrders)+" ครั้ง"):"—","ออเดอร์สำเร็จ")}${tile(lastD!=null?(fmt(lastD)+" วันก่อน"):"—","ซื้อล่าสุด")}${tile(cur||"—","รอบปัจจุบัน")}</div>
         <div class="kv"><span class="k">ช่องทาง</span><span class="v">${esc(chName(r.source))}</span></div>
         <div class="kv"><span class="k">เคยซื้อ</span><span class="v" style="max-width:150px;text-align:right">${esc(r.product||"—")}</span></div>
-        ${(r.source!=="pancake"&&r.source!=="manual"&&r.source!=="refill"&&Array.isArray(r.orders)&&!r.orders.length)?`<div class="kv"><span class="k">ออเดอร์</span><span class="v" style="color:#b91c1c;font-weight:800">🚫 ยังไม่มีออเดอร์ในระบบ</span></div>`:""}
+        ${(r.source!=="pancake"&&r.source!=="manual"&&r.source!=="refill"&&Array.isArray(r.orders)&&!r.orders.length&&(!r.product||!String(r.product).trim()))?`<div class="kv"><span class="k">ออเดอร์</span><span class="v" style="color:#b91c1c;font-weight:800">🚫 ยังไม่มีออเดอร์ในระบบ</span></div>`:""}
         ${r.page?`<div class="kv"><span class="k">เพจ</span><span class="v" style="max-width:150px;text-align:right">${esc(r.page)}</span></div>`:""}
         <div class="kv"><span class="k">เบอร์</span><span class="v mono">${esc(r.phone||"—")}</span></div>
         <div class="kv"><span class="k">จำนวนโทร</span><span class="v tnum">${fmt(r.callCount||0)} ครั้ง</span></div>

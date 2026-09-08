@@ -158,7 +158,7 @@ function odItemsText(o){return (o&&o.items&&o.items.length)?o.items.map(it=>it.n
 function odStatusColor(s){s=s||"";if(/สำเร็จ|ส่งแล้ว/.test(s))return"#16a34a";if(/ยกเลิก|ตีกลับ/.test(s))return"#dc2626";if(/รอส่ง|จัดส่ง/.test(s))return"#d97706";if(/รอยืนยัน|พัก/.test(s))return"#6b7280";return"#2563eb";}
 function ordersBlock(r){
   if(!Array.isArray(r.orders)||!r.orders.length){
-    if(leadPanel(r)==="ecom"&&Array.isArray(r.orders))return `<div class="box"><h4>🛒 ประวัติการสั่งซื้อ</h4><div style="color:#b91c1c;font-weight:800;font-size:13px">🚫 ยังไม่มีออเดอร์ในระบบ</div><div style="color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5">ลูกค้ารายนี้มีชื่อ+ที่อยู่ แต่ยังไม่พบคำสั่งซื้อในระบบ Evolution — ถ้ามีออเดอร์เข้ามาภายหลัง ระบบจะอัปเดตให้อัตโนมัติ</div></div>`;
+    if(leadPanel(r)==="ecom"&&Array.isArray(r.orders)&&(!r.product||!r.product.trim()))return `<div class="box"><h4>🛒 ประวัติการสั่งซื้อ</h4><div style="color:#b91c1c;font-weight:800;font-size:13px">🚫 ยังไม่มีออเดอร์ในระบบ</div><div style="color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5">ลูกค้ารายนี้มีชื่อ+ที่อยู่ แต่ยังไม่พบคำสั่งซื้อในระบบ Evolution — ถ้ามีออเดอร์เข้ามาภายหลัง ระบบจะอัปเดตให้อัตโนมัติ</div></div>`;
     return"";
   }
   const n=r.orderCount||r.orders.length;
@@ -272,7 +272,7 @@ function leadCard(r){
       ${(r.product||r.page)?`<div class="lc-urg u-mut">📦 ${esc(r.product||"—")}${r.page?` · เพจ: ${esc(r.page)}`:""}</div>`:""}
       ${(()=>{
         if(Array.isArray(r.orders)&&r.orders.length){const o=r.orders[0];const n=r.orderCount||r.orders.length;const it=odItemsText(o);return `<div class="lc-urg u-mut">🛒 สั่งซื้อ ${n} ครั้ง · ล่าสุด ${esc(odDate(o))}${it?` · ${esc(it.length>50?it.slice(0,50)+"…":it)}`:""}</div>`;}
-        if(leadPanel(r)==="ecom"&&Array.isArray(r.orders))return `<div class="lc-urg" style="color:#b91c1c;font-weight:800">🚫 ยังไม่มีออเดอร์ในระบบ</div>`;
+        if(leadPanel(r)==="ecom"&&Array.isArray(r.orders)&&(!r.product||!r.product.trim()))return `<div class="lc-urg" style="color:#b91c1c;font-weight:800">🚫 ยังไม่มีออเดอร์ในระบบ</div>`;
         const ob=orderBase(r);return ob?`<div class="lc-urg u-mut">🛒 ${ob.label} ${ob.day} · ${ob.days} วันก่อน</div>`:"";
       })()}
       ${r.nextAppt?`<div class="lc-urg" style="color:#7c3aed;font-weight:700">📅 นัดวันที่ ${esc(fmtShort(r.nextAppt))}</div>`:""}
