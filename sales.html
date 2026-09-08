@@ -426,14 +426,14 @@ function mtTime(r){let t=Date.parse(r.lastActivity||r.updatedAt||r.date||"");if(
 function mtMatch(r,q){if(!q)return true;const dq=q.replace(/\D/g,"");return [r.name,r.ticketId,r.code].some(v=>String(v||"").toLowerCase().includes(q))||(!!dq&&String(r.phone||"").replace(/\D/g,"").includes(dq));}
 function chLabel(r){return leadPanel(r)==="ecom"?"📦 Marketplace":"💬 Facebook";}
 // แหล่งที่มาแบบละเอียด — ให้ Telesales รู้ว่ารายชื่อนี้มาจากช่องทางไหน
+function mpChanName(s){return s==="lazada"?"Lazada":s==="tiktok"?"TikTok":s==="shopee"?"Shopee":s==="bigseller"?"Lazada (Big Seller)":"Evolution";}
 function srcLabel(r){
-  if(r.fromExcel) return "📋 ฐานลูกค้าเก่า (Excel)";
   const s=r.source||"evolution";
+  if(r.fromExcel) return leadPanel(r)==="ecom" ? `📋 ฐานเก่า · 📦 Marketplace · ${mpChanName(s)}` : "📋 ฐานลูกค้าเก่า (Excel)";
   if(s==="pancake") return "💬 Facebook · ปิดจากแชท";
   if(s==="manual")  return "💬 Facebook · แอดมินส่งให้";
   if(s==="refill")  return "💬 Facebook · เติมรายชื่อ";
-  if(s==="bigseller") return "📦 Marketplace · Lazada (Big Seller)";
-  return "📦 Marketplace · Evolution";
+  return `📦 Marketplace · ${mpChanName(s)}`;
 }
 function srcColor(r){ if(r.fromExcel)return "#a16207"; return leadPanel(r)==="ecom"?"#c2410c":"#2563eb"; }
 function renderMtBody(){

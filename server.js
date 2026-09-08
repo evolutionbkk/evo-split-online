@@ -95,6 +95,20 @@ async function boot() {
   }
   // Assign ticket IDs (TLEVO-W/K) to any assigned lead that doesn't have one yet.
   { const n = backfillTicketIds(); if (n) { bf = true; console.log('[boot] assigned', n, 'ticket IDs'); } }
+  // One-time: ลูกค้าที่ import จากชีท (SHT*) เป็น Marketplace (Lazada) ไม่ใช่ FB → แก้ source + ล้างรอบ FB
+  //           และรายที่ "เลิกติดตาม" ในชีท → ย้ายไป "ยกเลิกการติดต่อ" (ไม่เอาเข้าคิว)
+  if (!state.sheetMigV1Done) {
+    const SHEET_STOP = new Set(['0634457505', '0816734692', '0819601157', '0852403634', '0871560593', '0888285525', '0892306676', '0898324179', '0923526465', '0926813265', '0988277345', '0990724774']);
+    let recat = 0, removed = 0;
+    for (const r of state.assigned) {
+      if (!String(r.code || '').startsWith('SHT')) continue;
+      const p = normPhoneTH(r.phone);
+      if (SHEET_STOP.has(p) && !r.archived) { r.archived = true; r.archiveReason = 'stopped'; r.archiveNote = 'เลิกติดตาม (จากชีท)'; r.archivedAt = new Date().toISOString(); removed++; }
+      if (r.source === 'manual') { r.source = 'lazada'; r.step = ''; r.stepManual = false; recat++; }
+    }
+    state.sheetMigV1Done = true; bf = true;
+    console.log('[boot] sheet-migrate v1: marketplace-recat', recat, '· archived-stopped', removed);
+  }
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -2078,7 +2092,7 @@ app.post('/api/admin/import-customer-sheet', requireAuth, async (req, res) => {
       const rec = {
         code: 'SHT' + p, ticketId: '', name: String(c.name || '').slice(0, 200).trim() || '(ไม่มีชื่อ)', phone: p,
         sales: side, round: 0, date: S.thaiDay(), exported: true, receivedAt: nowIso,
-        source: 'manual', step, stepManual: false, fromExcel: true,
+        source: (['lazada', 'tiktok', 'shopee', 'bigseller', 'marketplace', 'manual'].includes(String(c.channel || '').toLowerCase()) ? String(c.channel).toLowerCase() : 'lazada'), step: '', stepManual: false, fromExcel: true,
         address: String(c.address || '').slice(0, 500), product: String(c.product || '').slice(0, 200),
         orderAmount: Math.round(Number(c.orderAmount) || 0), lastOrderAt: c.lastOrderAt || null,
         orders, orderCount: orders.length, ordersFromSheet: orders.length > 0,

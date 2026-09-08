@@ -225,7 +225,7 @@ window.applyCustom=async function(){const f=$("#cFrom").value,t=$("#cTo").value;
 
 /* data */
 const FB=s=>s==="pancake"||s==="manual"||s==="refill";
-const chName=s=>FB(s)?"Facebook (Pancake)":"Marketplace";
+const chName=s=>FB(s)?"Facebook (Pancake)":(s==="lazada"?"Marketplace · Lazada":s==="tiktok"?"Marketplace · TikTok":s==="shopee"?"Marketplace · Shopee":s==="bigseller"?"Marketplace · Lazada":"Marketplace");
 function saleRev(r){return (r.saleItems||[]).reduce((s,x)=>s+(Number(x.price)||0),0);}
 const STLABEL={new:"ใหม่",contacting:"กำลังติดต่อ",interested:"สนใจ",followup:"นัดติดตาม",awaiting_payment:"รอชำระเงิน",won:"ปิดการขาย",lost:"ไม่สนใจ"};
 const STCLASS={new:"st-new",contacting:"st-ct",interested:"st-int",followup:"st-fu",awaiting_payment:"st-pay",won:"st-won",lost:"st-lost"};
