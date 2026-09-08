@@ -2039,6 +2039,64 @@ app.post('/api/admin/import-sheet-orders', requireAuth, async (req, res) => {
   res.json({ ok: true, groups: phones.length, matched, leadsUpdated, skippedEvo, noMatch, samples: sampleUpd });
 });
 
+// นำเข้า "ข้อมูลลูกค้าย้อนหลัง" จากชีท — สร้างลูกค้าใหม่ที่ยังไม่มีในระบบ + เติมข้อมูลให้รายเดิม (จับคู่ด้วยเบอร์)
+// idempotent ข้ามแชงก์ (รอบถัดไปเห็นที่สร้างไว้แล้วเป็น "รายเดิม" → เติมข้อมูลแทนสร้างซ้ำ)
+// body: { customers:[{phone,name,address,sales('W'|'K'),note,step,product,orderAmount,lastOrderAt,orders:[{date,dateStr,product,amount}]}], apply=true }
+app.post('/api/admin/import-customer-sheet', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const customers = Array.isArray(b.customers) ? b.customers : [];
+  const apply = b.apply !== false;
+  if (!customers.length) return res.status(400).json({ error: 'no_data' });
+  const byPhone = new Map();
+  for (const r of state.assigned) { if (r.archived) continue; const p = normPhoneTH(r.phone); if (p && !byPhone.has(p)) byPhone.set(p, r); }
+  const validSide = (s) => (s === 'K' ? 'K' : (s === 'W' ? 'W' : null));
+  const buildOrders = (arr) => (Array.isArray(arr) ? arr : []).filter((o) => o && (o.dateStr || o.product))
+    .map((o) => ({ id: 'SH', date: o.date || null, dateStr: String(o.dateStr || '').slice(0, 40), status: 'ซื้อแล้ว', statusId: 'SHEET', amount: Math.round(Number(o.amount) || 0), items: String(o.product || '').split(/\s*[+,]\s*/).map((s) => s.trim()).filter(Boolean).slice(0, 12).map((n) => ({ name: n.slice(0, 80), qty: 1 })), src: 'sheet' }))
+    .sort((a, b) => (Date.parse(b.date || 0) || 0) - (Date.parse(a.date || 0) || 0)).slice(0, 20);
+  let created = 0, enriched = 0, skipped = 0, addW = 0, addK = 0; let altSide = 'W'; const samples = [];
+  for (const c of customers) {
+    const p = normPhoneTH(c.phone); if (!p || p.length < 9) { skipped++; continue; }
+    const orders = buildOrders(c.orders);
+    const step = ['T1', 'T2', 'T3'].includes(String(c.step || '').toUpperCase()) ? String(c.step).toUpperCase() : 'T1';
+    const existing = byPhone.get(p);
+    if (existing) {
+      if (apply) {
+        if ((!existing.product || !String(existing.product).trim()) && c.product) existing.product = String(c.product).slice(0, 200);
+        if ((!existing.address || !String(existing.address).trim()) && c.address) existing.address = String(c.address).slice(0, 500);
+        const hasEvo = Array.isArray(existing.orders) && existing.orders.some((o) => o && o.src !== 'sheet' && /^SO/i.test(String(o.id || '')));
+        if (!hasEvo && orders.length) { existing.orders = orders; existing.orderCount = orders.length; existing.ordersFromSheet = true; }
+        if (!existing.lastOrderAt && c.lastOrderAt) existing.lastOrderAt = c.lastOrderAt;
+        if (!existing.orderAmount && c.orderAmount) existing.orderAmount = Math.round(Number(c.orderAmount) || 0);
+        if (c.note) { const nt = ('📋 ฐานเก่า: ' + String(c.note)).slice(0, 260); existing.note = existing.note ? (nt + ' · ' + existing.note).slice(0, 2000) : nt; }
+        existing.tags = Array.from(new Set([...(existing.tags || []), 'ฐานเก่า'])).slice(0, 20);
+      }
+      enriched++; continue;
+    }
+    if (apply) {
+      let side = validSide(c.sales); if (!side) { side = altSide; altSide = altSide === 'W' ? 'K' : 'W'; }
+      const nowIso = new Date().toISOString();
+      const rec = {
+        code: 'SHT' + p, ticketId: '', name: String(c.name || '').slice(0, 200).trim() || '(ไม่มีชื่อ)', phone: p,
+        sales: side, round: 0, date: S.thaiDay(), exported: true, receivedAt: nowIso,
+        source: 'manual', step, stepManual: false, fromExcel: true,
+        address: String(c.address || '').slice(0, 500), product: String(c.product || '').slice(0, 200),
+        orderAmount: Math.round(Number(c.orderAmount) || 0), lastOrderAt: c.lastOrderAt || null,
+        orders, orderCount: orders.length, ordersFromSheet: orders.length > 0,
+        leadStatus: 'new', callCount: 0, calls: [], nextAppt: '',
+        note: c.note ? ('📋 ฐานเก่า: ' + String(c.note)).slice(0, 260) : '',
+        tags: ['ฐานเก่า'],
+        history: [{ at: nowIso, by: 'นำเข้าชีท', k: 'import', v: step }],
+      };
+      byPhone.set(p, rec); state.assigned.push(rec);
+      if (side === 'W') addW++; else addK++;
+    }
+    created++;
+    if (samples.length < 10) samples.push({ phone: p, name: c.name, sales: validSide(c.sales) || '(สลับ50/50)', product: c.product });
+  }
+  if (apply && (created || enriched)) state = await store.save(state);
+  res.json({ ok: true, apply, received: customers.length, created, enriched, skipped, addW, addK, samples });
+});
+
 // Sync the FULL Evolution customer base into the Marketplace match-set (mpPhones) ONLY —
 // does NOT pool anyone as a lead. Lets the KPI credit OneCall calls to ANY Evolution customer as
 // Marketplace (so the "เบอร์ใหม่/อื่น ๆ" bucket shrinks when those are really Evolution customers).
