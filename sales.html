@@ -200,6 +200,7 @@ const NOREACH=["ไม่รับสาย","สายไม่ว่าง","�
 
 let ME={role:"",side:"",name:""},ACTIVE=[],ARCHIVED=[],PANEL="ecom",FILTER="today",CUR=null,Q="",TQ="",VIEW="list";
 let KR="today",kcf="",kct="",MTQ="",MTPAGE=1,MTFILTER="all";  // ตั๋วของฉัน: ช่วงเวลา/ค้นหา/หน้า/สถานะ
+let XRES=[],XQFOR="",XPENDING="",XTIMER=null;  // ผลค้นหาข้ามฝั่ง (อีก Sale)
 let PROUND="all",LPAGE=1;  // แท็บรอบ (T1/T2/T3) + หน้าในลิสต์คิวโทร
 let PREVVIEW="list";  // หน้าก่อนเปิดตั๋ว (ไว้กด ← กลับ)
 let APPTDATE="",CALYM="";  // ฟิลเตอร์วันนัด (YYYY-MM-DD) + เดือนที่ปฏิทินแสดง (YYYY-MM)
@@ -290,6 +291,36 @@ function passFilter(r,f){const st=r.leadStatus||"new";
   return !r.archived;
 }
 function ms(r){if(!Q)return true;return [r.code,r.name,r.phone].some(v=>String(v||"").toLowerCase().includes(Q));}
+function sideName(s){return s==="W"?"พี่หวาน (W)":s==="K"?"พี่เขม (K)":"—";}
+// ค้นหาข้ามฝั่งจากเซิร์ฟเวอร์ (debounce) — เก็บผลไว้ใน XRES แล้ว re-render
+function scheduleXSearch(q){
+  if(XQFOR===q||XPENDING===q)return;
+  clearTimeout(XTIMER);
+  XTIMER=setTimeout(async()=>{
+    XPENDING=q;
+    try{const r=await fetch("/api/lead/search?q="+encodeURIComponent(q));const j=await r.json();XRES=(j&&j.ok&&j.results)?j.results:[];}catch(e){XRES=[];}
+    XQFOR=q;XPENDING="";
+    if(Q===q&&VIEW==="list")renderList();
+  },320);
+}
+// การ์ดลูกค้าของอีกฝั่ง — อ่านอย่างเดียว (ไม่มีปุ่มจัดการ)
+function xLeadCard(r){
+  const ocol=r.sales==="W"?"#0891b2":"#c026d3";
+  const arch=r.archived?`<span style="font-size:10.5px;font-weight:800;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:1px 6px;margin-left:6px">${r.archiveReason==="closed"?"ปิดงานแล้ว":r.archiveReason==="stopped"?"เลิกติดตาม":"จัดเก็บ"}</span>`:"";
+  return `<div class="lcard" style="border-left:4px solid ${ocol};cursor:default">
+    <div class="av" style="background:${ocol}">${esc((r.name||"?").trim()[0]||"?")}</div>
+    <div class="lc-main"><div class="lc-top"><span class="lc-name">${esc(r.name)||"(ไม่มีชื่อ)"}</span>${arch}</div>
+      <div class="lc-sub"><a class="tel" href="tel:${esc(r.phone)}" onclick="event.stopPropagation()">📞 ${esc(r.phone)}</a> · <span class="mono">${esc(r.ticketId||r.code)}</span></div>
+      <div style="display:inline-block;margin-top:4px;font-size:11.5px;font-weight:800;color:${ocol};background:color-mix(in srgb,${ocol} 12%,var(--surface));border:1px solid color-mix(in srgb,${ocol} 30%,var(--surface));border-radius:7px;padding:2px 8px">👤 ดูแลโดย: ${sideName(r.sales)}</div>
+      ${r.product?`<div class="lc-urg u-mut">📦 ${esc(r.product)}</div>`:""}
+      ${(Array.isArray(r.orders)&&r.orders.length)?`<div class="lc-urg u-mut">🛒 สั่งซื้อ ${r.orderCount||r.orders.length} ครั้ง${r.orders[0]?` · ล่าสุด ${esc(odDate(r.orders[0]))}`:""}</div>`:""}
+      ${r.lastCallAt?`<div class="lc-urg u-mut">📞 โทรล่าสุด ${esc(fmtShort(r.lastCallAt))}</div>`:""}
+      ${r.lastLineAt?`<div class="lc-urg" style="color:#1a7f37;font-weight:700">💬 LINE ${esc(fmtShort(r.lastLineAt))}</div>`:""}
+      ${r.nextAppt?`<div class="lc-urg" style="color:#7c3aed;font-weight:700">📅 นัด ${esc(fmtShort(r.nextAppt))}</div>`:""}
+      ${r.note?`<div style="color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12px;line-height:1.5;white-space:normal;text-align:left">📝 ${esc(r.note.length>90?r.note.slice(0,90)+"…":r.note)}</div>`:""}
+    </div>
+    <div class="lc-right">${statusPill(r)}</div></div>`;
+}
 
 function render(){
   renderNav();
@@ -328,9 +359,18 @@ function lpBar(p){if(p.tot<=1)return "";return `<div style="display:flex;justify
 window.setLPage=function(n){LPAGE=n;renderList();window.scrollTo(0,0);};
 function renderList(){
   const box=$("#list");if(!box)return;
-  if(Q){ // ค้นหาข้ามทุกช่องทาง/ทุกสถานะ — หาลูกค้าเจอเสมอ
+  if(Q){ // ค้นหาข้ามทุกช่องทาง/ทุกสถานะ + ข้ามทั้ง 2 ฝั่ง (W/K)
     const res=ACTIVE.filter(r=>!r.archived&&ms(r)).sort(urgCmp);const p=pageSlice(res);
-    box.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">🔍 ผลการค้นหา "${esc(Q)}" · ${res.length} ราย (ทุกช่องทาง/ทุกสถานะ)</div>`+(res.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty">ไม่พบลูกค้าที่ตรงกับคำค้น</div>`);
+    scheduleXSearch(Q);
+    const xside=(XQFOR===Q?XRES:[]).filter(r=>!r.mine);
+    let html=`<div style="font-size:12.5px;color:var(--muted);margin:2px 2px 10px">🔍 ผลการค้นหา "${esc(Q)}" · ${res.length} ราย (ในลิสต์ของฉัน · ทุกช่องทาง/ทุกสถานะ)</div>`;
+    html+=(res.length?`<div class="cards">${p.rows.map(leadCard).join("")}</div>`+lpBar(p):`<div class="empty" style="padding:14px">ไม่พบในลิสต์ของฉัน</div>`);
+    if(xside.length){
+      html+=`<div style="font-size:12.5px;color:#0369a1;font-weight:800;margin:18px 2px 8px;padding-top:12px;border-top:1px dashed var(--line)">🔎 พบในฝั่งอื่น ${xside.length} ราย — ดูอย่างเดียว (ลูกค้าที่อีก Sale ดูแล)</div><div class="cards">${xside.map(xLeadCard).join("")}</div>`;
+    }else if(XQFOR!==Q){
+      html+=`<div style="font-size:12px;color:var(--muted);margin:14px 2px">⏳ กำลังค้นหาในฝั่งอื่น…</div>`;
+    }
+    box.innerHTML=html;
     return;
   }
   const isFB=PANEL==="mkt";

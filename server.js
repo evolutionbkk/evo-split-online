@@ -723,6 +723,29 @@ app.get('/api/leads', requireCrm, async (req, res) => {
   });
 });
 
+// ---- ค้นหาลูกค้าข้ามทั้ง 2 ฝั่ง (W + K) — เซลล์ค้นเบอร์/ชื่อ/รหัสได้แม้เป็นของอีกฝั่ง (อ่านอย่างเดียว) ----
+app.get('/api/lead/search', requireCrm, async (req, res) => {
+  const raw = String(req.query.q || '').trim();
+  const qLow = raw.toLowerCase();
+  const qDig = normPhoneTH((raw.match(/\d/g) || []).join(''));
+  if (raw.length < 2 && qDig.length < 2) return res.json({ ok: true, q: raw, mySide: req.session.role === 'sales' ? req.session.side : null, results: [] });
+  const mySide = req.session.role === 'sales' ? req.session.side : null;
+  const ocMap = onecallStatsMap();
+  const hits = [];
+  for (const r of state.assigned) {
+    const nameHit = qLow.length >= 2 && String(r.name || '').toLowerCase().includes(qLow);
+    const codeHit = qLow.length >= 2 && (String(r.code || '').toLowerCase().includes(qLow) || String(r.ticketId || '').toLowerCase().includes(qLow));
+    const phoneHit = qDig.length >= 4 && normPhoneTH(r.phone).includes(qDig);
+    if (nameHit || codeHit || phoneHit) {
+      const v = leadView(r, ocMap);
+      v.mine = mySide ? (r.sales === mySide) : true;
+      hits.push(v);
+      if (hits.length >= 120) break;
+    }
+  }
+  res.json({ ok: true, q: raw, mySide, results: hits });
+});
+
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
 const HIST_LABEL = { call: 'โทรหาลูกค้า', line: 'ติดตามผ่าน LINE', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน', import: 'นำเข้ารายชื่อ', rebalance: 'เกลี่ยสมดุลรายชื่อ', dayoff_move: 'ย้ายเพราะวันลา', dayoff_return: 'คืนหลังวันลา' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
