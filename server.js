@@ -1866,6 +1866,23 @@ async function evoCustomerOrders(code) {
 // PROBE: ดูโครงสร้าง detail ดิบของลูกค้า 1 ราย  →  /api/admin/enrich-evo?probe=CTM106117
 app.get('/api/admin/enrich-evo', requireAuth, async (req, res) => {
   if (!evo.token) return res.status(400).json({ error: 'no_token' });
+  // PHONE PROBE: ค้นลูกค้าใน Evolution ด้วยเบอร์ → เช็กว่ามีเรคคอร์ดซ้ำ (คนละ PARTY_ID) ที่มีออเดอร์ไหม
+  const phone = String(req.query.phone || '').trim();
+  if (phone) {
+    try {
+      const body = { filter: { FACILITY_ID: evo.facility || 'WebStoreWarehouse' }, paginator: { page: 1, pageSize: 50, total: 0, pageSizes: [] }, sorting: { column: 'PARTY_ID', direction: 'desc' }, searchTerm: phone, grouping: { selectedRowIds: {}, itemIds: [], selectAll: false } };
+      const r = await fetch(EVO_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': evo.token }, body: JSON.stringify(body) });
+      if (r.status === 401 || r.status === 403) return res.status(400).json({ error: 'token_expired' });
+      const j = await r.json();
+      const items = mapItems(j);
+      const records = [];
+      for (const it of items.slice(0, 12)) {
+        const oh = await evoCustomerOrders(it.code);
+        records.push({ code: it.code, name: it.name, phone: it.phone, orderCount: oh.orderCount || 0, product: oh.product || '' });
+      }
+      return res.json({ ok: true, phone, matches: items.length, records });
+    } catch (e) { return res.status(502).json({ error: 'phone_probe_failed', message: String(e) }); }
+  }
   const code = String(req.query.probe || '').trim();
   if (!code) return res.status(400).json({ error: 'need_probe', message: 'ใส่ ?probe=<PARTY_ID> เพื่อดูโครงสร้าง (การเติมจริงใช้ POST)' });
   try {
