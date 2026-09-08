@@ -2566,7 +2566,17 @@ async function computeSalesKpi(fromQ, toQ) {
   const sides = { W: blank(), K: blank() };
   for (const r of state.assigned) {
     const side = r.sales === 'K' ? 'K' : 'W'; const A = sides[side];
-    if (r.archived) { A.archived++; if (r.archiveReason === 'recycled_out') A.recycled++; continue; }
+    if (r.archived) {
+      A.archived++; if (r.archiveReason === 'recycled_out') A.recycled++;
+      // ปิดการขายแล้วจัดเก็บทันที (สถานะยังเป็น won = จ่ายแล้ว) — ยังต้องนับเป็นยอดปิด
+      if (recStatus(r) === 'won') {
+        let wr = false, wt = false;
+        for (const h of (r.history || [])) { if (h.k === 'status' && h.v === 'won') { const t = Date.parse(h.at); if (!isNaN(t)) { if (t >= from && t <= to) wr = true; if (t >= tStart && t <= tEnd) wt = true; } } }
+        if (wr) { A.wonRange++; A.revRange += saleRev(r); }
+        if (wt) { A.wonToday++; A.todaySales.push({ name: r.name || '(ไม่มีชื่อ)', amount: Math.round(saleRev(r)), items: (r.saleItems || []).map((it) => ({ name: it.name, price: it.price })), product: r.product || '' }); }
+      }
+      continue;
+    }
     A.total++;
     const st = recStatus(r);
     if (A.status[st] != null) A.status[st]++;
@@ -2596,8 +2606,9 @@ async function computeSalesKpi(fromQ, toQ) {
       if (h.v === 'won') { if (t >= from && t <= to) wonThis = true; if (t >= tStart && t <= tEnd) wonTod = true; }
       if (h.v === 'lost' && t >= from && t <= to) lostThis = true;
     }
-    if (wonThis) { A.wonRange++; A.revRange += saleRev(r); }
-    if (wonTod) { A.wonToday++; A.todaySales.push({ name: r.name || '(ไม่มีชื่อ)', amount: Math.round(saleRev(r)), items: (r.saleItems || []).map((it) => ({ name: it.name, price: it.price })), product: r.product || '' }); }
+    // นับ "ปิดการขาย" เฉพาะตั๋วที่สถานะปัจจุบัน = won (ลูกค้าจ่ายแล้ว) — ตั๋วที่เคยกด won วันนี้แล้วย้ายไปนัด/รอชำระ จะไม่นับ
+    if (wonThis && st === 'won') { A.wonRange++; A.revRange += saleRev(r); }
+    if (wonTod && st === 'won') { A.wonToday++; A.todaySales.push({ name: r.name || '(ไม่มีชื่อ)', amount: Math.round(saleRev(r)), items: (r.saleItems || []).map((it) => ({ name: it.name, price: it.price })), product: r.product || '' }); }
     if (lostThis) A.lostRange++;
     if (r.receivedAt) { const t = Date.parse(r.receivedAt); if (!isNaN(t) && t >= from && t <= to) A.newRange++; }
   }

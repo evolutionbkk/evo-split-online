@@ -231,7 +231,8 @@ function isOverdue(r){const st=r.leadStatus||"new";if(r.archived||st==="won"||st
 function endToday(){const d=new Date();d.setHours(23,59,59,999);return d.getTime();}
 function dueToday(r){if((r.leadStatus||"new")==="followup"&&r.nextAppt){const t=Date.parse(r.nextAppt);return !isNaN(t)&&t<=endToday();}return false;}
 function isToday(v){if(!v)return false;const d=new Date(v),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
-function wonToday(r){if(r.archived||(r.leadStatus||"new")!=="won")return false;const h=r.history||[];for(let i=h.length-1;i>=0;i--){if(h[i].k==="status"&&h[i].v==="won")return isToday(h[i].at);}return isToday(r.updatedAt);}
+// ปิดได้วันนี้ = ลูกค้าจ่ายแล้ว (สถานะปัจจุบัน = won) และปิดวันนี้ — นับรวมตั๋วที่ปิดแล้วจัดเก็บด้วย (ไม่เช็ก archived)
+function wonToday(r){if((r.leadStatus||"new")!=="won")return false;const h=r.history||[];for(let i=h.length-1;i>=0;i--){if(h[i].k==="status"&&h[i].v==="won")return isToday(h[i].at);}return isToday(r.updatedAt);}
 function isToCall(r){if(r.archived)return false;const st=r.leadStatus||"new";if(st==="won"||st==="lost")return false;if(isOverdue(r))return true;if(dueToday(r))return true;if(st==="new"&&neverCalled(r))return true;return false;}
 function calledToday(r){if(r.realLastCallAt&&isToday(r.realLastCallAt))return true;for(const e of (r.history||[]))if(e.k==="call"&&isToday(e.at))return true;return false;}
 // ^ นับ "โทรแล้ววันนี้" เฉพาะสายจริง: จากระบบโทร OneCall (realLastCallAt) หรือการล็อกสายจริง (k:'call')
@@ -348,7 +349,7 @@ function render(){
     <div class="ph-stats"><div class="ph-st"><div class="n tnum" style="color:var(--warn)">${remain}</div><div class="l">เหลือต้องโทร</div></div>
       <div class="ph-st"><div class="n tnum" style="color:var(--brand)">${doneToday} / ${target}</div><div class="l">โทรแล้ววันนี้</div></div>
       ${lineToday?`<div class="ph-st"><div class="n tnum" style="color:#1a7f37">${lineToday}</div><div class="l">คุยผ่าน LINE วันนี้</div></div>`:""}
-      <div class="ph-st"><div class="n tnum" style="color:var(--ok)">${pool.filter(wonToday).length}</div><div class="l">ปิดได้วันนี้</div></div></div>
+      <div class="ph-st"><div class="n tnum" style="color:var(--ok)">${[...ACTIVE,...ARCHIVED].filter(r=>leadPanel(r)===PANEL&&wonToday(r)).length}</div><div class="l">ปิดได้วันนี้</div></div></div>
     <div class="ph-bar"><i style="width:${pct}%"></i></div>
     <div style="font-size:12px;color:var(--muted);font-weight:700;margin-top:8px">ความคืบหน้าวันนี้ ${pct}%</div></div>`;
   html+=`<div class="fbar">`+[["today","ต้องโทร"],["followup","นัดติดตาม"],["won","ปิด/รอจ่าย"],["all","ทั้งหมด"]].map(([f,l])=>`<button class="chip ${FILTER===f?"on":""}" onclick="setFilter('${f}')">${l} <b class="tnum">${pool.filter(r=>passFilter(r,f)).length}</b></button>`).join("")+`</div>`;
