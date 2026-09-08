@@ -109,6 +109,13 @@ async function boot() {
     state.sheetMigV1Done = true; bf = true;
     console.log('[boot] sheet-migrate v1: marketplace-recat', recat, '· archived-stopped', removed);
   }
+  // One-time: backfill OneCall ทั้งเดือนปัจจุบัน (เติมช่องว่างจาก rolling 2 วัน — กัน KPI สายโทรตกหล่น)
+  if (!state.onecallMonthBackfillDone) {
+    state.onecallMonthBackfillDone = true; bf = true;
+    const dd = new Date(Date.now() + 7 * 3600000).getUTCDate();   // วันที่ (เขต Thai) = จำนวนวันตั้งแต่ต้นเดือน
+    setTimeout(() => { onecallKeepalive().then(() => onecallPull(false, dd + 1)).catch(() => {}); }, 20000);
+    console.log('[boot] scheduled OneCall month backfill:', dd + 1, 'days');
+  }
   if (bf) state = await store.save(state);
   console.log('[boot] loaded', state.assigned.length, 'records, maxRound', state.maxRound, '· onecall', state.onecall.length);
   try { await store.snapshot(state); } catch (e) { /* non-fatal */ }
@@ -1611,10 +1618,10 @@ async function onecallKeepalive() {
     return r.ok;
   } catch (e) { onecallAuth.lastError = 'keepalive_failed'; return false; }
 }
-async function onecallPull(_retried) {
+async function onecallPull(_retried, days) {
   if (!onecallAuth.token) { if (await onecallLogin(false)) { /* got a token, fall through */ } else return; }
   try {
-    const sd = ocStartDate(2);
+    const sd = ocStartDate(days > 0 ? days : 2);
     let page = 1; const all = [];
     while (page <= 80) {
       const url = ONECALL_HOST + '/orktrack/rest/recordings?range=custom&startdate=' + sd +
@@ -1623,7 +1630,7 @@ async function onecallPull(_retried) {
       if (r.status === 401 || r.status === 403) {
         onecallAuth.alive = false; onecallAuth.lastError = 'token_expired';
         // self-heal: log in again and retry the pull once
-        if (!_retried && await onecallLogin(true)) return onecallPull(true);
+        if (!_retried && await onecallLogin(true)) return onecallPull(true, days);
         return;
       }
       if (!r.ok) { onecallAuth.lastError = 'pull_http_' + r.status; return; }
@@ -1760,6 +1767,15 @@ app.post('/api/onecall/pull', requireAuth, async (req, res) => {
   if (!onecallAuth.token) return res.status(400).json({ error: 'no_token', message: 'ยังไม่มี token และ auto-login ไม่สำเร็จ — ตรวจ ONECALL_USER/ONECALL_PASS หรือเปิดหน้า OneCall (userscript) เพื่อส่ง token เข้ามา', loginError: onecallAuth.loginError });
   await onecallKeepalive(); await onecallPull();
   res.json({ ok: true, lastAdded: onecallAuth.lastAdded, lastError: onecallAuth.lastError, alive: onecallAuth.alive, loginVia: onecallAuth.loginVia, total: (state.onecall || []).length });
+});
+// Admin: backfill สายทั้งช่วง (เช่น ทั้งเดือน) — ?days=N (ดึงย้อนหลัง N วัน) · dedup by id ปลอดภัย ไม่ซ้ำ
+app.post('/api/onecall/backfill', requireAuth, async (req, res) => {
+  if (!onecallAuth.token) { await onecallLogin(true); }
+  if (!onecallAuth.token) return res.status(400).json({ error: 'no_token', loginError: onecallAuth.loginError });
+  const days = Math.max(1, Math.min(120, parseInt(req.query.days || req.body && req.body.days, 10) || 40));
+  const before = (state.onecall || []).length;
+  await onecallKeepalive(); await onecallPull(false, days);
+  res.json({ ok: true, days, added: (state.onecall || []).length - before, total: (state.onecall || []).length, lastError: onecallAuth.lastError });
 });
 // AI summary status (counts)
 app.get('/api/onecall/aisum-status', requireAuth, (req, res) => {
