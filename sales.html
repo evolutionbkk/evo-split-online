@@ -75,6 +75,8 @@
   .dial{display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--brand-deep),var(--brand));color:#fff;font-weight:800;font-size:15px;border-radius:12px;padding:13px;border:0;width:100%;text-decoration:none}
   .seg{display:flex;gap:8px;margin-top:10px}.seg button{flex:1;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:9px;font-weight:700;font-size:13px;color:var(--muted)}
   .seg button.on{border-color:var(--brand);background:#eff5ff;color:var(--brand-deep)}
+  .lnbtn{border:1.5px solid #a7e3ba;background:#eafaef;color:#1a7f37;border-radius:9px;padding:8px 6px;font-weight:800;font-size:12.5px;font-family:inherit}
+  .lnbtn.on{border-color:#1a7f37;background:#1a7f37;color:#fff}
   .toggle{display:grid;grid-template-columns:1fr 1fr;gap:9px}
   .tg2{border:2px solid var(--line);background:var(--surface);border-radius:11px;padding:12px;text-align:center;font-weight:800;font-size:14px;color:var(--muted)}
   .tg2.ok{border-color:var(--ok);background:#f0fdf4;color:var(--ok)}.tg2.no{border-color:var(--bad);background:#fef2f2;color:var(--bad)}
@@ -583,13 +585,24 @@ function renderSheet(){
           <a class="dial" href="tel:${esc(r.phone)}" onclick="logCall('${esc(r.key)}')">📞 โทรออก ${esc(r.phone)}</a>
           <div class="seg"><button class="${(r.callCount||0)>=1?"on":""}" onclick="setCalls(1)">ครั้งที่ 1</button><button class="${(r.callCount||0)>=2?"on":""}" onclick="setCalls(2)">2</button><button class="${(r.callCount||0)>=3?"on":""}" onclick="setCalls(3)">3</button><button onclick="setCalls(0)" style="flex:0 0 auto;min-width:54px;color:var(--muted)">ล้าง</button></div>
           <div style="margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)">
-            <div style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:7px">หรือติดตามผ่าน LINE (ไม่ได้โทรเข้าเบอร์ — นับเป็นการได้คุย)</div>
-            <div style="display:flex;gap:7px;flex-wrap:wrap">
-              <button class="btn" style="flex:1;min-width:120px;background:#eafaef;color:#1a7f37;border:1px solid #a7e3ba;font-weight:800" onclick="lineContact('${esc(r.key)}','💬 แชท LINE')">💬 แชท LINE</button>
-              <button class="btn" style="flex:1;min-width:120px;background:#eafaef;color:#1a7f37;border:1px solid #a7e3ba;font-weight:800" onclick="lineContact('${esc(r.key)}','📞 โทรผ่าน LINE')">📞 โทรผ่าน LINE</button>
-              <button class="btn" style="flex:1;min-width:120px;background:#eafaef;color:#1a7f37;border:1px solid #a7e3ba;font-weight:800" onclick="lineContact('${esc(r.key)}','🎁 ส่งโปรฯ LINE')">🎁 ส่งโปรฯ LINE</button>
+            <div style="font-size:12px;color:var(--muted);font-weight:700;margin-bottom:7px">หรือติดตามผ่าน LINE (นับเป็น "ได้คุย" เมื่อคุย &gt; 7 วิ)</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-bottom:4px">ประเภท</div>
+            <div id="lnType" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px">
+              <button type="button" class="lnbtn on" data-t="💬 แชท LINE" onclick="lnPick(this)" style="flex:1;min-width:96px">💬 แชท</button>
+              <button type="button" class="lnbtn" data-t="📞 โทรผ่าน LINE" onclick="lnPick(this)" style="flex:1;min-width:96px">📞 โทร LINE</button>
+              <button type="button" class="lnbtn" data-t="🎁 ส่งโปรฯ LINE" onclick="lnPick(this)" style="flex:1;min-width:96px">🎁 ส่งโปรฯ</button>
             </div>
-            ${r.lastLineAt?`<div style="font-size:12px;color:#1a7f37;font-weight:700;margin-top:8px">💬 ติดตามผ่าน LINE ล่าสุด ${esc(fmtShort(r.lastLineAt))}${(r.lineCount||0)>1?` · รวม ${r.lineCount} ครั้ง`:""}</div>`:""}
+            <div style="font-size:11.5px;color:var(--muted);margin-bottom:4px">รอบติดตาม</div>
+            <div id="lnTier" style="display:flex;gap:6px;margin-bottom:9px">
+              ${['T1','T2','T3'].map(t=>`<button type="button" class="lnbtn${(['T1','T2','T3'].includes(r.step)?r.step:'T1')===t?' on':''}" data-t="${t}" onclick="lnPick(this)" style="flex:1">${t}</button>`).join("")}
+            </div>
+            <div style="font-size:11.5px;color:var(--muted);margin-bottom:4px">ระยะเวลาที่คุย</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+              <input class="inp" id="lnMin" type="number" min="0" inputmode="numeric" value="0" style="flex:1;text-align:center"><span style="font-size:12px;color:var(--muted)">นาที</span>
+              <input class="inp" id="lnSec" type="number" min="0" max="59" inputmode="numeric" value="0" style="flex:1;text-align:center"><span style="font-size:12px;color:var(--muted)">วินาที</span>
+            </div>
+            <button class="btn" style="width:100%;background:#1a7f37;color:#fff;border:none;font-weight:800" onclick="lineContact('${esc(r.key)}')">💾 บันทึกการคุย LINE</button>
+            ${r.lastLineAt?`<div style="font-size:12px;color:#1a7f37;font-weight:700;margin-top:8px">💬 LINE ล่าสุด ${esc(fmtShort(r.lastLineAt))}${(r.lineCount||0)>1?` · รวม ${r.lineCount} ครั้ง`:""}</div>`:""}
           </div></div>
         <div class="box"><div class="step-h"><span class="step-n">2</span><span class="step-t">ผลการติดต่อ</span></div>
           <div class="toggle"><button class="tg2 ${r.contact==="reached"?"ok":""}" id="tgOk" onclick="pickReach(true)">✅ ติดต่อได้</button><button class="tg2 ${r.contact==="unreachable"?"no":""}" id="tgNo" onclick="pickReach(false)">📵 ติดต่อไม่ได้</button></div>
@@ -606,7 +619,18 @@ function renderSheet(){
           <input class="inp" id="edPhone" value="${esc(r.phone||"")}" placeholder="เบอร์โทร" inputmode="tel">
           <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">ที่อยู่</div>
           <textarea class="inp" id="edAddr" rows="2" placeholder="ที่อยู่จัดส่ง">${esc(r.address||"")}</textarea>
-          <button class="btn g" style="margin-top:9px" onclick="saveEdit()">💾 บันทึกการแก้ไข</button></div>
+          <div style="margin:12px 0 4px;padding-top:10px;border-top:1px dashed var(--line);font-size:12px;color:#1a7f37;font-weight:800">📦 ข้อมูลการซื้อ (กรอกเองได้ถ้าระบบไม่มี)</div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin:6px 0 4px">เคยซื้อ (สินค้า)</div>
+          <input class="inp" id="edProduct" value="${esc(r.product||"")}" placeholder="เช่น YF ยันฮี ฟอร์ซินเนีย">
+          <div style="display:flex;gap:9px;flex-wrap:wrap">
+            <div style="flex:1;min-width:120px"><div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">ยอดซื้อสะสม (บาท)</div>
+              <input class="inp" id="edLtv" type="number" min="0" inputmode="numeric" value="${r.ltv!=null?r.ltv:""}" placeholder="0"></div>
+            <div style="flex:1;min-width:120px"><div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">ออเดอร์สำเร็จ (ครั้ง)</div>
+              <input class="inp" id="edSucceed" type="number" min="0" inputmode="numeric" value="${r.succeedOrders!=null?r.succeedOrders:""}" placeholder="0"></div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);font-weight:700;margin:10px 0 4px">ซื้อล่าสุด (วันที่)</div>
+          <input class="inp" id="edLastOrder" type="date" value="${esc((r.lastOrderAt||'').slice(0,10))}">
+          <button class="btn g" style="margin-top:11px" onclick="saveEdit()">💾 บันทึกการแก้ไข</button></div>
         <div class="box"><div class="step-h"><span class="step-n">✔</span><span class="step-t">ปิดงาน / จัดเก็บ</span></div>
           <div style="font-size:12px;color:var(--muted);font-weight:700;margin:2px 0 6px">โน้ตตอนปิดงาน (เช่น ปิดการขายได้กี่ขวด · เหตุผลที่จัดเก็บ · สรุปสั้น ๆ)</div>
           <textarea class="inp" id="closeNote" rows="2" placeholder="✍️ รายละเอียดตอนปิดงาน — จะถูกเก็บไว้ในประวัติ และเห็นในเมนูถังขยะ/จัดเก็บ">${esc(r.archiveNote||"")}</textarea>
@@ -636,7 +660,12 @@ function renderSheet(){
 window.saveEdit=async function(){
   const name=($("#edName").value||"").trim(),phone=($("#edPhone").value||"").trim(),address=($("#edAddr").value||"").trim();
   if(!name){toast("กรอกชื่อลูกค้า");return;}
-  await save({name,phone,address},"แก้ไขข้อมูลแล้ว");
+  const patch={name,phone,address};
+  const product=($("#edProduct")?.value||"").trim(); patch.product=product;
+  const ltvRaw=($("#edLtv")?.value||"").trim(); if(ltvRaw!=="")patch.ltv=Math.max(0,parseInt(ltvRaw,10)||0);
+  const scRaw=($("#edSucceed")?.value||"").trim(); if(scRaw!=="")patch.succeedOrders=Math.max(0,parseInt(scRaw,10)||0);
+  const loRaw=($("#edLastOrder")?.value||"").trim(); if(loRaw!=="")patch.lastOrderAt=loRaw;
+  await save(patch,"บันทึกข้อมูลลูกค้าแล้ว");
 };
 window.archiveLead=async function(reason){
   if(!CUR)return;
@@ -693,7 +722,16 @@ window.addTag=async function(){const t=prompt("สร้างแท็กให
 window.editTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;const t=prompt("แก้ไขแท็ก (เว้นว่างเพื่อลบ)",cur);if(t==null)return;const v=t.trim();const tags=(CUR.tags||[]).slice();if(!v)tags.splice(i,1);else tags[i]=v;await save({tags},v?("แก้ไขแท็ก → "+v):"ลบแท็ก");};
 window.delTag=async function(i){const cur=(CUR.tags||[])[i];if(cur==null)return;if(!confirm("ลบแท็ก \""+cur+"\" ?"))return;const tags=(CUR.tags||[]).slice();tags.splice(i,1);await save({tags},"ลบแท็ก: "+cur);};
 window.logCall=function(key){api("/api/lead/call",{key}).then(()=>{toast("บันทึกการโทรแล้ว");reload();});};
-window.lineContact=async function(key,how){const j=await api("/api/lead/line-contact",{key,note:how||"ติดตามผ่าน LINE"});if(j&&j.ok){if(j.lead){CUR=j.lead;const i=ACTIVE.findIndex(x=>x.key===key);if(i>=0)ACTIVE[i]=j.lead;}toast("บันทึกติดตามผ่าน LINE แล้ว 💬");renderSheet();renderList();}else toast((j&&j.message)||"บันทึกไม่สำเร็จ");};
+window.lnPick=function(btn){const box=btn.parentElement;if(!box)return;box.querySelectorAll('.lnbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');};
+window.lineContact=async function(key){
+  const typeBtn=document.querySelector('#lnType .lnbtn.on'), tierBtn=document.querySelector('#lnTier .lnbtn.on');
+  const note=(typeBtn&&typeBtn.dataset.t)||"💬 แชท LINE";
+  const tier=(tierBtn&&tierBtn.dataset.t)||"";
+  const mn=Math.max(0,parseInt(($("#lnMin")?.value)||"0",10)||0), sc=Math.max(0,parseInt(($("#lnSec")?.value)||"0",10)||0);
+  const durSec=mn*60+sc;
+  const j=await api("/api/lead/line-contact",{key,note,tier,durSec});
+  if(j&&j.ok){if(j.lead){CUR=j.lead;const i=ACTIVE.findIndex(x=>x.key===key);if(i>=0)ACTIVE[i]=j.lead;}toast(durSec>7?`บันทึก LINE ${note.replace(/^\S+\s/,'')} · ${tier} · นับเป็นได้คุย 💬`:`บันทึก LINE แล้ว (คุย ${durSec} วิ · ยังไม่ถึง 7 วิ ไม่นับได้คุย)`);renderSheet();renderList();}else toast((j&&j.message)||"บันทึกไม่สำเร็จ");
+};
 
 async function save(patch,msg){
   if(!CUR)return;

@@ -470,9 +470,11 @@ function lastCallOf(rec) {
   return c.length ? (c[c.length - 1].at || '') : '';
 }
 // Append an activity event to the lead's timeline (kept to the last 100).
-function pushHist(rec, k, v, by) {
+function pushHist(rec, k, v, by, extra) {
   rec.history = rec.history || [];
-  rec.history.push({ at: new Date().toISOString(), by: by || '', k, v: v == null ? '' : String(v).slice(0, 120) });
+  const e = { at: new Date().toISOString(), by: by || '', k, v: v == null ? '' : String(v).slice(0, 120) };
+  if (extra && typeof extra === 'object') Object.assign(e, extra);   // เก็บข้อมูลเสริม เช่น tier/dur ของ LINE
+  rec.history.push(e);
   if (rec.history.length > 100) rec.history = rec.history.slice(-100);
 }
 function leadView(r, ocMap) {
@@ -750,12 +752,17 @@ app.post('/api/lead/call', requireCrm, async (req, res) => {
 app.post('/api/lead/line-contact', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });
-  const note = String((req.body && req.body.note) || '').trim().slice(0, 200) || 'ติดตามผ่าน LINE';
+  const b = req.body || {};
+  const note = String(b.note || '').trim().slice(0, 200) || 'ติดตามผ่าน LINE';
+  const tier = ['T1', 'T2', 'T3'].includes(String(b.tier || '').toUpperCase()) ? String(b.tier).toUpperCase() : '';
+  const durSec = Math.max(0, Math.min(36000, parseInt(b.durSec, 10) || 0));   // ระยะเวลาคุย LINE (วินาที)
   const nowIso = new Date().toISOString();
   rec.lastLineAt = nowIso; rec.lineCount = (rec.lineCount || 0) + 1;
+  rec.lastLineTier = tier || rec.lastLineTier || ''; rec.lastLineDur = durSec;
   if (rec.contact !== 'reached') rec.contact = 'reached';   // ถือว่าติดต่อลูกค้าได้แล้ว (ออกจากคิวต้องโทร)
   rec.updatedAt = nowIso; rec.updatedBy = whoami(req);
-  pushHist(rec, 'line', note, whoami(req));
+  const label = note + (tier ? (' · ' + tier) : '') + (durSec ? (' · ' + Math.floor(durSec / 60) + ':' + String(durSec % 60).padStart(2, '0')) : '');
+  pushHist(rec, 'line', label, whoami(req), { tier, dur: durSec });
   state = await store.save(state);
   res.json({ ok: true, lead: leadView(rec) });
 });
@@ -788,7 +795,15 @@ app.post('/api/lead/update', requireCrm, async (req, res) => {
   if ('callCount' in p) rec.callCount = Math.max(0, Math.min(99, parseInt(p.callCount, 10) || 0));
   if ('trackingNo' in p) rec.trackingNo = String(p.trackingNo || '').trim().slice(0, 60);
   if ('tags' in p) rec.tags = Array.isArray(p.tags) ? p.tags.slice(0, 20).map((t) => String(t).slice(0, 40)).filter(Boolean) : rec.tags;
+  // ข้อมูลลูกค้าที่เซลล์กรอก/แก้เองได้ (เคยซื้อ · ยอดซื้อสะสม · ออเดอร์สำเร็จ · ซื้อล่าสุด)
+  let custEdited = false;
+  if ('product' in p) { rec.product = String(p.product || '').slice(0, 300); custEdited = true; }
+  if ('ltv' in p) { rec.ltv = Math.max(0, Math.round(Number(p.ltv) || 0)); custEdited = true; }
+  if ('succeedOrders' in p) { rec.succeedOrders = Math.max(0, Math.min(9999, parseInt(p.succeedOrders, 10) || 0)); custEdited = true; }
+  if ('lastOrderAt' in p) { rec.lastOrderAt = String(p.lastOrderAt || '').slice(0, 40); custEdited = true; }
+  if (custEdited) rec.custInfoManual = true;   // ทำเครื่องหมายว่าเซลล์กรอกเอง
   rec.updatedAt = new Date().toISOString(); rec.updatedBy = by;
+  if (custEdited) pushHist(rec, 'note', 'เซลล์อัปเดตข้อมูลลูกค้าเอง', by);
   // log each meaningful change to the timeline
   if (recStatus(rec) !== b0.leadStatus) pushHist(rec, 'status', rec.leadStatus, by);
   if ((rec.callResult || '') !== b0.callResult) pushHist(rec, 'result', rec.callResult, by);
@@ -1003,9 +1018,11 @@ function followupTiers(fromMs, toMs) {
     const step = roundOf.get(r.sales + '|' + p) || (fbSet.has(p) ? 'T1' : null); if (!step) continue;
     for (const h of (r.history || [])) {
       if (h.k !== 'line') continue;
+      const q = (h.dur == null) || (Number(h.dur) > ONECALL_MIN_TALK); if (!q) continue;   // เฉพาะคุย > 7 วิ
+      const evStep = ['T1', 'T2', 'T3'].includes(h.tier) ? h.tier : step;   // ใช้รอบที่เซลล์เลือกตอนกด LINE (ถ้ามี)
       const day = S.thaiDay(h.at); if (!day) continue;
       if (day.slice(0, 7) === curMonth) t1Month[r.sales].add(p);
-      if (inRange(h.at)) { t1Today[r.sales].add(p); cToday[r.sales][step].add(p); }
+      if (inRange(h.at)) { t1Today[r.sales].add(p); cToday[r.sales][evStep].add(p); }
     }
   }
   const blank = () => ({ T1: 0, T2: 0, T3: 0, T1d: 0, T2d: 0, T3d: 0, T1recv: 0, T1done: 0, leads: 0 });
@@ -1058,7 +1075,7 @@ function followupTiers(fromMs, toMs) {
   }
   for (const a of state.assigned) {
     const sd = a.sales; if (sd !== 'W' && sd !== 'K') continue;
-    for (const h of (a.history || [])) { if (h.k === 'line' && inRange(h.at)) contactToday[sd].line++; }
+    for (const h of (a.history || [])) { if (h.k === 'line' && inRange(h.at) && ((h.dur == null) || (Number(h.dur) > ONECALL_MIN_TALK))) contactToday[sd].line++; }
   }
   for (const sd of ['W', 'K']) contactToday[sd].total = contactToday[sd].phoneTalk + contactToday[sd].line; // "ได้คุย" รวม = โทรได้คุย + LINE
   out.contactToday = contactToday;
@@ -2389,9 +2406,10 @@ async function computeSalesKpi(fromQ, toQ) {
     }
     // calls in range / today (self-logged taps; real talk time comes from OneCall)
     for (const c of (r.calls || [])) { const t = Date.parse(c.at); if (isNaN(t)) continue; if (t >= from && t <= to) A.callsRange++; if (t >= tStart && t <= tEnd) A.callsToday++; }
-    // การคุยผ่าน LINE นับเป็น "ได้คุย" ด้วย (แชท/โทร LINE/ส่งโปรฯ) — รวมเข้า talk7 เหมือนตาราง Teamlead
+    // การคุยผ่าน LINE นับเป็น "ได้คุย" — เฉพาะครั้งที่คุย > 7 วิ (เหมือนสายโทร) · อีเวนต์เก่าที่ไม่มี dur = นับให้ (เดิม)
     for (const h of (r.history || [])) {
       if (h.k !== 'line') continue; const t = Date.parse(h.at); if (isNaN(t)) continue;
+      const q = (h.dur == null) || (Number(h.dur) > ONECALL_MIN_TALK); if (!q) continue;
       if (t >= from && t <= to) { A.lineTalkRange++; A.talk7Range++; }
       if (t >= tStart && t <= tEnd) { A.lineTalkToday++; A.talk7Today++; }
     }
