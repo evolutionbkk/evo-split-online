@@ -573,7 +573,8 @@ async function autoDistribute() {
   if (!poolCnt) return 0;
   autoDistBusy = true;
   try {
-    const sum = S.distributePool(state, { source: 'all', mode: '50', by: 'ระบบ · แจกอัตโนมัติ', off: dof() });
+    await enrichPooledOrders(40);   // เช็กสถานะออเดอร์ในคลังก่อน → แจกคนซื้อจริงก่อน · คนไม่มีออเดอร์คงไว้ในคลัง
+    const sum = S.distributePool(state, { source: 'all', mode: '50', by: 'ระบบ · แจกอัตโนมัติ', off: dof(), buyersFirst: true, holdNoOrder: true });
     if (sum.distributed) { state.updatedAt = new Date().toISOString(); state = await store.save(state); console.log('[auto-distribute] แจก', sum.distributed, '(W:' + sum.toW + ' K:' + sum.toK + ')'); }
     return sum.distributed;
   } catch (e) { console.warn('[auto-distribute] error', String(e)); return 0; }
@@ -582,7 +583,10 @@ async function autoDistribute() {
 // ดึงลูกค้า Marketplace 1 รายจากคลัง (pooled) มาให้เซลล์ฝั่ง side — ใช้ตอน auto-replace เมื่อรายเดิมติดต่อไม่ได้
 // เพื่อให้คิว "ต้องโทร" ของเซลล์เต็มโควตาเสมอ (Marketplace วันละ 30/คน)
 function pullOneMP(side) {
-  const cand = state.assigned.find((r) => r.pooled && !r.archived && !r.sales && isMpSource(r.source));
+  const cands = state.assigned.filter((r) => r.pooled && !r.archived && !r.sales && isMpSource(r.source));
+  const hasOrder = (r) => (Array.isArray(r.orders) && r.orders.length > 0) || !!(r.product && String(r.product).trim());
+  // เลือกคนซื้อจริงก่อน → ถ้าไม่มีเลือกคนที่ยังไม่เช็กออเดอร์ → ไม่หยิบคนที่เช็กแล้วว่าไม่มีออเดอร์ (คงไว้ในคลัง)
+  const cand = cands.find(hasOrder) || cands.find((r) => !Array.isArray(r.orders)) || null;
   if (!cand) return null;
   const now = new Date().toISOString();
   cand.pooled = false; cand.sales = side; cand.exported = true; cand.receivedAt = now; cand.updatedAt = now; cand.updatedBy = 'ระบบ';
@@ -2106,6 +2110,35 @@ async function evoEnrichAuto(limit = 25) {
   } catch (e) { console.warn('[evo-enrich] error', String(e)); return 0; }
   finally { evoEnrichBusy = false; }
 }
+// ----- เช็กสถานะออเดอร์ของลูกค้า "ในคลัง (pooled)" ก่อนแจก → เพื่อให้ระบบแจกคนซื้อจริงก่อน -----
+// ดึงเฉพาะประวัติออเดอร์ (ไม่แตะที่อยู่ เพื่อความเร็ว) · ทำงานทันทีในรอบ autoDistribute
+let enrichPoolBusy = false;
+async function enrichPooledOrders(limit = 40) {
+  if (enrichPoolBusy || !evo.token || evo.expired) return 0;
+  enrichPoolBusy = true;
+  try {
+    const targets = state.assigned.filter((r) =>
+      r.pooled && r.sales == null && !r.archived && isMpSource(r.source) &&
+      r.code && /^CTM|^\d/i.test(String(r.code)) && !Array.isArray(r.orders)
+    ).slice(0, Math.max(1, limit));
+    if (!targets.length) return 0;
+    let filled = 0, expired = false;
+    for (const r of targets) {
+      const oh = await evoCustomerOrders(r.code);
+      if (oh.tokenExpired) { expired = true; break; }
+      if (!oh.error) {
+        r.orders = oh.orders || []; r.orderCount = oh.orderCount || 0; r.evoProdChecked = true;
+        if (oh.product && (!r.product || !String(r.product).trim())) r.product = oh.product;
+        filled++;
+      }
+      await sleep(120);
+    }
+    if (expired) { evo.expired = true; console.warn('[enrich-pool] token expired — ต้อง relay ใหม่'); }
+    if (filled) { state = await store.save(state); }
+    return filled;
+  } catch (e) { console.warn('[enrich-pool] error', String(e)); return 0; }
+  finally { enrichPoolBusy = false; }
+}
 // Pull Pancake (Facebook closed sales) into the pool. Backfills the last N days (default 30) of
 // closed-sale orders and pools any whose phone isn't already an active/pooled lead (dedup by phone).
 // This lets the Teamlead see existing FB customers to distribute — not only forward-only new ones.
@@ -2329,6 +2362,7 @@ async function computeSalesKpi(fromQ, toQ) {
     total: 0, notCalled: 0, called: 0, pending: 0, hand2: 0,
     callsRange: 0, wonRange: 0, newRange: 0, lostRange: 0, revRange: 0,
     callsToday: 0, wonToday: 0, rev: 0, talk7Range: 0, talk7Today: 0,
+    lineTalkRange: 0, lineTalkToday: 0,     // "ได้คุย" ผ่าน LINE (แชท/โทร LINE/ส่งโปรฯ) — รวมเข้า talk7 ด้วย
     realCallsRange: 0, realCallsToday: 0,   // สายจริงจาก OneCall (ทุกความยาว) — ใช้เป็น "โทรวันนี้" แทนการกดนับมือ
     talk7EvoRange: 0, talk7ManualRange: 0, talk7OtherRange: 0,
     talk7EvoToday: 0, talk7ManualToday: 0, talk7OtherToday: 0,
@@ -2355,6 +2389,12 @@ async function computeSalesKpi(fromQ, toQ) {
     }
     // calls in range / today (self-logged taps; real talk time comes from OneCall)
     for (const c of (r.calls || [])) { const t = Date.parse(c.at); if (isNaN(t)) continue; if (t >= from && t <= to) A.callsRange++; if (t >= tStart && t <= tEnd) A.callsToday++; }
+    // การคุยผ่าน LINE นับเป็น "ได้คุย" ด้วย (แชท/โทร LINE/ส่งโปรฯ) — รวมเข้า talk7 เหมือนตาราง Teamlead
+    for (const h of (r.history || [])) {
+      if (h.k !== 'line') continue; const t = Date.parse(h.at); if (isNaN(t)) continue;
+      if (t >= from && t <= to) { A.lineTalkRange++; A.talk7Range++; }
+      if (t >= tStart && t <= tEnd) { A.lineTalkToday++; A.talk7Today++; }
+    }
     // won / lost events inside the range (one per lead)
     let wonThis = false, wonTod = false, lostThis = false;
     for (const h of (r.history || [])) {

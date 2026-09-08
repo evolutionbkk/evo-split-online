@@ -517,7 +517,7 @@ function viewKpi(){
   const wonInR=r=>{if(r.archived||(r.leadStatus||"new")!=="won")return false;const h=r.history||[];for(let i=h.length-1;i>=0;i--){if(h[i].k==="status"&&h[i].v==="won")return inR(h[i].at);}return inR(r.updatedAt);};
   const days=Math.max(1,Math.round((b.to-b.from)/86400000));
   const A=ACTIVE.filter(r=>!r.archived);
-  const called=A.filter(calledInR).length, talk=A.reduce((s,r)=>s+(r.realTalkCalls||0),0);
+  const called=A.filter(calledInR).length, talk=A.reduce((s,r)=>s+(r.realTalkCalls||0)+(r.lineCount||0),0);
   const wonList=A.filter(wonInR);const wonT=wonList.length, rev=wonList.reduce((s,r)=>s+saleTotal(r),0);
   const fu=A.filter(r=>(r.leadStatus||"new")==="followup").length;
   const mkt=A.filter(r=>leadPanel(r)==="mkt"),ecom=A.filter(r=>leadPanel(r)==="ecom");
@@ -525,7 +525,7 @@ function viewKpi(){
   return krBar()+`<div style="font-size:13px;color:var(--muted);margin-bottom:14px">KPI ของ <b style="color:var(--ink)">${esc(ME.name||("Sales "+ME.side))}</b> · <b>${rl}</b> — เห็นเฉพาะของตัวเอง</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px">
     <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--brand)">${called}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">โทรแล้ว · ${rl}</div></div>
-    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${talk}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">คุยจริง >7 วิ · สะสม</div></div>
+    <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${talk}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">ได้คุย (โทร+LINE) · สะสม</div></div>
     <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800">${fu}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">รอติดตาม · ปัจจุบัน</div></div>
     <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${wonT}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">ปิดได้ · ${rl}</div></div>
     <div class="card" style="padding:14px 16px"><div class="tnum" style="font-size:22px;font-weight:800;color:var(--ok)">${fmtB(rev)}</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">ยอดขาย · ${rl}</div></div>
@@ -536,7 +536,7 @@ function viewKpi(){
       <tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>Marketplace</b></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${MP_TARGET*days}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(ecom,MP_TARGET)}</td></tr>
       ${["T1","T2","T3"].map(t=>`<tr><td style="padding:11px 14px;border-top:1px solid var(--line)"><b>FB · ${t}</b> <span style="font-size:11px;color:var(--muted)">${ROUND_NAME[t]}</span></td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line)" class="tnum">${FB_TG[t]*days}</td><td style="padding:11px 14px;text-align:right;border-top:1px solid var(--line);font-weight:800">${cell(mkt.filter(r=>(r.step||"")===t),FB_TG[t])}</td></tr>`).join("")}
     </tbody></table>
-    <div style="padding:10px 14px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)">เป้าปรับตามจำนวนวันในช่วงที่เลือก · "คุยจริง (OneCall)" เป็นยอดสะสมทั้งหมด · "รอติดตาม" เป็นสถานะปัจจุบัน</div></div>`;
+    <div style="padding:10px 14px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)">เป้าปรับตามจำนวนวันในช่วงที่เลือก · "ได้คุย (OneCall+LINE)" เป็นยอดสะสมทั้งหมด · "รอติดตาม" เป็นสถานะปัจจุบัน</div></div>`;
 }
 
 function findLead(key){return ACTIVE.concat(ARCHIVED).find(r=>r.key===key);}

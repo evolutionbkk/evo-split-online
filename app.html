@@ -275,7 +275,7 @@ function viewDashboard(){
     <div class="card tcard adm"><div class="hd">💬 ทีมแอดมิน — ตอบแชท FB</div>
       <div class="mgrid">${mi(fmt(admins.length),"จำนวนแอดมิน")}${mi(fmt(aC),"แชทที่ดูแล")}${mi(fmt(aR),"ข้อความตอบ")}${mi(fmt(aCl),"ปิดแชท","var(--ok)")}${mi("—","ยอดขาย")}${mi("—","ต้องเชื่อม Pancake")}</div></div>
     <div class="card tcard tel"><div class="hd">📞 ทีมเซลล์ — การโทร</div>
-      <div class="mgrid">${mi(fmt(t.total),"ลูกค้าในมือ")}${mi(fmt(t.callsToday),"โทรวันนี้")}${mi(fmt(t.talk7Today),"ได้คุย (>7 วิ)")}${mi(fmt(t.followup),"รอติดตาม")}${mi(fmt(t.wonToday),"ปิดได้วันนี้","var(--ok)")}${mi(fmtB(t.revToday),"ยอดขายวันนี้","var(--ok)")}</div></div>
+      <div class="mgrid">${mi(fmt(t.total),"ลูกค้าในมือ")}${mi(fmt(t.callsToday),"โทรวันนี้")}${mi(fmt(t.talk7Today),"ได้คุย (โทร+LINE)")}${mi(fmt(t.followup),"รอติดตาม")}${mi(fmt(t.wonToday),"ปิดได้วันนี้","var(--ok)")}${mi(fmtB(t.revToday),"ยอดขายวันนี้","var(--ok)")}</div></div>
   </div>`;
   h+=`<div class="secttl">🔔 งานค้างวันนี้ — ต้องเคลียร์<span class="ln"></span></div>
   <div class="todo">
