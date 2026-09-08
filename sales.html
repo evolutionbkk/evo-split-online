@@ -619,6 +619,7 @@ function renderSheet(){
     </div>
     <div class="tagbar" style="margin-bottom:14px"><span class="ttag" style="color:${srcColor(r)};border-color:color-mix(in srgb,${srcColor(r)} 35%,var(--surface));background:color-mix(in srgb,${srcColor(r)} 12%,var(--surface));font-weight:800">มาจาก: ${srcLabel(r)}</span>${r.prevSales?`<span class="ttag" style="color:#0369a1;border-color:#bae6fd;background:#f0f9ff">↩️ ลูกค้าเก่าของ ${r.prevSales==="K"?"พี่เขม (K)":"พี่หวาน (W)"} · ซื้อซ้ำ</span>`:""}🏷️ ${tags}<button class="ttag add" onclick="addTag()">+ สร้างแท็ก</button></div>
     <div style="margin-bottom:14px"><button onclick="moveOwner('${esc(r.key)}')" title="ย้ายรายชื่อนี้ให้เซลล์อีกฝั่ง (กรณีรายชื่อมั่วคน)" style="border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;border-radius:9px;padding:8px 14px;font-weight:800;font-size:12.5px;cursor:pointer">↔️ ย้ายผู้ดูแล → ${ME&&ME.side==="W"?"พี่เขม (K)":"พี่หวาน (W)"}</button></div>
+    <div id="custContacts"></div>
     <div class="tksheet">
       <div>
         <div class="box" style="border:1.5px solid #ddd6fe"><h4>🤖 สรุปล่าสุด (ระบบสรุปให้อัตโนมัติ)</h4><div style="font-size:11.5px;color:var(--muted);margin-bottom:7px">${sumMeta}</div><div style="font-size:13.5px;line-height:1.6">${sumText}</div></div>
@@ -699,6 +700,29 @@ function renderSheet(){
     </div>`;
   if(r.contact==="reached")pickReach(true);
   else if(r.contact==="unreachable")pickReach(false);
+  loadCustContacts(r.phone);
+}
+function contactChan(c){const s=(c.source||"").toLowerCase();if(String(c.code||"").startsWith("SHT"))return "📋 ฐานเก่า";if(s==="pancake"||s==="refill")return "💬 Facebook (Pancake)";if(s==="lazada")return "📦 Lazada";if(s==="tiktok")return "📦 TikTok";if(s==="shopee")return "📦 Shopee";if(s==="bigseller")return "📦 Lazada (Big Seller)";if(s==="manual")return "✍️ กรอกเอง";return "📦 Evolution";}
+async function loadCustContacts(phone){
+  const box=document.getElementById("custContacts");if(!box)return;box.innerHTML="";
+  if(!phone)return;
+  let j=null;try{j=await (await fetch("/api/lead/contacts?phone="+encodeURIComponent(phone))).json();}catch(e){return;}
+  if(!j||!j.ok||!Array.isArray(j.contacts)||j.contacts.length<2)return; // มีเบอร์เดียว = ไม่ต้องแสดง
+  const rows=j.contacts.map(c=>{
+    const side=c.side==="W"?"พี่หวาน (W)":c.side==="K"?"พี่เขม (K)":"—";
+    const first=c.first?fmtShort(c.first):"—",last=c.last?fmtShort(c.last):"—";
+    const cur=c.isCurrent?`<span style="font-size:10.5px;font-weight:800;color:#4338ca;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:1px 6px;margin-left:6px">ตั๋วนี้</span>`:"";
+    const arch=c.archived?`<span style="font-size:10.5px;font-weight:800;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:1px 6px;margin-left:6px">เก็บแล้ว</span>`:"";
+    return `<div style="padding:8px 0;border-top:1px solid var(--line)">
+      <div style="font-weight:800;font-size:13px"><a class="tel" href="tel:${esc(c.phone)}">📞 ${esc(c.phone)}</a>${cur}${arch}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">${contactChan(c)} · ดูแลโดย ${side}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">ครั้งแรก <b style="color:var(--ink)">${first}</b> · ล่าสุด <b style="color:var(--ink)">${last}</b>${c.orderCount?` · ซื้อ ${c.orderCount} ครั้ง`:""}</div>
+    </div>`;
+  }).join("");
+  box.innerHTML=`<div class="box" style="border:1.5px solid #fcd34d;background:#fffbeb;margin-bottom:14px">
+    <h4 style="margin:0 0 2px">👥 ลูกค้าคนนี้ติดต่อเข้ามา ${j.contacts.length} เบอร์ (ชื่อ-นามสกุลตรงกัน)</h4>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:4px">ระบบจับจากชื่อ-นามสกุลที่ตรงกัน อาจเป็นคนเดียวกันที่ติดต่อหลายเบอร์ — โปรดตรวจสอบก่อนติดต่อ</div>
+    ${rows}</div>`;
 }
 window.saveEdit=async function(){
   const name=($("#edName").value||"").trim(),phone=($("#edPhone").value||"").trim(),address=($("#edAddr").value||"").trim();

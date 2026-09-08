@@ -746,6 +746,50 @@ app.get('/api/lead/search', requireCrm, async (req, res) => {
   res.json({ ok: true, q: raw, mySide, results: hits });
 });
 
+// ---- "ลูกค้าคนเดียวกัน" ที่ติดต่อเข้ามาหลายเบอร์ — จับด้วยชื่อ+นามสกุลที่ตรงกัน (แสดงข้อมูลให้เซลล์ ไม่รวมตั๋วอัตโนมัติ) ----
+function normNameKey(s) {
+  let t = String(s || '').toLowerCase();
+  t = t.replace(/[()]/g, ' ');
+  t = t.replace(/(คุณ|นางสาว|นาง|นาย|น\.ส\.|นส\.|ด\.ช\.|ด\.ญ\.|mrs|mr|ms|miss|k)\.?\s+/gi, ' ');
+  t = t.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  return t;
+}
+function contactFirstLast(r) {
+  const cands = [];
+  const push = (v) => { const t = Date.parse(v); if (isFinite(t)) cands.push(t); };
+  push(r.receivedAt); push(r.updatedAt);
+  if (Array.isArray(r.history)) for (const h of r.history) push(h && h.at);
+  if (Array.isArray(r.orders)) for (const o of r.orders) push(o && o.date);
+  push(r.lastOrderAt); push(lastCallOf(r)); push(r.lastLineAt);
+  if (!cands.length) return { first: null, last: null };
+  return { first: new Date(Math.min(...cands)).toISOString(), last: new Date(Math.max(...cands)).toISOString() };
+}
+app.get('/api/lead/contacts', requireCrm, async (req, res) => {
+  const phone = normPhoneTH(req.query.phone || '');
+  const target = phone ? state.assigned.find((r) => normPhoneTH(r.phone) === phone) : null;
+  const nameKey = normNameKey(req.query.name || (target && target.name) || '');
+  const tokens = nameKey.split(' ').filter((x) => x.length > 1);
+  if (tokens.length < 2) return res.json({ ok: true, name: (target && target.name) || '', contacts: [], reason: 'name_too_short' });
+  const grp = state.assigned.filter((r) => normNameKey(r.name) === nameKey);
+  const byPhone = new Map();
+  for (const r of grp) {
+    const p = normPhoneTH(r.phone) || ('x' + S.keyOf(r));
+    const fl = contactFirstLast(r);
+    const isCurrent = !!(target && S.keyOf(r) === S.keyOf(target));
+    const cur = byPhone.get(p);
+    if (!cur) {
+      byPhone.set(p, { phone: r.phone, side: r.sales, code: r.code || r.ticketId || '', source: r.source || 'evolution', archived: !!r.archived, orderCount: r.orderCount || 0, ltv: (typeof r.ltv === 'number' ? r.ltv : null), first: fl.first, last: fl.last, isCurrent });
+    } else {
+      if (fl.first && (!cur.first || fl.first < cur.first)) cur.first = fl.first;
+      if (fl.last && (!cur.last || fl.last > cur.last)) cur.last = fl.last;
+      if (isCurrent) cur.isCurrent = true;
+      if (!cur.archived && !r.archived) cur.orderCount = Math.max(cur.orderCount, r.orderCount || 0);
+    }
+  }
+  const contacts = [...byPhone.values()].sort((a, b) => (Date.parse(a.first || 0) || 0) - (Date.parse(b.first || 0) || 0));
+  res.json({ ok: true, name: (target && target.name) || nameKey, count: contacts.length, contacts });
+});
+
 // ---- Teamlead: ประวัติการเคลื่อนไหวของเซลล์ + ประวัติการโอนลูกค้า (รวมจากทุกรายชื่อ) ----
 const HIST_LABEL = { call: 'โทรหาลูกค้า', line: 'ติดตามผ่าน LINE', status: 'เปลี่ยนสถานะ', result: 'ผลการโทร', interest: 'ระดับความสนใจ', action: 'ตั้ง Next Action', lost: 'เหตุผลที่ไม่สนใจ', followup: 'ตั้งนัดติดตาม', note: 'บันทึกโน้ต', aisum: 'AI สรุปสาย', name: 'แก้ชื่อลูกค้า', phone: 'แก้เบอร์โทร', address: 'แก้ที่อยู่', calls: 'ปรับจำนวนสายโทร', sale: 'บันทึกรายการขาย', tracking: 'ใส่เลขพัสดุ', tstage: 'ปรับรอบติดตาม', transfer: 'โอนให้เซลล์อีกฝั่ง', recycle: 'คัดออกถาวร', archive: 'เก็บเข้าคลัง', delete: 'ลบเข้าถังขยะ', close: 'ปิดงาน/จัดเก็บ', restore: 'กู้คืน', import: 'นำเข้ารายชื่อ', rebalance: 'เกลี่ยสมดุลรายชื่อ', dayoff_move: 'ย้ายเพราะวันลา', dayoff_return: 'คืนหลังวันลา' };
 app.get('/api/admin/activity', requireAuth, (req, res) => {
