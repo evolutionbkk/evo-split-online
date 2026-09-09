@@ -625,6 +625,7 @@ function dailyReset() {
   let moved = 0;
   for (const rec of state.assigned) {
     if (rec.archived || !rec.sales) continue;
+    if (rec.fromExcel || String(rec.code || '').startsWith('SHT')) continue;   // ฐานลูกค้าเก่า (ชีท) — อยู่กับเซลล์ตามชีท ไม่ดึงคืน/ไม่สลับฝั่ง
     if (isFollowupBase(rec)) continue;   // ฐานเก่า T2/T3 ไม่ดึงคืน
     const st = recStatus(rec);
     if (st === 'new' || st === 'contacting') { returnToPool(rec, 'รีเซ็ต 20:00 · คืนคลัง'); moved++; }
@@ -721,6 +722,32 @@ app.get('/api/leads', requireCrm, async (req, res) => {
     active: list.filter((r) => !r.archived).map((r) => leadView(r, ocMap)),
     archived: list.filter((r) => r.archived).map((r) => leadView(r, ocMap)),
   });
+});
+
+// ---- คืนฝั่ง W/K ของลูกค้าฐานเก่า (SHT) ให้ตรงตามชีท (แก้เคสถูกรีเซ็ต 20:00 แล้วสลับ 50/50) ----
+// body: { sides: { "<phone>": "W"|"K", ... }, apply(default true) }  → เฉพาะลีด SHT · ไม่แตะข้อมูลอื่น
+app.post('/api/admin/restore-sheet-sides', requireAuth, async (req, res) => {
+  const sides = (req.body && req.body.sides) || {};
+  const apply = !(req.body && req.body.apply === false);
+  const map = new Map();
+  for (const k in sides) { const p = normPhoneTH(k); const s = sides[k]; if (p && (s === 'W' || s === 'K')) map.set(p, s); }
+  if (!map.size) return res.status(400).json({ error: 'no_map', message: 'ไม่มีข้อมูลฝั่งที่ส่งมา' });
+  let checked = 0, changed = 0; const sample = [];
+  for (const r of state.assigned) {
+    if (r.archived) continue;
+    if (!String(r.code || '').startsWith('SHT')) continue;
+    const want = map.get(normPhoneTH(r.phone));
+    if (!want) continue;
+    checked++;
+    if (r.sales !== want) {
+      if (sample.length < 8) sample.push({ code: r.code, from: r.sales, to: want });
+      if (apply) { r.sales = want; r.pooled = false; r.updatedAt = new Date().toISOString(); r.updatedBy = 'ระบบ · คืนฝั่งตามชีท'; }
+      changed++;
+    }
+  }
+  if (apply && changed) state = await store.save(state);
+  const shtA = state.assigned.filter((r) => !r.archived && String(r.code || '').startsWith('SHT'));
+  res.json({ ok: true, apply, mapped: map.size, checked, changed, nowW: shtA.filter((r) => r.sales === 'W').length, nowK: shtA.filter((r) => r.sales === 'K').length, sample });
 });
 
 // ---- ค้นหาลูกค้าข้ามทั้ง 2 ฝั่ง (W + K) — เซลล์ค้นเบอร์/ชื่อ/รหัสได้แม้เป็นของอีกฝั่ง (อ่านอย่างเดียว) ----
