@@ -2495,6 +2495,7 @@ app.post('/api/evo-token-set', requireAuth, async (req, res) => {
   const token = String((req.body && req.body.token) || '').trim();
   if (token.length < 20) return res.status(400).json({ error: 'bad_token', message: 'token ไม่ถูกต้อง — ก๊อปปี้ค่าจากหน้า Evolution มาให้ครบ' });
   evo.token = token;
+  evo.expired = false;   // ตั้ง token ใหม่ → ล้างสถานะ "หมดอายุ" เดิม เพื่อให้ดึงข้อมูลอัตโนมัติกลับมาทำงานทันที
   if (req.body && req.body.facility) evo.facility = String(req.body.facility);
   evo.updatedAt = new Date().toISOString();
   try { state.evo = { token: evo.token, facility: evo.facility, updatedAt: evo.updatedAt }; state = await store.save(state); } catch (_) {}
