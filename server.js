@@ -1452,6 +1452,14 @@ function applyPancakeReorders(rows) {
     const p = normPhoneTH(row.phone);
     const rec = p ? byPhone.get(p) : null;
     if (!rec) { fresh.push(row); continue; }   // เบอร์ใหม่จริง → ปล่อยให้ applyNew สร้างตั๋วใหม่
+    // อย่ารีเซ็ตตั๋วที่ "เพิ่งปิดการขาย/รอชำระ" หรือ "ปิด/ลงรายการขายวันนี้" — ออเดอร์ที่เข้ามาคือดีลที่เซลล์เพิ่งปิดเอง ไม่ใช่การกลับมาซื้อซ้ำ (กัน KPI ยอดขายหาย)
+    {
+      const st0 = recStatus(rec);
+      if (st0 === 'won' || st0 === 'awaiting_payment') continue;
+      const TZ = 7 * 3600000, todayTH = new Date(Date.now() + TZ).toISOString().slice(0, 10);
+      const closedToday = (rec.history || []).some((h) => { if (!h) return false; if (!(h.k === 'sale' || (h.k === 'status' && (h.v === 'won' || h.v === 'awaiting_payment')))) return false; const t = Date.parse(h.at); return !isNaN(t) && new Date(t + TZ).toISOString().slice(0, 10) === todayTH; });
+      if (closedToday) continue;
+    }
     const orderDate = row.at ? new Date(Date.parse(row.at) || Date.now()).toISOString() : nowIso;
     const items = String(row.product || '').trim();
     const amt = Math.round((Number(row.amount) || 0) * 100) / 100;
