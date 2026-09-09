@@ -1027,6 +1027,24 @@ app.post('/api/lead/move-owner', requireCrm, async (req, res) => {
   res.json({ ok: true, to, lead: leadView(rec) });
 });
 
+// เซลล์กด "โอนมาให้ฉันดูแล" จากผลค้นหาข้ามฝั่ง → ดึงลูกค้าของอีกฝั่งมาเป็นของตัวเอง (ไม่ scope เหมือน move-owner)
+// เงียบ ๆ ไม่ลง history/handoff ที่ Teamlead เห็น · เก็บ movedBySales เป็น audit ส่วนตัว (เหมือน move-owner)
+app.post('/api/lead/claim', requireCrm, async (req, res) => {
+  const key = req.body && req.body.key;
+  const rec = state.assigned.find((r) => S.keyOf(r) === key);
+  if (!rec) return res.status(404).json({ error: 'not_found' });
+  if (rec.archived) return res.status(400).json({ error: 'archived', message: 'ตั๋วนี้ถูกจัดเก็บ/ปิดงานไปแล้ว โอนไม่ได้' });
+  const to = req.session.role === 'sales' ? req.session.side : ((req.body && (req.body.to === 'W' || req.body.to === 'K')) ? req.body.to : null);
+  if (to !== 'W' && to !== 'K') return res.status(400).json({ error: 'bad_side' });
+  const from = rec.sales || '';
+  if (to === from) return res.json({ ok: true, to, lead: leadView(rec) });
+  rec.sales = to; rec.pooled = false;
+  rec.updatedAt = new Date().toISOString(); rec.updatedBy = whoami(req);
+  rec.movedBySales = { from, to, at: rec.updatedAt, by: whoami(req), claimed: true };   // private — audit เท่านั้น
+  state = await store.save(state);
+  res.json({ ok: true, to, from, lead: leadView(rec) });
+});
+
 app.post('/api/lead/restore', requireCrm, async (req, res) => {
   const rec = leadFor(req, req.body && req.body.key);
   if (!rec) return res.status(404).json({ error: 'not_found' });

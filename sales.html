@@ -321,9 +321,16 @@ function xLeadCard(r){
       ${r.lastLineAt?`<div class="lc-urg" style="color:#1a7f37;font-weight:700">💬 LINE ${esc(fmtShort(r.lastLineAt))}</div>`:""}
       ${r.nextAppt?`<div class="lc-urg" style="color:#7c3aed;font-weight:700">📅 นัด ${esc(fmtShort(r.nextAppt))}</div>`:""}
       ${r.note?`<div style="color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12px;line-height:1.5;white-space:normal;text-align:left">📝 ${esc(r.note.length>90?r.note.slice(0,90)+"…":r.note)}</div>`:""}
+      ${(!r.archived&&ME.side&&r.sales!==ME.side)?`<div style="margin-top:9px"><button onclick="claimLead('${esc(r.key)}')" style="border:1px solid #86efac;background:#f0fdf4;color:#15803d;border-radius:8px;padding:7px 13px;font-weight:800;font-size:12px;cursor:pointer">↩️ โอนมาให้ฉันดูแล (${esc(ME.side)})</button></div>`:""}
     </div>
     <div class="lc-right">${statusPill(r)}</div></div>`;
 }
+window.claimLead=async function(key){
+  if(!confirm("โอนลูกค้ารายนี้มาให้คุณ ("+ME.side+") ดูแลแทน?\nรายชื่อจะย้ายออกจากลิสต์ของอีกฝั่ง"))return;
+  const j=await api("/api/lead/claim",{key});
+  if(j&&j.ok){toast("โอนมาเป็นของคุณแล้ว ✅");Q="";await reload();}
+  else toast((j&&j.message)||"โอนไม่สำเร็จ");
+};
 
 function render(){
   renderNav();
