@@ -1366,7 +1366,7 @@ const ONECALL_MAX = 60000;    // cap stored call records
 const KPI_TARGET_EVO = Number(process.env.KPI_EVO_TARGET) || 30;     // Marketplace (Evolution + Lazada) calls / day
 const KPI_TARGET_T1 = Number(process.env.KPI_T1_TARGET) || 5;        // FB รอบ T1 / วัน
 const KPI_TARGET_T2 = Number(process.env.KPI_T2_TARGET) || 5;        // FB รอบ T2 / วัน
-const KPI_TARGET_T3 = Number(process.env.KPI_T3_TARGET) || 5;        // FB รอบ T3 / วัน
+const KPI_TARGET_T3 = Number(process.env.KPI_T3_TARGET) || 20;       // FB รอบ T3 / วัน
 const KPI_TARGET_MANUAL = Number(process.env.KPI_MANUAL_TARGET) || (KPI_TARGET_T1 + KPI_TARGET_T2 + KPI_TARGET_T3); // FB รวมทุกรอบ/วัน
 const KPI_TARGET_REV = Number(process.env.KPI_REV_TARGET) || 0;        // sales revenue target for the selected range (0 = no target bar)
 const SALES_REV_TARGET = Number(process.env.SALES_REV_TARGET) || 100000; // เป้ายอดขายเซลล์ (เทเลเซลล์) ต่อคน/เดือน
