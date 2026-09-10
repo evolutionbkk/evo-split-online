@@ -627,6 +627,7 @@ function dailyReset() {
     if (rec.archived || !rec.sales) continue;
     if (rec.fromExcel || String(rec.code || '').startsWith('SHT')) continue;   // ฐานลูกค้าเก่า (ชีท) — อยู่กับเซลล์ตามชีท ไม่ดึงคืน/ไม่สลับฝั่ง
     if (isFollowupBase(rec)) continue;   // ฐานเก่า T2/T3 ไม่ดึงคืน
+    if (Array.isArray(rec.saleItems) && rec.saleItems.length) continue;   // มีรายการขายแล้ว = ห้ามคืนคลัง (กันยอดขายหาย)
     const st = recStatus(rec);
     if (st === 'new' || st === 'contacting') { returnToPool(rec, 'รีเซ็ต 20:00 · คืนคลัง'); moved++; }
   }
@@ -660,6 +661,8 @@ function autoTStage(rec) {
 function maybeReturnPool(rec) {
   if (rec.archived || !rec.sales) return null;
   if (isFollowupBase(rec)) return null;   // ฐานเก่า T2/T3 ไม่ดึงคืนคลัง
+  if (rec.fromExcel || String(rec.code || '').startsWith('SHT')) return null;   // ฐานลูกค้าเก่า (ชีท) = ของเซลล์ตามชีท ห้ามดึงคืน/สลับฝั่ง
+  if (Array.isArray(rec.saleItems) && rec.saleItems.length) return null;        // มีรายการขายแล้ว = ห้ามคืนคลัง (กันยอดขายหาย)
   const st = recStatus(rec);
   if (st !== 'new' && st !== 'contacting') return null;
   if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
@@ -670,10 +673,12 @@ function maybeReturnPool(rec) {
 // Auto rule: after 3 calls without closing (won) and not an active follow-up.
 function maybeRecycle(rec) {
   if (rec.archived) return null;
-  if (rec.fromExcel) return null;   // ฐานลูกค้าเดิมจาก Excel = ของเซลล์คนนั้น ห้ามโอนสลับฝั่งอัตโนมัติ
+  if (rec.fromExcel || String(rec.code || '').startsWith('SHT')) return null;   // ฐานลูกค้าเดิม (Excel/ชีท) = ของเซลล์คนนั้น ห้ามโอนสลับฝั่งอัตโนมัติ
   const st = recStatus(rec);
   if (st === 'won') return null;       // closed the sale — stop
+  if (st === 'awaiting_payment') return null;  // ปิดได้แล้วรอชำระ — ห้ามโอน/ล้างรายการขาย
   if (st === 'followup') return null;  // has a scheduled follow-up — hold (stale sweep covers overdue ones)
+  if (Array.isArray(rec.saleItems) && rec.saleItems.length) return null;   // มีรายการขายแล้ว = ห้ามโอน/ล้าง (กันยอดขายหาย)
   if ((rec.callCount || 0) < FOLLOW_ROUNDS) return null;
   return advanceStage(rec);
 }
@@ -691,8 +696,10 @@ async function runSweep() {
     if (autoTStage(rec)) changed = true;   // keep the T1/T2/T3 round current as the order ages
     const st = recStatus(rec);
     if (st === 'won') continue;
+    if (st === 'awaiting_payment') continue;   // ปิดได้แล้วรอชำระ — ห้าม auto-handoff/ล้างรายการขาย
+    if (Array.isArray(rec.saleItems) && rec.saleItems.length) continue;   // มีรายการขายแล้ว = ห้ามแตะ (กันยอดขายหาย)
     if (st === 'followup' && rec.nextAppt) { const t = Date.parse(rec.nextAppt); if (!isNaN(t) && t > now) continue; }
-    if (rec.fromExcel) continue;   // ฐาน Excel ไม่ auto-handoff สลับฝั่ง
+    if (rec.fromExcel || String(rec.code || '').startsWith('SHT')) continue;   // ฐาน Excel/ชีท ไม่ auto-handoff สลับฝั่ง
     const la = lastActivityMs(rec); if (la == null) continue;
     if (now - la > STALE_DAYS * 86400000) { advanceStage(rec); changed = true; }
   }
