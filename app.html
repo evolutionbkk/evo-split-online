@@ -418,7 +418,7 @@ function viewTelOverview(){
   let kpiBody, kpiNote, kpiTag;
   if(useMan){
     // ยึดตัวเลขจากรายงานเซลล์ (Sales report) — "โทรทั้งหมด" เทียบเป้า · โชว์ได้คุย/ไม่ติดใต้เลข
-    const mCell=(side,key,tg,color)=>{const o=((MAN[side]||{})[key])||{};const tot=o.total||0,talk=o.talk||0;const pct=tg?Math.min(100,Math.round(tot/tg*100)):0;return `<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${fmt(tot)}<span style="color:var(--muted);font-weight:500">/${tg}</span></span><span class="tnum" style="color:${color}">${pct}%</span></div><div style="font-size:10.5px;color:var(--muted);margin-top:2px">ได้คุย ${fmt(talk)} · ไม่ติด ${fmt(Math.max(0,tot-talk))}</div>${bar(pct,color)}</td>`;};
+    const mCell=(side,key,tg,color)=>{const o=((MAN[side]||{})[key])||{};const tot=o.total||0;const pct=tg?Math.min(100,Math.round(tot/tg*100)):0;return `<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${fmt(tot)}<span style="color:var(--muted);font-weight:500">/${tg}</span></span><span class="tnum" style="color:${color}">${pct}%</span></div>${bar(pct,color)}</td>`;};
     const mTot=key=>((MAN.W&&MAN.W[key]&&MAN.W[key].total)||0)+((MAN.K&&MAN.K[key]&&MAN.K[key].total)||0);
     const mRow=(dot,lab,sub,key,tg,color)=>`<tr><td><b style="color:${color}">${dot} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${SIDES.map(s=>mCell(s,key,tg,color)).join('')}${totCell(fmt(mTot(key)))}</tr>`;
     const mRevBy={W:(MAN.W&&MAN.W.revenue)||0,K:(MAN.K&&MAN.K.revenue)||0},mOrdBy={W:(MAN.W&&MAN.W.orders)||0,K:(MAN.K&&MAN.K.orders)||0};
@@ -429,7 +429,7 @@ function viewTelOverview(){
       ${mRow("💬","T3 · ตามรอบ 3","",'t3',TG.t3||20,COL.t3)}
       <tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">จากรายงานเซลล์</div></td>${SIDES.map(mRevCell).join('')}${showTot?`<td class="r tnum win"><b style="font-size:15px">${fmtB(mRevBy.W+mRevBy.K)}</b></td>`:''}</tr>`;
     kpiTag=`<span style="font-size:11px;color:#16a34a;font-weight:700">· ✅ ยึดตัวเลขจากรายงานเซลล์</span>`;
-    kpiNote=`เลขหลัก = <b>โทรทั้งหมด</b> เทียบเป้า/วัน · ใต้เลข = <b>ได้คุย · ไม่ติด</b> · ตัวเลขทั้งหมดมาจาก<b>รายงานที่เซลล์บันทึก</b> (กดแก้ที่การ์ด "รายงานเทเลเซลล์รายวัน" ด้านล่าง)`;
+    kpiNote=`เลข = <b>โทรทั้งหมด</b> เทียบเป้า/วัน · ตัวเลขมาจาก<b>รายงานที่เซลล์บันทึก</b> (ดูรายละเอียดได้คุย/ไม่ติด + แก้ไขที่การ์ด "รายงานเทเลเซลล์รายวัน" ด้านล่าง)`;
   } else {
     kpiBody=`${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,{W:wEvo,K:kEvo},COL.mk,'mk')}
     ${(()=>{const val={W:fw.T1done||0,K:fk.T1done||0},tg={W:(fw.T1recv||0)||(TG.t1||5),K:(fk.T1recv||0)||(TG.t1||5)};return `<tr><td><b style="color:${COL.t1}">💬 T1 · โทร (${rlab()})</b><div style="font-size:11px;color:var(--muted)">โทรลูกค้ารอบ T1 (ออเดอร์ใหม่ + ตามเดิม) · เป้า/ที่ได้รับ</div></td>${SIDES.map(s=>cC(val[s],tg[s],COL.t1,'t1',s)).join('')}${totCell(fmt(val.W+val.K))}</tr>`;})()}
