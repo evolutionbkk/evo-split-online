@@ -1251,7 +1251,7 @@ app.post('/api/admin/kpi-manual', requireAuth, async (req, res) => {
   const side = (b.side === 'W' || b.side === 'K') ? b.side : null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !side) return res.status(400).json({ ok: false, error: 'day (YYYY-MM-DD) + side (W/K) required' });
   const num = (v) => { const n = Number(v); return (isNaN(n) || n < 0) ? 0 : Math.round(n); };
-  const rnd = (o) => { o = o || {}; const total = num(o.total), talk = num(o.talk); return { total, talk, noTalk: Math.max(0, total - talk) }; };
+  const rnd = (o) => { o = o || {}; const total = num(o.total), talk = num(o.talk); const noTalk = (o.noTalk != null && o.noTalk !== '') ? num(o.noTalk) : Math.max(0, total - talk); return { total, talk, noTalk }; };
   const d = b.data || {};
   const rec = {
     t1: rnd(d.t1), t2: rnd(d.t2), t3: rnd(d.t3), lazada: rnd(d.lazada),
