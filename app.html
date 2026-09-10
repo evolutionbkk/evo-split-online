@@ -159,7 +159,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const fmt=n=>Number(n||0).toLocaleString("th-TH");
 const fmtB=n=>"฿"+fmt(Math.round(n||0));
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1900);}
-let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",TKPAGE=1,TKQ="",TRQ="",TRPAGE=1,TRBIN="all",AVDATE="",AVYM="",AVSIDE="all",TCPAGE=1,CLPAGE=1,D={};
+let ME=null,VIEW="dashboard",PREV="dashboard",RANGE="today",CURKEY=null,TKFILTER="all",TKPAGE=1,TKQ="",TRQ="",TRPAGE=1,TRBIN="all",AVDATE="",AVYM="",AVSIDE="all",TCPAGE=1,CLPAGE=1,TELWHO="all",D={};
 function apptKey(r){const t=Date.parse(r.nextAppt||"");if(isNaN(t))return null;const TZ=7*3600000,d=new Date(t+TZ),p=n=>String(n).padStart(2,"0");return d.getUTCFullYear()+"-"+p(d.getUTCMonth()+1)+"-"+p(d.getUTCDate());}
 function apptKeyLab(k){const a=k.split("-");return a[2]+"/"+a[1]+"/"+String((+a[0])+543).slice(-2);}
 function apptTime(v){const t=Date.parse(v);if(isNaN(t))return"";const TZ=7*3600000,d=new Date(t+TZ),p=n=>String(n).padStart(2,"0");return p(d.getUTCHours())+":"+p(d.getUTCMinutes());}
@@ -195,6 +195,7 @@ function renderNav(){
       :`<button class="nav-i ${it.sub?"sub":""} ${(VIEW===it.k||(it.k==="tickets"&&VIEW==="ticket"))?"on":""}" onclick="go('${it.k}')">${it.ic?`<span class="ic">${it.ic}</span>`:""}<span>${it.t}</span></button>`).join("");
 }
 window.go=function(k){VIEW=k;$("#side").classList.remove("open");paint();};
+window.setTelWho=function(w){TELWHO=w;paint();};
 
 async function getJSON(u){const r=await fetch(u);if(r.status===401){location.href="/login";return null;}if(r.status===403){location.href="/sales";return null;}return r.json().catch(()=>({}));}
 async function postJSON(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});if(r.status===401){location.href="/login";return null;}return r.json().catch(()=>({}));}
@@ -298,8 +299,9 @@ function manualReportCard(){
   const dk=D.manualDay;
   if(!dk)return `<div class="secttl" style="margin-top:6px">📋 รายงานเทเลเซลล์รายวัน (บันทึกเอง)<span class="ln"></span></div><div class="card" style="padding:13px 15px;color:var(--muted);font-size:12.5px;margin-bottom:20px">เลือกช่วงเวลาเป็น <b>วันนี้</b> / <b>เมื่อวาน</b> / <b>กำหนดเอง (วันเดียว)</b> เพื่อดูหรือกรอกรายงานรายวัน</div>`;
   const p=dk.split("-"),disp=`${p[2]}/${p[1]}/${(+p[0])+543}`;
-  return `<div class="secttl" style="margin-top:6px">📋 รายงานเทเลเซลล์รายวัน (บันทึกเอง) · ${disp}<span style="font-size:11px;color:var(--muted);font-weight:400"> · ตัวเลขจากรายงานของเซลล์แต่ละคน (โทร/ได้คุย/ไม่ได้คุย)</span><span class="ln"></span></div>
-  <div class="two" style="margin-bottom:20px">${mrSide("W")}${mrSide("K")}</div>`;
+  const who=(TELWHO==='W'||TELWHO==='K')?TELWHO:'all',sides=who==='all'?['W','K']:[who];
+  return `<div class="secttl" style="margin-top:6px">📋 รายงานเทเลเซลล์รายวัน (บันทึกเอง) · ${disp}<span style="font-size:11px;color:var(--muted);font-weight:400"> · กรอก/แก้ไขตัวเลขรายงานของเซลล์ที่นี่ (โทร/ได้คุย/ไม่ได้คุย)</span><span class="ln"></span></div>
+  <div class="${sides.length>1?'two':''}" style="margin-bottom:20px">${sides.map(mrSide).join('')}</div>`;
 }
 window.editManual=function(side){
   const dk=D.manualDay;if(!dk){toast("เลือกวันเดียว (วันนี้/เมื่อวาน/กำหนดเอง 1 วัน) ก่อน");return;}
@@ -384,16 +386,24 @@ function viewTelOverview(){
   const wEvo=W.calledEvoToday||0,kEvo=K.calledEvoToday||0,wMan=W.calledManualToday||0,kMan=K.calledManualToday||0;
   const stK=[["new","ใหม่"],["contacting","กำลังติดต่อ"],["interested","สนใจ"],["followup","นัดติดตาม"],["awaiting_payment","รอชำระเงิน"],["won","ปิดสำเร็จ"],["lost","ไม่สนใจ"]];
   let h=filterBar();
+  // ฟิลเตอร์ดูรายคน — รวมทีม / พี่หวาน (W) / พี่เขม (K)
+  const WHO=(TELWHO==='W'||TELWHO==='K')?TELWHO:'all';
+  const SIDES=WHO==='all'?['W','K']:[WHO];
+  const showTot=SIDES.length>1;
+  const SNAME={W:'พี่หวาน (W)',K:'พี่เขม (K)'};
+  h+=`<div class="filters" style="margin-top:-4px;margin-bottom:14px"><div class="fg"><span class="lb">👥 ดูรายคน</span>`+[['all','รวมทีม'],['W','พี่หวาน'],['K','พี่เขม']].map(([k,t])=>`<button class="chip ${WHO===k?'on':''}" onclick="setTelWho('${k}')">${t}</button>`).join('')+`</div></div>`;
+  const thHead=(c1)=>`<tr><th>${c1}</th>${SIDES.map(s=>`<th>${SNAME[s]}</th>`).join('')}${showTot?'<th class="r">รวมทีม</th>':''}</tr>`;
+  const totCell=(sum,cls,sz)=>showTot?`<td class="r tnum${cls?' '+cls:''}"><b style="font-size:${sz||15}px">${sum}</b></td>`:'';
   const TW=(D.tiers&&D.tiers.W)||{},TK=(D.tiers&&D.tiers.K)||{};
   const fw=TW.fbpage||{},fk=TK.fbpage||{};
   const COL={mk:"#a16207",t1:"#2563eb",t2:"#0891b2",t3:"#7c3aed"};
   const cC=(v,tg,color,cat,side)=>{const pct=tg?Math.min(100,Math.round(v/tg*100)):0;return `<td onclick="drillKpi('${cat}','${side}')" style="cursor:pointer" title="กดดูรายชื่อ/เบอร์"><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${fmt(v)}<span style="color:var(--muted);font-weight:500">/${tg}</span></span><span class="tnum" style="color:${color}">${pct}%</span></div>${bar(pct,color)}</td>`;};
-  const row=(dot,lab,sub,tg,wv,kv,color,cat)=>`<tr><td><b style="color:${color}">${dot} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${cC(wv,tg,color,cat,'W')}${cC(kv,tg,color,cat,'K')}<td class="r tnum"><b style="font-size:15px">${fmt(wv+kv)}</b></td></tr>`;
+  const row=(dot,lab,sub,tg,vals,color,cat)=>`<tr><td><b style="color:${color}">${dot} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${SIDES.map(s=>cC(vals[s]||0,tg,color,cat,s)).join('')}${totCell(fmt((vals.W||0)+(vals.K||0)))}</tr>`;
   // ยอดขายวันนี้ — จากที่เซลล์บันทึกปิดการขาย (todaySales ต่อฝั่ง) เหมือนฝั่งแอดมิน
   const revOf=side=>((D.kpi[side]||{}).todaySales||[]).reduce((s,x)=>s+(x.amount||0),0);
-  const wRev=revOf("W"),kRev=revOf("K");
+  const wRev=revOf("W"),kRev=revOf("K"),revBy={W:wRev,K:kRev};
   const revCell=(side,amt,cnt)=>`<td onclick="drillKpi('rev','${side}')" style="cursor:pointer" title="กดดูรายการขายวันนี้"><div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:14px"><span class="tnum win">${fmtB(amt)}</span><span class="tnum" style="color:var(--muted);font-weight:600;font-size:11px">${fmt(cnt)} ปิด</span></div><div style="height:7px;margin-top:5px"></div></td>`;
-  const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">ปิดได้วันนี้ · จากที่เซลล์บันทึก</div></td>${revCell("W",wRev,W.wonToday||0)}${revCell("K",kRev,K.wonToday||0)}<td class="r tnum win"><b style="font-size:15px">${fmtB(wRev+kRev)}</b></td></tr>`;
+  const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">ปิดได้วันนี้ · จากที่เซลล์บันทึก</div></td>${SIDES.map(s=>revCell(s,revBy[s],(D.kpi[s]||{}).wonToday||0)).join('')}${totCell(fmtB(wRev+kRev),'win')}</tr>`;
   // ลูกค้าใหม่ (ปิดการขายจากแชท) ที่เข้าเทเลเซลล์ในช่วงนี้ — ชุดข้อมูลเดียว วันเดียว · ยอดย่อยรวมกันได้พอดี
   const TR=(D.tiers&&D.tiers.t1Recv)||{W:0,K:0,total:0,admin:0,telesales:0,byCloser:[]};
   const t1W=TR.W||0,t1K=TR.K||0,t1Tot=TR.total||0;
@@ -403,25 +413,46 @@ function viewTelOverview(){
       <div><b style="font-size:14px;color:${COL.t1}">📥 ลูกค้าใหม่เข้าเทเลเซลล์ (ปิดการขายจากแชท) · ${rlab()}</b><div style="font-size:11.5px;color:var(--muted);margin-top:2px">ออเดอร์ที่ปิดการขายแล้ว กลายเป็น T1 แจกให้เทเลเซลล์โทร — นับตาม <b>“วันที่แจกเข้าเซลล์”</b> วันเดียว · <b>ทุกคนที่ปิด</b> (ยอดย่อยด้านล่างรวมกันได้พอดี)</div></div>
       <div class="tnum" style="font-size:26px;font-weight:800;color:${COL.t1}">${fmt(t1Tot)} <span style="font-size:13px;color:var(--muted);font-weight:600">ราย</span></div></div>
     <div style="font-size:12.5px;margin-top:9px"><b>แจกเข้า:</b> <b style="color:${COL.t1}">พี่หวาน ${fmt(t1W)}</b> · <b style="color:${COL.t1}">พี่เขม ${fmt(t1K)}</b> ราย <span style="color:var(--muted)">(${fmt(t1W)}+${fmt(t1K)} = ${fmt(t1Tot)})</span></div>
-    <div style="font-size:12px;color:var(--muted);margin-top:7px;padding-top:9px;border-top:1px dashed var(--line)"><b>ปิดโดย:</b> ${closerList} <span style="font-size:11px">— รวมแอดมิน ${fmt(TR.admin||0)}${(TR.telesales||0)?` · เทเลเซลล์ปิดเอง ${fmt(TR.telesales)}`:""} = ${fmt(t1Tot)}</span></div></div>
-  <div class="secttl">📊 KPI การติดตาม — ${rlab()} <span style="font-size:11px;color:var(--muted);font-weight:400">· ตามช่วงเวลาที่เลือกด้านบน · กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span><span class="ln"></span></div>
-  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
-    ${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,wEvo,kEvo,COL.mk,'mk')}
-    ${(()=>{const wd=fw.T1done||0,kd=fk.T1done||0,wr=(fw.T1recv||0)||(TG.t1||5),kr=(fk.T1recv||0)||(TG.t1||5);return `<tr><td><b style="color:${COL.t1}">💬 T1 · โทร (${rlab()})</b><div style="font-size:11px;color:var(--muted)">โทรลูกค้ารอบ T1 (ออเดอร์ใหม่ + ตามเดิม) · เป้า/ที่ได้รับ</div></td>${cC(wd,wr,COL.t1,'t1','W')}${cC(kd,kr,COL.t1,'t1','K')}<td class="r tnum"><b style="font-size:15px">${fmt(wd+kd)}</b></td></tr>`;})()}
-    ${row("💬","T2 · ตามรอบ 2","",TG.t2||5,fw.T2d||0,fk.T2d||0,COL.t2,'t2')}
-    ${row("💬","T3 · ตามรอบ 3","",TG.t3||20,fw.T3d||0,fk.T3d||0,COL.t3,'t3')}
-    ${(()=>{const o=(D.tiers&&D.tiers.offToday)||{W:0,K:0,total:0};return `<tr style="background:#fff7ed"><td><b style="color:#c2410c">📵 สายนอกเกณฑ์ (${rlab()})</b><div style="font-size:11px;color:var(--muted)">โทรออก<b>ได้คุย</b> แต่เป็น<b>เบอร์ที่ไม่มีในระบบ</b> จึงไม่เข้า T1/T2/T3 — เช่น ลูกค้าโทรเข้าเอง · เบอร์จาก LINE · ลูกค้านอกลิสต์</div></td><td onclick="drillOffList('W')" style="cursor:pointer" title="กดดูเบอร์"><b class="tnum" style="font-size:14px;color:#c2410c">${fmt(o.W)}</b> <span style="font-size:11px;color:var(--muted)">สาย</span></td><td onclick="drillOffList('K')" style="cursor:pointer" title="กดดูเบอร์"><b class="tnum" style="font-size:14px;color:#c2410c">${fmt(o.K)}</b> <span style="font-size:11px;color:var(--muted)">สาย</span></td><td class="r tnum"><b style="font-size:15px;color:#c2410c">${fmt(o.total)}</b></td></tr>`;})()}
-    ${revRow}
-  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · <b>ยอดขาย</b> = ยอดที่ปิดได้วันนี้ (จากรายการที่เซลล์บันทึกในระบบ) · กดตัวเลขเพื่อดูรายละเอียด</div></div>`;
+    <div style="font-size:12px;color:var(--muted);margin-top:7px;padding-top:9px;border-top:1px dashed var(--line)"><b>ปิดโดย:</b> ${closerList} <span style="font-size:11px">— รวมแอดมิน ${fmt(TR.admin||0)}${(TR.telesales||0)?` · เทเลเซลล์ปิดเอง ${fmt(TR.telesales)}`:""} = ${fmt(t1Tot)}</span></div></div>`;
+  const MAN=D.manual||null, useMan=!!(MAN&&D.manualDay);
+  let kpiBody, kpiNote, kpiTag;
+  if(useMan){
+    // ยึดตัวเลขจากรายงานเซลล์ (Sales report) — "โทรทั้งหมด" เทียบเป้า · โชว์ได้คุย/ไม่ติดใต้เลข
+    const mCell=(side,key,tg,color)=>{const o=((MAN[side]||{})[key])||{};const tot=o.total||0,talk=o.talk||0;const pct=tg?Math.min(100,Math.round(tot/tg*100)):0;return `<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${fmt(tot)}<span style="color:var(--muted);font-weight:500">/${tg}</span></span><span class="tnum" style="color:${color}">${pct}%</span></div><div style="font-size:10.5px;color:var(--muted);margin-top:2px">ได้คุย ${fmt(talk)} · ไม่ติด ${fmt(Math.max(0,tot-talk))}</div>${bar(pct,color)}</td>`;};
+    const mTot=key=>((MAN.W&&MAN.W[key]&&MAN.W[key].total)||0)+((MAN.K&&MAN.K[key]&&MAN.K[key].total)||0);
+    const mRow=(dot,lab,sub,key,tg,color)=>`<tr><td><b style="color:${color}">${dot} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${SIDES.map(s=>mCell(s,key,tg,color)).join('')}${totCell(fmt(mTot(key)))}</tr>`;
+    const mRevBy={W:(MAN.W&&MAN.W.revenue)||0,K:(MAN.K&&MAN.K.revenue)||0},mOrdBy={W:(MAN.W&&MAN.W.orders)||0,K:(MAN.K&&MAN.K.orders)||0};
+    const mRevCell=s=>`<td><div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:14px"><span class="tnum win">${fmtB(mRevBy[s])}</span><span class="tnum" style="color:var(--muted);font-weight:600;font-size:11px">${fmt(mOrdBy[s])} ปิด</span></div><div style="height:7px;margin-top:5px"></div></td>`;
+    kpiBody=`${mRow("📦","Marketplace (Lazada)","",'lazada',TG.evo||30,COL.mk)}
+      ${mRow("💬","T1 · โทรขาย","",'t1',TG.t1||5,COL.t1)}
+      ${mRow("💬","T2 · ตามรอบ 2","",'t2',TG.t2||5,COL.t2)}
+      ${mRow("💬","T3 · ตามรอบ 3","",'t3',TG.t3||20,COL.t3)}
+      <tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">จากรายงานเซลล์</div></td>${SIDES.map(mRevCell).join('')}${showTot?`<td class="r tnum win"><b style="font-size:15px">${fmtB(mRevBy.W+mRevBy.K)}</b></td>`:''}</tr>`;
+    kpiTag=`<span style="font-size:11px;color:#16a34a;font-weight:700">· ✅ ยึดตัวเลขจากรายงานเซลล์</span>`;
+    kpiNote=`เลขหลัก = <b>โทรทั้งหมด</b> เทียบเป้า/วัน · ใต้เลข = <b>ได้คุย · ไม่ติด</b> · ตัวเลขทั้งหมดมาจาก<b>รายงานที่เซลล์บันทึก</b> (กดแก้ที่การ์ด "รายงานเทเลเซลล์รายวัน" ด้านล่าง)`;
+  } else {
+    kpiBody=`${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,{W:wEvo,K:kEvo},COL.mk,'mk')}
+    ${(()=>{const val={W:fw.T1done||0,K:fk.T1done||0},tg={W:(fw.T1recv||0)||(TG.t1||5),K:(fk.T1recv||0)||(TG.t1||5)};return `<tr><td><b style="color:${COL.t1}">💬 T1 · โทร (${rlab()})</b><div style="font-size:11px;color:var(--muted)">โทรลูกค้ารอบ T1 (ออเดอร์ใหม่ + ตามเดิม) · เป้า/ที่ได้รับ</div></td>${SIDES.map(s=>cC(val[s],tg[s],COL.t1,'t1',s)).join('')}${totCell(fmt(val.W+val.K))}</tr>`;})()}
+    ${row("💬","T2 · ตามรอบ 2","",TG.t2||5,{W:fw.T2d||0,K:fk.T2d||0},COL.t2,'t2')}
+    ${row("💬","T3 · ตามรอบ 3","",TG.t3||20,{W:fw.T3d||0,K:fk.T3d||0},COL.t3,'t3')}
+    ${(()=>{const o=(D.tiers&&D.tiers.offToday)||{W:0,K:0,total:0};const oc=s=>`<td onclick="drillOffList('${s}')" style="cursor:pointer" title="กดดูเบอร์"><b class="tnum" style="font-size:14px;color:#c2410c">${fmt(o[s]||0)}</b> <span style="font-size:11px;color:var(--muted)">สาย</span></td>`;return `<tr style="background:#fff7ed"><td><b style="color:#c2410c">📵 สายนอกเกณฑ์ (${rlab()})</b><div style="font-size:11px;color:var(--muted)">โทรออก<b>ได้คุย</b> แต่เป็น<b>เบอร์ที่ไม่มีในระบบ</b> จึงไม่เข้า T1/T2/T3 — เช่น ลูกค้าโทรเข้าเอง · เบอร์จาก LINE · ลูกค้านอกลิสต์</div></td>${SIDES.map(oc).join('')}${showTot?`<td class="r tnum"><b style="font-size:15px;color:#c2410c">${fmt(o.total)}</b></td>`:''}</tr>`;})()}
+    ${revRow}`;
+    kpiTag=`<span style="font-size:11px;color:var(--muted);font-weight:400">· ตัวเลขจากระบบ OneCall · กดตัวเลข W/K เพื่อดูรายชื่อ/เบอร์</span>`;
+    kpiNote=`ตัวเลขจับจากระบบ OneCall (ยังไม่มีรายงานเซลล์ของวันนี้) · <b>ยอดขาย</b> = ยอดที่ปิดได้วันนี้ · กดตัวเลขเพื่อดูรายละเอียด`;
+  }
+  h+=`<div class="secttl">📊 KPI การติดตาม — ${rlab()} ${kpiTag}<span class="ln"></span></div>
+  <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead>${thHead('รายการ')}</thead><tbody>
+    ${kpiBody}
+  </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">${kpiNote}</div></div>`;
   h+=manualReportCard();
   h+=`<div class="secttl" style="margin-top:6px">📇 การติดต่อลูกค้า — ${rlab()} (แยกช่องทาง)<span style="font-size:11px;color:var(--muted);font-weight:400"> · โทร + LINE ที่เซลล์ติดต่อจริงในช่วงที่เลือก</span><span class="ln"></span></div>`;
-  h+=(()=>{const c=(D.tiers&&D.tiers.contactToday)||{W:{},K:{}};const W=c.W||{},K=c.K||{};
-    const row=(icon,lab,sub,wv,kv,color)=>`<tr><td><b style="color:${color}">${icon} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td><td class="tnum" style="font-weight:800;color:${color}">${fmt(wv||0)}</td><td class="tnum" style="font-weight:800;color:${color}">${fmt(kv||0)}</td><td class="r tnum"><b style="font-size:15px">${fmt((wv||0)+(kv||0))}</b></td></tr>`;
-    return `<div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead><tr><th>ช่องทางติดต่อ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody>
-      ${row("📞","โทร · ได้คุย (>7วิ)","สายจริงที่คุยได้จากระบบโทร OneCall",W.phoneTalk,K.phoneTalk,"#16a34a")}
-      ${row("📵","โทร · สั้น/ไม่รับ (<7วิ)","โทรออกแต่ไม่ได้คุย",W.phoneShort,K.phoneShort,"#94a3b8")}
-      ${row("💬","LINE (แชท/โทร LINE/ส่งโปรฯ)","ติดตามผ่าน LINE ไม่ได้โทรเข้าเบอร์ · นับเป็นได้คุย",W.line,K.line,"#1a7f37")}
-      <tr style="border-top:2px solid var(--line);background:var(--surface-2,#f1f5f9)"><td><b>รวม \"ได้คุย\" ทุกช่องทาง</b><div style="font-size:11px;color:var(--muted)">โทรได้คุย + LINE (ไม่รวมสายสั้น/ไม่รับ)</div></td><td class="tnum" style="font-weight:800;font-size:15px">${fmt(W.total||0)}</td><td class="tnum" style="font-weight:800;font-size:15px">${fmt(K.total||0)}</td><td class="r tnum"><b style="font-size:16px;color:var(--ok)">${fmt((W.total||0)+(K.total||0))}</b></td></tr>
+  h+=(()=>{const c=(D.tiers&&D.tiers.contactToday)||{W:{},K:{}};const W=c.W||{},K=c.K||{},CBY={W,K};
+    const crow=(icon,lab,sub,key,color)=>`<tr><td><b style="color:${color}">${icon} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${SIDES.map(s=>`<td class="tnum" style="font-weight:800;color:${color}">${fmt((CBY[s]||{})[key]||0)}</td>`).join('')}${totCell(fmt((W[key]||0)+(K[key]||0)))}</tr>`;
+    return `<div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead>${thHead('ช่องทางติดต่อ')}</thead><tbody>
+      ${crow("📞","โทร · ได้คุย (>7วิ)","สายจริงที่คุยได้จากระบบโทร OneCall","phoneTalk","#16a34a")}
+      ${crow("📵","โทร · สั้น/ไม่รับ (<7วิ)","โทรออกแต่ไม่ได้คุย","phoneShort","#94a3b8")}
+      ${crow("💬","LINE (แชท/โทร LINE/ส่งโปรฯ)","ติดตามผ่าน LINE ไม่ได้โทรเข้าเบอร์ · นับเป็นได้คุย","line","#1a7f37")}
+      <tr style="border-top:2px solid var(--line);background:var(--surface-2,#f1f5f9)"><td><b>รวม \"ได้คุย\" ทุกช่องทาง</b><div style="font-size:11px;color:var(--muted)">โทรได้คุย + LINE (ไม่รวมสายสั้น/ไม่รับ)</div></td>${SIDES.map(s=>`<td class="tnum" style="font-weight:800;font-size:15px">${fmt((CBY[s]||{}).total||0)}</td>`).join('')}${showTot?`<td class="r tnum"><b style="font-size:16px;color:var(--ok)">${fmt((W.total||0)+(K.total||0))}</b></td>`:''}</tr>
     </tbody></table></div>`;})();
   h+=`<div class="secttl" style="margin-top:6px">📞 เบอร์ที่โทรวันนี้ (จริงจากระบบโทร OneCall) <span style="font-size:11px;color:var(--muted);font-weight:400">· รวมสายที่ปิดงาน/ยกเลิกไปแล้วด้วย</span><span class="ln"></span></div>
   <div id="callLogToday"><div class="empty" style="padding:18px">กำลังโหลดสายที่โทรวันนี้…</div></div>`;
