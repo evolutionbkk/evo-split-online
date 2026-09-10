@@ -71,6 +71,7 @@ async function boot() {
   for (const rec of state.assigned) { if (!rec.receivedAt) { rec.receivedAt = rec.updatedAt || new Date().toISOString(); bf = true; } }
   if (!Array.isArray(state.onecall)) state.onecall = [];
   if (!state.onecallSummaries || typeof state.onecallSummaries !== 'object') state.onecallSummaries = {};
+  if (!state.kpiManual || typeof state.kpiManual !== 'object') state.kpiManual = {};   // รายงานเทเลเซลล์รายวัน (บันทึกเอง) · { 'YYYY-MM-DD': { W:{...}, K:{...} } }
   if (!Array.isArray(state.pulls)) state.pulls = [];
   // Pancake baseline: set once, so we only forward orders CLOSED from now on (no 1,375 backfill).
   if (!state.pancake) { state.pancake = { startedAt: new Date().toISOString(), seen: [], lastRun: null, lastAdded: 0, lastError: null }; bf = true; }
@@ -1236,6 +1237,33 @@ app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
   const from = req.query.from ? Date.parse(req.query.from) : null;
   const to = req.query.to ? Date.parse(req.query.to) : null;
   res.json({ ok: true, names: SALES_NAMES, tiers: followupTiers(from, to) });
+});
+
+// ----- Manual daily telesales report (บันทึกเอง) — total/talked/not-talked per round + sales -----
+app.get('/api/admin/kpi-manual', requireAuth, (req, res) => {
+  const day = String(req.query.day || '').slice(0, 10);
+  const all = state.kpiManual || {};
+  res.json({ ok: true, day, report: (day && all[day]) || null });
+});
+app.post('/api/admin/kpi-manual', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const day = String(b.day || '').slice(0, 10);
+  const side = (b.side === 'W' || b.side === 'K') ? b.side : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !side) return res.status(400).json({ ok: false, error: 'day (YYYY-MM-DD) + side (W/K) required' });
+  const num = (v) => { const n = Number(v); return (isNaN(n) || n < 0) ? 0 : Math.round(n); };
+  const rnd = (o) => { o = o || {}; const total = num(o.total), talk = num(o.talk); return { total, talk, noTalk: Math.max(0, total - talk) }; };
+  const d = b.data || {};
+  const rec = {
+    t1: rnd(d.t1), t2: rnd(d.t2), t3: rnd(d.t3), lazada: rnd(d.lazada),
+    orders: num(d.orders), revenue: num(d.revenue),
+    note: String(d.note || '').slice(0, 1000),
+    updatedAt: new Date().toISOString(),
+  };
+  if (!state.kpiManual || typeof state.kpiManual !== 'object') state.kpiManual = {};
+  if (!state.kpiManual[day] || typeof state.kpiManual[day] !== 'object') state.kpiManual[day] = {};
+  state.kpiManual[day][side] = rec;
+  state = await store.save(state);
+  res.json({ ok: true, day, side, report: state.kpiManual[day] });
 });
 
 // ----- Cross-source duplicate detection: same phone in 2+ ACTIVE leads -----

@@ -242,6 +242,8 @@ async function load(){
   D={kpi:kpi||{},calls:calls||{},chat:chat||{},pool:pool||{},dist:dist||{},leave:leave||{},tiers:(tiers&&tiers.tiers)||{},adminPerf:aperf||{}};
   D.leads=(leads&&leads.active)||[];D.archived=(leads&&leads.archived)||[];
   D.src=srcAgg(D.leads);D.todo=todoAgg(D.leads);
+  const __mdk=manualDayKey();D.manualDay=__mdk;
+  if(__mdk){const mm=await getJSON("/api/admin/kpi-manual?day="+__mdk);D.manual=(mm&&mm.report)||null;}else{D.manual=null;}
 }
 function srcAgg(list){const z=()=>({leads:0,called:0,interest:0,won:0,rev:0});const A={mkt:z(),fb:z()};
   for(const r of list){const a=A[FB(r.source)?"fb":"mkt"];a.leads++;if((r.callCount||0)>0)a.called++;const st=r.leadStatus||"new";if(st==="interested"||st==="followup")a.interest++;if(st==="won"){a.won++;a.rev+=saleRev(r);}}return A;}
@@ -265,6 +267,64 @@ function bar(pct,c){return `<div style="height:7px;background:var(--line);border
 function cell(v,pct){const c=pct>=90?"var(--ok)":pct>=60?"var(--brand)":pct>=40?"var(--warn)":"var(--bad)";return `<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${v}</span><span class="tnum" style="color:${c}">${pct}%</span></div>${bar(pct,c)}</td>`;}
 const pc=(v,t)=>t?Math.round(v/t*100):0;
 function ownerLabel(side){return side==="K"?"พี่เขม":"พี่หวาน";}
+
+/* ===== รายงานเทเลเซลล์รายวัน (บันทึกเอง) ===== */
+function manualDayKey(){
+  const TZ=7*3600000,th=new Date(Date.now()+TZ),y=th.getUTCFullYear(),m=th.getUTCMonth(),d=th.getUTCDate();
+  const iso=t=>new Date(t).toISOString().slice(0,10);
+  if(RANGE==="today")return iso(Date.UTC(y,m,d));
+  if(RANGE==="yesterday")return iso(Date.UTC(y,m,d)-86400000);
+  if(RANGE==="custom"&&customFrom&&customTo&&customFrom===customTo)return customFrom;
+  return null;   // ช่วงหลายวัน — รายงานรายวันแสดงเฉพาะเมื่อเลือกวันเดียว
+}
+function mrRow(lab,o){o=o||{};const t=o.total||0,tk=o.talk||0;return `<tr><td>${lab}</td><td class="r tnum">${fmt(t)}</td><td class="r tnum" style="color:var(--ok)">${fmt(tk)}</td><td class="r tnum" style="color:var(--bad)">${fmt(Math.max(0,t-tk))}</td></tr>`;}
+function mrSide(side){
+  const r=(D.manual&&D.manual[side])||null,nm=ownerLabel(side);
+  let inner;
+  if(!r){inner=`<div style="color:var(--muted);font-size:12.5px;padding:10px 0">ยังไม่มีรายงานของ${nm} — กด ✏️ เพื่อกรอก</div>`;}
+  else{
+    const sum=k=>((r[k]||{}).total||0),sut=k=>((r[k]||{}).talk||0);
+    const tot=sum("t1")+sum("t2")+sum("t3")+sum("lazada"),tk=sut("t1")+sut("t2")+sut("t3")+sut("lazada");
+    inner=`<table class="tbl" style="font-size:12.5px"><thead><tr><th>รอบ</th><th class="r">โทรทั้งหมด</th><th class="r">ได้คุย</th><th class="r">ไม่ได้คุย</th></tr></thead><tbody>
+      ${mrRow("T1 · โทรขาย",r.t1)}${mrRow("T2 · ตามรอบ 2",r.t2)}${mrRow("T3 · ตามรอบ 3",r.t3)}${mrRow("Lazada",r.lazada)}
+      <tr style="border-top:2px solid var(--line);font-weight:800"><td>รวม</td><td class="r tnum">${fmt(tot)}</td><td class="r tnum" style="color:var(--ok)">${fmt(tk)}</td><td class="r tnum" style="color:var(--bad)">${fmt(Math.max(0,tot-tk))}</td></tr>
+      </tbody></table>
+      <div style="font-size:12.5px;margin-top:9px">💰 ยอดขาย: <b class="win">${fmtB(r.revenue||0)}</b> · ${fmt(r.orders||0)} ออเดอร์</div>
+      ${r.note?`<div style="font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px dashed var(--line);white-space:pre-wrap">📝 ${esc(r.note)}</div>`:""}`;
+  }
+  return `<div class="card" style="padding:13px 15px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13px">${nm} (${side})</b><span onclick="editManual('${side}')" style="cursor:pointer;color:var(--brand);font-size:12px;font-weight:700">✏️ กรอก/แก้ไข</span></div>${inner}</div>`;
+}
+function manualReportCard(){
+  const dk=D.manualDay;
+  if(!dk)return `<div class="secttl" style="margin-top:6px">📋 รายงานเทเลเซลล์รายวัน (บันทึกเอง)<span class="ln"></span></div><div class="card" style="padding:13px 15px;color:var(--muted);font-size:12.5px;margin-bottom:20px">เลือกช่วงเวลาเป็น <b>วันนี้</b> / <b>เมื่อวาน</b> / <b>กำหนดเอง (วันเดียว)</b> เพื่อดูหรือกรอกรายงานรายวัน</div>`;
+  const p=dk.split("-"),disp=`${p[2]}/${p[1]}/${(+p[0])+543}`;
+  return `<div class="secttl" style="margin-top:6px">📋 รายงานเทเลเซลล์รายวัน (บันทึกเอง) · ${disp}<span style="font-size:11px;color:var(--muted);font-weight:400"> · ตัวเลขจากรายงานของเซลล์แต่ละคน (โทร/ได้คุย/ไม่ได้คุย)</span><span class="ln"></span></div>
+  <div class="two" style="margin-bottom:20px">${mrSide("W")}${mrSide("K")}</div>`;
+}
+window.editManual=function(side){
+  const dk=D.manualDay;if(!dk){toast("เลือกวันเดียว (วันนี้/เมื่อวาน/กำหนดเอง 1 วัน) ก่อน");return;}
+  const r=(D.manual&&D.manual[side])||{t1:{},t2:{},t3:{},lazada:{},orders:0,revenue:0,note:""},nm=ownerLabel(side);
+  const inp=(id,v)=>`<input class="inp" id="${id}" type="number" min="0" value="${v||0}" style="width:88px;padding:5px 7px;font-size:13px">`;
+  const rrow=(k,lab)=>`<tr><td style="padding:5px 6px">${lab}</td><td style="padding:3px 6px">${inp("m_"+k+"_total",(r[k]||{}).total)}</td><td style="padding:3px 6px">${inp("m_"+k+"_talk",(r[k]||{}).talk)}</td></tr>`;
+  const html=`<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">กรอก "โทรทั้งหมด" กับ "ได้คุย" — ระบบคำนวณ "ไม่ได้คุย" ให้เอง</div>
+  <table class="tbl" style="font-size:13px"><thead><tr><th>รอบ</th><th>โทรทั้งหมด</th><th>ได้คุย</th></tr></thead><tbody>
+  ${rrow("t1","T1 · โทรขาย")}${rrow("t2","T2 · ตามรอบ 2")}${rrow("t3","T3 · ตามรอบ 3")}${rrow("lazada","Lazada")}
+  </tbody></table>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px">
+    <div><label style="font-size:11.5px;color:var(--muted)">ยอดขายรวม (บาท)</label><br>${inp("m_revenue",r.revenue)}</div>
+    <div><label style="font-size:11.5px;color:var(--muted)">จำนวนออเดอร์</label><br>${inp("m_orders",r.orders)}</div>
+  </div>
+  <div style="margin-top:12px"><label style="font-size:11.5px;color:var(--muted)">หมายเหตุ</label><br><textarea class="inp" id="m_note" style="width:100%;min-height:64px;padding:7px;font-size:13px;box-sizing:border-box">${esc(r.note||"")}</textarea></div>
+  <div style="margin-top:16px;text-align:right"><button class="chip on" onclick="saveManual('${side}')" style="padding:8px 20px">💾 บันทึก</button></div>`;
+  showModal(`✏️ รายงาน${nm} (${side})`,html);
+};
+window.saveManual=async function(side){
+  const dk=D.manualDay,g=id=>{const el=document.getElementById(id);return el?el.value:0;};
+  const rr=k=>({total:g("m_"+k+"_total"),talk:g("m_"+k+"_talk")});
+  const data={t1:rr("t1"),t2:rr("t2"),t3:rr("t3"),lazada:rr("lazada"),revenue:g("m_revenue"),orders:g("m_orders"),note:g("m_note")};
+  const res=await postJSON("/api/admin/kpi-manual",{day:dk,side,data});
+  if(res&&res.ok){closeModal();toast("บันทึกรายงานแล้ว");await load();paint();}else{toast("บันทึกไม่สำเร็จ");}
+};
 
 /* ===== DASHBOARD ===== */
 function viewDashboard(){
@@ -353,6 +413,7 @@ function viewTelOverview(){
     ${(()=>{const o=(D.tiers&&D.tiers.offToday)||{W:0,K:0,total:0};return `<tr style="background:#fff7ed"><td><b style="color:#c2410c">📵 สายนอกเกณฑ์ (${rlab()})</b><div style="font-size:11px;color:var(--muted)">โทรออก<b>ได้คุย</b> แต่เป็น<b>เบอร์ที่ไม่มีในระบบ</b> จึงไม่เข้า T1/T2/T3 — เช่น ลูกค้าโทรเข้าเอง · เบอร์จาก LINE · ลูกค้านอกลิสต์</div></td><td onclick="drillOffList('W')" style="cursor:pointer" title="กดดูเบอร์"><b class="tnum" style="font-size:14px;color:#c2410c">${fmt(o.W)}</b> <span style="font-size:11px;color:var(--muted)">สาย</span></td><td onclick="drillOffList('K')" style="cursor:pointer" title="กดดูเบอร์"><b class="tnum" style="font-size:14px;color:#c2410c">${fmt(o.K)}</b> <span style="font-size:11px;color:var(--muted)">สาย</span></td><td class="r tnum"><b style="font-size:15px;color:#c2410c">${fmt(o.total)}</b></td></tr>`;})()}
     ${revRow}
   </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">เป้าเป็นรายวัน · แต่ละรอบแยกสี · <b>ยอดขาย</b> = ยอดที่ปิดได้วันนี้ (จากรายการที่เซลล์บันทึกในระบบ) · กดตัวเลขเพื่อดูรายละเอียด</div></div>`;
+  h+=manualReportCard();
   h+=`<div class="secttl" style="margin-top:6px">📇 การติดต่อลูกค้า — ${rlab()} (แยกช่องทาง)<span style="font-size:11px;color:var(--muted);font-weight:400"> · โทร + LINE ที่เซลล์ติดต่อจริงในช่วงที่เลือก</span><span class="ln"></span></div>`;
   h+=(()=>{const c=(D.tiers&&D.tiers.contactToday)||{W:{},K:{}};const W=c.W||{},K=c.K||{};
     const row=(icon,lab,sub,wv,kv,color)=>`<tr><td><b style="color:${color}">${icon} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td><td class="tnum" style="font-weight:800;color:${color}">${fmt(wv||0)}</td><td class="tnum" style="font-weight:800;color:${color}">${fmt(kv||0)}</td><td class="r tnum"><b style="font-size:15px">${fmt((wv||0)+(kv||0))}</b></td></tr>`;
