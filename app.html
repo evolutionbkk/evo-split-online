@@ -984,7 +984,7 @@ window.avNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);le
 window.avSide=function(s){AVSIDE=s;AVDATE="";paint();};
 /* render */
 /* ===== รายชื่อลูกค้า (Dashboard + ส่งออก Excel) ===== */
-let CUST=null,CUSTCH="all",CUSTSIDE="all",CUSTQ="",CUSTPAGE=1;
+let CUST=null,CUSTCH="all",CUSTSIDE="all",CUSTQ="",CUSTPAGE=1,CUSTFROM="",CUSTTO="";
 const CUSTCH_LAB={all:"ทุกช่องทาง",fb:"Facebook (Pancake)",mkt:"Marketplace",legacy:"ฐานเก่า"};
 function custD2(v){const t=Date.parse(v);if(isNaN(t))return"";const d=new Date(t+7*3600000),p=n=>String(n).padStart(2,"0");return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+String(d.getUTCFullYear()+543).slice(-2);}
 function viewCustomers(){
@@ -993,7 +993,9 @@ function viewCustomers(){
     `</div><div class="fg" style="margin-left:6px"><span class="lb">เซลล์</span>`+
     [['all','ทั้งทีม'],['W','พี่หวาน'],['K','พี่เขม']].map(([k,t])=>`<button class="chip ${CUSTSIDE===k?'on':''}" onclick="setCustSide('${k}')">${t}</button>`).join("")+
     `</div><div class="fg" style="margin-left:auto"><button class="chip on" style="background:#16a34a;border-color:#16a34a;color:#fff;font-weight:800" onclick="exportCustomersExcel()">⬇️ ส่งออก Excel</button></div></div>`;
-  h+=`<input class="inp" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / สินค้า / รหัส" value="${esc(CUSTQ)}" oninput="CUSTQ=this.value.trim();CUSTPAGE=1;paintCust()" style="width:100%;max-width:380px;padding:9px 12px;margin-bottom:14px;border:1.5px solid var(--line);border-radius:9px">`;
+  h+=`<div class="filters" style="margin-bottom:14px"><div class="fg"><span class="lb">📅 ซื้อล่าสุด</span><input type="date" class="inp" id="custFrom" value="${esc(CUSTFROM)}" onchange="CUSTFROM=this.value;CUSTPAGE=1;paintCust()" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px"><span style="color:var(--muted);font-size:12px">ถึง</span><input type="date" class="inp" id="custTo" value="${esc(CUSTTO)}" onchange="CUSTTO=this.value;CUSTPAGE=1;paintCust()" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px">${(CUSTFROM||CUSTTO)?`<button class="chip" onclick="clearCustDate()">✕ ล้างวันที่</button>`:""}</div>
+    <div class="fg" style="margin-left:6px">${[['','ทั้งหมด'],['7','7 วัน'],['30','30 วัน'],['90','90 วัน']].map(([d,t])=>`<button class="chip" onclick="custDatePreset('${d}')">${t}</button>`).join("")}</div>
+    <div class="fg" style="margin-left:auto"><input class="inp" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / สินค้า / รหัส" value="${esc(CUSTQ)}" oninput="CUSTQ=this.value.trim();CUSTPAGE=1;paintCust()" style="width:280px;max-width:100%;padding:8px 12px;border:1.5px solid var(--line);border-radius:9px"></div></div>`;
   h+=`<div id="custWrap"><div class="empty" style="padding:20px">กำลังโหลดรายชื่อลูกค้า…</div></div>`;
   setTimeout(loadCustomers,30);
   return h;
@@ -1004,7 +1006,17 @@ async function loadCustomers(){
   try{const j=await getJSON(`/api/admin/customers?channel=${CUSTCH}&side=${CUSTSIDE}`);CUST=(j&&j.rows)||[];}catch(e){CUST=[];}
   paintCust();
 }
-function custFiltered(){const q=CUSTQ.toLowerCase();return (CUST||[]).filter(r=>!q||[r.name,r.phone,r.product,r.code].some(v=>String(v||"").toLowerCase().includes(q)));}
+function custFiltered(){
+  const q=CUSTQ.toLowerCase();
+  const fromT=CUSTFROM?Date.parse(CUSTFROM+"T00:00:00"):null, toT=CUSTTO?Date.parse(CUSTTO+"T23:59:59"):null;
+  return (CUST||[]).filter(r=>{
+    if(q&&![r.name,r.phone,r.product,r.code].some(v=>String(v||"").toLowerCase().includes(q)))return false;
+    if(fromT||toT){const dv=Date.parse(r.lastOrder||r.receivedAt||"");if(isNaN(dv))return false;if(fromT&&dv<fromT)return false;if(toT&&dv>toT)return false;}
+    return true;
+  });
+}
+window.clearCustDate=function(){CUSTFROM="";CUSTTO="";const a=document.getElementById("custFrom"),b=document.getElementById("custTo");if(a)a.value="";if(b)b.value="";CUSTPAGE=1;paint();};
+window.custDatePreset=function(d){if(!d){CUSTFROM="";CUSTTO="";}else{const TZ=7*3600000,th=new Date(Date.now()+TZ),iso=t=>new Date(t).toISOString().slice(0,10);CUSTTO=iso(th.getTime());CUSTFROM=iso(th.getTime()-(Number(d)-1)*86400000);}CUSTPAGE=1;paint();};
 const CX_CH_COL={fb:"#0077B6",mkt:"#E8A317",legacy:"#8FA9BE"};
 function ensureCxCss(){
   if(document.getElementById("cxdash-css"))return;
