@@ -749,6 +749,15 @@ function renderSheet(){
   const days=v=>{const t=Date.parse(v);return isNaN(t)?null:Math.max(0,Math.floor((Date.now()-t)/864e5));};
   const lastD=days(r.lastOrderAt);
   const tile=(n,l)=>`<div class="pk-tile"><div class="n tnum">${n}</div><div class="l">${l}</div></div>`;
+  // เติมข้อมูลการ์ด Pancake จากประวัติออเดอร์ในระบบ (Evolution) เมื่อไม่มีข้อมูล Pancake โดยตรง
+  const o0=(Array.isArray(r.orders)&&r.orders.length)?r.orders[0]:null;
+  const pkOrdCnt=(r.succeedOrders!=null)?r.succeedOrders:(r.orderCount||(Array.isArray(r.orders)?r.orders.length:0));
+  const pkLastRaw=r.lastOrderAt||(o0&&o0.date)||"";
+  const pkLastDays=days(pkLastRaw);
+  const pkLastLbl=(pkLastDays!=null)?(pkLastDays+" วันก่อน"):(o0?esc(odDate(o0)):"—");
+  const pkLtv=(r.ltv!=null)?fmtB(r.ltv):(r.orderAmount>0?fmtB(r.orderAmount):"—");
+  const pkSucceed=(pkOrdCnt>0)?(pkOrdCnt+" ครั้ง"):"—";
+  const pkItems=o0?odItemsText(o0):"";
   const ac=(r.aiCalls&&r.aiCalls[0])||null;
   const sumMeta=`จาก 📞 สายโทร OneCall · ${ac?esc(fmtShort(ac.at)):"—"} · โดย${esc(ME.name||("Sales "+ME.side))}`;
   const sumText=ac?esc(ac.summary):(r.note?esc(r.note):(r.product?(esc(r.product)+(r.orderAmount?" "+fmtB(r.orderAmount):"")+" · "+(STLABEL[r.leadStatus||"new"]||"รอโทร")):"ยังไม่มีสรุป — โทรและบันทึกผล/โน้ต แล้วจะเห็นสรุปตรงนี้"));
@@ -830,8 +839,9 @@ function renderSheet(){
       </div>
       <div>
         <div class="box"><h4>👤 ข้อมูลลูกค้า (Pancake)</h4>
-          <div class="pk-tiles">${tile(r.ltv!=null?fmtB(r.ltv):"—","ยอดซื้อสะสม")}${tile(r.succeedOrders!=null?(r.succeedOrders+" ครั้ง"):"—","ออเดอร์สำเร็จ")}${tile(lastD!=null?(lastD+" วันก่อน"):"—","ซื้อล่าสุด")}${tile(r.step||"—","รอบปัจจุบัน")}</div>
+          <div class="pk-tiles">${tile(pkLtv,"ยอดซื้อสะสม")}${tile(pkSucceed,"ออเดอร์สำเร็จ")}${tile(pkLastLbl,"ซื้อล่าสุด")}${tile(r.step||"—","รอบปัจจุบัน")}</div>
           <div class="pk-kv"><span>เคยซื้อ</span><b>${esc(r.product||"—")}</b></div>
+          ${o0?`<div class="pk-kv" style="align-items:flex-start"><span>ประวัติซื้อ</span><b style="text-align:right;max-width:62%">🛒 ${pkOrdCnt} ครั้ง · ล่าสุด ${esc(odDate(o0))}${pkItems?` · ${esc(pkItems)}`:""}</b></div>`:""}
           ${r.page?`<div class="pk-kv"><span>เพจ</span><b>${esc(r.page)}</b></div>`:""}
           <div class="pk-kv"><span>เบอร์</span><b class="mono">${esc(r.phone||"—")}</b></div>
           ${r.nextAppt?`<div class="pk-kv"><span>นัดถัดไป</span><b>${esc(fmtShort(r.nextAppt))}</b></div>`:""}
