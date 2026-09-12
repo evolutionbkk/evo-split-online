@@ -1092,7 +1092,7 @@ function paintCust(){
       ${['W','K'].map(sd=>`<div style="background:#F5FBFE;border:1px solid var(--cxline);border-radius:14px;padding:14px"><div style="font-size:12.5px;color:#4F6C8C;font-weight:700">${sideName(sd)}</div><div style="font-size:20px;font-weight:800;color:#03045E;margin-top:5px" class="tnum">${fmt(sideAgg[sd].n)} <span style="font-size:12px;color:#5E7691;font-weight:600">ราย</span></div><div style="font-size:12.5px;color:#0E9F6E;font-weight:800;margin-top:3px">${fmtB(sideAgg[sd].rev)}</div></div>`).join("")}
     </div></div>`;
   // table card
-  const PER=50,pages=Math.max(1,Math.ceil(rows.length/PER));if(CUSTPAGE>pages)CUSTPAGE=pages;if(CUSTPAGE<1)CUSTPAGE=1;
+  const PER=10,pages=Math.max(1,Math.ceil(rows.length/PER));if(CUSTPAGE>pages)CUSTPAGE=pages;if(CUSTPAGE<1)CUSTPAGE=1;
   const slice=rows.slice((CUSTPAGE-1)*PER,(CUSTPAGE-1)*PER+PER);
   const chChip=c=>`<span class="cchip" style="background:${CX_CH_COL[c]}22;color:${CX_CH_COL[c]}">${chName(c)}</span>`;
   h+=`<div class="c w12"><div class="c-h"><h3>รายชื่อลูกค้าทั้งหมด</h3><span class="r">${fmt(rows.length)} ราย</span></div>
