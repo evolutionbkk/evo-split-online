@@ -1244,10 +1244,14 @@ async function saveKpiManual(day, side, d) {
   const num = (v) => { const n = Number(v); return (isNaN(n) || n < 0) ? 0 : Math.round(n); };
   const rnd = (o) => { o = o || {}; const total = num(o.total), talk = num(o.talk); const noTalk = (o.noTalk != null && o.noTalk !== '') ? num(o.noTalk) : Math.max(0, total - talk); return { total, talk, noTalk }; };
   d = d || {};
+  const prev = (state.kpiManual && state.kpiManual[day] && state.kpiManual[day][side]) || {};
+  // เก็บ log เบอร์ลูกค้าที่โทร — ถ้าผู้เรียกส่ง calls มาใช้ตามนั้น ไม่งั้นเก็บของเดิมไว้ (กันโดนล้างตอนบันทึก Template)
+  const calls = Array.isArray(d.calls) ? d.calls.slice(-1000) : (Array.isArray(prev.calls) ? prev.calls : []);
   const rec = {
     t1: rnd(d.t1), t2: rnd(d.t2), t3: rnd(d.t3), lazada: rnd(d.lazada),
     orders: num(d.orders), revenue: num(d.revenue),
     note: String(d.note || '').slice(0, 1000),
+    calls,
     updatedAt: new Date().toISOString(),
   };
   if (!state.kpiManual || typeof state.kpiManual !== 'object') state.kpiManual = {};
@@ -1293,13 +1297,20 @@ app.post('/api/sales/kpi-inc', requireCrm, async (req, res) => {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(String(b.day || '')) ? b.day : todayTH;
   const round = ['t1', 't2', 't3', 'lazada'].includes(b.round) ? b.round : null;
   if ((side !== 'W' && side !== 'K') || !round) return res.status(400).json({ ok: false, error: 'side + round required' });
-  const talked = !!b.talked, step = Math.max(1, Math.min(50, Number(b.step) || 1)) * (b.undo ? -1 : 1);
+  const undo = !!b.undo, talked = !!b.talked, step = undo ? -1 : 1;
+  const num = (v) => { const n = Number(v); return (isNaN(n) || n < 0) ? 0 : Math.round(n); };
+  const amount = num(b.amount);
+  const phone = String(b.phone || '').replace(/[^0-9]/g, '').slice(0, 15);
   const cur = (state.kpiManual && state.kpiManual[day] && state.kpiManual[day][side]) || {};
-  const data = { orders: cur.orders || 0, revenue: cur.revenue || 0, note: cur.note || '' };
+  const data = { orders: cur.orders || 0, revenue: cur.revenue || 0, note: cur.note || '', calls: Array.isArray(cur.calls) ? cur.calls.slice() : [] };
   for (const k of ['t1', 't2', 't3', 'lazada']) { const o = cur[k] || {}; data[k] = { total: o.total || 0, talk: o.talk || 0, noTalk: (o.noTalk != null ? o.noTalk : Math.max(0, (o.total || 0) - (o.talk || 0))) }; }
   const r = data[round];
   r.total = Math.max(0, r.total + step);
   if (talked) r.talk = Math.max(0, r.talk + step); else r.noTalk = Math.max(0, r.noTalk + step);
+  if (!undo) {
+    if (amount > 0) { data.orders += 1; data.revenue += amount; }
+    if (phone || amount > 0) data.calls.push({ round, talked, phone, amount, at: new Date().toISOString() });
+  }
   const report = await saveKpiManual(day, side, data);
   res.json({ ok: true, day, side, round, report: report[side] });
 });

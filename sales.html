@@ -601,8 +601,14 @@ function viewKpiUpdate(){
     </div>
     <div class="card" style="padding:16px 18px;margin-bottom:16px;border-left:4px solid #16a34a">
       <div style="font-weight:800;font-size:14px;margin-bottom:3px">⚡ แบบรายสาย (Real-time)</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">โทรจบ 1 สาย กดเพิ่มได้เลย — ตัวเลขวิ่งขึ้น KPI หัวหน้าทีมทันที</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">โทรจบ 1 สาย ใส่เบอร์/ยอดขาย (ถ้ามี) แล้วกดปุ่มรอบนั้น — ตัวเลขวิ่งขึ้น KPI หัวหน้าทีมทันที</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div><label style="font-size:11px;color:var(--muted);font-weight:600">📞 เบอร์ลูกค้า (ถ้ามี)</label><br><input id="qa_phone" type="tel" inputmode="numeric" placeholder="08xxxxxxxx" style="width:150px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:14px"></div>
+        <div><label style="font-size:11px;color:var(--muted);font-weight:600">💰 ยอดขาย (ถ้าปิดได้)</label><br><input id="qa_amount" type="number" min="0" placeholder="0" style="width:120px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:14px"></div>
+        <div style="align-self:flex-end;font-size:11px;color:var(--muted);padding-bottom:7px">ใส่ยอด = บวกยอดขาย +1 ออเดอร์ให้เลย</div>
+      </div>
       <div style="overflow:auto"><table class="tbl" style="width:100%"><tbody>${KU_ROUNDS.map(qaRow).join("")}</tbody></table></div>
+      <div id="qa_calls" style="margin-top:12px"></div>
     </div>
     <div class="card" style="padding:16px 18px">
       <div style="font-weight:800;font-size:14px;margin-bottom:3px">📋 อัปเดตรวดเดียว (ตาม Template)</div>
@@ -626,6 +632,10 @@ function fillKpiForm(rep){
     const qn=document.getElementById("qa_"+k+"_noTalk");if(qn&&document.activeElement!==qn)qn.value=nt;});
   kuSet("revenue",rep.revenue||0);kuSet("orders",rep.orders||0);
   const nt=document.getElementById("ku_note");if(nt)nt.value=rep.note||"";
+  const cl=document.getElementById("qa_calls");
+  if(cl){const calls=(rep.calls||[]).slice().reverse();const RL={t1:"T1",t2:"T2",t3:"T3",lazada:"Lazada"};
+    const tm=v=>{try{return new Date(v).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});}catch(e){return"";}};
+    cl.innerHTML=calls.length?`<div style="font-weight:800;font-size:12.5px;margin-bottom:6px">📞 เบอร์/สายที่บันทึกวันนี้ (${calls.length})</div><div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:9px">`+calls.slice(0,100).map(c=>`<div style="font-size:12.5px;padding:7px 11px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;align-items:center"><span>${RL[c.round]||c.round||""} · ${c.talked?'<span style="color:#16a34a;font-weight:700">ได้คุย</span>':'<span style="color:#dc2626;font-weight:700">ไม่ได้คุย</span>'}${c.phone?' · <b>'+esc(c.phone)+'</b>':' · <span style="color:var(--muted)">(ไม่ระบุเบอร์)</span>'}</span><span style="white-space:nowrap">${c.amount>0?'<b style="color:#16a34a">'+fmtB(c.amount)+'</b> ':''}<span style="color:var(--muted);font-size:11px">${tm(c.at)}</span></span></div>`).join("")+`</div>`:`<div style="font-size:12px;color:var(--muted)">ยังไม่มีเบอร์/สายที่บันทึกวันนี้</div>`;}
 }
 async function loadKpiUpdate(){
   const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
@@ -643,9 +653,11 @@ window.confirmQa=async function(round){
 };
 window.quickAdd=async function(round,talked,undo){
   const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
+  const phEl=document.getElementById("qa_phone"),amEl=document.getElementById("qa_amount");
+  const phone=phEl?phEl.value.trim():"",amount=amEl?Math.max(0,Number(amEl.value)||0):0;
   qaMsg(round,"กำลังบันทึก…","var(--muted)");
-  const j=await api("/api/sales/kpi-inc",{day,round,talked,undo:!!undo});
-  if(j&&j.ok){fillKpiForm(j.report||{});const t=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});qaMsg(round,"✅ "+(talked?"+1 ได้คุย":"+1 ไม่ได้คุย")+" · บันทึกแล้ว "+t,"#16a34a");toast("บันทึกแล้ว");}
+  const j=await api("/api/sales/kpi-inc",{day,round,talked,undo:!!undo,phone,amount});
+  if(j&&j.ok){fillKpiForm(j.report||{});if(phEl)phEl.value="";if(amEl)amEl.value="";const t=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});qaMsg(round,"✅ "+(talked?"+1 ได้คุย":"+1 ไม่ได้คุย")+(amount>0?(" · ขาย "+fmtB(amount)):"")+(phone?(" · "+phone):"")+" · "+t,"#16a34a");toast("บันทึกแล้ว");}
   else{qaMsg(round,"❌ ไม่สำเร็จ","#dc2626");toast((j&&j.error)||"เพิ่มไม่สำเร็จ");}
 };
 window.saveKpiUpdate=async function(){
