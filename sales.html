@@ -170,12 +170,13 @@ function ordersBlock(r){
     return"";
   }
   const n=r.orderCount||r.orders.length;
+  const ordTotal=r.orders.reduce((s,o)=>s+(Number(o&&o.amount)||0),0);
   const rows=r.orders.map(o=>{
     const col=odStatusColor(o.status);
     const items=(o.items&&o.items.length)?o.items.map(it=>`<div style="font-size:13px;line-height:1.6">• ${esc(it.name)}${it.sku?` <span style="color:var(--muted);font-size:11px">[SKU ${esc(it.sku)}]</span>`:""} <b>×${it.qty}</b></div>`).join(""):`<div style="font-size:13px;color:var(--muted)">—</div>`;
     return `<div style="border-top:1px solid var(--line);padding:9px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span style="font-weight:800;font-size:13px">📅 ${esc(odDate(o))}</span>
+        <span style="font-weight:800;font-size:13px">📅 ${esc(odDate(o))}${Number(o.amount)>0?` · <b style="color:#16a34a">${fmtB(o.amount)}</b>`:""}</span>
         <span style="font-size:11px;font-weight:800;color:${col};background:color-mix(in srgb,${col} 12%,var(--surface));border:1px solid color-mix(in srgb,${col} 32%,var(--surface));border-radius:6px;padding:1px 8px;white-space:nowrap">${esc(o.status||"—")}</span>
       </div>
       <div style="margin-top:4px">${items}</div>
@@ -184,7 +185,8 @@ function ordersBlock(r){
   }).join("");
   const more=n>r.orders.length?`<div style="font-size:11.5px;color:var(--muted);padding-top:8px;text-align:center">แสดง ${r.orders.length} จาก ${n} ออเดอร์ล่าสุด</div>`:"";
   const srcTag=r.ordersFromSheet?` <span style="font-size:10.5px;font-weight:700;color:#a16207;background:#fef9c3;border:1px solid #fde68a;border-radius:5px;padding:1px 6px;vertical-align:middle">ฐานเก่า</span>`:"";
-  return `<div class="box"><h4>🛒 ประวัติการสั่งซื้อ · ${n} ครั้ง${srcTag}</h4>${rows}${more}</div>`;
+  const totTag=ordTotal>0?` <span style="font-size:12px;font-weight:800;color:#16a34a">· รวม ${fmtB(ordTotal)}</span>`:"";
+  return `<div class="box"><h4>🛒 ประวัติการสั่งซื้อ · ${n} ครั้ง${totTag}${srcTag}</h4>${rows}${more}</div>`;
 }
 
 const STLABEL={new:"ใหม่",contacting:"กำลังติดต่อ",interested:"สนใจ",followup:"นัดติดตาม",awaiting_payment:"รอชำระเงิน",won:"ปิดการขาย",lost:"ไม่สนใจ"};
@@ -761,7 +763,8 @@ function renderSheet(){
   const pkLastRaw=r.lastOrderAt||(o0&&o0.date)||"";
   const pkLastDays=days(pkLastRaw);
   const pkLastLbl=(pkLastDays!=null)?(pkLastDays+" วันก่อน"):(o0?esc(odDate(o0)):"—");
-  const pkLtv=(r.ltv!=null)?fmtB(r.ltv):(r.orderAmount>0?fmtB(r.orderAmount):"—");
+  const ordSum=(Array.isArray(r.orders)?r.orders:[]).reduce((s,o)=>s+(Number(o&&o.amount)||0),0);
+  const pkLtv=(r.ltv!=null)?fmtB(r.ltv):(r.orderAmount>0?fmtB(r.orderAmount):(ordSum>0?fmtB(ordSum):"—"));
   const pkSucceed=(pkOrdCnt>0)?(pkOrdCnt+" ครั้ง"):"—";
   const pkItems=o0?odItemsText(o0):"";
   const ac=(r.aiCalls&&r.aiCalls[0])||null;
@@ -844,7 +847,7 @@ function renderSheet(){
           <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:8px">ลบ/จัดเก็บแล้ว ตั๋วจะออกจากคิว แต่ยังกู้คืนได้ที่เมนู "ถังขยะ" · สายที่โทรวันนี้ยังนับใน KPI</div></div>
       </div>
       <div>
-        <div class="box"><h4>👤 ข้อมูลลูกค้า (Pancake)</h4>
+        <div class="box"><h4>👤 ข้อมูลลูกค้า (${isLegacy(r)?"ฐานเก่า":(leadPanel(r)==="ecom"?"Marketplace · Evolution":"Pancake · FB")})</h4>
           <div class="pk-tiles">${tile(pkLtv,"ยอดซื้อสะสม")}${tile(pkSucceed,"ออเดอร์สำเร็จ")}${tile(pkLastLbl,"ซื้อล่าสุด")}${tile(r.step||"—","รอบปัจจุบัน")}</div>
           <div class="pk-kv"><span>เคยซื้อ</span><b>${esc(r.product||"—")}</b></div>
           ${o0?`<div class="pk-kv" style="align-items:flex-start"><span>ประวัติซื้อ</span><b style="text-align:right;max-width:62%">🛒 ${pkOrdCnt} ครั้ง · ล่าสุด ${esc(odDate(o0))}${pkItems?` · ${esc(pkItems)}`:""}</b></div>`:""}
