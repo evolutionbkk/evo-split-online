@@ -170,13 +170,13 @@ function ordersBlock(r){
     return"";
   }
   const n=r.orderCount||r.orders.length;
-  const ordTotal=r.orders.reduce((s,o)=>s+(Number(o&&o.amount)||0),0);
+  const ordTotal=r.orders.reduce((s,o)=>{const a=Number(o&&o.amount)||0;return s+(a>1?a:0);},0);
   const rows=r.orders.map(o=>{
     const col=odStatusColor(o.status);
     const items=(o.items&&o.items.length)?o.items.map(it=>`<div style="font-size:13px;line-height:1.6">• ${esc(it.name)}${it.sku?` <span style="color:var(--muted);font-size:11px">[SKU ${esc(it.sku)}]</span>`:""} <b>×${it.qty}</b></div>`).join(""):`<div style="font-size:13px;color:var(--muted)">—</div>`;
     return `<div style="border-top:1px solid var(--line);padding:9px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span style="font-weight:800;font-size:13px">📅 ${esc(odDate(o))}${Number(o.amount)>0?` · <b style="color:#16a34a">${fmtB(o.amount)}</b>`:""}</span>
+        <span style="font-weight:800;font-size:13px">📅 ${esc(odDate(o))}${Number(o.amount)>1?` · <b style="color:#16a34a">${fmtB(o.amount)}</b>`:""}</span>
         <span style="font-size:11px;font-weight:800;color:${col};background:color-mix(in srgb,${col} 12%,var(--surface));border:1px solid color-mix(in srgb,${col} 32%,var(--surface));border-radius:6px;padding:1px 8px;white-space:nowrap">${esc(o.status||"—")}</span>
       </div>
       <div style="margin-top:4px">${items}</div>
@@ -763,7 +763,7 @@ function renderSheet(){
   const pkLastRaw=r.lastOrderAt||(o0&&o0.date)||"";
   const pkLastDays=days(pkLastRaw);
   const pkLastLbl=(pkLastDays!=null)?(pkLastDays+" วันก่อน"):(o0?esc(odDate(o0)):"—");
-  const ordSum=(Array.isArray(r.orders)?r.orders:[]).reduce((s,o)=>s+(Number(o&&o.amount)||0),0);
+  const ordSum=(Array.isArray(r.orders)?r.orders:[]).reduce((s,o)=>{const a=Number(o&&o.amount)||0;return s+(a>1?a:0);},0);
   const pkLtv=(r.ltv!=null)?fmtB(r.ltv):(r.orderAmount>0?fmtB(r.orderAmount):(ordSum>0?fmtB(ordSum):"—"));
   const pkSucceed=(pkOrdCnt>0)?(pkOrdCnt+" ครั้ง"):"—";
   const pkItems=o0?odItemsText(o0):"";
