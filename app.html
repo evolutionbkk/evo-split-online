@@ -429,7 +429,7 @@ function viewTelOverview(){
       ${mRow("💬","T3 · ตามรอบ 3","",'t3',TG.t3||20,COL.t3)}
       <tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b><div style="font-size:11px;color:var(--muted)">จากรายงานเซลล์</div></td>${SIDES.map(mRevCell).join('')}${showTot?`<td class="r tnum win"><b style="font-size:15px">${fmtB(mRevBy.W+mRevBy.K)}</b></td>`:''}</tr>`;
     kpiTag=`<span style="font-size:11px;color:#16a34a;font-weight:700">· ✅ ยึดตัวเลขจากรายงานเซลล์</span>`;
-    kpiNote=`เลข = <b>ได้คุย</b> (นับเฉพาะสายที่คุยได้จริง ไม่รวมสายไม่ได้คุย) เทียบเป้า/วัน · ตัวเลขมาจาก<b>รายงานที่เซลล์บันทึก</b> (กดแก้ไขที่การ์ด "รายงานเทเลเซลล์รายวัน" ด้านล่าง)`;
+    kpiNote=`เลข = <b>ได้คุย</b> (นับเฉพาะสายที่คุยได้จริง ไม่รวมสายไม่ได้คุย) เทียบเป้า/วัน · ตัวเลขมาจาก<b>รายงานที่เซลล์บันทึกเอง</b> (เซลล์อัปเดตจากเมนูฝั่ง Telesales)`;
   } else {
     kpiBody=`${row("📦","Marketplace","อ้างอิงจากเว็บ: Evolution + Lazada (Big Seller)",TG.evo||30,{W:wEvo,K:kEvo},COL.mk,'mk')}
     ${(()=>{const val={W:fw.T1done||0,K:fk.T1done||0},tg={W:(fw.T1recv||0)||(TG.t1||5),K:(fk.T1recv||0)||(TG.t1||5)};return `<tr><td><b style="color:${COL.t1}">💬 T1 · โทร (${rlab()})</b><div style="font-size:11px;color:var(--muted)">โทรลูกค้ารอบ T1 (ออเดอร์ใหม่ + ตามเดิม) · เป้า/ที่ได้รับ</div></td>${SIDES.map(s=>cC(val[s],tg[s],COL.t1,'t1',s)).join('')}${totCell(fmt(val.W+val.K))}</tr>`;})()}
@@ -444,7 +444,6 @@ function viewTelOverview(){
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead>${thHead('รายการ')}</thead><tbody>
     ${kpiBody}
   </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">${kpiNote}</div></div>`;
-  h+=manualReportCard();
   h+=`<div class="secttl" style="margin-top:6px">📇 การติดต่อลูกค้า — ${rlab()} (แยกช่องทาง)<span style="font-size:11px;color:var(--muted);font-weight:400"> · โทร + LINE ที่เซลล์ติดต่อจริงในช่วงที่เลือก</span><span class="ln"></span></div>`;
   h+=(()=>{const c=(D.tiers&&D.tiers.contactToday)||{W:{},K:{}};const W=c.W||{},K=c.K||{},CBY={W,K};
     const crow=(icon,lab,sub,key,color)=>`<tr><td><b style="color:${color}">${icon} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${SIDES.map(s=>`<td class="tnum" style="font-weight:800;color:${color}">${fmt((CBY[s]||{})[key]||0)}</td>`).join('')}${totCell(fmt((W[key]||0)+(K[key]||0)))}</tr>`;

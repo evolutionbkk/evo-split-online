@@ -1303,6 +1303,12 @@ app.post('/api/sales/kpi-inc', requireCrm, async (req, res) => {
   const report = await saveKpiManual(day, side, data);
   res.json({ ok: true, day, side, round, report: report[side] });
 });
+// Read-only team KPI (same numbers the Teamlead sees) — for Telesales to view, cannot edit
+app.get('/api/sales/kpi-team', requireCrm, (req, res) => {
+  const day = String(req.query.day || '').slice(0, 10);
+  const all = state.kpiManual || {};
+  res.json({ ok: true, day, report: (day && all[day]) || {}, names: SALES_NAMES, targets: { evo: KPI_TARGET_EVO, t1: KPI_TARGET_T1, t2: KPI_TARGET_T2, t3: KPI_TARGET_T3 } });
+});
 
 // ----- Cross-source duplicate detection: same phone in 2+ ACTIVE leads -----
 function activeDupGroups() {
