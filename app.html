@@ -444,15 +444,6 @@ function viewTelOverview(){
   <div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead>${thHead('รายการ')}</thead><tbody>
     ${kpiBody}
   </tbody></table><div style="padding:11px 15px;font-size:11.5px;color:var(--muted)">${kpiNote}</div></div>`;
-  h+=`<div class="secttl" style="margin-top:6px">📇 การติดต่อลูกค้า — ${rlab()} (แยกช่องทาง)<span style="font-size:11px;color:var(--muted);font-weight:400"> · โทร + LINE ที่เซลล์ติดต่อจริงในช่วงที่เลือก</span><span class="ln"></span></div>`;
-  h+=(()=>{const c=(D.tiers&&D.tiers.contactToday)||{W:{},K:{}};const W=c.W||{},K=c.K||{},CBY={W,K};
-    const crow=(icon,lab,sub,key,color)=>`<tr><td><b style="color:${color}">${icon} ${lab}</b>${sub?`<div style="font-size:11px;color:var(--muted)">${sub}</div>`:""}</td>${SIDES.map(s=>`<td class="tnum" style="font-weight:800;color:${color}">${fmt((CBY[s]||{})[key]||0)}</td>`).join('')}${totCell(fmt((W[key]||0)+(K[key]||0)))}</tr>`;
-    return `<div class="card" style="overflow:auto;margin-bottom:20px"><table class="tbl"><thead>${thHead('ช่องทางติดต่อ')}</thead><tbody>
-      ${crow("📞","โทร · ได้คุย (>7วิ)","สายจริงที่คุยได้จากระบบโทร OneCall","phoneTalk","#16a34a")}
-      ${crow("📵","โทร · สั้น/ไม่รับ (<7วิ)","โทรออกแต่ไม่ได้คุย","phoneShort","#94a3b8")}
-      ${crow("💬","LINE (แชท/โทร LINE/ส่งโปรฯ)","ติดตามผ่าน LINE ไม่ได้โทรเข้าเบอร์ · นับเป็นได้คุย","line","#1a7f37")}
-      <tr style="border-top:2px solid var(--line);background:var(--surface-2,#f1f5f9)"><td><b>รวม \"ได้คุย\" ทุกช่องทาง</b><div style="font-size:11px;color:var(--muted)">โทรได้คุย + LINE (ไม่รวมสายสั้น/ไม่รับ)</div></td>${SIDES.map(s=>`<td class="tnum" style="font-weight:800;font-size:15px">${fmt((CBY[s]||{}).total||0)}</td>`).join('')}${showTot?`<td class="r tnum"><b style="font-size:16px;color:var(--ok)">${fmt((W.total||0)+(K.total||0))}</b></td>`:''}</tr>
-    </tbody></table></div>`;})();
   h+=`<div class="secttl" style="margin-top:6px">📞 เบอร์ที่โทรวันนี้ (จริงจากระบบโทร OneCall) <span style="font-size:11px;color:var(--muted);font-weight:400">· รวมสายที่ปิดงาน/ยกเลิกไปแล้วด้วย</span><span class="ln"></span></div>
   <div id="callLogToday"><div class="empty" style="padding:18px">กำลังโหลดสายที่โทรวันนี้…</div></div>`;
   setTimeout(()=>{if(window.loadCallLogToday)window.loadCallLogToday();},30);
