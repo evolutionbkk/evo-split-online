@@ -249,13 +249,13 @@ function renderNav(){
   const closedCount=ARCHIVED.filter(r=>r.archiveReason==="closed").length;
   const stoppedCount=ARCHIVED.filter(r=>r.archiveReason==="stopped").length;
   const arcCount=ARCHIVED.filter(r=>r.archiveReason!=="closed"&&r.archiveReason!=="stopped").length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"ฐานลูกค้าเก่า"},{k:"legacy",ic:"📋",t:"ฐานเก่า (จากชีท)",badge:legacyCount||0},{lab:"อื่นๆ"},{k:"mycalls",ic:"📞",t:"สายที่โทรของฉัน"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"ฐานลูกค้าเก่า"},{k:"legacy",ic:"📋",t:"ฐานเก่า (จากชีท)",badge:legacyCount||0},{lab:"อื่นๆ"},{k:"kpiupd",ic:"📝",t:"อัปเดต KPI Teamsale"},{k:"mycalls",ic:"📞",t:"สายที่โทรของฉัน"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
-      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="archive"&&it.k==="archive")||(VIEW==="stopped"&&it.k==="stopped")||(VIEW==="tickets"&&it.k==="tickets")||(VIEW==="mycalls"&&it.k==="mycalls"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
+      `<button class="nav-i ${((PANEL===it.k&&VIEW==="list")||(VIEW==="kpi"&&it.k==="kpi")||(VIEW==="kpiupd"&&it.k==="kpiupd")||(VIEW==="trash"&&it.k==="trash")||(VIEW==="archive"&&it.k==="archive")||(VIEW==="stopped"&&it.k==="stopped")||(VIEW==="tickets"&&it.k==="tickets")||(VIEW==="mycalls"&&it.k==="mycalls"))?"on":""}" onclick="go('${it.k}')"><span class="ic">${it.ic}</span><span>${it.t}</span>${it.badge?`<span class="badge">${it.badge}</span>`:""}</button>`).join("");
 }
-function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="archive"){VIEW="archive";TQ="";}else if(k==="stopped"){VIEW="stopped";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else if(k==="mycalls"){VIEW="mycalls";}else{VIEW="list";PANEL=k;FILTER="today";Q="";PROUND="all";LPAGE=1;}render();}
+function go(k){document.getElementById("side").classList.remove("open");if(k==="kpi"){VIEW="kpi";}else if(k==="kpiupd"){VIEW="kpiupd";}else if(k==="trash"){VIEW="trash";TQ="";}else if(k==="archive"){VIEW="archive";TQ="";}else if(k==="stopped"){VIEW="stopped";TQ="";}else if(k==="tickets"){VIEW="tickets";MTQ="";MTPAGE=1;MTFILTER="all";}else if(k==="mycalls"){VIEW="mycalls";}else{VIEW="list";PANEL=k;FILTER="today";Q="";PROUND="all";LPAGE=1;}render();}
 
 function statusPill(r){const st=r.leadStatus||"new";return `<span class="pill st-${st}">${STLABEL[st]||st}</span>`;}
 function urgLine(r){
@@ -338,6 +338,7 @@ function render(){
   const c=$("#content");
   if(VIEW==="ticket"){$("#viewTitle").textContent="ตั๋วลูกค้า";renderSheet();return;}
   if(VIEW==="kpi"){c.innerHTML=viewKpi();return;}
+  if(VIEW==="kpiupd"){$("#viewTitle").textContent="อัปเดต KPI Teamsale";c.innerHTML=viewKpiUpdate();setTimeout(loadKpiUpdate,30);return;}
   if(VIEW==="trash"||VIEW==="archive"||VIEW==="stopped"){$("#viewTitle").textContent=VIEW==="archive"?"จัดเก็บ (ปิดงาน)":(VIEW==="stopped"?"ยกเลิกการติดต่อ":"ถังขยะ (ลบ)");c.innerHTML=viewTrash2();return;}
   if(VIEW==="tickets"){c.innerHTML=viewMyTickets();return;}
   if(VIEW==="mycalls"){$("#viewTitle").textContent="สายที่โทร · "+mcDayLabel();c.innerHTML=viewMyCalls();setTimeout(loadMyCalls,30);return;}
@@ -563,6 +564,81 @@ function renderMyCallsBody(){
   <div class="card" style="overflow:auto;padding:0"><table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr>${["เวลา","ทิศ","เบอร์","ลูกค้า","ช่องทาง","คุยนาน","ผล"].map(t=>`<th style="text-align:left;padding:10px 12px;color:var(--muted);font-size:11.5px;background:var(--surface-2)">${t}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>${pageBar}</div>`;
 }
 window.renderMyCallsBody=renderMyCallsBody;
+/* ===== อัปเดต KPI Teamsale (เซลล์กรอกเอง → ขึ้น KPI หัวหน้าทีม) ===== */
+let KPIUPD_DAY="";
+const KU_ROUNDS=[["t1","T1 · โทรขาย"],["t2","T2 · ตามรอบ 2"],["t3","T3 · ตามรอบ 3"],["lazada","Lazada"]];
+function viewKpiUpdate(){
+  if(!KPIUPD_DAY)KPIUPD_DAY=todayISO();
+  const inp=(id)=>`<input class="inp" id="ku_${id}" type="number" min="0" value="0" style="width:88px;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:13px">`;
+  // แบบรายสาย (real-time)
+  const qaRow=([k,lab])=>`<tr>
+    <td style="padding:7px 8px;font-weight:800">${lab}</td>
+    <td style="text-align:center"><b class="tnum" id="qa_${k}_talk" style="font-size:16px;color:#16a34a">0</b><div style="font-size:10px;color:var(--muted)">ได้คุย</div></td>
+    <td style="text-align:center"><b class="tnum" id="qa_${k}_noTalk" style="font-size:16px;color:#dc2626">0</b><div style="font-size:10px;color:var(--muted)">ไม่ได้คุย</div></td>
+    <td style="white-space:nowrap;text-align:right">
+      <button onclick="quickAdd('${k}',true)" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">＋ ได้คุย</button>
+      <button onclick="quickAdd('${k}',false)" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer;margin-left:5px">＋ ไม่ได้คุย</button>
+      <button onclick="quickAdd('${k}',true,true)" title="ลบออก 1 (แก้พลาด)" style="background:var(--surface-2);color:var(--muted);border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-weight:800;font-size:13px;cursor:pointer;margin-left:5px">↩︎ −1</button>
+    </td></tr>`;
+  const bkRow=([k,lab])=>`<tr><td style="padding:6px 8px;font-weight:700">${lab}</td><td>${inp(k+"_total")}</td><td>${inp(k+"_talk")}</td><td>${inp(k+"_noTalk")}</td></tr>`;
+  return `<div style="max-width:680px;margin:0 auto">
+    <div class="card" style="padding:16px 18px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="font-weight:800;font-size:16px">📝 อัปเดต KPI Teamsale — ${esc(ME.name||("Sales "+(ME.side||"")))}</div>
+        <div><label style="font-size:11.5px;color:var(--muted);font-weight:600">วันที่ </label><input type="date" class="inp" id="ku_day" value="${KPIUPD_DAY}" onchange="reloadKpiUpdate()" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">บันทึกแล้วขึ้นที่ KPI หัวหน้าทีมทันที · KPI นับเฉพาะ “ได้คุย”</div>
+    </div>
+    <div class="card" style="padding:16px 18px;margin-bottom:16px;border-left:4px solid #16a34a">
+      <div style="font-weight:800;font-size:14px;margin-bottom:3px">⚡ แบบรายสาย (Real-time)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">โทรจบ 1 สาย กดเพิ่มได้เลย — ตัวเลขวิ่งขึ้น KPI หัวหน้าทีมทันที</div>
+      <div style="overflow:auto"><table class="tbl" style="width:100%"><tbody>${KU_ROUNDS.map(qaRow).join("")}</tbody></table></div>
+    </div>
+    <div class="card" style="padding:16px 18px">
+      <div style="font-weight:800;font-size:14px;margin-bottom:3px">📋 อัปเดตรวดเดียว (ตาม Template)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">กรอกยอดรวมทั้งวันทีเดียว แล้วกดบันทึก (ทับค่าเดิมของวันนั้น)</div>
+      <div style="overflow:auto"><table class="tbl" style="font-size:13px"><thead><tr><th>รอบ</th><th>โทรทั้งหมด</th><th>ได้คุย</th><th>ไม่ได้คุย</th></tr></thead><tbody>${KU_ROUNDS.map(bkRow).join("")}</tbody></table></div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px">
+        <div><label style="font-size:11.5px;color:var(--muted);font-weight:600">ยอดขายรวม (บาท)</label><br>${inp("revenue")}</div>
+        <div><label style="font-size:11.5px;color:var(--muted);font-weight:600">จำนวนออเดอร์ที่ปิด</label><br>${inp("orders")}</div>
+      </div>
+      <div style="margin-top:12px"><label style="font-size:11.5px;color:var(--muted);font-weight:600">หมายเหตุ</label><br><textarea class="inp" id="ku_note" style="width:100%;min-height:66px;padding:8px;box-sizing:border-box;border:1.5px solid var(--line);border-radius:8px" placeholder="เช่น ลูกค้าไม่รับสาย / เลื่อนนัด / ระบบมีปัญหา ฯลฯ"></textarea></div>
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button onclick="saveKpiUpdate()" style="padding:10px 24px;font-weight:800;font-size:14px;background:#2563eb;color:#fff;border:none;border-radius:9px;cursor:pointer">💾 บันทึกทั้งวัน</button><span id="ku_msg" style="font-size:12.5px;color:var(--muted)"></span></div>
+    </div>
+  </div>`;
+}
+function kuSet(id,v){const el=document.getElementById("ku_"+id);if(el)el.value=(v==null?0:v);}
+function fillKpiForm(rep){
+  rep=rep||{};
+  KU_ROUNDS.forEach(([k])=>{const o=rep[k]||{};const tk=o.talk||0,tot=o.total||0,nt=(o.noTalk!=null?o.noTalk:Math.max(0,tot-tk));
+    kuSet(k+"_total",tot);kuSet(k+"_talk",tk);kuSet(k+"_noTalk",nt);
+    const qt=document.getElementById("qa_"+k+"_talk");if(qt)qt.textContent=tk;
+    const qn=document.getElementById("qa_"+k+"_noTalk");if(qn)qn.textContent=nt;});
+  kuSet("revenue",rep.revenue||0);kuSet("orders",rep.orders||0);
+  const nt=document.getElementById("ku_note");if(nt)nt.value=rep.note||"";
+}
+async function loadKpiUpdate(){
+  const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
+  try{const r=await fetch("/api/sales/kpi-manual?day="+encodeURIComponent(day));const j=await r.json();fillKpiForm((j&&j.report)||{});}catch(e){}
+}
+window.reloadKpiUpdate=function(){const el=document.getElementById("ku_day");if(el)KPIUPD_DAY=el.value;loadKpiUpdate();};
+window.quickAdd=async function(round,talked,undo){
+  const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
+  const j=await api("/api/sales/kpi-inc",{day,round,talked,undo:!!undo});
+  if(j&&j.ok){fillKpiForm(j.report||{});toast((undo?"−1":(talked?"＋1 ได้คุย":"＋1 ไม่ได้คุย"))+" · "+round.toUpperCase());}
+  else toast((j&&j.error)||"เพิ่มไม่สำเร็จ");
+};
+window.saveKpiUpdate=async function(){
+  const g=id=>{const el=document.getElementById("ku_"+id);return el?Math.max(0,Number(el.value)||0):0;};
+  const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
+  const rnd=k=>({total:g(k+"_total"),talk:g(k+"_talk"),noTalk:g(k+"_noTalk")});
+  const note=(document.getElementById("ku_note")||{}).value||"";
+  const data={t1:rnd("t1"),t2:rnd("t2"),t3:rnd("t3"),lazada:rnd("lazada"),revenue:g("revenue"),orders:g("orders"),note};
+  const msg=document.getElementById("ku_msg");if(msg){msg.textContent="กำลังบันทึก…";msg.style.color="var(--muted)";}
+  const j=await api("/api/sales/kpi-manual",{day,data});
+  if(j&&j.ok){fillKpiForm(j.report||{});if(msg){msg.textContent="✅ บันทึกแล้ว — ขึ้น KPI หัวหน้าทีมเรียบร้อย";msg.style.color="#16a34a";}toast("บันทึก KPI แล้ว");}
+  else{if(msg){msg.textContent="❌ บันทึกไม่สำเร็จ";msg.style.color="#dc2626";}toast((j&&j.error)||"บันทึกไม่สำเร็จ");}
+};
 function viewKpi(){
   const b=krBounds(),rl=krLabel();
   const inR=t=>{const p=Date.parse(t);return !isNaN(p)&&p>=b.from&&p<=b.to;};

@@ -1240,19 +1240,10 @@ app.get('/api/admin/followup-tiers', requireAuth, (req, res) => {
 });
 
 // ----- Manual daily telesales report (บันทึกเอง) — total/talked/not-talked per round + sales -----
-app.get('/api/admin/kpi-manual', requireAuth, (req, res) => {
-  const day = String(req.query.day || '').slice(0, 10);
-  const all = state.kpiManual || {};
-  res.json({ ok: true, day, report: (day && all[day]) || null });
-});
-app.post('/api/admin/kpi-manual', requireAuth, async (req, res) => {
-  const b = req.body || {};
-  const day = String(b.day || '').slice(0, 10);
-  const side = (b.side === 'W' || b.side === 'K') ? b.side : null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !side) return res.status(400).json({ ok: false, error: 'day (YYYY-MM-DD) + side (W/K) required' });
+async function saveKpiManual(day, side, d) {
   const num = (v) => { const n = Number(v); return (isNaN(n) || n < 0) ? 0 : Math.round(n); };
   const rnd = (o) => { o = o || {}; const total = num(o.total), talk = num(o.talk); const noTalk = (o.noTalk != null && o.noTalk !== '') ? num(o.noTalk) : Math.max(0, total - talk); return { total, talk, noTalk }; };
-  const d = b.data || {};
+  d = d || {};
   const rec = {
     t1: rnd(d.t1), t2: rnd(d.t2), t3: rnd(d.t3), lazada: rnd(d.lazada),
     orders: num(d.orders), revenue: num(d.revenue),
@@ -1263,7 +1254,54 @@ app.post('/api/admin/kpi-manual', requireAuth, async (req, res) => {
   if (!state.kpiManual[day] || typeof state.kpiManual[day] !== 'object') state.kpiManual[day] = {};
   state.kpiManual[day][side] = rec;
   state = await store.save(state);
-  res.json({ ok: true, day, side, report: state.kpiManual[day] });
+  return state.kpiManual[day];
+}
+app.get('/api/admin/kpi-manual', requireAuth, (req, res) => {
+  const day = String(req.query.day || '').slice(0, 10);
+  const all = state.kpiManual || {};
+  res.json({ ok: true, day, report: (day && all[day]) || null });
+});
+app.post('/api/admin/kpi-manual', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const day = String(b.day || '').slice(0, 10);
+  const side = (b.side === 'W' || b.side === 'K') ? b.side : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !side) return res.status(400).json({ ok: false, error: 'day (YYYY-MM-DD) + side (W/K) required' });
+  const report = await saveKpiManual(day, side, b.data || {});
+  res.json({ ok: true, day, side, report });
+});
+// Telesales self-service: a salesperson updates THEIR OWN side's KPI (side from their session)
+app.get('/api/sales/kpi-manual', requireCrm, (req, res) => {
+  const side = req.session.role === 'sales' ? req.session.side : ((req.query.side === 'W' || req.query.side === 'K') ? req.query.side : 'W');
+  const day = String(req.query.day || '').slice(0, 10);
+  const all = state.kpiManual || {};
+  const dayRec = (day && all[day]) || {};
+  res.json({ ok: true, day, side, report: dayRec[side] || null });
+});
+app.post('/api/sales/kpi-manual', requireCrm, async (req, res) => {
+  const b = req.body || {};
+  const side = req.session.role === 'sales' ? req.session.side : ((b.side === 'W' || b.side === 'K') ? b.side : null);
+  const day = String(b.day || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || (side !== 'W' && side !== 'K')) return res.status(400).json({ ok: false, error: 'day (YYYY-MM-DD) + side required' });
+  const report = await saveKpiManual(day, side, b.data || {});
+  res.json({ ok: true, day, side, report: report[side] });
+});
+// Real-time per-call increment: +1 to a round (talked → talk+1, else noTalk+1), total+1
+app.post('/api/sales/kpi-inc', requireCrm, async (req, res) => {
+  const b = req.body || {};
+  const side = req.session.role === 'sales' ? req.session.side : ((b.side === 'W' || b.side === 'K') ? b.side : null);
+  const todayTH = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(b.day || '')) ? b.day : todayTH;
+  const round = ['t1', 't2', 't3', 'lazada'].includes(b.round) ? b.round : null;
+  if ((side !== 'W' && side !== 'K') || !round) return res.status(400).json({ ok: false, error: 'side + round required' });
+  const talked = !!b.talked, step = Math.max(1, Math.min(50, Number(b.step) || 1)) * (b.undo ? -1 : 1);
+  const cur = (state.kpiManual && state.kpiManual[day] && state.kpiManual[day][side]) || {};
+  const data = { orders: cur.orders || 0, revenue: cur.revenue || 0, note: cur.note || '' };
+  for (const k of ['t1', 't2', 't3', 'lazada']) { const o = cur[k] || {}; data[k] = { total: o.total || 0, talk: o.talk || 0, noTalk: (o.noTalk != null ? o.noTalk : Math.max(0, (o.total || 0) - (o.talk || 0))) }; }
+  const r = data[round];
+  r.total = Math.max(0, r.total + step);
+  if (talked) r.talk = Math.max(0, r.talk + step); else r.noTalk = Math.max(0, r.noTalk + step);
+  const report = await saveKpiManual(day, side, data);
+  res.json({ ok: true, day, side, round, report: report[side] });
 });
 
 // ----- Cross-source duplicate detection: same phone in 2+ ACTIVE leads -----
