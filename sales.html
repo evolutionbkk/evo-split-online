@@ -580,12 +580,15 @@ function viewKpiUpdate(){
   // แบบรายสาย (real-time)
   const qaRow=([k,lab])=>`<tr>
     <td style="padding:7px 8px;font-weight:800">${lab}</td>
-    <td style="text-align:center"><input id="qa_${k}_talk" type="number" min="0" value="0" onchange="editQa('${k}')" style="width:54px;text-align:center;font-size:15px;font-weight:800;color:#16a34a;border:1.5px solid var(--line);border-radius:7px;padding:3px 2px"><div style="font-size:10px;color:var(--muted)">ได้คุย</div></td>
-    <td style="text-align:center"><input id="qa_${k}_noTalk" type="number" min="0" value="0" onchange="editQa('${k}')" style="width:54px;text-align:center;font-size:15px;font-weight:800;color:#dc2626;border:1.5px solid var(--line);border-radius:7px;padding:3px 2px"><div style="font-size:10px;color:var(--muted)">ไม่ได้คุย</div></td>
-    <td style="white-space:nowrap;text-align:right">
-      <button onclick="quickAdd('${k}',true)" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">＋ ได้คุย</button>
-      <button onclick="quickAdd('${k}',false)" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer;margin-left:5px">＋ ไม่ได้คุย</button>
-      <button onclick="quickAdd('${k}',true,true)" title="ลบออก 1 (แก้พลาด)" style="background:var(--surface-2);color:var(--muted);border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-weight:800;font-size:13px;cursor:pointer;margin-left:5px">↩︎ −1</button>
+    <td style="text-align:center"><input id="qa_${k}_talk" type="number" min="0" value="0" style="width:54px;text-align:center;font-size:15px;font-weight:800;color:#16a34a;border:1.5px solid var(--line);border-radius:7px;padding:3px 2px"><div style="font-size:10px;color:var(--muted)">ได้คุย</div></td>
+    <td style="text-align:center"><input id="qa_${k}_noTalk" type="number" min="0" value="0" style="width:54px;text-align:center;font-size:15px;font-weight:800;color:#dc2626;border:1.5px solid var(--line);border-radius:7px;padding:3px 2px"><div style="font-size:10px;color:var(--muted)">ไม่ได้คุย</div></td>
+    <td style="text-align:right">
+      <div style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap;align-items:center">
+        <button onclick="quickAdd('${k}',true)" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">＋ ได้คุย</button>
+        <button onclick="quickAdd('${k}',false)" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">＋ ไม่ได้คุย</button>
+        <button onclick="confirmQa('${k}')" title="บันทึกเลขที่พิมพ์แก้ในช่อง" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">✓ ยืนยันแก้เลข</button>
+      </div>
+      <div id="qa_${k}_msg" style="font-size:11.5px;font-weight:700;margin-top:4px;min-height:15px"></div>
     </td></tr>`;
   const bkRow=([k,lab])=>`<tr><td style="padding:6px 8px;font-weight:700">${lab}</td><td>${inp(k+"_total")}</td><td>${inp(k+"_talk")}</td><td>${inp(k+"_noTalk")}</td></tr>`;
   return `<div style="max-width:680px;margin:0 auto">
@@ -629,18 +632,21 @@ async function loadKpiUpdate(){
   try{const r=await fetch("/api/sales/kpi-manual?day="+encodeURIComponent(day));const j=await r.json();fillKpiForm((j&&j.report)||{});}catch(e){}
 }
 window.reloadKpiUpdate=function(){const el=document.getElementById("ku_day");if(el)KPIUPD_DAY=el.value;loadKpiUpdate();};
-window.editQa=async function(round){
+function qaMsg(round,txt,color){const el=document.getElementById("qa_"+round+"_msg");if(el){el.textContent=txt;el.style.color=color;}}
+window.confirmQa=async function(round){
   const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
   const gv=id=>{const el=document.getElementById("qa_"+round+"_"+id);return el?Math.max(0,Number(el.value)||0):0;};
+  qaMsg(round,"กำลังบันทึก…","var(--muted)");
   const j=await api("/api/sales/kpi-set-round",{day,round,talk:gv("talk"),noTalk:gv("noTalk")});
-  if(j&&j.ok){fillKpiForm(j.report||{});toast("แก้ไข "+round.toUpperCase()+" แล้ว");}
-  else toast((j&&j.error)||"แก้ไขไม่สำเร็จ");
+  if(j&&j.ok){fillKpiForm(j.report||{});const t=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});qaMsg(round,"✅ บันทึกแล้ว "+t,"#16a34a");toast("บันทึก "+round.toUpperCase()+" แล้ว");}
+  else{qaMsg(round,"❌ ไม่สำเร็จ","#dc2626");toast((j&&j.error)||"บันทึกไม่สำเร็จ");}
 };
 window.quickAdd=async function(round,talked,undo){
   const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
+  qaMsg(round,"กำลังบันทึก…","var(--muted)");
   const j=await api("/api/sales/kpi-inc",{day,round,talked,undo:!!undo});
-  if(j&&j.ok){fillKpiForm(j.report||{});toast((undo?"−1":(talked?"＋1 ได้คุย":"＋1 ไม่ได้คุย"))+" · "+round.toUpperCase());}
-  else toast((j&&j.error)||"เพิ่มไม่สำเร็จ");
+  if(j&&j.ok){fillKpiForm(j.report||{});const t=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});qaMsg(round,"✅ "+(talked?"+1 ได้คุย":"+1 ไม่ได้คุย")+" · บันทึกแล้ว "+t,"#16a34a");toast("บันทึกแล้ว");}
+  else{qaMsg(round,"❌ ไม่สำเร็จ","#dc2626");toast((j&&j.error)||"เพิ่มไม่สำเร็จ");}
 };
 window.saveKpiUpdate=async function(){
   const g=id=>{const el=document.getElementById("ku_"+id);return el?Math.max(0,Number(el.value)||0):0;};
