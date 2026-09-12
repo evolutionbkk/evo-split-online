@@ -1094,12 +1094,13 @@ function paintCust(){
     <td class="tnum">${custD2(r.lastOrder)||"—"}</td>
     <td style="max-width:210px;font-size:11.5px;color:#5E7691">${esc(r.address||"—")}</td></tr>`).join(""):`<tr><td colspan="8" style="text-align:center;color:#5E7691;padding:20px">ไม่พบรายชื่อ</td></tr>`);
   h+=`</tbody></table></div>`;
-  if(pages>1)h+=`<div style="padding:12px 2px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span style="font-size:12px;color:#5E7691">หน้า ${CUSTPAGE}/${pages}</span><div style="display:flex;gap:6px">${CUSTPAGE>1?`<button class="chip" onclick="CUSTPAGE--;paintCust()">‹ ก่อนหน้า</button>`:""}${CUSTPAGE<pages?`<button class="chip" onclick="CUSTPAGE++;paintCust()">ถัดไป ›</button>`:""}</div></div>`;
+  if(pages>1)h+=`<div style="padding:14px 2px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><span style="font-size:12px;color:#5E7691">แสดง ${fmt((CUSTPAGE-1)*PER+1)}–${fmt(Math.min(CUSTPAGE*PER,rows.length))} จาก ${fmt(rows.length)} ราย</span><div style="display:flex;gap:6px;flex-wrap:wrap">${pager(pages,CUSTPAGE,'custGoPage')}</div></div>`;
   h+=`</div>`;
   h+=`</div></div>`;
   box.innerHTML=h;
 }
 window.paintCust=paintCust;
+window.custGoPage=function(n){CUSTPAGE=n;paintCust();window.scrollTo(0,0);};
 window.exportCustomersExcel=function(){
   const rows=custFiltered();
   if(!rows.length){toast("ไม่มีข้อมูลให้ส่งออก");return;}
