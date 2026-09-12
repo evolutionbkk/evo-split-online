@@ -656,7 +656,7 @@ function viewKpiTeam(){
       <div><div style="font-weight:800;font-size:15px">📈 KPI ทีม — ภาพรวมเดียวกับหัวหน้าทีม</div><div style="font-size:12px;color:var(--muted);margin-top:2px">👁 ดูอย่างเดียว · นับเฉพาะ “ได้คุย” · แก้ที่เมนู “อัปเดต KPI Teamsale”</div></div>
       <input type="date" class="inp" id="kt_day" value="${KPITEAM_DAY}" onchange="reloadKpiTeam()" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px">
     </div>
-    <div class="card" style="overflow:auto"><table class="tbl" style="font-size:13px"><thead><tr><th>รายการ</th><th class="r" id="kt_wname">พี่หวาน (W)</th><th class="r" id="kt_kname">พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody id="kt_body"><tr><td colspan="4" class="empty" style="border:none">กำลังโหลด…</td></tr></tbody></table></div>
+    <div class="card" style="overflow:auto"><table class="tbl" style="font-size:13px"><thead><tr><th>รายการ</th><th>พี่หวาน (W)</th><th>พี่เขม (K)</th><th class="r">รวมทีม</th></tr></thead><tbody id="kt_body"><tr><td colspan="4" class="empty" style="border:none">กำลังโหลด…</td></tr></tbody></table></div>
   </div>`;
 }
 async function loadKpiTeam(){
@@ -666,12 +666,12 @@ async function loadKpiTeam(){
   const W=rep.W||{},K=rep.K||{};
   const talk=(o,k)=>((o[k]||{}).talk||0);
   const COL={mk:"#a16207",t1:"#2563eb",t2:"#0891b2",t3:"#7c3aed"};
-  const row=(lab,key,tgv,color)=>{const w=talk(W,key),k=talk(K,key);const pc=v=>tgv?Math.min(100,Math.round(v/tgv*100)):0;const cell=v=>`<td class="r"><b class="tnum" style="font-size:14px">${v}</b><span style="color:var(--muted);font-size:12px">/${tgv}</span> <span class="tnum" style="color:${color};font-size:12px">${pc(v)}%</span></td>`;return `<tr><td><b style="color:${color}">${lab}</b></td>${cell(w)}${cell(k)}<td class="r tnum"><b>${w+k}</b></td></tr>`;};
-  const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b></td><td class="r tnum"><b>${fmtB(W.revenue||0)}</b> <span style="font-size:11px;color:var(--muted)">${W.orders||0} ปิด</span></td><td class="r tnum"><b>${fmtB(K.revenue||0)}</b> <span style="font-size:11px;color:var(--muted)">${K.orders||0} ปิด</span></td><td class="r tnum"><b>${fmtB((W.revenue||0)+(K.revenue||0))}</b></td></tr>`;
+  const bar=(pct,c)=>`<div style="height:7px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:5px"><i style="display:block;height:100%;width:${Math.min(100,pct)}%;background:${c}"></i></div>`;
+  const row=(lab,key,tgv,color)=>{const w=talk(W,key),k=talk(K,key);const pc=v=>tgv?Math.min(100,Math.round(v/tgv*100)):0;const cell=v=>`<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${v}<span style="color:var(--muted);font-weight:500">/${tgv}</span></span><span class="tnum" style="color:${color}">${pc(v)}%</span></div>${bar(pc(v),color)}</td>`;return `<tr><td><b style="color:${color}">${lab}</b></td>${cell(w)}${cell(k)}<td class="r tnum"><b style="font-size:15px">${w+k}</b></td></tr>`;};
+  const revCell=(rev,ord)=>`<td><div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:14px"><span class="tnum" style="color:#16a34a">${fmtB(rev)}</span><span class="tnum" style="color:var(--muted);font-weight:600;font-size:11px">${ord} ปิด</span></div><div style="height:7px;margin-top:5px"></div></td>`;
+  const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b></td>${revCell(W.revenue||0,W.orders||0)}${revCell(K.revenue||0,K.orders||0)}<td class="r tnum"><b style="font-size:15px;color:#16a34a">${fmtB((W.revenue||0)+(K.revenue||0))}</b></td></tr>`;
   const body=[row("📦 Marketplace (Lazada)","lazada",tg.evo||30,COL.mk),row("💬 T1 · โทรขาย","t1",tg.t1||5,COL.t1),row("💬 T2 · ตามรอบ 2","t2",tg.t2||5,COL.t2),row("💬 T3 · ตามรอบ 3","t3",tg.t3||20,COL.t3),revRow].join("");
   const el=document.getElementById("kt_body");if(el)el.innerHTML=body;
-  const nm=(j&&j.names)||{},wn=document.getElementById("kt_wname"),kn=document.getElementById("kt_kname");
-  if(wn&&nm.W)wn.textContent=nm.W;if(kn&&nm.K)kn.textContent=nm.K;
 }
 window.reloadKpiTeam=function(){const el=document.getElementById("kt_day");if(el)KPITEAM_DAY=el.value;loadKpiTeam();};
 function viewKpi(){
