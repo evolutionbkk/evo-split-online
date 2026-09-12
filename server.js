@@ -1273,6 +1273,37 @@ app.post('/api/admin/kpi-manual', requireAuth, async (req, res) => {
   const report = await saveKpiManual(day, side, b.data || {});
   res.json({ ok: true, day, side, report });
 });
+// ----- Customer dashboard / Excel export: full customer list w/ purchases, amount, date, address -----
+app.get('/api/admin/customers', requireAuth, (req, res) => {
+  const chan = String(req.query.channel || 'all');   // all | fb | mkt | legacy
+  const side = String(req.query.side || 'all');       // all | W | K
+  const rows = [];
+  for (const r of state.assigned) {
+    const isSHT = String(r.code || '').startsWith('SHT');
+    const src = r.source || 'evolution';
+    const ch = isSHT ? 'legacy' : ((src === 'pancake' || src === 'manual' || src === 'refill') ? 'fb' : 'mkt');
+    if (chan !== 'all' && chan !== ch) continue;
+    if (side !== 'all' && r.sales !== side) continue;
+    const orders = Array.isArray(r.orders) ? r.orders : [];
+    const amtSum = orders.reduce((s, o) => { const a = Number(o && o.amount) || 0; return s + (a > 1 ? a : 0); }, 0);
+    const totalBaht = (typeof r.ltv === 'number' && r.ltv > 0) ? r.ltv : (amtSum > 0 ? amtSum : (Number(r.orderAmount) > 1 ? Number(r.orderAmount) : 0));
+    const prodText = (r.product && String(r.product).trim()) ? r.product
+      : orders.map((o) => (o.items || []).map((it) => it.name + (it.qty > 1 ? ' x' + it.qty : '')).join(', ')).filter(Boolean).join(' | ');
+    const dts = orders.map((o) => o.date || o.dateStr).filter(Boolean);
+    rows.push({
+      name: r.name || '', phone: r.phone || '', code: r.code || r.ticketId || '',
+      side: r.sales || '', channel: ch,
+      status: r.leadStatus || 'new', archived: !!r.archived,
+      product: prodText, orderCount: r.orderCount || orders.length || 0,
+      totalBaht,
+      lastOrder: r.lastOrderAt || (orders[0] && orders[0].date) || '',
+      firstOrder: dts.length ? dts[dts.length - 1] : '',
+      address: r.address || '', page: r.page || '', closer: nickName(r.closer) || r.closer || '',
+      receivedAt: r.receivedAt || '',
+    });
+  }
+  res.json({ ok: true, count: rows.length, names: SALES_NAMES, rows });
+});
 // Telesales self-service: a salesperson updates THEIR OWN side's KPI (side from their session)
 app.get('/api/sales/kpi-manual', requireCrm, (req, res) => {
   const side = req.session.role === 'sales' ? req.session.side : ((req.query.side === 'W' || req.query.side === 'K') ? req.query.side : 'W');

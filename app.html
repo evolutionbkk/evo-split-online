@@ -178,6 +178,7 @@ const NAV=[
   {k:"tel_calltoday",t:"โทรวันนี้ (รายสาย)",sub:1},
   {k:"tel_perf",t:"ผลงาน Telesales",sub:1},
   {lab:"ทั่วไป"},
+  {k:"customers",ic:"🧾",t:"รายชื่อลูกค้า (Excel)"},
   {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
   {k:"appts",ic:"📅",t:"นัดหมาย (ปฏิทิน)"},
   {k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)"},
@@ -188,7 +189,7 @@ const NAV=[
   {k:"staff",ic:"🧑‍💼",t:"พนักงาน"},
   {k:"settings",ic:"⚙️",t:"ตั้งค่า"},
 ];
-const TITLES={dashboard:"ภาพรวม",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",archive:"จัดเก็บ (ปิดงาน)",stopped:"ยกเลิกการติดต่อ",trash:"ถังขยะ (ลบ)",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
+const TITLES={dashboard:"ภาพรวม",customers:"รายชื่อลูกค้า (Dashboard + Excel)",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",archive:"จัดเก็บ (ปิดงาน)",stopped:"ยกเลิกการติดต่อ",trash:"ถังขยะ (ลบ)",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
 function renderNav(){
   $("#side").innerHTML=`<div class="brand">EVO E-COMMERCE<small>${esc((ME&&ME.name)||"หัวหน้าทีม")} · Console</small></div>`+
     NAV.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`
@@ -982,7 +983,69 @@ window.avPick=function(k){AVDATE=(AVDATE===k?"":k);paint();};
 window.avNav=function(delta){const TZ=7*3600000,thNow=new Date(Date.now()+TZ);let Y=thNow.getUTCFullYear(),M=thNow.getUTCMonth()+1;if(AVYM){const a=AVYM.split("-");Y=+a[0];M=+a[1];}M+=delta;if(M<1){M=12;Y--;}if(M>12){M=1;Y++;}AVYM=Y+"-"+String(M).padStart(2,"0");paint();};
 window.avSide=function(s){AVSIDE=s;AVDATE="";paint();};
 /* render */
-const VIEWS={dashboard:viewDashboard,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_calltoday:viewTelCallToday,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,stopped:viewStopped,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
+/* ===== รายชื่อลูกค้า (Dashboard + ส่งออก Excel) ===== */
+let CUST=null,CUSTCH="all",CUSTSIDE="all",CUSTQ="",CUSTPAGE=1;
+const CUSTCH_LAB={all:"ทุกช่องทาง",fb:"Facebook (Pancake)",mkt:"Marketplace",legacy:"ฐานเก่า"};
+function custD2(v){const t=Date.parse(v);if(isNaN(t))return"";const d=new Date(t+7*3600000),p=n=>String(n).padStart(2,"0");return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+String(d.getUTCFullYear()+543).slice(-2);}
+function viewCustomers(){
+  let h=`<div class="filters" style="margin-bottom:14px"><div class="fg"><span class="lb">ช่องทาง</span>`+
+    Object.keys(CUSTCH_LAB).map(k=>`<button class="chip ${CUSTCH===k?'on':''}" onclick="setCustCh('${k}')">${CUSTCH_LAB[k]}</button>`).join("")+
+    `</div><div class="fg" style="margin-left:6px"><span class="lb">เซลล์</span>`+
+    [['all','ทั้งทีม'],['W','พี่หวาน'],['K','พี่เขม']].map(([k,t])=>`<button class="chip ${CUSTSIDE===k?'on':''}" onclick="setCustSide('${k}')">${t}</button>`).join("")+
+    `</div><div class="fg" style="margin-left:auto"><button class="chip on" style="background:#16a34a;border-color:#16a34a;color:#fff;font-weight:800" onclick="exportCustomersExcel()">⬇️ ส่งออก Excel</button></div></div>`;
+  h+=`<input class="inp" placeholder="🔍 ค้นหา ชื่อ / เบอร์ / สินค้า / รหัส" value="${esc(CUSTQ)}" oninput="CUSTQ=this.value.trim();CUSTPAGE=1;paintCust()" style="width:100%;max-width:380px;padding:9px 12px;margin-bottom:14px;border:1.5px solid var(--line);border-radius:9px">`;
+  h+=`<div id="custWrap"><div class="empty" style="padding:20px">กำลังโหลดรายชื่อลูกค้า…</div></div>`;
+  setTimeout(loadCustomers,30);
+  return h;
+}
+window.setCustCh=function(k){CUSTCH=k;CUST=null;CUSTPAGE=1;paint();};
+window.setCustSide=function(k){CUSTSIDE=k;CUST=null;CUSTPAGE=1;paint();};
+async function loadCustomers(){
+  try{const j=await getJSON(`/api/admin/customers?channel=${CUSTCH}&side=${CUSTSIDE}`);CUST=(j&&j.rows)||[];}catch(e){CUST=[];}
+  paintCust();
+}
+function custFiltered(){const q=CUSTQ.toLowerCase();return (CUST||[]).filter(r=>!q||[r.name,r.phone,r.product,r.code].some(v=>String(v||"").toLowerCase().includes(q)));}
+function paintCust(){
+  const box=document.getElementById("custWrap");if(!box)return;
+  if(CUST===null){box.innerHTML=`<div class="empty" style="padding:20px">กำลังโหลด…</div>`;return;}
+  const rows=custFiltered();
+  const tot=rows.reduce((s,r)=>s+(r.totalBaht||0),0),buyers=rows.filter(r=>(r.orderCount||0)>0).length;
+  const PER=50,pages=Math.max(1,Math.ceil(rows.length/PER));if(CUSTPAGE>pages)CUSTPAGE=pages;if(CUSTPAGE<1)CUSTPAGE=1;
+  const slice=rows.slice((CUSTPAGE-1)*PER,(CUSTPAGE-1)*PER+PER);
+  const chName=c=>CUSTCH_LAB[c]||c,sideName=s=>s==="K"?"พี่เขม":s==="W"?"พี่หวาน":"—";
+  let h=`<div style="${grid(150)};margin-bottom:16px">${statTile(fmt(rows.length),"รายชื่อลูกค้า")}${statTile(fmt(buyers),"เคยซื้อ","var(--brand)")}${statTile(fmtB(tot),"ยอดรวม","var(--ok)")}</div>`;
+  h+=`<div class="card" style="overflow:auto"><table class="tbl" style="font-size:12.5px"><thead><tr><th>ลูกค้า</th><th>ช่องทาง</th><th>เซลล์</th><th>สินค้า</th><th class="r">ยอด</th><th class="r">ครั้ง</th><th>ซื้อล่าสุด</th><th>ที่อยู่</th></tr></thead><tbody>`;
+  h+=(slice.length?slice.map(r=>`<tr>
+    <td><b>${esc(r.name||"—")}</b><div class="mono" style="font-size:11px;color:var(--muted)">${esc(r.phone||"")}</div></td>
+    <td>${chName(r.channel)}</td><td>${sideName(r.side)}</td>
+    <td style="max-width:240px">${esc(r.product||"—")}</td>
+    <td class="r tnum">${r.totalBaht>0?fmtB(r.totalBaht):"—"}</td>
+    <td class="r tnum">${fmt(r.orderCount||0)}</td>
+    <td>${custD2(r.lastOrder)||"—"}</td>
+    <td style="max-width:220px;font-size:11.5px;color:var(--muted)">${esc(r.address||"—")}</td></tr>`).join(""):`<tr><td colspan="8" class="empty" style="border:none">ไม่พบรายชื่อ</td></tr>`);
+  h+=`</tbody></table>`;
+  if(pages>1)h+=`<div style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span style="font-size:12px;color:var(--muted)">หน้า ${CUSTPAGE}/${pages} · ${fmt(rows.length)} ราย</span><div style="display:flex;gap:6px">${CUSTPAGE>1?`<button class="chip" onclick="CUSTPAGE--;paintCust()">‹ ก่อนหน้า</button>`:""}${CUSTPAGE<pages?`<button class="chip" onclick="CUSTPAGE++;paintCust()">ถัดไป ›</button>`:""}</div></div>`;
+  h+=`</div><div style="font-size:11.5px;color:var(--muted);margin-top:8px">รวมทุกช่องทาง (Pancake + Marketplace + ฐานเก่า) · ยอดรวมนับเฉพาะยอดจริงจากออเดอร์/Pancake (ข้ามค่าปลอม ฿0–1)</div>`;
+  box.innerHTML=h;
+}
+window.paintCust=paintCust;
+window.exportCustomersExcel=function(){
+  const rows=custFiltered();
+  if(!rows.length){toast("ไม่มีข้อมูลให้ส่งออก");return;}
+  const chName=c=>CUSTCH_LAB[c]||c,sideName=s=>s==="K"?"พี่เขม (K)":s==="W"?"พี่หวาน (W)":"";
+  const D2=v=>{const t=Date.parse(v);if(isNaN(t))return"";const d=new Date(t+7*3600000),p=n=>String(n).padStart(2,"0");return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+(d.getUTCFullYear()+543);};
+  const ec=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const STL={new:"ใหม่",contacting:"กำลังติดต่อ",interested:"สนใจ",followup:"นัดติดตาม",awaiting_payment:"รอชำระเงิน",won:"ปิดการขาย",lost:"ไม่สนใจ"};
+  const head=["ชื่อลูกค้า","เบอร์โทร","รหัส","ช่องทาง","เซลล์","สถานะ","สินค้าที่ซื้อ","ยอดรวม(บาท)","จำนวนครั้ง","ซื้อล่าสุด","ที่อยู่","เพจ","ปิดโดย(Admin)"];
+  const trs=rows.map(r=>`<tr>${[r.name,"'"+String(r.phone||""),r.code,chName(r.channel),sideName(r.side),(STL[r.status]||r.status),r.product,(r.totalBaht||0),(r.orderCount||0),D2(r.lastOrder),r.address,r.page,r.closer].map(v=>`<td>${ec(v)}</td>`).join("")}</tr>`).join("");
+  const html=`<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr>${head.map(x=>`<th style="background:#1f3864;color:#fff;font-weight:bold">${ec(x)}</th>`).join("")}</tr></thead><tbody>${trs}</tbody></table></body></html>`;
+  const blob=new Blob(["﻿"+html],{type:"application/vnd.ms-excel;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a"),today=new Date(Date.now()+7*3600000).toISOString().slice(0,10);
+  a.href=url;a.download=`รายชื่อลูกค้า_${CUSTCH_LAB[CUSTCH]}_${today}.xls`;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  toast("ส่งออก Excel แล้ว "+rows.length+" ราย");
+};
+const VIEWS={dashboard:viewDashboard,customers:viewCustomers,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_calltoday:viewTelCallToday,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,stopped:viewStopped,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
 function paint(){renderNav();$("#viewTitle").textContent=TITLES[VIEW]||"คอนโซล";const fn=VIEWS[VIEW]||viewDashboard;$("#content").innerHTML=fn();window.scrollTo(0,0);}
 async function init(){
   const me=await getJSON("/api/me");if(!me)return;ME=me;
