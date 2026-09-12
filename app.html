@@ -1005,27 +1005,98 @@ async function loadCustomers(){
   paintCust();
 }
 function custFiltered(){const q=CUSTQ.toLowerCase();return (CUST||[]).filter(r=>!q||[r.name,r.phone,r.product,r.code].some(v=>String(v||"").toLowerCase().includes(q)));}
+const CX_CH_COL={fb:"#0077B6",mkt:"#E8A317",legacy:"#8FA9BE"};
+function ensureCxCss(){
+  if(document.getElementById("cxdash-css"))return;
+  const s=document.createElement("style");s.id="cxdash-css";
+  s.textContent=`.cxdash{--cxink:#03045E;--cxa:#2F4F76;--cxb:#4F6C8C;--cxc:#5E7691;--cxline:#DEEDF6;--cxsh:0 1px 2px rgba(3,4,94,.05),0 6px 18px rgba(3,4,94,.07);--cxgrad:linear-gradient(135deg,#00B4D8,#0077B6)}
+  .cxdash .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+  .cxdash .w4{grid-column:span 4}.cxdash .w5{grid-column:span 5}.cxdash .w6{grid-column:span 6}.cxdash .w7{grid-column:span 7}.cxdash .w8{grid-column:span 8}.cxdash .w12{grid-column:1/-1}
+  .cxdash .kstrip{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  .cxdash .kx{background:#fff;border:1px solid var(--cxline);border-radius:16px;box-shadow:var(--cxsh);padding:14px 15px;min-width:0}
+  .cxdash .kx .kl{font-size:11.5px;color:var(--cxb);display:flex;align-items:center;gap:6px;font-weight:700}
+  .cxdash .kx .kv{font-size:22px;font-weight:800;letter-spacing:-.7px;margin-top:6px;line-height:1.15;color:var(--cxink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+  .cxdash .kx .ks{font-size:11px;color:var(--cxc);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cxdash .kx.hi{background:var(--cxgrad);border:none;box-shadow:0 10px 24px rgba(0,119,182,.28)}
+  .cxdash .kx.hi .kl,.cxdash .kx.hi .kv,.cxdash .kx.hi .ks{color:#fff}
+  .cxdash .c{background:#fff;border:1px solid var(--cxline);border-radius:18px;box-shadow:var(--cxsh);padding:18px;min-width:0}
+  .cxdash .c-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .cxdash .c-h h3{font-size:14px;font-weight:800;color:var(--cxink);margin:0}
+  .cxdash .c-h .r{margin-left:auto;font-size:11.5px;color:var(--cxc);font-weight:600}
+  .cxdash .cxtbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .cxdash .cxtbl th{text-align:left;font-size:11.5px;color:var(--cxb);font-weight:700;padding:9px 12px;border-bottom:2px solid var(--cxline);white-space:nowrap}
+  .cxdash .cxtbl td{padding:10px 12px;border-bottom:1px solid #EDF4F9;color:var(--cxa);vertical-align:top}
+  .cxdash .cxtbl tbody tr:hover{background:#F5FBFE}
+  .cxdash .cxtbl .r{text-align:right}.cxdash .tnum{font-variant-numeric:tabular-nums}
+  .cxdash .cchip{padding:3px 9px;border-radius:7px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-block}
+  @media(max-width:1180px){.cxdash .kstrip{grid-template-columns:repeat(3,1fr)}.cxdash .w4,.cxdash .w5,.cxdash .w6,.cxdash .w7,.cxdash .w8{grid-column:span 12}}
+  @media(max-width:720px){.cxdash .kstrip{grid-template-columns:repeat(2,1fr)}}`;
+  document.head.appendChild(s);
+}
+function cxDonut(segs){
+  const tot=segs.reduce((s,x)=>s+(x.value||0),0)||1,R=63,C=2*Math.PI*R;let off=0;
+  const arcs=segs.filter(x=>x.value>0).map(x=>{const dash=x.value/tot*C;const a=`<circle cx="74" cy="74" r="${R}" fill="none" stroke="${x.color}" stroke-width="14" stroke-dasharray="${dash.toFixed(2)} ${(C-dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 74 74)"/>`;off+=dash;return a;}).join("");
+  return `<svg width="148" height="148" viewBox="0 0 148 148" style="flex:0 0 auto"><circle cx="74" cy="74" r="63" fill="none" stroke="#E4F0F7" stroke-width="14"/>${arcs}<text x="74" y="70" text-anchor="middle" font-size="23" font-weight="800" fill="#03045E">${fmt(tot)}</text><text x="74" y="90" text-anchor="middle" font-size="11" fill="#5E7691">รายชื่อ</text></svg>`;
+}
+function cxBars(items){const max=Math.max(1,...items.map(i=>i.value||0));return items.map(i=>`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span style="font-weight:700;color:#2F4F76">${esc(i.label)}</span><span class="tnum" style="font-weight:800;color:${i.color||'#0077B6'}">${i.text!=null?i.text:fmt(i.value)}</span></div><div style="height:9px;background:#EAF3F9;border-radius:6px;overflow:hidden"><i style="display:block;height:100%;width:${Math.round((i.value||0)/max*100)}%;background:${i.color?i.color:'linear-gradient(90deg,#00B4D8,#0077B6)'};border-radius:6px"></i></div></div>`).join("");}
 function paintCust(){
   const box=document.getElementById("custWrap");if(!box)return;
   if(CUST===null){box.innerHTML=`<div class="empty" style="padding:20px">กำลังโหลด…</div>`;return;}
+  ensureCxCss();
   const rows=custFiltered();
   const tot=rows.reduce((s,r)=>s+(r.totalBaht||0),0),buyers=rows.filter(r=>(r.orderCount||0)>0).length;
+  const avg=buyers?Math.round(tot/buyers):0;
+  const chName=c=>CUSTCH_LAB[c]||c,sideName=s=>s==="K"?"พี่เขม (K)":s==="W"?"พี่หวาน (W)":"—";
+  // aggregations
+  const chAgg={fb:{n:0,rev:0},mkt:{n:0,rev:0},legacy:{n:0,rev:0}};
+  const sideAgg={W:{n:0,rev:0},K:{n:0,rev:0}};
+  const prodAgg={};
+  rows.forEach(r=>{const c=chAgg[r.channel];if(c){c.n++;c.rev+=r.totalBaht||0;}const sd=sideAgg[r.side];if(sd){sd.n++;sd.rev+=r.totalBaht||0;}const p=String(r.product||"").split(/[,|]/)[0].trim();if(p){prodAgg[p]=prodAgg[p]||{n:0,rev:0};prodAgg[p].n++;prodAgg[p].rev+=r.totalBaht||0;}});
+  const donutSegs=["fb","mkt","legacy"].filter(k=>chAgg[k].n>0).map(k=>({label:CUSTCH_LAB[k],value:chAgg[k].n,color:CX_CH_COL[k]}));
+  const revBars=["fb","mkt","legacy"].map(k=>({label:CUSTCH_LAB[k],value:chAgg[k].rev,color:CX_CH_COL[k],text:fmtB(chAgg[k].rev)}));
+  const topProd=Object.entries(prodAgg).sort((a,b)=>b[1].n-a[1].n).slice(0,8).map(([label,v])=>({label,value:v.n,color:"#7048E8",text:fmt(v.n)+" ราย"}));
+  // KPI strip
+  const kx=(cls,lab,ic,val,sub)=>`<div class="kx ${cls||''}"><div class="kl">${ic} ${lab}</div><div class="kv">${val}</div><div class="ks">${sub}</div></div>`;
+  let h=`<div class="cxdash"><div class="grid">`;
+  h+=`<div class="kstrip">
+    ${kx('hi','รายชื่อลูกค้าทั้งหมด','👥',fmt(rows.length),'ทุกช่องทางในระบบ')}
+    ${kx('','เคยซื้อแล้ว','🛍️',fmt(buyers),'มีออเดอร์ ≥ 1 · '+(rows.length?Math.round(buyers/rows.length*100):0)+'%')}
+    ${kx('','ยอดขายรวม','💰',fmtB(tot),'จากออเดอร์จริง (ข้ามค่าปลอม)')}
+    ${kx('','ยอดเฉลี่ย/คนที่ซื้อ','📈',fmtB(avg),'ยอดรวม ÷ คนที่เคยซื้อ')}
+    ${kx('','ลูกค้า FB (Pancake)','💬',fmt(chAgg.fb.n),fmtB(chAgg.fb.rev))}
+    ${kx('','ลูกค้า Marketplace','📦',fmt(chAgg.mkt.n),fmtB(chAgg.mkt.rev))}
+  </div>`;
+  // donut card
+  h+=`<div class="c w5"><div class="c-h"><h3>สัดส่วนลูกค้าตามช่องทาง</h3></div>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${cxDonut(donutSegs)}
+    <div style="flex:1;min-width:140px">${["fb","mkt","legacy"].map(k=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:7px 0"><span style="width:12px;height:12px;border-radius:4px;background:${CX_CH_COL[k]};display:inline-block"></span><span style="flex:1;color:#2F4F76;font-weight:600">${CUSTCH_LAB[k]}</span><b class="tnum" style="color:#03045E">${fmt(chAgg[k].n)}</b></div>`).join("")}</div></div></div>`;
+  // revenue by channel
+  h+=`<div class="c w7"><div class="c-h"><h3>ยอดขายแยกช่องทาง</h3><span class="r">รวม ${fmtB(tot)}</span></div>${cxBars(revBars)}</div>`;
+  // top products
+  h+=`<div class="c w6"><div class="c-h"><h3>สินค้าขายดี (Top 8)</h3><span class="r">ตามจำนวนลูกค้า</span></div>${topProd.length?cxBars(topProd):'<div style="color:#5E7691;font-size:12.5px">ไม่มีข้อมูลสินค้า</div>'}</div>`;
+  // by sales
+  h+=`<div class="c w6"><div class="c-h"><h3>แยกตามเซลล์</h3></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
+      ${['W','K'].map(sd=>`<div style="background:#F5FBFE;border:1px solid var(--cxline);border-radius:14px;padding:14px"><div style="font-size:12.5px;color:#4F6C8C;font-weight:700">${sideName(sd)}</div><div style="font-size:20px;font-weight:800;color:#03045E;margin-top:5px" class="tnum">${fmt(sideAgg[sd].n)} <span style="font-size:12px;color:#5E7691;font-weight:600">ราย</span></div><div style="font-size:12.5px;color:#0E9F6E;font-weight:800;margin-top:3px">${fmtB(sideAgg[sd].rev)}</div></div>`).join("")}
+    </div></div>`;
+  // table card
   const PER=50,pages=Math.max(1,Math.ceil(rows.length/PER));if(CUSTPAGE>pages)CUSTPAGE=pages;if(CUSTPAGE<1)CUSTPAGE=1;
   const slice=rows.slice((CUSTPAGE-1)*PER,(CUSTPAGE-1)*PER+PER);
-  const chName=c=>CUSTCH_LAB[c]||c,sideName=s=>s==="K"?"พี่เขม":s==="W"?"พี่หวาน":"—";
-  let h=`<div style="${grid(150)};margin-bottom:16px">${statTile(fmt(rows.length),"รายชื่อลูกค้า")}${statTile(fmt(buyers),"เคยซื้อ","var(--brand)")}${statTile(fmtB(tot),"ยอดรวม","var(--ok)")}</div>`;
-  h+=`<div class="card" style="overflow:auto"><table class="tbl" style="font-size:12.5px"><thead><tr><th>ลูกค้า</th><th>ช่องทาง</th><th>เซลล์</th><th>สินค้า</th><th class="r">ยอด</th><th class="r">ครั้ง</th><th>ซื้อล่าสุด</th><th>ที่อยู่</th></tr></thead><tbody>`;
+  const chChip=c=>`<span class="cchip" style="background:${CX_CH_COL[c]}22;color:${CX_CH_COL[c]}">${chName(c)}</span>`;
+  h+=`<div class="c w12"><div class="c-h"><h3>รายชื่อลูกค้าทั้งหมด</h3><span class="r">${fmt(rows.length)} ราย</span></div>
+    <div style="overflow:auto"><table class="cxtbl"><thead><tr><th>ลูกค้า</th><th>ช่องทาง</th><th>เซลล์</th><th>สินค้า</th><th class="r">ยอด</th><th class="r">ครั้ง</th><th>ซื้อล่าสุด</th><th>ที่อยู่</th></tr></thead><tbody>`;
   h+=(slice.length?slice.map(r=>`<tr>
-    <td><b>${esc(r.name||"—")}</b><div class="mono" style="font-size:11px;color:var(--muted)">${esc(r.phone||"")}</div></td>
-    <td>${chName(r.channel)}</td><td>${sideName(r.side)}</td>
-    <td style="max-width:240px">${esc(r.product||"—")}</td>
-    <td class="r tnum">${r.totalBaht>0?fmtB(r.totalBaht):"—"}</td>
+    <td><b style="color:#03045E">${esc(r.name||"—")}</b><div class="mono" style="font-size:11px;color:#5E7691">${esc(r.phone||"")}</div></td>
+    <td>${chChip(r.channel)}</td><td>${sideName(r.side)}</td>
+    <td style="max-width:230px">${esc(r.product||"—")}</td>
+    <td class="r tnum" style="font-weight:800;color:${r.totalBaht>0?'#0E9F6E':'#8FA9BE'}">${r.totalBaht>0?fmtB(r.totalBaht):"—"}</td>
     <td class="r tnum">${fmt(r.orderCount||0)}</td>
-    <td>${custD2(r.lastOrder)||"—"}</td>
-    <td style="max-width:220px;font-size:11.5px;color:var(--muted)">${esc(r.address||"—")}</td></tr>`).join(""):`<tr><td colspan="8" class="empty" style="border:none">ไม่พบรายชื่อ</td></tr>`);
-  h+=`</tbody></table>`;
-  if(pages>1)h+=`<div style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span style="font-size:12px;color:var(--muted)">หน้า ${CUSTPAGE}/${pages} · ${fmt(rows.length)} ราย</span><div style="display:flex;gap:6px">${CUSTPAGE>1?`<button class="chip" onclick="CUSTPAGE--;paintCust()">‹ ก่อนหน้า</button>`:""}${CUSTPAGE<pages?`<button class="chip" onclick="CUSTPAGE++;paintCust()">ถัดไป ›</button>`:""}</div></div>`;
-  h+=`</div><div style="font-size:11.5px;color:var(--muted);margin-top:8px">รวมทุกช่องทาง (Pancake + Marketplace + ฐานเก่า) · ยอดรวมนับเฉพาะยอดจริงจากออเดอร์/Pancake (ข้ามค่าปลอม ฿0–1)</div>`;
+    <td class="tnum">${custD2(r.lastOrder)||"—"}</td>
+    <td style="max-width:210px;font-size:11.5px;color:#5E7691">${esc(r.address||"—")}</td></tr>`).join(""):`<tr><td colspan="8" style="text-align:center;color:#5E7691;padding:20px">ไม่พบรายชื่อ</td></tr>`);
+  h+=`</tbody></table></div>`;
+  if(pages>1)h+=`<div style="padding:12px 2px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><span style="font-size:12px;color:#5E7691">หน้า ${CUSTPAGE}/${pages}</span><div style="display:flex;gap:6px">${CUSTPAGE>1?`<button class="chip" onclick="CUSTPAGE--;paintCust()">‹ ก่อนหน้า</button>`:""}${CUSTPAGE<pages?`<button class="chip" onclick="CUSTPAGE++;paintCust()">ถัดไป ›</button>`:""}</div></div>`;
+  h+=`</div>`;
+  h+=`</div></div>`;
   box.innerHTML=h;
 }
 window.paintCust=paintCust;
