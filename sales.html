@@ -27,6 +27,12 @@
   .lo{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 13px;font-weight:700;font-size:13px;color:var(--ink);text-decoration:none}
   .content{padding:20px;max-width:1180px;width:100%;margin:0 auto}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow)}
+  .tbl{width:100%;border-collapse:collapse}
+  .tbl th,.tbl td{padding:11px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+  .tbl thead th{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl td.r,.tbl th.r{text-align:right}
+  .tbl .tnum{font-variant-numeric:tabular-nums}
   .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;border-radius:999px;padding:5px 11px;white-space:nowrap}
   .st-new{background:#eef2ff;color:#4f46e5}.st-contacting{background:#ecfeff;color:#0e7490}.st-interested{background:#f5f3ff;color:#7c3aed}
   .st-followup{background:#e0f2fe;color:#075985}.st-awaiting_payment{background:#fff7ed;color:#c2660c}.st-won{background:#dcfce7;color:#166534}.st-lost{background:#fef2f2;color:#b91c1c}
@@ -651,7 +657,7 @@ window.saveKpiUpdate=async function(){
 let KPITEAM_DAY="";
 function viewKpiTeam(){
   if(!KPITEAM_DAY)KPITEAM_DAY=todayISO();
-  return `<div style="max-width:680px;margin:0 auto">
+  return `<div style="max-width:960px;margin:0 auto">
     <div class="card" style="padding:14px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div style="font-weight:800;font-size:15px">📈 KPI ทีม — ภาพรวมเดียวกับหัวหน้าทีม</div><div style="font-size:12px;color:var(--muted);margin-top:2px">👁 ดูอย่างเดียว · นับเฉพาะ “ได้คุย” · แก้ที่เมนู “อัปเดต KPI Teamsale”</div></div>
       <input type="date" class="inp" id="kt_day" value="${KPITEAM_DAY}" onchange="reloadKpiTeam()" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px">
@@ -667,8 +673,8 @@ async function loadKpiTeam(){
   const talk=(o,k)=>((o[k]||{}).talk||0);
   const COL={mk:"#a16207",t1:"#2563eb",t2:"#0891b2",t3:"#7c3aed"};
   const bar=(pct,c)=>`<div style="height:7px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:5px"><i style="display:block;height:100%;width:${Math.min(100,pct)}%;background:${c}"></i></div>`;
-  const row=(lab,key,tgv,color)=>{const w=talk(W,key),k=talk(K,key);const pc=v=>tgv?Math.min(100,Math.round(v/tgv*100)):0;const cell=v=>`<td><div style="display:flex;justify-content:space-between;font-weight:800;font-size:13px"><span class="tnum">${v}<span style="color:var(--muted);font-weight:500">/${tgv}</span></span><span class="tnum" style="color:${color}">${pc(v)}%</span></div>${bar(pc(v),color)}</td>`;return `<tr><td><b style="color:${color}">${lab}</b></td>${cell(w)}${cell(k)}<td class="r tnum"><b style="font-size:15px">${w+k}</b></td></tr>`;};
-  const revCell=(rev,ord)=>`<td><div style="display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:14px"><span class="tnum" style="color:#16a34a">${fmtB(rev)}</span><span class="tnum" style="color:var(--muted);font-weight:600;font-size:11px">${ord} ปิด</span></div><div style="height:7px;margin-top:5px"></div></td>`;
+  const row=(lab,key,tgv,color)=>{const w=talk(W,key),k=talk(K,key);const pc=v=>tgv?Math.min(100,Math.round(v/tgv*100)):0;const cell=v=>`<td style="min-width:150px"><div style="display:flex;justify-content:space-between;gap:10px;font-weight:800;font-size:13px"><span class="tnum">${v}<span style="color:var(--muted);font-weight:500">/${tgv}</span></span><span class="tnum" style="color:${color}">${pc(v)}%</span></div>${bar(pc(v),color)}</td>`;return `<tr><td style="min-width:150px"><b style="color:${color}">${lab}</b></td>${cell(w)}${cell(k)}<td class="r tnum"><b style="font-size:15px">${w+k}</b></td></tr>`;};
+  const revCell=(rev,ord)=>`<td style="min-width:150px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-weight:800;font-size:14px"><span class="tnum" style="color:#16a34a">${fmtB(rev)}</span><span class="tnum" style="color:var(--muted);font-weight:600;font-size:11px">${ord} ปิด</span></div><div style="height:7px;margin-top:5px"></div></td>`;
   const revRow=`<tr style="border-top:2px solid var(--line)"><td><b style="color:#16a34a">💰 ยอดขาย</b></td>${revCell(W.revenue||0,W.orders||0)}${revCell(K.revenue||0,K.orders||0)}<td class="r tnum"><b style="font-size:15px;color:#16a34a">${fmtB((W.revenue||0)+(K.revenue||0))}</b></td></tr>`;
   const body=[row("📦 Marketplace (Lazada)","lazada",tg.evo||30,COL.mk),row("💬 T1 · โทรขาย","t1",tg.t1||5,COL.t1),row("💬 T2 · ตามรอบ 2","t2",tg.t2||5,COL.t2),row("💬 T3 · ตามรอบ 3","t3",tg.t3||20,COL.t3),revRow].join("");
   const el=document.getElementById("kt_body");if(el)el.innerHTML=body;
