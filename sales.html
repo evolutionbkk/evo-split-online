@@ -574,8 +574,8 @@ function viewKpiUpdate(){
   // แบบรายสาย (real-time)
   const qaRow=([k,lab])=>`<tr>
     <td style="padding:7px 8px;font-weight:800">${lab}</td>
-    <td style="text-align:center"><b class="tnum" id="qa_${k}_talk" style="font-size:16px;color:#16a34a">0</b><div style="font-size:10px;color:var(--muted)">ได้คุย</div></td>
-    <td style="text-align:center"><b class="tnum" id="qa_${k}_noTalk" style="font-size:16px;color:#dc2626">0</b><div style="font-size:10px;color:var(--muted)">ไม่ได้คุย</div></td>
+    <td style="text-align:center"><input id="qa_${k}_talk" type="number" min="0" value="0" onchange="editQa('${k}')" style="width:54px;text-align:center;font-size:15px;font-weight:800;color:#16a34a;border:1.5px solid var(--line);border-radius:7px;padding:3px 2px"><div style="font-size:10px;color:var(--muted)">ได้คุย</div></td>
+    <td style="text-align:center"><input id="qa_${k}_noTalk" type="number" min="0" value="0" onchange="editQa('${k}')" style="width:54px;text-align:center;font-size:15px;font-weight:800;color:#dc2626;border:1.5px solid var(--line);border-radius:7px;padding:3px 2px"><div style="font-size:10px;color:var(--muted)">ไม่ได้คุย</div></td>
     <td style="white-space:nowrap;text-align:right">
       <button onclick="quickAdd('${k}',true)" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">＋ ได้คุย</button>
       <button onclick="quickAdd('${k}',false)" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer;margin-left:5px">＋ ไม่ได้คุย</button>
@@ -613,8 +613,8 @@ function fillKpiForm(rep){
   rep=rep||{};
   KU_ROUNDS.forEach(([k])=>{const o=rep[k]||{};const tk=o.talk||0,tot=o.total||0,nt=(o.noTalk!=null?o.noTalk:Math.max(0,tot-tk));
     kuSet(k+"_total",tot);kuSet(k+"_talk",tk);kuSet(k+"_noTalk",nt);
-    const qt=document.getElementById("qa_"+k+"_talk");if(qt)qt.textContent=tk;
-    const qn=document.getElementById("qa_"+k+"_noTalk");if(qn)qn.textContent=nt;});
+    const qt=document.getElementById("qa_"+k+"_talk");if(qt&&document.activeElement!==qt)qt.value=tk;
+    const qn=document.getElementById("qa_"+k+"_noTalk");if(qn&&document.activeElement!==qn)qn.value=nt;});
   kuSet("revenue",rep.revenue||0);kuSet("orders",rep.orders||0);
   const nt=document.getElementById("ku_note");if(nt)nt.value=rep.note||"";
 }
@@ -623,6 +623,13 @@ async function loadKpiUpdate(){
   try{const r=await fetch("/api/sales/kpi-manual?day="+encodeURIComponent(day));const j=await r.json();fillKpiForm((j&&j.report)||{});}catch(e){}
 }
 window.reloadKpiUpdate=function(){const el=document.getElementById("ku_day");if(el)KPIUPD_DAY=el.value;loadKpiUpdate();};
+window.editQa=async function(round){
+  const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
+  const gv=id=>{const el=document.getElementById("qa_"+round+"_"+id);return el?Math.max(0,Number(el.value)||0):0;};
+  const j=await api("/api/sales/kpi-set-round",{day,round,talk:gv("talk"),noTalk:gv("noTalk")});
+  if(j&&j.ok){fillKpiForm(j.report||{});toast("แก้ไข "+round.toUpperCase()+" แล้ว");}
+  else toast((j&&j.error)||"แก้ไขไม่สำเร็จ");
+};
 window.quickAdd=async function(round,talked,undo){
   const day=(document.getElementById("ku_day")||{}).value||KPIUPD_DAY;
   const j=await api("/api/sales/kpi-inc",{day,round,talked,undo:!!undo});

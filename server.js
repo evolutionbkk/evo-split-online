@@ -1303,6 +1303,23 @@ app.post('/api/sales/kpi-inc', requireCrm, async (req, res) => {
   const report = await saveKpiManual(day, side, data);
   res.json({ ok: true, day, side, round, report: report[side] });
 });
+// Correct one round's talk/noTalk directly (edit a wrong entry) — total = talk + noTalk
+app.post('/api/sales/kpi-set-round', requireCrm, async (req, res) => {
+  const b = req.body || {};
+  const side = req.session.role === 'sales' ? req.session.side : ((b.side === 'W' || b.side === 'K') ? b.side : null);
+  const todayTH = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(b.day || '')) ? b.day : todayTH;
+  const round = ['t1', 't2', 't3', 'lazada'].includes(b.round) ? b.round : null;
+  if ((side !== 'W' && side !== 'K') || !round) return res.status(400).json({ ok: false, error: 'side + round required' });
+  const num = (v) => { const n = Number(v); return (isNaN(n) || n < 0) ? 0 : Math.round(n); };
+  const talk = num(b.talk), noTalk = num(b.noTalk);
+  const cur = (state.kpiManual && state.kpiManual[day] && state.kpiManual[day][side]) || {};
+  const data = { orders: cur.orders || 0, revenue: cur.revenue || 0, note: cur.note || '' };
+  for (const k of ['t1', 't2', 't3', 'lazada']) { const o = cur[k] || {}; data[k] = { total: o.total || 0, talk: o.talk || 0, noTalk: (o.noTalk != null ? o.noTalk : Math.max(0, (o.total || 0) - (o.talk || 0))) }; }
+  data[round] = { total: talk + noTalk, talk, noTalk };
+  const report = await saveKpiManual(day, side, data);
+  res.json({ ok: true, day, side, round, report: report[side] });
+});
 // Read-only team KPI (same numbers the Teamlead sees) — for Telesales to view, cannot edit
 app.get('/api/sales/kpi-team', requireCrm, (req, res) => {
   const day = String(req.query.day || '').slice(0, 10);
