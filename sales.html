@@ -255,7 +255,7 @@ function renderNav(){
   const closedCount=ARCHIVED.filter(r=>r.archiveReason==="closed").length;
   const stoppedCount=ARCHIVED.filter(r=>r.archiveReason==="stopped").length;
   const arcCount=ARCHIVED.filter(r=>r.archiveReason!=="closed"&&r.archiveReason!=="stopped").length;
-  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"ฐานลูกค้าเก่า"},{k:"legacy",ic:"📋",t:"ฐานเก่า (จากชีท)",badge:legacyCount||0},{lab:"อื่นๆ"},{k:"kpiupd",ic:"📝",t:"อัปเดต KPI Teamsale"},{k:"kpiteam",ic:"📈",t:"KPI ทีม (ภาพรวม)"},{k:"mycalls",ic:"📞",t:"สายที่โทรของฉัน"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
+  const items=[{lab:"คิวโทรวันนี้"},{k:"ecom",ic:"📦",t:"Marketplace"},{k:"mkt",ic:"💬",t:"Facebook (Pancake)",badge:fbCount||0},{lab:"ฐานลูกค้าเก่า"},{k:"legacy",ic:"📋",t:"ฐานเก่า (จากชีท)",badge:legacyCount||0},{lab:"อื่นๆ"},{k:"kpiteam",ic:"📈",t:"KPI ทีม (ภาพรวม)"},{k:"mycalls",ic:"📞",t:"สายที่โทรของฉัน"},{k:"tickets",ic:"🎫",t:"ตั๋วของฉัน"},{k:"kpi",ic:"📊",t:"สรุป & KPI ของฉัน"},{k:"archive",ic:"📁",t:"จัดเก็บ (ปิดงาน)",badge:closedCount||0},{k:"stopped",ic:"🚫",t:"ยกเลิกการติดต่อ",badge:stoppedCount||0},{k:"trash",ic:"🗑",t:"ถังขยะ (ลบ)",badge:arcCount||0}];
   const side=(ME.side||"?");
   $("#side").innerHTML=`<div class="brand">งานของฉัน<small>${esc(ME.name||("Sales "+side))} · Sales (${esc(side)})</small></div>`+
     items.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`:
