@@ -233,7 +233,10 @@ const MP_TARGET=30,FB_TG={T1:5,T2:5,T3:20},FB_TOTAL=FB_TG.T1+FB_TG.T2+FB_TG.T3;
 function isLegacy(r){return String(r.code||"").startsWith("SHT");}
 // รายชื่อใหม่จริง ๆ ที่ Admin ปิดการขายเข้ามา (Pancake/FB) — ไม่ใช่ฐานเก่า SHT
 function isNewAdminLead(r){return !isLegacy(r) && (r.source==="pancake"||r.source==="manual"||!!r.fromExcel||!!r.closer||!!r.page);}
-function leadPanel(r){if(isLegacy(r))return "legacy";return (r.source==="pancake"||r.source==="manual"||r.source==="refill")?"mkt":"ecom";}
+function leadPanel(r){if(isLegacy(r))return "legacy";
+  // FB (Pancake) tab — ยึดเกณฑ์เดียวกับป้าย srcLabel: pancake/manual/refill หรือ Admin ปิดจากแชท (closer/page/fromExcel) หรือมีรอบ T1/T2/T3
+  if(r.source==="pancake"||r.source==="manual"||r.source==="refill"||isNewAdminLead(r)||["T1","T2","T3"].includes(String(r.step||"").toUpperCase()))return "mkt";
+  return "ecom";}
 function neverCalled(r){return !((r.realCalls>0)||(r.callCount>0));}
 function overdueDays(r){const s=r.source||"evolution";return (s==="pancake"||s==="manual"||s==="refill")?2:5;}
 function isStale(r){const st=r.leadStatus||"new";if(r.archived||st==="won"||st==="lost")return false;if(st==="followup"&&r.nextAppt){const t=Date.parse(r.nextAppt);if(!isNaN(t)&&t>Date.now())return false;}return daysIdle(r)>=overdueDays(r);}

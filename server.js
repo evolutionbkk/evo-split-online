@@ -1282,10 +1282,12 @@ app.get('/api/admin/customers', requireAuth, (req, res) => {
   for (const r of state.assigned) {
     const isSHT = String(r.code || '').startsWith('SHT');
     const src = String(r.source || 'evolution').toLowerCase();
+    // FB (Pancake) = pancake/manual/refill หรือ Admin ปิดจากแชท (closer/page/fromExcel) หรือมีรอบ T1/T2/T3
+    const fbSig = (src === 'pancake' || src === 'manual' || src === 'refill' || !!r.closer || !!r.page || !!r.fromExcel || ['T1', 'T2', 'T3'].includes(String(r.step || '').toUpperCase()));
     const ch = isSHT ? 'legacy'
-      : (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fb'
-      : MP.includes(src) ? 'mkt'
-      : 'evo';   // evolution / POS / ลูกค้าเดิม — แยกออกจาก Marketplace
+      : MP.includes(src) ? 'mkt'          // แพลตฟอร์ม Marketplace จริง (Lazada/TikTok/Shopee/BigSeller)
+      : fbSig ? 'fb'                       // Facebook/Pancake (รวม Admin ปิดการขาย แม้ source=evolution)
+      : 'evo';                            // evolution POS ล้วน ๆ (ไม่มีสัญญาณ FB)
     if (chan !== 'all' && chan !== ch) continue;
     if (side !== 'all' && r.sales !== side) continue;
     const orders = Array.isArray(r.orders) ? r.orders : [];
