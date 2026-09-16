@@ -1275,13 +1275,17 @@ app.post('/api/admin/kpi-manual', requireAuth, async (req, res) => {
 });
 // ----- Customer dashboard / Excel export: full customer list w/ purchases, amount, date, address -----
 app.get('/api/admin/customers', requireAuth, (req, res) => {
-  const chan = String(req.query.channel || 'all');   // all | fb | mkt | legacy
+  const chan = String(req.query.channel || 'all');   // all | fb | mkt | evo | legacy
   const side = String(req.query.side || 'all');       // all | W | K
+  const MP = ['lazada', 'tiktok', 'shopee', 'bigseller', 'marketplace'];   // แพลตฟอร์ม Marketplace จริง ๆ
   const rows = [];
   for (const r of state.assigned) {
     const isSHT = String(r.code || '').startsWith('SHT');
-    const src = r.source || 'evolution';
-    const ch = isSHT ? 'legacy' : ((src === 'pancake' || src === 'manual' || src === 'refill') ? 'fb' : 'mkt');
+    const src = String(r.source || 'evolution').toLowerCase();
+    const ch = isSHT ? 'legacy'
+      : (src === 'pancake' || src === 'manual' || src === 'refill') ? 'fb'
+      : MP.includes(src) ? 'mkt'
+      : 'evo';   // evolution / POS / ลูกค้าเดิม — แยกออกจาก Marketplace
     if (chan !== 'all' && chan !== ch) continue;
     if (side !== 'all' && r.sales !== side) continue;
     const orders = Array.isArray(r.orders) ? r.orders : [];

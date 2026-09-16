@@ -985,7 +985,7 @@ window.avSide=function(s){AVSIDE=s;AVDATE="";paint();};
 /* render */
 /* ===== รายชื่อลูกค้า (Dashboard + ส่งออก Excel) ===== */
 let CUST=null,CUSTCH="all",CUSTSIDE="all",CUSTQ="",CUSTPAGE=1,CUSTFROM="",CUSTTO="";
-const CUSTCH_LAB={all:"ทุกช่องทาง",fb:"Facebook (Pancake)",mkt:"Marketplace",legacy:"ฐานเก่า"};
+const CUSTCH_LAB={all:"ทุกช่องทาง",fb:"Facebook (Pancake)",mkt:"Marketplace",evo:"Evolution (ลูกค้าเดิม)",legacy:"ฐานเก่า"};
 function custD2(v){const t=Date.parse(v);if(isNaN(t))return"";const d=new Date(t+7*3600000),p=n=>String(n).padStart(2,"0");return p(d.getUTCDate())+"/"+p(d.getUTCMonth()+1)+"/"+String(d.getUTCFullYear()+543).slice(-2);}
 function viewCustomers(){
   let h=`<div class="filters" style="margin-bottom:14px"><div class="fg"><span class="lb">ช่องทาง</span>`+
@@ -1017,7 +1017,7 @@ function custFiltered(){
 }
 window.clearCustDate=function(){CUSTFROM="";CUSTTO="";const a=document.getElementById("custFrom"),b=document.getElementById("custTo");if(a)a.value="";if(b)b.value="";CUSTPAGE=1;paint();};
 window.custDatePreset=function(d){if(!d){CUSTFROM="";CUSTTO="";}else{const TZ=7*3600000,th=new Date(Date.now()+TZ),iso=t=>new Date(t).toISOString().slice(0,10);CUSTTO=iso(th.getTime());CUSTFROM=iso(th.getTime()-(Number(d)-1)*86400000);}CUSTPAGE=1;paint();};
-const CX_CH_COL={fb:"#0077B6",mkt:"#E8A317",legacy:"#8FA9BE"};
+const CX_CH_COL={fb:"#0077B6",mkt:"#E8A317",evo:"#0E9F6E",legacy:"#8FA9BE"};
 function ensureCxCss(){
   if(document.getElementById("cxdash-css"))return;
   const s=document.createElement("style");s.id="cxdash-css";
@@ -1060,12 +1060,12 @@ function paintCust(){
   const avg=buyers?Math.round(tot/buyers):0;
   const chName=c=>CUSTCH_LAB[c]||c,sideName=s=>s==="K"?"พี่เขม (K)":s==="W"?"พี่หวาน (W)":"—";
   // aggregations
-  const chAgg={fb:{n:0,rev:0},mkt:{n:0,rev:0},legacy:{n:0,rev:0}};
+  const chAgg={fb:{n:0,rev:0},mkt:{n:0,rev:0},evo:{n:0,rev:0},legacy:{n:0,rev:0}};
   const sideAgg={W:{n:0,rev:0},K:{n:0,rev:0}};
   const prodAgg={};
   rows.forEach(r=>{const c=chAgg[r.channel];if(c){c.n++;c.rev+=r.totalBaht||0;}const sd=sideAgg[r.side];if(sd){sd.n++;sd.rev+=r.totalBaht||0;}const p=String(r.product||"").split(/[,|]/)[0].trim();if(p){prodAgg[p]=prodAgg[p]||{n:0,rev:0};prodAgg[p].n++;prodAgg[p].rev+=r.totalBaht||0;}});
-  const donutSegs=["fb","mkt","legacy"].filter(k=>chAgg[k].n>0).map(k=>({label:CUSTCH_LAB[k],value:chAgg[k].n,color:CX_CH_COL[k]}));
-  const revBars=["fb","mkt","legacy"].map(k=>({label:CUSTCH_LAB[k],value:chAgg[k].rev,color:CX_CH_COL[k],text:fmtB(chAgg[k].rev)}));
+  const donutSegs=["fb","mkt","evo","legacy"].filter(k=>chAgg[k].n>0).map(k=>({label:CUSTCH_LAB[k],value:chAgg[k].n,color:CX_CH_COL[k]}));
+  const revBars=["fb","mkt","evo","legacy"].map(k=>({label:CUSTCH_LAB[k],value:chAgg[k].rev,color:CX_CH_COL[k],text:fmtB(chAgg[k].rev)}));
   const topProd=Object.entries(prodAgg).sort((a,b)=>b[1].n-a[1].n).slice(0,8).map(([label,v])=>({label,value:v.n,color:"#7048E8",text:fmt(v.n)+" ราย"}));
   // KPI strip
   const kx=(cls,lab,ic,val,sub)=>`<div class="kx ${cls||''}"><div class="kl">${ic} ${lab}</div><div class="kv">${val}</div><div class="ks">${sub}</div></div>`;
@@ -1074,14 +1074,14 @@ function paintCust(){
     ${kx('hi','รายชื่อลูกค้าทั้งหมด','👥',fmt(rows.length),'ทุกช่องทางในระบบ')}
     ${kx('','เคยซื้อแล้ว','🛍️',fmt(buyers),'มีออเดอร์ ≥ 1 · '+(rows.length?Math.round(buyers/rows.length*100):0)+'%')}
     ${kx('','ยอดขายรวม','💰',fmtB(tot),'จากออเดอร์จริง (ข้ามค่าปลอม)')}
-    ${kx('','ยอดเฉลี่ย/คนที่ซื้อ','📈',fmtB(avg),'ยอดรวม ÷ คนที่เคยซื้อ')}
-    ${kx('','ลูกค้า FB (Pancake)','💬',fmt(chAgg.fb.n),fmtB(chAgg.fb.rev))}
-    ${kx('','ลูกค้า Marketplace','📦',fmt(chAgg.mkt.n),fmtB(chAgg.mkt.rev))}
+    ${kx('','💬 Facebook (Pancake)','',fmt(chAgg.fb.n),fmtB(chAgg.fb.rev))}
+    ${kx('','📦 Marketplace','',fmt(chAgg.mkt.n),'Lazada/TikTok/Shopee · '+fmtB(chAgg.mkt.rev))}
+    ${kx('','🗂️ Evolution (ลูกค้าเดิม)','',fmt(chAgg.evo.n),fmtB(chAgg.evo.rev))}
   </div>`;
   // donut card
   h+=`<div class="c w5"><div class="c-h"><h3>สัดส่วนลูกค้าตามช่องทาง</h3></div>
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">${cxDonut(donutSegs)}
-    <div style="flex:1;min-width:140px">${["fb","mkt","legacy"].map(k=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:7px 0"><span style="width:12px;height:12px;border-radius:4px;background:${CX_CH_COL[k]};display:inline-block"></span><span style="flex:1;color:#2F4F76;font-weight:600">${CUSTCH_LAB[k]}</span><b class="tnum" style="color:#03045E">${fmt(chAgg[k].n)}</b></div>`).join("")}</div></div></div>`;
+    <div style="flex:1;min-width:140px">${["fb","mkt","evo","legacy"].map(k=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:7px 0"><span style="width:12px;height:12px;border-radius:4px;background:${CX_CH_COL[k]};display:inline-block"></span><span style="flex:1;color:#2F4F76;font-weight:600">${CUSTCH_LAB[k]}</span><b class="tnum" style="color:#03045E">${fmt(chAgg[k].n)}</b></div>`).join("")}</div></div></div>`;
   // revenue by channel
   h+=`<div class="c w7"><div class="c-h"><h3>ยอดขายแยกช่องทาง</h3><span class="r">รวม ${fmtB(tot)}</span></div>${cxBars(revBars)}</div>`;
   // top products
