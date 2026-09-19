@@ -502,7 +502,7 @@ function srcLabel(r){
   const s=r.source||"evolution";
   if(isLegacy(r)) return leadPanel(r)==="ecom" ? `📋 ฐานเก่า · 📦 Marketplace · ${mpChanName(s)}` : "📋 ฐานลูกค้าเก่า (Excel)";
   if(s==="refill")  return "💬 Facebook · เติมรายชื่อ";
-  if(isNewAdminLead(r)){const d=r.receivedAt||r.lastOrderAt||r.date;const dt=d?fmtDay(d):"";return `🆕 Admin ปิดการขาย${dt?` วันที่ ${dt}`:""} (Pancake)`;}
+  if(isNewAdminLead(r)){const o0=Array.isArray(r.orders)&&r.orders[0];const d=(o0&&o0.date)||r.lastOrderAt||r.receivedAt||r.date;const dt=d?fmtDay(d):"";return `🆕 Admin ปิดการขาย${dt?` วันที่ ${dt}`:""} (Pancake)`;}
   return `📦 Marketplace · ${mpChanName(s)}`;
 }
 function srcColor(r){ if(isLegacy(r))return "#a16207"; if(isNewAdminLead(r))return "#16a34a"; return leadPanel(r)==="ecom"?"#c2410c":"#2563eb"; }
