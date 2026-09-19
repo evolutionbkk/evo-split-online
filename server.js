@@ -2600,7 +2600,7 @@ app.post('/api/bigseller/ingest', async (req, res) => {
       code: String((r && (r.orderNo || r.code)) || '').trim(),
       name: String((r && r.name) || '').trim(),
       phone: normBSPhone(phoneRaw),
-      address: String((r && (r.province || r.address)) || '').trim(),
+      address: String((r && (r.address || r.province)) || '').trim(),   // เก็บที่อยู่เต็มก่อน ถ้าไม่มีค่อยใช้จังหวัด
       product: String((r && r.product) || '').trim(),
     });
   }
@@ -2608,6 +2608,25 @@ app.post('/api/bigseller/ingest', async (req, res) => {
   const summary = S.applyNewPool(state, mapped, { source: 'bigseller', by: sessName(req) || 'BigSeller' });
   state = await store.save(state);
   res.json({ ok: true, received: rows.length, masked, added: summary.added, dup: summary.dup, invalid: summary.cut, pool: S.poolCounts(state) });
+});
+
+// ลบ T2 ลูกค้าเก่า: เก็บเฉพาะที่สั่งซื้อล่าสุดตั้งแต่ cutoff (ค่าเริ่มต้น = ต้นเดือน ก.ย.) · เก่ากว่านั้นลบถาวร
+// body: { cutoff:'2026-09-01', dry:true|false } · เว้นรายที่ไม่มีวันสั่งซื้อ (lastOrderAt ว่าง) ไว้ ไม่ลบ
+app.post('/api/admin/purge-t2-old', requireAuth, async (req, res) => {
+  const cutoff = /^\d{4}-\d{2}-\d{2}$/.test(String((req.body && req.body.cutoff) || '')) ? req.body.cutoff : '2026-09-01';
+  const dry = !(req.body && req.body.confirm === true);
+  const isOldT2 = (r) => String(r.step || '').toUpperCase() === 'T2' && !!r.lastOrderAt && String(r.lastOrderAt).slice(0, 10) < cutoff;
+  const victims = state.assigned.filter(isOldT2);
+  if (dry) {
+    return res.json({ ok: true, dry: true, cutoff, count: victims.length,
+      sample: victims.slice(0, 12).map((v) => ({ name: v.name, side: v.sales, lastOrderAt: v.lastOrderAt, source: v.source })) });
+  }
+  const before = state.assigned.length;
+  state.assigned = state.assigned.filter((r) => !isOldT2(r));
+  const removed = before - state.assigned.length;
+  state.updatedAt = new Date().toISOString();
+  state = await store.save(state);
+  res.json({ ok: true, removed, cutoff, remainingT2: state.assigned.filter((r) => String(r.step || '').toUpperCase() === 'T2').length });
 });
 
 // Pool status (counts waiting, by channel) + who is on leave.
