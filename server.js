@@ -626,6 +626,7 @@ function dailyReset() {
   let moved = 0;
   for (const rec of state.assigned) {
     if (rec.archived || !rec.sales) continue;
+    if (rec.movedBySales) continue;   // เซลล์ย้ายเอง = อยู่กับคนนั้นถาวร ห้ามดึงคืน/สลับฝั่ง
     if (rec.fromExcel || String(rec.code || '').startsWith('SHT')) continue;   // ฐานลูกค้าเก่า (ชีท) — อยู่กับเซลล์ตามชีท ไม่ดึงคืน/ไม่สลับฝั่ง
     if (isFollowupBase(rec)) continue;   // ฐานเก่า T2/T3 ไม่ดึงคืน
     if (Array.isArray(rec.saleItems) && rec.saleItems.length) continue;   // มีรายการขายแล้ว = ห้ามคืนคลัง (กันยอดขายหาย)
@@ -661,6 +662,7 @@ function autoTStage(rec) {
 // (สนใจ / นัด / รอชำระ / ปิด) are kept.
 function maybeReturnPool(rec) {
   if (rec.archived || !rec.sales) return null;
+  if (rec.movedBySales) return null;   // เซลล์ย้ายเอง = อยู่กับคนนั้นถาวร ห้ามดึงคืน
   if (isFollowupBase(rec)) return null;   // ฐานเก่า T2/T3 ไม่ดึงคืนคลัง
   if (rec.fromExcel || String(rec.code || '').startsWith('SHT')) return null;   // ฐานลูกค้าเก่า (ชีท) = ของเซลล์ตามชีท ห้ามดึงคืน/สลับฝั่ง
   if (Array.isArray(rec.saleItems) && rec.saleItems.length) return null;        // มีรายการขายแล้ว = ห้ามคืนคลัง (กันยอดขายหาย)
@@ -4576,20 +4578,9 @@ app.get('/healthz', (req, res) => res.json({ ok: true, total: state.assigned.len
 boot().then(() => {
   app.listen(PORT, () => console.log('[server] listening on', PORT));
   setInterval(() => { runSweep().catch(() => {}); }, 60 * 60 * 1000); // hourly stale sweep
-  // 20:00 Asia/Bangkok daily reset — return no-progress leads to the คลังรายชื่อ, once per day.
-  let lastResetDay = null;
-  setInterval(async () => {
-    try {
-      const th = new Date(Date.now() + 7 * 3600000);
-      const day = th.toISOString().slice(0, 10);
-      if (th.getUTCHours() === 20 && lastResetDay !== day) {
-        lastResetDay = day;
-        const moved = dailyReset();
-        if (moved) { state.updatedAt = new Date().toISOString(); state = await store.save(state); }
-        console.log('[reset] 20:00 daily reset — returned', moved, 'leads to pool');
-      }
-    } catch (e) { console.warn('[reset] failed (non-fatal):', String(e)); }
-  }, 60 * 1000);
+  // 20:00 Asia/Bangkok daily reset — ปิดใช้งานตามคำขอ (ทำให้ลูกค้าที่ย้าย/แจกแล้วเด้งกลับ/สลับข้าง)
+  // ลูกค้าที่เซลล์รับไปแล้วจะอยู่กับเซลล์คนนั้นถาวร ไม่ถูกดึงคืนคลังอัตโนมัติทุกคืนอีกต่อไป
+  // (ยังเปิดให้ Teamlead กดรีเซ็ตเองได้ที่ปุ่ม แต่จะเคารพลูกค้าที่เซลล์ย้ายเอง)
   // On boot: if a token was restored from the store, verify it (keepalive) and resume pulling right away.
   setTimeout(() => { if (onecallAuth.token) { onecallKeepalive().then(() => onecallPull()).catch(() => {}); } }, 5 * 1000);
   if (ONECALL_USER && ONECALL_PASS) {
