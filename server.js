@@ -4603,8 +4603,8 @@ boot().then(() => {
     setInterval(() => { chatKpiRefresh().catch(() => {}); }, 15 * 60 * 1000);  // refresh every 15 min so the dashboard reads it instantly
   }
   if (PANCAKE_API_KEY) {
-    setTimeout(() => { pancakePull({ hold: true }).catch(() => {}); }, 20 * 1000);           // first Pancake sync shortly after boot → holding pool (Teamlead distributes)
-    setInterval(() => { pancakePull({ hold: true }).catch(() => {}); }, 10 * 60 * 1000);     // pull closed-sale orders every 10 min → holding pool
+    setTimeout(() => { pancakePull({ hold: true }).then(() => autoDistribute()).catch(() => {}); }, 20 * 1000);           // first Pancake sync + แจก 50/50 ทันที
+    setInterval(() => { pancakePull({ hold: true }).then(() => autoDistribute()).catch(() => {}); }, 2 * 60 * 1000);      // ดึงออเดอร์ปิดใหม่ทุก 2 นาที แล้วแจก 50/50 ให้เซลล์ทันที (ไม่รอรอบแจก)
     setTimeout(() => { pancakeRefillAuto().catch(() => {}); }, 90 * 1000);     // first auto-refill top-up ~1.5 min after boot
     setInterval(() => { pancakeRefillAuto().catch(() => {}); }, 6 * 60 * 60 * 1000); // top up refill queue every 6h (works even if Teamlead is off)
     setTimeout(() => { pancakeEnrichVip().catch(() => {}); }, 150 * 1000);     // enrich LTV/VIP ~2.5 min after boot
