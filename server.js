@@ -3364,7 +3364,7 @@ async function computePancakeSales(fromISO, toISO, all) {
           const bp = byProduct[nm] = byProduct[nm] || { qty: 0, revenue: 0, lines: 0 };
           bp.qty += q; bp.revenue += pr; bp.lines++;
         }
-        if (orders.length < 300) {
+        if (orders.length < 2000) {
           const custPhone = String((o.bill_phone_number || '') || ((o.customer && o.customer.phone_numbers && o.customer.phone_numbers[0]) || '')).trim();
           const custName = String((o.bill_full_name || '') || ((o.customer && o.customer.name) || '')).trim();
           orders.push({ code: 'PC' + (o.system_id || o.id), at: o.inserted_at, amount: rev, product: pancakeItems(o), qty: o.total_quantity || 0, closer, src, page: pg, status_name: o.status_name || '', custName, custPhone });
@@ -3382,6 +3382,58 @@ app.get('/api/admin/sales-source', requireAuth, async (req, res) => {
   const r = await computePancakeSales(req.query.from, req.query.to, req.query.all === '1');
   if (r.error) return res.status(500).json(r);
   res.json(Object.assign({}, r, { from: new Date(r.from).toISOString(), to: new Date(r.to).toISOString() }));
+});
+
+// ===== Dashboard ยอดขายรายเดือน — ทีมเซลล์ (ชีท manual) + ทีมแอดมิน (Pancake) =====
+// ทีมเซลล์เดือน ก.ย. 2026 นำเข้าจากชีท "สรุปยอดขายรายเดือน 2026" (แท็บ SALE 09.2026)
+const SEPT_TELESALE = [{"s": "KHM", "d": "2026-09-01", "a": 840, "p": "YBO1+YTB1", "pay": "ปลายทาง", "promo": "CRM50", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-01", "a": 1540, "p": "YR2+YBL2", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-01", "a": 740, "p": "YES1+YBL1 x 1", "pay": "ปลายทาง", "promo": "CRM50", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-07", "a": 840, "p": "YPT1+MFN5", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-01", "a": 990, "p": "YAM1+DRS2 x 1", "pay": "ปลายทาง", "promo": "CRM50", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-07", "a": 1290, "p": "YFP3+YFP1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-02", "a": 1590, "p": "YBO2+YTB2", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-08", "a": 840, "p": "YR1+YBL1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-02", "a": 990, "p": "YTZ1+YTB1", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-08", "a": 2090, "p": "YPT3+MFN15", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-03", "a": 2480, "p": "YDL3", "pay": "ปลายทาง", "promo": "ซื้อครบ2000/100", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-08", "a": 2450, "p": "YDL3+YBL1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-03", "a": 1790, "p": "YTZ2+YTB1", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-09", "a": 969, "p": "YR1+YG1+YBL1", "pay": "โอนเงิน", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-03", "a": 740, "p": "ํYES1+YBL1", "pay": "ปลายทาง", "promo": "CRM50", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-09", "a": 2450, "p": "YDL3+YBL1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-03", "a": 2400, "p": "YTS+YTZ+YBO+YTB2", "pay": "ปลายทาง", "promo": "ซื้อครบ2000/100", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-09", "a": 840, "p": "YPT1+YBL1", "pay": "ปลายทาง", "promo": "", "ch": "lazada", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-05", "a": 4590, "p": "YDL6", "pay": "ปลายทาง", "promo": "ลด10%", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-10", "a": 890, "p": "YPT1+YBL1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-05", "a": 3190, "p": "YBO2+YTZ2+YTB2", "pay": "ปลายทาง", "promo": "ซื้อครบ2000/100", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-12", "a": 1540, "p": "YBO2+YTB2", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-05", "a": 990, "p": "YF1+YBL1", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-14", "a": 1540, "p": "YR2+YSC1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-08", "a": 1590, "p": "YBO2+YTB2", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-14", "a": 1540, "p": "YR2+YSC1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-08", "a": 3200, "p": "YS3+YPO3+YAS2+ANY1+6B1+YL3", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-14", "a": 1240, "p": "YVC1+YSC1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-09", "a": 840, "p": "YPT1+MFN1", "pay": "ปลายทาง", "promo": "CRM50", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-15", "a": 990, "p": "YF1+6B1", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-10", "a": 1500, "p": "ํYBO2+YTB2", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-16", "a": 840, "p": "YPT1+MFN5", "pay": "ปลายทาง", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-11", "a": 840, "p": "YR1+YBL1", "pay": "ปลายทาง", "promo": "CRM50", "ch": "telesale", "note": "Telesale"}, {"s": "WAN", "d": "2026-09-17", "a": 1940, "p": "YX6+YFP1", "pay": "โอนเงิน", "promo": "", "ch": "follow", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-12", "a": 2490, "p": "YDL3", "pay": "ปลายทาง", "promo": "ซื้อครบ2000/100", "ch": "telesale", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-14", "a": 890, "p": "YPT1+MFN5", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}, {"s": "KHM", "d": "2026-09-14", "a": 840, "p": "YBO1+YTB1", "pay": "ปลายทาง", "promo": "", "ch": "telesale", "note": "Telesale"}];
+const SALES_MONTHS = { '2026-09': SEPT_TELESALE };
+const SELLER_LAB = { KHM: 'เขม', WAN: 'หวาน', LAILA: 'ไลลา' };
+const CH_LAB_TS = { telesale: 'Telesale (ปิดเอง)', follow: 'ลูกค้าติดตาม', lazada: 'Lazada' };
+app.get('/api/admin/sales-dashboard', requireAuth, async (req, res) => {
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? req.query.month : '2026-09';
+  const rows = SALES_MONTHS[month] || [];
+  // ---- ทีมเซลล์ (จากชีท) ----
+  const byPerson = {};
+  for (const o of rows) {
+    const p = byPerson[o.s] = byPerson[o.s] || { key: o.s, name: SELLER_LAB[o.s] || o.s, amount: 0, count: 0, byCh: {} };
+    p.amount += o.a; p.count++;
+    p.byCh[o.ch] = (p.byCh[o.ch] || 0) + o.a;
+  }
+  const salesTotal = rows.reduce((s, o) => s + o.a, 0);
+  const sales = {
+    total: salesTotal, count: rows.length,
+    byPerson: Object.values(byPerson).sort((a, b) => b.amount - a.amount),
+    orders: rows.slice().sort((a, b) => String(a.d).localeCompare(String(b.d))),
+  };
+  // ---- ทีมแอดมิน (จาก Pancake) ----
+  let admin = { total: 0, count: 0, byCloser: [], customers: [], note: '', partial: false };
+  if (PANCAKE_API_KEY) {
+    const [y, m] = month.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const from = month + '-01T00:00:00+07:00';
+    const to = month + '-' + String(lastDay).padStart(2, '0') + 'T23:59:59+07:00';
+    const ps = await computePancakeSales(from, to, false);
+    if (!ps.error) {
+      admin.total = Math.round(ps.total.admin.revenue);
+      admin.count = ps.total.admin.orders;
+      admin.byCloser = Object.entries(ps.byCloser || {})
+        .filter(([, v]) => v.admin && (v.admin.revenue > 0 || v.admin.orders > 0))
+        .map(([cl, v]) => ({ name: nickName(cl) || cl, amount: Math.round(v.admin.revenue), count: v.admin.orders }))
+        .sort((a, b) => b.amount - a.amount);
+      const byKey = new Map();
+      for (const o of (ps.orders || [])) {
+        if (o.src !== 'admin') continue;
+        const key = (o.custPhone || o.custName || o.code || '').trim(); if (!key) continue;
+        const prev = byKey.get(key);
+        if (!prev) byKey.set(key, { name: o.custName || '(ไม่มีชื่อ)', phone: o.custPhone || '', amount: o.amount || 0, count: 1, closer: nickName(o.closer) || o.closer || '', at: o.at, product: o.product || '' });
+        else { prev.amount += o.amount || 0; prev.count++; if ((Date.parse(o.at) || 0) > (Date.parse(prev.at) || 0)) { prev.at = o.at; prev.product = o.product || prev.product; } }
+      }
+      admin.customers = [...byKey.values()].sort((a, b) => b.amount - a.amount);
+      admin.partial = (ps.orders || []).length >= 2000;
+    } else admin.note = 'pancake_error';
+  } else admin.note = 'no_api_key';
+  res.json({ ok: true, month, sales, admin, grand: salesTotal + admin.total });
 });
 // Customer 360: live profile from Pancake (LTV, order history, VIP tier, reorder cycle).
 // Sales can call this when opening a lead. Cached briefly per phone to spare the API.
