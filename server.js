@@ -2615,7 +2615,8 @@ app.post('/api/bigseller/ingest', async (req, res) => {
 app.post('/api/admin/purge-t2-old', requireAuth, async (req, res) => {
   const cutoff = /^\d{4}-\d{2}-\d{2}$/.test(String((req.body && req.body.cutoff) || '')) ? req.body.cutoff : '2026-09-01';
   const dry = !(req.body && req.body.confirm === true);
-  const isOldT2 = (r) => ['T2', 'T3'].includes(String(r.step || '').toUpperCase()) && !!r.lastOrderAt && String(r.lastOrderAt).slice(0, 10) < cutoff;
+  const inclArchived = !!(req.body && req.body.inclArchived === true);
+  const isOldT2 = (r) => (inclArchived || !r.archived) && ['T2', 'T3'].includes(String(r.step || '').toUpperCase()) && !!r.lastOrderAt && String(r.lastOrderAt).slice(0, 10) < cutoff;
   const victims = state.assigned.filter(isOldT2);
   if (dry) {
     const byStep = { T2: victims.filter((v) => String(v.step || '').toUpperCase() === 'T2').length, T3: victims.filter((v) => String(v.step || '').toUpperCase() === 'T3').length };
