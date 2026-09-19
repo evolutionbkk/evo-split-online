@@ -3503,42 +3503,73 @@ function buildTelesale(orders,month){
     orders:orders.slice().sort((a,b)=>String(a.d).localeCompare(String(b.d))) };
 }
 
+function thaiHourOf(at){ const t=Date.parse(at); if(!isFinite(t))return -1; return new Date(t+7*3600000).getUTCHours(); }
+function thaiDateLabel(d){ const [y,m,dd]=String(d).split('-').map(Number); return dd+' '+(TH_MONTHS[m]||m)+' '+((y+543)%100); }
+function telesaleImportedRange(fromD,toD){
+  const out=[]; const fm=fromD.slice(0,7), tm=toD.slice(0,7);
+  const pick=(m)=>(state.salesImports&&state.salesImports[m]&&state.salesImports[m].telesale)||SALES_BUILTIN[m]||null;
+  const set=new Set([...Object.keys(SALES_BUILTIN)]); if(state.salesImports)for(const m of Object.keys(state.salesImports))set.add(m);
+  for(const m of set){ if(m<fm||m>tm)continue; const arr=pick(m); if(!arr)continue;
+    const [yy,mm]=m.split('-').map(Number); const first=m+'-01', last=m+'-'+String(new Date(yy,mm,0).getDate()).padStart(2,'0');
+    const wholeIn=(first>=fromD&&last<=toD);
+    for(const o of arr){ if(o.d){ if(o.d>=fromD&&o.d<=toD) out.push(o); } else if(wholeIn){ out.push(o); } }
+  }
+  return out;
+}
+function telesaleSystemRange(fromD,toD){
+  const km=state.kpiManual||{}; const out=[];
+  for(const day of Object.keys(km)){ if(day<fromD||day>toD)continue; const rec=km[day]||{};
+    for(const side of ['W','K']){ const sd=rec[side]; if(!sd||!Array.isArray(sd.calls))continue; const seller=side==='W'?'WAN':'KHM';
+      for(const c of sd.calls){ const amt=Number(c&&c.amount)||0; if(amt>0) out.push({s:seller,d:day,a:Math.round(amt),ch:'system',p:'',phone:(c&&c.phone)||''}); } } }
+  return out;
+}
 app.get('/api/admin/sales-dashboard', requireAuth, async (req, res) => {
-  const months=availableSalesMonths();
-  const cur=curMonthTH();
-  const month = (/^\d{4}-\d{2}$/.test(String(req.query.month||''))&&months.includes(req.query.month)) ? req.query.month : (months.includes(cur)?cur:(months[0]||'2026-09'));
-  const imported=telesaleImported(month);
-  const sysMonthsSet=new Set(systemMonths());
-  const has={ import: !!(imported&&imported.length), system: sysMonthsSet.has(month) };
-  let src=String(req.query.src||'');
-  if(src!=='system'&&src!=='import') src = has.import ? 'import' : (has.system?'system':'import');
-  const rows = (src==='system') ? telesaleFromSystem(month) : (imported||[]);
-  const sales=buildTelesale(rows,month);
-  const impInfo=(state.salesImports&&state.salesImports[month])||null;
+  const months=availableSalesMonths(); const cur=curMonthTH();
+  const isD=s=>/^\d{4}-\d{2}-\d{2}$/.test(String(s||'')); const isM=s=>/^\d{4}-\d{2}$/.test(String(s||''));
+  let fromD,toD,mode,label;
+  if(isD(req.query.from)&&isD(req.query.to)){
+    fromD=req.query.from<=req.query.to?req.query.from:req.query.to;
+    toD=req.query.from<=req.query.to?req.query.to:req.query.from;
+    mode='range'; label = fromD===toD ? thaiDateLabel(fromD) : (thaiDateLabel(fromD)+' – '+thaiDateLabel(toD));
+  } else {
+    const month=(isM(req.query.month)&&months.includes(req.query.month))?req.query.month:(months.includes(cur)?cur:(months[0]||'2026-09'));
+    const [y,m]=month.split('-').map(Number); const last=new Date(y,m,0).getDate();
+    fromD=month+'-01'; toD=month+'-'+String(last).padStart(2,'0'); mode='month'; label=monthLabel(month);
+  }
+  const impRows=telesaleImportedRange(fromD,toD);
+  const has={ import: impRows.length>0, system: telesaleSystemRange(fromD,toD).length>0 };
+  let src=String(req.query.src||''); if(src!=='system'&&src!=='import') src = has.import?'import':(has.system?'system':'import');
+  const rows = src==='system' ? telesaleSystemRange(fromD,toD) : impRows;
+  const sales=buildTelesale(rows);
+  let impInfo=null; if(mode==='month'){ const mk=fromD.slice(0,7); const ii=state.salesImports&&state.salesImports[mk]; if(ii) impInfo={importedAt:ii.importedAt,by:ii.by,filename:ii.filename}; }
+  const fromISO=fromD+'T00:00:00+07:00', toISO=toD+'T23:59:59+07:00';
   let admin={ total:0, count:0, byCloser:[], customers:[], note:'', partial:false };
+  let topProducts=[]; const salesByHour=Array.from({length:24},()=>0), chatByHour=Array.from({length:24},()=>0);
   if(PANCAKE_API_KEY){
-    const [y,m]=month.split('-').map(Number); const lastDay=new Date(y,m,0).getDate();
-    const from=month+'-01T00:00:00+07:00', to=month+'-'+String(lastDay).padStart(2,'0')+'T23:59:59+07:00';
-    const ps=await computePancakeSales(from,to,false);
+    const ps=await computePancakeSales(fromISO,toISO,false);
     if(!ps.error){
       admin.total=Math.round(ps.total.admin.revenue); admin.count=ps.total.admin.orders;
       admin.byCloser=Object.entries(ps.byCloser||{}).filter(([,v])=>v.admin&&(v.admin.revenue>0||v.admin.orders>0))
         .map(([cl,v])=>({name:nickName(cl)||cl,amount:Math.round(v.admin.revenue),count:v.admin.orders})).sort((a,b)=>b.amount-a.amount);
       const byKey=new Map();
       for(const o of (ps.orders||[])){ if(o.src!=='admin') continue;
-        const key=(o.custPhone||o.custName||o.code||'').trim(); if(!key) continue;
-        const prev=byKey.get(key);
+        const key=(o.custPhone||o.custName||o.code||'').trim(); if(!key) continue; const prev=byKey.get(key);
         if(!prev) byKey.set(key,{name:o.custName||'(ไม่มีชื่อ)',phone:o.custPhone||'',amount:o.amount||0,count:1,closer:nickName(o.closer)||o.closer||'',at:o.at,product:o.product||''});
         else { prev.amount+=o.amount||0; prev.count++; if((Date.parse(o.at)||0)>(Date.parse(prev.at)||0)){prev.at=o.at;prev.product=o.product||prev.product;} }
       }
-      admin.customers=[...byKey.values()].sort((a,b)=>b.amount-a.amount);
-      admin.partial=(ps.orders||[]).length>=2000;
+      admin.customers=[...byKey.values()].sort((a,b)=>b.amount-a.amount); admin.partial=(ps.orders||[]).length>=2000;
+      topProducts=Object.entries(ps.byProduct||{}).map(([name,v])=>({name,qty:v.qty,revenue:Math.round(v.revenue)}))
+        .filter(p=>p.name && !/^up$/i.test(p.name.trim()) && (p.revenue>0)).sort((a,b)=>b.revenue-a.revenue).slice(0,12);
+      for(const o of (ps.orders||[])){ const h=thaiHourOf(o.at); if(h<0)continue; salesByHour[h]+=(o.amount||0); if(o.src==='admin') chatByHour[h]++; }
     } else admin.note='pancake_error';
   } else admin.note='no_api_key';
-  res.json({ ok:true, month, monthLabel:monthLabel(month), src, has,
-    months:months.map(m=>({v:m,lab:monthLabel(m)})),
-    imported:impInfo?{importedAt:impInfo.importedAt,by:impInfo.by,filename:impInfo.filename}:null,
-    sales, admin, grand: sales.total + admin.total });
+  const fromMs=Date.parse(fromISO), toMs=Date.parse(toISO);
+  const callsByHour=Array.from({length:24},()=>({out:0,in:0}));
+  for(const c of (state.onecall||[])){ const t=Date.parse(c.at); if(!isFinite(t)||t<fromMs||t>toMs)continue; const h=thaiHourOf(c.at); if(h<0)continue; if(String(c.dir||'')==='OUT')callsByHour[h].out++; else callsByHour[h].in++; }
+  res.json({ ok:true, mode, from:fromD, to:toD, rangeLabel:label, monthLabel:label, src, has,
+    months:months.map(m=>({v:m,lab:monthLabel(m)})), imported:impInfo,
+    sales, admin, grand: sales.total + admin.total,
+    topProducts, salesByHour, chatByHour, callsByHour });
 });
 
 // อัปโหลด Excel/Google Sheet (ส่ง base64) — รองรับหลายเดือนในไฟล์เดียว

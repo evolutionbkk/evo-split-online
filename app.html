@@ -31,6 +31,10 @@
   .brand{color:#fff;font-weight:800;font-size:14px;padding:6px 10px 12px;border-bottom:1px solid var(--side-line);margin-bottom:6px;line-height:1.3}
   .brand small{display:block;color:var(--side-mut);font-weight:600;font-size:11px;margin-top:3px}
   .navlab{font-size:10px;font-weight:800;color:var(--side-mut);letter-spacing:.6px;padding:11px 10px 4px;text-transform:uppercase}
+  .navlab-c{display:flex;align-items:center;justify-content:space-between;width:100%;background:transparent;border:0;cursor:pointer;font-family:inherit}
+  .navlab-c:hover{color:#fff}
+  .navlab-c .navchev{font-size:9px;opacity:.65}
+  .navgrp{display:flex;flex-direction:column;gap:2px}
   .nav-i{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;font-size:13px;font-weight:700;color:var(--side-ink);background:transparent;border:0;width:100%;text-align:left}
   .nav-i:hover{background:rgba(255,255,255,.06);color:#fff}.nav-i.on{background:var(--brand);color:#fff}
   .nav-i .ic{width:17px;text-align:center;flex:0 0 auto}
@@ -178,7 +182,7 @@ const NAV=[
   {k:"tel_overview",t:"ภาพรวม Telesales",sub:1},
   {k:"tel_calltoday",t:"โทรวันนี้ (รายสาย)",sub:1},
   {k:"tel_perf",t:"ผลงาน Telesales",sub:1},
-  {lab:"ทั่วไป"},
+  {lab:"ทั่วไป",col:1},
   {k:"customers",ic:"🧾",t:"รายชื่อลูกค้า (Excel)"},
   {k:"tickets",ic:"🎫",t:"ตั๋วลูกค้า"},
   {k:"appts",ic:"📅",t:"นัดหมาย (ปฏิทิน)"},
@@ -191,11 +195,28 @@ const NAV=[
   {k:"settings",ic:"⚙️",t:"ตั้งค่า"},
 ];
 const TITLES={sales_dash:"Dashboard ยอดขาย (รายเดือน)",dashboard:"ภาพรวม",customers:"รายชื่อลูกค้า (Dashboard + Excel)",admin_overview:"ภาพรวม Admin",tel_overview:"ภาพรวม Telesales",tel_calltoday:"โทรวันนี้",tel_perf:"ผลงาน Telesales",tickets:"ตั๋วลูกค้า",ticket:"ตั๋วลูกค้า",appts:"นัดหมาย (ปฏิทิน)",archive:"จัดเก็บ (ปิดงาน)",stopped:"ยกเลิกการติดต่อ",trash:"ถังขยะ (ลบ)",stock:"คลังรายชื่อ & แจก",reports:"รายงาน",staff:"พนักงาน",settings:"ตั้งค่า"};
+let NAV_COL=(()=>{try{return JSON.parse(localStorage.getItem("evo-navcol")||"null")}catch(e){return null}})();
+if(!NAV_COL){NAV_COL={"ทั่วไป":true};}   // ค่าเริ่มต้น: ยุบกลุ่ม "ทั่วไป"
+function navBtn(it){return `<button class="nav-i ${it.sub?"sub":""} ${(VIEW===it.k||(it.k==="tickets"&&VIEW==="ticket"))?"on":""}" onclick="go('${it.k}')">${it.ic?`<span class="ic">${it.ic}</span>`:""}<span>${it.t}</span></button>`;}
 function renderNav(){
-  $("#side").innerHTML=`<div class="brand">EVO E-COMMERCE<small>${esc((ME&&ME.name)||"หัวหน้าทีม")} · Console</small></div>`+
-    NAV.map(it=>it.lab?`<div class="navlab">${it.lab}</div>`
-      :`<button class="nav-i ${it.sub?"sub":""} ${(VIEW===it.k||(it.k==="tickets"&&VIEW==="ticket"))?"on":""}" onclick="go('${it.k}')">${it.ic?`<span class="ic">${it.ic}</span>`:""}<span>${it.t}</span></button>`).join("");
+  let html=`<div class="brand">EVO E-COMMERCE<small>${esc((ME&&ME.name)||"หัวหน้าทีม")} · Console</small></div>`;
+  let i=0;
+  while(i<NAV.length){
+    const it=NAV[i];
+    if(it.lab&&it.col){
+      // รวมลูกในกลุ่มจนถึง label ถัดไป
+      let j=i+1,items="",hasActive=false;
+      while(j<NAV.length&&!NAV[j].lab){ if(VIEW===NAV[j].k||(NAV[j].k==="tickets"&&VIEW==="ticket"))hasActive=true; items+=navBtn(NAV[j]); j++; }
+      const collapsed=NAV_COL[it.lab]&&!hasActive;  // อยู่หน้าในกลุ่มนี้ → กางให้เห็น
+      html+=`<button class="navlab navlab-c" onclick="toggleNav('${it.lab}')"><span>${it.lab}</span><span class="navchev">${collapsed?"▸":"▾"}</span></button>`;
+      html+=`<div class="navgrp"${collapsed?' style="display:none"':''}>${items}</div>`;
+      i=j;
+    } else if(it.lab){ html+=`<div class="navlab">${it.lab}</div>`; i++; }
+    else { html+=navBtn(it); i++; }
+  }
+  $("#side").innerHTML=html;
 }
+window.toggleNav=function(lab){NAV_COL[lab]=!NAV_COL[lab];try{localStorage.setItem("evo-navcol",JSON.stringify(NAV_COL));}catch(e){}renderNav();};
 window.go=function(k){VIEW=k;$("#side").classList.remove("open");paint();};
 window.setTelWho=function(w){TELWHO=w;paint();};
 
@@ -1130,13 +1151,17 @@ window.exportCustomersExcel=function(){
   setTimeout(()=>URL.revokeObjectURL(url),4000);
   toast("ส่งออก Excel แล้ว "+rows.length+" ราย");
 };
-/* ===== Dashboard ยอดขายรายเดือน (ทีมเซลล์ + ทีมแอดมิน) ===== */
-let SD_DATA=null, SD_VIEW="overview", SD_MONTH=null, SD_SRC="", SD_CUSTPAGE=1, SD_ORDPAGE=1;
+/* ===== Dashboard ยอดขายรายเดือน (ทีมเซลล์ + ทีมแอดมิน + วิเคราะห์) ===== */
+let SD_DATA=null, SD_VIEW="overview", SD_MONTH=null, SD_SRC="", SD_RANGE="month", SD_FROM="", SD_TO="", SD_CUSTPAGE=1, SD_ORDPAGE=1;
 const SD_COL={sales:"#0077B6",admin:"#E8A317"};
 const SD_PCOL=["#0077B6","#00B4D8","#0E9F6E","#7C3AED","#E8A317","#EF6C57"];
 const SELLER_LAB_C={KHM:"เขม",WAN:"หวาน",LAILA:"ไลลา",BOT:"บอท"};
 const CH_LAB_TS_C={telesale:"Telesale (ปิดเอง)",follow:"ลูกค้าติดตาม",lazada:"Lazada",transfer:"โอน",cod:"ปลายทาง (COD)",admin:"แอดมินปิด",system:"บันทึกในระบบ (KPI)"};
+const SD_PERIODS=[["00–06",0,6],["06–09",6,9],["09–12",9,12],["12–15",12,15],["15–18",15,18],["18–21",18,21],["21–24",21,24]];
 function sdThai(d){if(!d)return "—";const t=Date.parse(d);if(isNaN(t))return String(d).slice(0,10);const dt=new Date(t+7*3600000);return dt.getUTCDate()+"/"+(dt.getUTCMonth()+1)+"/"+((dt.getUTCFullYear()+543)%100);}
+function sdTodayISO(){return new Date(Date.now()+7*3600000).toISOString().slice(0,10);}
+function sdWeekRange(){const now=new Date(Date.now()+7*3600000);const dow=(now.getUTCDay()+6)%7;const mon=now.getTime()-dow*86400000;const iso=t=>new Date(t).toISOString().slice(0,10);return [iso(mon),iso(now.getTime())];}
+function sdBucket(arr24,getv){const out=SD_PERIODS.map(([lab,a,b])=>{let v=0;for(let h=a;h<b;h++)v+=getv(arr24[h]);return {label:lab+" น.",value:v};});return out;}
 function sdDonut(segs){
   const tot=segs.reduce((s,x)=>s+(x.value||0),0)||1,R=63,C=2*Math.PI*R;let off=0;
   const arcs=segs.filter(x=>x.value>0).map(x=>{const dash=x.value/tot*C;const a=`<circle cx="74" cy="74" r="${R}" fill="none" stroke="${x.color}" stroke-width="14" stroke-dasharray="${dash.toFixed(2)} ${(C-dash).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 74 74)"/>`;off+=dash;return a;}).join("");
@@ -1150,28 +1175,41 @@ function viewSalesDash(){
   setTimeout(loadSalesDash,30);
   return h;
 }
+function sdQuery(){
+  let q;
+  if(SD_RANGE==="today"){const d=sdTodayISO();q="?from="+d+"&to="+d;}
+  else if(SD_RANGE==="week"){const w=sdWeekRange();q="?from="+w[0]+"&to="+w[1];}
+  else if(SD_RANGE==="custom"&&SD_FROM&&SD_TO){q="?from="+SD_FROM+"&to="+SD_TO;}
+  else {q="?month="+encodeURIComponent(SD_MONTH||"");}
+  return q+"&src="+encodeURIComponent(SD_SRC||"");
+}
 async function loadSalesDash(){
-  try{
-    const q="?month="+encodeURIComponent(SD_MONTH||"")+"&src="+encodeURIComponent(SD_SRC||"");
-    SD_DATA=await getJSON("/api/admin/sales-dashboard"+q);
-  }catch(e){SD_DATA=null;}
-  if(SD_DATA&&SD_DATA.ok){SD_MONTH=SD_DATA.month;SD_SRC=SD_DATA.src;}
+  try{ SD_DATA=await getJSON("/api/admin/sales-dashboard"+sdQuery()); }catch(e){SD_DATA=null;}
+  if(SD_DATA&&SD_DATA.ok){SD_SRC=SD_DATA.src;SD_FROM=SD_DATA.from;SD_TO=SD_DATA.to;if(SD_DATA.mode==="month")SD_MONTH=(SD_DATA.from||"").slice(0,7);}
   renderSdFilters(); paintSalesDash();
 }
 function renderSdFilters(){
   const el=document.getElementById("sdFilters"); if(!el||!SD_DATA||!SD_DATA.ok)return;
   const D=SD_DATA;
-  const opts=(D.months||[]).map(m=>`<option value="${m.v}" ${m.v===SD_MONTH?'selected':''}>${esc(m.lab)}</option>`).join("");
+  const rChip=(k,t)=>`<button class="chip ${SD_RANGE===k?'on':''}" onclick="sdSetRange('${k}')">${t}</button>`;
+  let rangeCtrls="";
+  if(SD_RANGE==="month"){
+    const opts=(D.months||[]).map(m=>`<option value="${m.v}" ${m.v===SD_MONTH?'selected':''}>${esc(m.lab)}</option>`).join("");
+    rangeCtrls=`<select onchange="sdSetMonth(this.value)" style="padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;font-weight:700;background:var(--card,#fff);color:var(--text,#111)">${opts}</select>`;
+  } else if(SD_RANGE==="custom"){
+    rangeCtrls=`<input type="date" id="sdFrom" value="${esc(SD_FROM)}" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px"><span style="color:var(--muted);font-size:12px">ถึง</span><input type="date" id="sdTo" value="${esc(SD_TO)}" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px"><button class="chip on" style="background:#0077B6;border-color:#0077B6;color:#fff" onclick="sdApplyCustom()">ดู</button>`;
+  }
   const srcToggle=`<div class="fg" style="margin-left:14px"><span class="lb">ทีมเซลล์</span>
     <button class="chip ${SD_SRC==='import'?'on':''}" ${D.has.import?'':'disabled'} onclick="sdSetSrc('import')">ชีท/Excel</button>
     <button class="chip ${SD_SRC==='system'?'on':''}" ${D.has.system?'':'disabled'} onclick="sdSetSrc('system')">ระบบ (KPI)</button></div>`;
   const impNote=D.imported?`<span style="color:#5E7691;font-size:11.5px">📥 นำเข้าล่าสุด: ${esc(D.imported.filename||'ไฟล์')} · ${esc(sdThai(D.imported.importedAt))} · โดย ${esc(D.imported.by||'-')}</span>`:'';
-  el.innerHTML=`<div class="filters"><div class="fg"><span class="lb">📅 เดือน</span>
-    <select onchange="sdSetMonth(this.value)" style="padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;font-weight:700;background:var(--card,#fff);color:var(--text,#111)">${opts}</select></div>
+  el.innerHTML=`<div class="filters"><div class="fg"><span class="lb">📅 ช่วงเวลา</span>
+    ${rChip("today","วันนี้")}${rChip("week","สัปดาห์นี้")}${rChip("month","เดือน")}${rChip("custom","กำหนดเอง")}
+    ${rangeCtrls?`<span style="margin-left:6px"></span>`+rangeCtrls:""}</div>
     ${srcToggle}
     <div class="fg" style="margin-left:auto"><button class="chip on" style="background:#0077B6;border-color:#0077B6;color:#fff;font-weight:800" onclick="document.getElementById('sdFile').click()">⬆️ นำเข้า Excel / Google Sheet</button></div></div>
     <div class="filters" style="margin:8px 0 14px"><div class="fg"><span class="lb">มุมมอง</span>
-    ${[["overview","ภาพรวม (เซลล์+แอดมิน)"],["sales","ทีมเซลล์"],["admin","ทีมแอดมิน"]].map(([k,t])=>`<button class="chip ${SD_VIEW===k?'on':''}" onclick="sdSetView('${k}')">${t}</button>`).join("")}</div><div class="fg" style="margin-left:auto">${impNote}</div></div>`;
+    ${[["overview","ภาพรวม (เซลล์+แอดมิน)"],["sales","ทีมเซลล์"],["admin","ทีมแอดมิน"],["insights","วิเคราะห์ (สินค้า/ช่วงเวลา)"]].map(([k,t])=>`<button class="chip ${SD_VIEW===k?'on':''}" onclick="sdSetView('${k}')">${t}</button>`).join("")}</div><div class="fg" style="margin-left:auto"><span style="color:#5E7691;font-size:11.5px;margin-right:10px">🗓️ ${esc(D.rangeLabel||"")}</span>${impNote}</div></div>`;
 }
 function paintSalesDash(){
   const wrap=document.getElementById("sdWrap");if(!wrap)return;
@@ -1180,14 +1218,15 @@ function paintSalesDash(){
   if(!D||!D.ok){wrap.innerHTML=`<div class="empty" style="padding:24px;color:#b91c1c">โหลดข้อมูลยอดขายไม่สำเร็จ ลองรีเฟรชอีกครั้ง</div>`;return;}
   if(SD_VIEW==="overview")wrap.innerHTML=sdOverview(D);
   else if(SD_VIEW==="sales")wrap.innerHTML=sdSales(D);
-  else wrap.innerHTML=sdAdmin(D);
+  else if(SD_VIEW==="admin")wrap.innerHTML=sdAdmin(D);
+  else wrap.innerHTML=sdInsights(D);
 }
 function kx(label,val,sub,hi){return `<div class="kx ${hi?'hi':''}"><div class="kl">${label}</div><div class="kv">${val}</div>${sub?`<div class="ks">${sub}</div>`:""}</div>`;}
 function sdOverview(D){
   const s=D.sales,a=D.admin,grand=D.grand||0;
   let h=`<div class="grid">`;
   h+=`<div class="kstrip">`+
-    kx("💰 ยอดขายรวมทั้งเดือน",fmtB(grand),D.monthLabel+" · เซลล์+แอดมิน",true)+
+    kx("💰 ยอดขายรวม",fmtB(grand),(D.rangeLabel||"")+" · เซลล์+แอดมิน",true)+
     kx("📞 ทีมเซลล์",fmtB(s.total),s.count+" ออเดอร์"+(D.src==='system'?" · จากระบบ":""))+
     kx("💬 ทีมแอดมิน (Pancake)",fmtB(a.total),a.note?"—":(a.count+" ออเดอร์"))+
     kx("🧾 ออเดอร์รวม",fmt(s.count+a.count),"ทุกช่องทาง")+
@@ -1201,7 +1240,7 @@ function sdOverview(D){
   const sBars=s.byPerson.map((p,i)=>({label:"เซลล์ "+p.name,value:p.amount,color:SD_PCOL[i%SD_PCOL.length],text:fmtB(p.amount)}));
   h+=`<div class="c w7"><div class="c-h"><h3>ยอดขายทีมเซลล์ รายคน</h3><span class="r">รวม ${fmtB(s.total)}</span></div>${sBars.length?cxBars(sBars):'<div style="color:#5E7691;font-size:12.5px">ไม่มีข้อมูล</div>'}</div>`;
   const aBars=(a.byCloser||[]).slice(0,8).map((p)=>({label:p.name,value:p.amount,color:SD_COL.admin,text:fmtB(p.amount)}));
-  h+=`<div class="c w12"><div class="c-h"><h3>ยอดขายทีมแอดมิน รายคน (Pancake)</h3><span class="r">รวม ${fmtB(a.total)}</span></div>${aBars.length?cxBars(aBars):`<div style="color:#5E7691;font-size:12.5px">${a.note==='no_api_key'?'ยังไม่ได้เชื่อม Pancake API':a.note==='pancake_error'?'ดึงข้อมูล Pancake ไม่สำเร็จ':'ไม่มีข้อมูลแอดมินในเดือนนี้'}</div>`}</div>`;
+  h+=`<div class="c w12"><div class="c-h"><h3>ยอดขายทีมแอดมิน รายคน (Pancake)</h3><span class="r">รวม ${fmtB(a.total)}</span></div>${aBars.length?cxBars(aBars):`<div style="color:#5E7691;font-size:12.5px">${a.note==='no_api_key'?'ยังไม่ได้เชื่อม Pancake API':a.note==='pancake_error'?'ดึงข้อมูล Pancake ไม่สำเร็จ':'ไม่มีข้อมูลแอดมินในช่วงนี้'}</div>`}</div>`;
   h+=`</div>`;
   return h;
 }
@@ -1209,7 +1248,7 @@ function sdSales(D){
   const s=D.sales;
   let h=`<div class="grid">`;
   h+=`<div class="kstrip">`+
-    kx("📞 ยอดขายทีมเซลล์",fmtB(s.total),s.count+" ออเดอร์ · "+D.monthLabel,true)+
+    kx("📞 ยอดขายทีมเซลล์",fmtB(s.total),s.count+" ออเดอร์ · "+(D.rangeLabel||""),true)+
     s.byPerson.map((p)=>kx("👤 "+p.name,fmtB(p.amount),p.count+" ออเดอร์")).join("")+
     `</div>`;
   const pBars=s.byPerson.map((p,i)=>({label:p.name,value:p.amount,color:SD_PCOL[i%SD_PCOL.length],text:fmtB(p.amount)}));
@@ -1239,7 +1278,7 @@ function sdAdmin(D){
   }
   const topCloser=(a.byCloser&&a.byCloser[0])?a.byCloser[0].name:"—";
   h+=`<div class="kstrip">`+
-    kx("💬 ยอดขายทีมแอดมิน",fmtB(a.total),a.count+" ออเดอร์ · "+D.monthLabel,true)+
+    kx("💬 ยอดขายทีมแอดมิน",fmtB(a.total),a.count+" ออเดอร์ · "+(D.rangeLabel||""),true)+
     kx("👥 ลูกค้า (รายชื่อ)",fmt(a.customers.length),"ไม่ซ้ำเบอร์/ชื่อ")+
     kx("🧾 ออเดอร์แอดมิน",fmt(a.count),"ปิดจากแชท (Pancake)")+
     kx("🏆 แอดมินยอดสูงสุด",esc(topCloser),(a.byCloser&&a.byCloser[0])?fmtB(a.byCloser[0].amount):"—")+
@@ -1259,8 +1298,29 @@ function sdAdmin(D){
   h+=`</div>`;
   return h;
 }
+function sdPeakLabel(buckets){let mi=-1,mv=-1,li=-1,lv=Infinity;buckets.forEach((b,i)=>{if(b.value>mv){mv=b.value;mi=i;}if(b.value<lv){lv=b.value;li=i;}});return {peak:mi>=0?buckets[mi].label:"—",peakV:mv,low:li>=0?buckets[li].label:"—"};}
+function sdInsights(D){
+  const tp=D.topProducts||[], sbh=D.salesByHour||[], cbh=D.callsByHour||[], chh=D.chatByHour||[];
+  let h=`<div class="grid">`;
+  // Top products
+  const pbars=tp.slice(0,10).map((p,i)=>({label:p.name+" ("+fmt(p.qty)+" ชิ้น)",value:p.revenue,color:SD_PCOL[i%SD_PCOL.length],text:fmtB(p.revenue)}));
+  h+=`<div class="c w6"><div class="c-h"><h3>🏆 สินค้าขายดี (Top 10)</h3><span class="r">ตามยอดขาย · Pancake</span></div>${pbars.length?cxBars(pbars):'<div style="color:#5E7691;font-size:12.5px">ไม่มีข้อมูลสินค้า</div>'}</div>`;
+  // Sales by period
+  const sB=sdBucket(sbh,v=>v||0); const sPk=sdPeakLabel(sB);
+  h+=`<div class="c w6"><div class="c-h"><h3>⏰ ช่วงเวลาที่ขายดี</h3><span class="r">พีค ${esc(sPk.peak)}</span></div>${cxBars(sB.map(b=>({label:b.label,value:b.value,color:"#0077B6",text:fmtB(b.value)})))}</div>`;
+  // Calls out by period
+  const cB=sdBucket(cbh,v=>(v&&v.out)||0); const cPk=sdPeakLabel(cB);
+  h+=`<div class="c w6"><div class="c-h"><h3>📞 ช่วงเวลาโทรออก</h3><span class="r">มากสุด ${esc(cPk.peak)} · น้อยสุด ${esc(cPk.low)}</span></div>${cxBars(cB.map(b=>({label:b.label,value:b.value,color:"#0E9F6E",text:fmt(b.value)+" สาย"})))}</div>`;
+  // Chat (admin close) by period
+  const hB=sdBucket(chh,v=>v||0); const hPk=sdPeakLabel(hB);
+  h+=`<div class="c w6"><div class="c-h"><h3>💬 ช่วงเวลาปิดจากแชท (แอดมิน)</h3><span class="r">มากสุด ${esc(hPk.peak)} · น้อยสุด ${esc(hPk.low)}</span></div>${cxBars(hB.map(b=>({label:b.label,value:b.value,color:"#E8A317",text:fmt(b.value)+" ออเดอร์"})))}</div>`;
+  h+=`</div>`;
+  return h;
+}
 window.sdSetView=function(k){SD_VIEW=k;SD_CUSTPAGE=1;SD_ORDPAGE=1;renderSdFilters();paintSalesDash();};
 window.sdSetMonth=function(m){SD_MONTH=m;SD_SRC="";SD_CUSTPAGE=1;SD_ORDPAGE=1;const w=document.getElementById('sdWrap');if(w)w.innerHTML='<div class="empty" style="padding:24px">กำลังโหลด…</div>';loadSalesDash();};
+window.sdSetRange=function(r){SD_RANGE=r;SD_SRC="";SD_CUSTPAGE=1;SD_ORDPAGE=1;if(r==="custom"){if(!SD_FROM){const w=sdWeekRange();SD_FROM=w[0];SD_TO=w[1];}renderSdFilters();return;}const w=document.getElementById('sdWrap');if(w)w.innerHTML='<div class="empty" style="padding:24px">กำลังโหลด…</div>';loadSalesDash();};
+window.sdApplyCustom=function(){const a=document.getElementById('sdFrom'),b=document.getElementById('sdTo');if(!a||!b||!a.value||!b.value){toast&&toast('เลือกวันที่ให้ครบ');return;}SD_FROM=a.value;SD_TO=b.value;SD_CUSTPAGE=1;SD_ORDPAGE=1;const w=document.getElementById('sdWrap');if(w)w.innerHTML='<div class="empty" style="padding:24px">กำลังโหลด…</div>';loadSalesDash();};
 window.sdSetSrc=function(s){if(SD_SRC===s)return;SD_SRC=s;SD_CUSTPAGE=1;SD_ORDPAGE=1;const w=document.getElementById('sdWrap');if(w)w.innerHTML='<div class="empty" style="padding:24px">กำลังโหลด…</div>';loadSalesDash();};
 window.sdCustPage=function(n){SD_CUSTPAGE=n;paintSalesDash();window.scrollTo(0,document.body.scrollHeight);};
 window.sdOrdPage=function(n){SD_ORDPAGE=n;paintSalesDash();window.scrollTo(0,document.body.scrollHeight);};
@@ -1274,7 +1334,7 @@ window.sdUpload=function(input){
     try{
       const r=await fetch('/api/admin/sales-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:f.name,b64})});
       const j=await r.json();
-      if(j&&j.ok){const first=j.imported[0];SD_MONTH=first?first.month:SD_MONTH;SD_SRC='import';SD_DATA=null;loadSalesDash();}
+      if(j&&j.ok){const first=j.imported[0];SD_RANGE="month";SD_MONTH=first?first.month:SD_MONTH;SD_SRC='import';SD_DATA=null;loadSalesDash();}
       else if(w){w.innerHTML='<div class="empty" style="padding:24px;color:#b91c1c">นำเข้าไม่สำเร็จ: '+esc((j&&(j.message||j.error))||'')+'</div>';}
     }catch(e){if(w)w.innerHTML='<div class="empty" style="padding:24px;color:#b91c1c">อัปโหลดผิดพลาด</div>';}
   };
@@ -1288,10 +1348,10 @@ function sdXlsx(name,headers,rows){
   el.href=url;el.download=name;document.body.appendChild(el);el.click();el.remove();
 }
 window.sdExportSales=function(){const D=SD_DATA,s=D&&D.sales;if(!s)return;
-  sdXlsx(`ยอดขายทีมเซลล์_${D.month}.xls`,["#","วันที่","เซลล์","ช่องทาง","สินค้า","ชำระ/เบอร์","ยอด(บาท)"],
+  sdXlsx(`ยอดขายทีมเซลล์_${D.from}_${D.to}.xls`,["#","วันที่","เซลล์","ช่องทาง","สินค้า","ชำระ/เบอร์","ยอด(บาท)"],
     s.orders.map((o,i)=>[i+1,sdThai(o.d),SELLER_LAB_C[o.s]||o.s,CH_LAB_TS_C[o.ch]||o.ch,o.p,o.pay||o.phone||"",o.a]));};
 window.sdExportAdmin=function(){const D=SD_DATA,a=D&&D.admin;if(!a)return;
-  sdXlsx(`ยอดขายทีมแอดมิน_${D.month}.xls`,["#","ชื่อลูกค้า","เบอร์","สินค้าล่าสุด","แอดมินผู้ปิด","ซื้อล่าสุด","ออเดอร์","ยอดซื้อ(บาท)"],
+  sdXlsx(`ยอดขายทีมแอดมิน_${D.from}_${D.to}.xls`,["#","ชื่อลูกค้า","เบอร์","สินค้าล่าสุด","แอดมินผู้ปิด","ซื้อล่าสุด","ออเดอร์","ยอดซื้อ(บาท)"],
     a.customers.map((c,i)=>[i+1,c.name,c.phone,c.product,c.closer,sdThai(c.at),c.count,Math.round(c.amount)]));};
 
 const VIEWS={sales_dash:viewSalesDash,dashboard:viewDashboard,customers:viewCustomers,admin_overview:viewAdminOverview,tel_overview:viewTelOverview,tel_calltoday:viewTelCallToday,tel_perf:viewTelPerf,tickets:viewTickets,appts:viewAppts,archive:viewArchive,stopped:viewStopped,trash:viewTrash,ticket:viewTicket,stock:viewStock,reports:viewReports,staff:viewStaff,settings:viewSettings};
