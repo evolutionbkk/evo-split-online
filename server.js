@@ -2615,18 +2615,21 @@ app.post('/api/bigseller/ingest', async (req, res) => {
 app.post('/api/admin/purge-t2-old', requireAuth, async (req, res) => {
   const cutoff = /^\d{4}-\d{2}-\d{2}$/.test(String((req.body && req.body.cutoff) || '')) ? req.body.cutoff : '2026-09-01';
   const dry = !(req.body && req.body.confirm === true);
-  const isOldT2 = (r) => String(r.step || '').toUpperCase() === 'T2' && !!r.lastOrderAt && String(r.lastOrderAt).slice(0, 10) < cutoff;
+  const isOldT2 = (r) => ['T2', 'T3'].includes(String(r.step || '').toUpperCase()) && !!r.lastOrderAt && String(r.lastOrderAt).slice(0, 10) < cutoff;
   const victims = state.assigned.filter(isOldT2);
   if (dry) {
-    return res.json({ ok: true, dry: true, cutoff, count: victims.length,
-      sample: victims.slice(0, 12).map((v) => ({ name: v.name, side: v.sales, lastOrderAt: v.lastOrderAt, source: v.source })) });
+    const byStep = { T2: victims.filter((v) => String(v.step || '').toUpperCase() === 'T2').length, T3: victims.filter((v) => String(v.step || '').toUpperCase() === 'T3').length };
+    return res.json({ ok: true, dry: true, cutoff, count: victims.length, byStep,
+      sample: victims.slice(0, 12).map((v) => ({ name: v.name, side: v.sales, step: v.step, lastOrderAt: v.lastOrderAt, source: v.source })) });
   }
   const before = state.assigned.length;
   state.assigned = state.assigned.filter((r) => !isOldT2(r));
   const removed = before - state.assigned.length;
   state.updatedAt = new Date().toISOString();
   state = await store.save(state);
-  res.json({ ok: true, removed, cutoff, remainingT2: state.assigned.filter((r) => String(r.step || '').toUpperCase() === 'T2').length });
+  res.json({ ok: true, removed, cutoff,
+    remainingT2: state.assigned.filter((r) => String(r.step || '').toUpperCase() === 'T2').length,
+    remainingT3: state.assigned.filter((r) => String(r.step || '').toUpperCase() === 'T3').length });
 });
 
 // Pool status (counts waiting, by channel) + who is on leave.
