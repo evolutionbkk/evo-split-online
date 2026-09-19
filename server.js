@@ -3485,12 +3485,15 @@ function systemMonths(){
   }
   return [...set];
 }
+function curMonthTH(){ return new Date(Date.now()+7*3600000).toISOString().slice(0,7); }
 function availableSalesMonths(){
+  const cur=curMonthTH();
   const set=new Set([...Object.keys(SALES_BUILTIN)]);
   if(state.salesImports) for(const m of Object.keys(state.salesImports)) set.add(m);
   for(const m of systemMonths()) set.add(m);
-  const now=new Date(Date.now()+7*3600000); set.add(now.toISOString().slice(0,7));
-  return [...set].sort().reverse();
+  set.add(cur);
+  // กันเดือนขยะในอนาคต (เช่นข้อมูลกรอกวันที่ผิด) — แสดงเฉพาะไม่เกินเดือนปัจจุบัน
+  return [...set].filter(m=>/^\d{4}-\d{2}$/.test(m) && m<=cur).sort().reverse();
 }
 function buildTelesale(orders,month){
   const byPerson={};
@@ -3502,7 +3505,8 @@ function buildTelesale(orders,month){
 
 app.get('/api/admin/sales-dashboard', requireAuth, async (req, res) => {
   const months=availableSalesMonths();
-  const month = /^\d{4}-\d{2}$/.test(String(req.query.month||'')) ? req.query.month : (months[0]||'2026-09');
+  const cur=curMonthTH();
+  const month = (/^\d{4}-\d{2}$/.test(String(req.query.month||''))&&months.includes(req.query.month)) ? req.query.month : (months.includes(cur)?cur:(months[0]||'2026-09'));
   const imported=telesaleImported(month);
   const sysMonthsSet=new Set(systemMonths());
   const has={ import: !!(imported&&imported.length), system: sysMonthsSet.has(month) };
