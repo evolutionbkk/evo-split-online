@@ -3512,7 +3512,8 @@ function telesaleImportedRange(fromD,toD){
   for(const m of set){ if(m<fm||m>tm)continue; const arr=pick(m); if(!arr)continue;
     const [yy,mm]=m.split('-').map(Number); const first=m+'-01', last=m+'-'+String(new Date(yy,mm,0).getDate()).padStart(2,'0');
     const wholeIn=(first>=fromD&&last<=toD);
-    for(const o of arr){ if(o.d){ if(o.d>=fromD&&o.d<=toD) out.push(o); } else if(wholeIn){ out.push(o); } }
+    // เดือนที่อยู่เต็มช่วง (โหมด "เดือน") = เอาทุกออเดอร์ในแท็บให้ตรงยอดชีท แม้บางแถวกรอกวันที่ผิดเดือน
+    for(const o of arr){ if(wholeIn){ out.push(o); } else if(o.d && o.d>=fromD && o.d<=toD){ out.push(o); } }
   }
   return out;
 }
