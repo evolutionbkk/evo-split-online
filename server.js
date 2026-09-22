@@ -712,10 +712,20 @@ async function runSweep() {
   return changed;
 }
 function leadFor(req, key) {
-  const rec = state.assigned.find((r) => S.keyOf(r) === key);
-  if (!rec) return null;
-  if (req.session.role === 'sales' && rec.sales !== req.session.side) return null; // scope
-  return rec;
+  // NOTE: keys can collide (same code, or same name+phone with no code). Old code took the
+  // FIRST match via .find(), so when a duplicate on the other side / an archived twin sat
+  // earlier in the array, a salesperson's own lead failed the scope check and the "ย้ายผู้ดูแล"
+  // button silently 404'd. Resolve among ALL same-key records instead.
+  const matches = state.assigned.filter((r) => S.keyOf(r) === key);
+  if (!matches.length) return null;
+  if (req.session.role === 'sales') {
+    // scope: caller may only act on their own-side record (prefer the active one)
+    return matches.find((r) => r.sales === req.session.side && !r.archived)
+        || matches.find((r) => r.sales === req.session.side)
+        || null;
+  }
+  // admin: prefer an active record over an archived duplicate
+  return matches.find((r) => !r.archived) || matches[0];
 }
 function whoami(req) { return req.session.role === 'admin' ? 'admin' : req.session.side; }
 
