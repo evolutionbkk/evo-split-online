@@ -2626,7 +2626,7 @@ app.post('/api/admin/purge-t2-old', requireAuth, async (req, res) => {
   const cutoff = /^\d{4}-\d{2}-\d{2}$/.test(String((req.body && req.body.cutoff) || '')) ? req.body.cutoff : '2026-09-01';
   const dry = !(req.body && req.body.confirm === true);
   const inclArchived = !!(req.body && req.body.inclArchived === true);
-  const isOldT2 = (r) => (inclArchived || !r.archived) && ['T2', 'T3'].includes(String(r.step || '').toUpperCase()) && !!r.lastOrderAt && String(r.lastOrderAt).slice(0, 10) < cutoff;
+  const isOldT2 = (r) => (inclArchived || !r.archived) && ['T2', 'T3'].includes(String(r.step || '').toUpperCase()) && !!r.lastOrderAt && String(r.lastOrderAt).slice(0, 10) < cutoff && !r.nextAppt;
   const victims = state.assigned.filter(isOldT2);
   if (dry) {
     const byStep = { T2: victims.filter((v) => String(v.step || '').toUpperCase() === 'T2').length, T3: victims.filter((v) => String(v.step || '').toUpperCase() === 'T3').length };
@@ -4023,6 +4023,43 @@ app.post('/api/restore-backup', requireAuth, async (req, res) => {
   if (!clean || !clean.assigned.length) return res.status(400).json({ error: 'not_found', message: 'ไม่พบไฟล์สำรองของวันนั้น หรือว่างเปล่า' });
   state = await store.save({ assigned: clean.assigned, maxRound: clean.maxRound });
   res.json({ ok: true, day, total: state.assigned.length, W: S.listSide(state, 'W').length, K: S.listSide(state, 'K').length });
+});
+
+// กู้ลูกค้าที่ถูกลบจาก purge (19 ก.ย.) กลับจากไฟล์สำรองรายวัน — เพิ่มเฉพาะรายที่ "ไม่มีในระบบตอนนี้" (เช็กทั้ง key และเบอร์)
+// ไม่แตะรายที่มีอยู่แล้วเลย (งาน/โน้ต/นัดหลังวันสำรองอยู่ครบ) · apply:false = ทดลองนับ · onlyAppt:true = เฉพาะรายที่มีวันนัด
+app.post('/api/admin/restore-missing', requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const day = String(b.day || '');
+  const apply = b.apply === true;
+  const onlyAppt = b.onlyAppt === true;
+  const steps = Array.isArray(b.steps) ? b.steps.map((s) => String(s).toUpperCase()) : ['T2', 'T3'];
+  const bk = day ? await store.loadBackup(day) : null;
+  const old = (bk && Array.isArray(bk.assigned)) ? bk.assigned : [];
+  if (!old.length) return res.status(400).json({ error: 'not_found', message: 'ไม่พบไฟล์สำรองของวันนั้น' });
+  const haveKey = new Set(state.assigned.map(S.keyOf));
+  const havePhone = new Set(state.assigned.map((r) => S.cleanPhone(r.phone)).filter(Boolean));
+  const cand = old.filter((r) => {
+    if (haveKey.has(S.keyOf(r))) return false;
+    const p = S.cleanPhone(r.phone); if (p && havePhone.has(p)) return false;
+    if (steps.length && !steps.includes(String(r.step || '').toUpperCase())) return false;
+    if (onlyAppt && !r.nextAppt) return false;
+    return true;
+  });
+  const summary = { day, candidates: cand.length, withAppt: cand.filter((r) => r.nextAppt).length, archived: cand.filter((r) => r.archived).length,
+    W: cand.filter((r) => r.sales === 'W').length, K: cand.filter((r) => r.sales === 'K').length,
+    T2: cand.filter((r) => String(r.step || '').toUpperCase() === 'T2').length, T3: cand.filter((r) => String(r.step || '').toUpperCase() === 'T3').length };
+  if (!apply) return res.json({ ok: true, dry: true, ...summary, sample: cand.slice(0, 10).map((r) => ({ name: r.name, phone: r.phone, side: r.sales, step: r.step, nextAppt: r.nextAppt || '', archived: !!r.archived })) });
+  const seenK = new Set(), seenP = new Set(); let added = 0;
+  for (const r of cand) {
+    const k = S.keyOf(r), p = S.cleanPhone(r.phone);
+    if (seenK.has(k) || (p && seenP.has(p))) continue;
+    seenK.add(k); if (p) seenP.add(p);
+    pushHist(r, 'restore', 'กู้คืนจากไฟล์สำรอง ' + day, 'admin');
+    state.assigned.push(r); added++;
+  }
+  state.updatedAt = new Date().toISOString();
+  state = await store.save(state);
+  res.json({ ok: true, added, ...summary, total: state.assigned.length });
 });
 
 // กู้ประวัติออเดอร์ที่ถูกเขียนทับจากการนำเข้าชีท (bug 2026-09-08): ดึง orders เดิมจากไฟล์สำรองมาทับคืน
