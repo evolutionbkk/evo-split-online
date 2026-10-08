@@ -882,7 +882,7 @@
     const callTab = '<form class="form cd-form" data-form="call2" data-id="' + c.id + '">' +
       (c.channel === 'fb' ? '<div class="cd-goal">' + ico('alert') + '<div><b>' + round + ' : ' + esc(H.ROUNDS[round]) + '</b><small>T1 ต้อนรับ / ยืนยันออเดอร์ : T2 ถามผลการใช้ / อัปเซล : T3 ติดตามซื้อซ้ำ</small></div></div>' : '') +
       '<div class="field"><span>ผลการโทร <em>*</em></span><div class="rs">' + RESULT_STEPS.map((g) => '<label class="rs-card ' + g.tone + '"><input type="radio" name="rstep" value="' + g.id + '" data-act-change="cd-rstep"><span class="rs-ico">' + ico(g.icon) + '</span><span class="rs-txt"><b>' + g.label + '</b><small>' + g.hint + '</small></span></label>').join('') + '</div>' +
-        RESULT_STEPS.map((g) => '<div class="rs-sub ' + g.tone + '" data-rs="' + g.id + '" hidden>' + (g.ids.length > 1 ? '<span class="rs-q">' + g.q + '</span><div class="rg-opts">' + g.ids.map((id) => { const r = H.RESULTS.find((x) => x.id === id); return '<label class="rg-o"><input type="radio" name="result" value="' + id + '" data-act-change="cd-result"><span>' + esc(r.short || r.label) + '</span></label>'; }).join('') + '</div>' : '<input type="radio" name="result" value="' + g.ids[0] + '" hidden>') + '</div>').join('') + '</div>' +
+        RESULT_STEPS.map((g) => '<div class="rs-sub ' + g.tone + '" data-rs="' + g.id + '" hidden>' + (g.ids.length > 1 ? '<span class="rs-q">' + g.q + '</span>' + (g.id === 'sold' ? '<small class="rs-note">' + ico('checkc') + ' ไม่ต้องกด "เพิ่มคำสั่งซื้อ" อีก : เลือกสินค้าด้านล่างแล้วกดบันทึก ระบบสร้างคำสั่งซื้อให้อัตโนมัติ</small>' : '') + '<div class="rg-opts">' + g.ids.map((id) => { const r = H.RESULTS.find((x) => x.id === id); return '<label class="rg-o"><input type="radio" name="result" value="' + id + '" data-act-change="cd-result"><span>' + esc(r.short || r.label) + '</span></label>'; }).join('') + '</div>' : '<input type="radio" name="result" value="' + g.ids[0] + '" hidden>') + '</div>').join('') + '</div>' +
       (c.channel === 'fb' ? '<div class="cd-row2"><label class="field"><span>รอบการโทร</span><select class="in" name="round">' + ['T1', 'T2', 'T3'].map((r) => '<option' + (round === r ? ' selected' : '') + '>' + r + '</option>').join('') + '</select></label><div></div></div>' : '') +
       '<div class="field" data-show="lost" hidden><span>เหตุผลที่ปฏิเสธ <em>*</em></span><select class="in" name="lostReason"><option value="">เลือกเหตุผล</option>' + H.LOST_REASONS.map((r) => '<option>' + r + '</option>').join('') + '</select></div>' +
       '<div class="cd-row2"><label class="field"><span>วันและเวลาที่โทร</span><input class="in" type="datetime-local" name="at" value="' + nowLocal + '" max="' + nowLocal + '"></label>' +
@@ -1597,7 +1597,7 @@
       const g = RESULT_STEPS.find((x) => x.id === t.value);
       if (g.id !== 'talk') { const r = $('[data-rs="' + g.id + '"] [name=result][value="' + g.ids[0] + '"]', f); r.checked = true; }
       $('[data-show=lost]', f).hidden = true; f.nd.dataset.touched = ''; suggestNext(f);
-      const pb = $('.cd-prod', f); if (pb) pb.hidden = g.id === 'none';
+      const pb = $('.cd-prod', f); if (pb) { pb.hidden = g.id === 'none'; pb.classList.toggle('sold', g.id === 'sold'); const ph = $('[data-prod-hint]', pb); if (ph) ph.textContent = g.id === 'sold' ? 'จำเป็น : ใช้สร้างคำสั่งซื้อ' : 'ไม่บังคับ : บันทึกว่าลูกค้าสนใจอะไร'; const pt = $('b.small', pb); if (pt) pt.textContent = g.id === 'sold' ? 'สินค้าที่ขาย' : 'สินค้าที่ลูกค้าสนใจ'; }
       if (g.id === 'talk') { const h = $('[data-next-hint]', f); if (h) h.textContent = 'เลือกคำตอบของลูกค้า แล้วระบบจะนัดให้อัตโนมัติ'; }
     }
     else if (act === 'cd-result') { const f = t.closest('form'); $('[data-show=lost]', f).hidden = t.value !== 'lost'; suggestNext(f); }
@@ -1654,6 +1654,7 @@
         if (f.pline && f.pline.value === 'other' && !other) throw new Error('พิมพ์ชื่อสินค้าที่ต้องการระบุเอง');
         const prodVal = f.prod.value || other, prodLabel = f.prod.dataset.label || other;
         const qn = Number(f.qty.value) || 1;
+        if (sold && !prodVal) { const pb = $('.cd-prod', f); if (pb) pb.scrollIntoView({ block: 'center' }); throw new Error('เลือกสินค้าที่ขายก่อน เพื่อสร้างคำสั่งซื้อ'); }
         const items = prodVal ? [{ name: prodVal, qty: qn, price: other && f.amount.value ? Number(f.amount.value) / qn : undefined }] : [];
         let note = f.note.value.trim();
         if (!sold && prodVal) note = (note ? note + ' : ' : '') + 'สนใจ ' + prodLabel + ' x' + qn;
@@ -1662,7 +1663,7 @@
         if (f.nd.value) { pay.nextAt = fromLocal(f.nd.value + 'T' + (f.nt.value || '10:30')); pay.nextPurpose = f.np.value; }
         else if (!f.nd.dataset.touched) pay.autoNext = true;
         await api.act('logCall', pay); cdTimer0 = null;
-        toast('บันทึกการโทรแล้ว : นับ KPI และอัปเดตนัดหมายให้แล้ว');
+        toast(sold ? 'บันทึกการขายแล้ว : สร้างคำสั่งซื้อ ' + B(Number(pay.amount) || 0) + ' ให้อัตโนมัติ และนับ KPI แล้ว' : 'บันทึกการโทรแล้ว : นับ KPI และอัปเดตนัดหมายให้แล้ว');
       } else if (kind === 'call') {
         if (!f.result.value) throw new Error('เลือกผลการโทรก่อนบันทึก');
         if (timers.d) handlers.timer($('[data-act=timer]', f));
