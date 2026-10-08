@@ -281,8 +281,8 @@
         '<button class="btn sm" data-act="ls-clear"' + K + '>ยกเลิกการเลือก</button></div>';
     }
     const th = (selectable ? '<th class="ck"><input type="checkbox" data-act="ls-pageall"' + K + ' aria-label="เลือกทั้งหมดในหน้านี้"' + (pageAll ? ' checked' : '') + '></th>' : '') +
-      cfg.head.map((h) => '<th class="' + (h.cls || '') + '">' + h.h + '</th>').join('') + (cfg.rowDelete ? '<th class="n"><span class="sr">ลบ</span></th>' : '');
-    const rows = slice.map((it) => {
+      (cfg.head || []).map((h) => '<th class="' + (h.cls || '') + '">' + h.h + '</th>').join('') + (cfg.rowDelete ? '<th class="n"><span class="sr">ลบ</span></th>' : '');
+    const rows = cfg.rows ? '' : slice.map((it) => {
       const id = cfg.id(it), on = isOn(id), cid = cfg.click ? cfg.click(it) : '';
       return '<tr class="' + (cid ? 'click ' : '') + (on ? 'sel' : '') + '"' + (cid ? ' data-open="' + esc(cid) + '"' : '') + '>' +
         (selectable ? '<td class="ck"><input type="checkbox" data-act="ls-check"' + K + ' data-id="' + esc(id) + '"' + (on ? ' checked' : '') + ' aria-label="เลือกรายการ"></td>' : '') +
@@ -295,6 +295,11 @@
         pageNums(st.page, pages).map((p) => p === '…' ? '<span>…</span>' : '<button class="' + (p === st.page ? 'on' : '') + '" data-act="ls-page"' + K + ' data-v="' + p + '"' + (p === st.page ? ' aria-current="page"' : '') + '>' + p + '</button>').join('') +
         '<button data-act="ls-page"' + K + ' data-v="' + (st.page + 1) + '"' + (st.page >= pages ? ' disabled' : '') + ' aria-label="หน้าถัดไป">›</button></div>' : '') + '</div>'
       : '<div class="small faint" style="margin-top:10px">ทั้งหมด ' + N(n) + ' รายการ</div>';
+    if (cfg.rows) {
+      const cards = slice.map((it) => { const id = cfg.id(it), on = isOn(id); return '<div class="arow' + (on ? ' sel' : '') + '">' + (selectable ? '<label class="ck"><input type="checkbox" data-act="ls-check"' + K + ' data-id="' + esc(id) + '"' + (on ? ' checked' : '') + ' aria-label="เลือกรายการ"></label>' : '') + cfg.card(it) + '</div>'; }).join('');
+      const allBox = selectable && n > 1 ? '<label class="arow-all small muted"><input type="checkbox" data-act="ls-pageall"' + K + (pageAll ? ' checked' : '') + '> เลือกทั้งหมดในหน้านี้</label>' : '';
+      return bar + allBox + '<div class="alist">' + cards + '</div>' + pager;
+    }
     return bar + '<div class="tbl-wrap"><table class="tbl"><thead><tr>' + th + '</tr></thead><tbody>' + rows + '</tbody></table></div>' + pager;
   }
   function emptyState(msg, buttons) { return '<div class="empty"><div>' + msg + '</div>' + (buttons ? '<div class="row" style="justify-content:center;margin-top:10px">' + buttons + '</div>' : '') + '</div>'; }
@@ -843,50 +848,78 @@
   }
 
   // ------------------------------------------------------------ CALENDAR
+  // Pick a day from the week strip (or month grid), see that day's calls as a clear list.
+  // Overdue calls always sit on top so nothing gets lost.
+  const DOW_MON = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
+  const monOf = (d) => H.addDays(d, -((new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7));
   function pageCalendar() {
-    const v = V(), T = H.today();
-    const [yy, mm] = ui.calMonth.split('-').map(Number);
-    const first = ui.calMonth + '-01';
-    const startDow = new Date(first + 'T00:00:00Z').getUTCDay();
-    const gridStart = H.addDays(first, -startDow);
+    const v = V(), T = H.today(), now = Date.now();
+    ui.calView = ui.calView || 'week';
     let appts = (v.appointments || []);
     if (boss() && ui.calOwner !== 'all') appts = appts.filter((a) => a.owner === ui.calOwner);
     if (!boss()) appts = appts.filter((a) => a.owner === S.me.id);
     const byDay = {}; for (const a of appts) { const d = H.dayKey(a.at); (byDay[d] = byDay[d] || []).push(a); }
     Object.values(byDay).forEach((l) => l.sort((a, b) => Date.parse(a.at) - Date.parse(b.at)));
-    const now = Date.now();
-    let cells = H.TH_DOW.map((d) => '<div class="dow">' + d + '</div>').join('');
-    for (let i = 0; i < 42; i++) {
-      const d = H.addDays(gridStart, i); const l = byDay[d] || [];
-      if (i >= 35 && d.slice(0, 7) !== ui.calMonth) break;
-      cells += '<button class="d ' + (d.slice(0, 7) !== ui.calMonth ? 'out ' : '') + (d === T ? 'today ' : '') + (d === ui.calDay ? 'sel' : '') + '" data-act="cal-day" data-v="' + d + '"><span class="dn">' + Number(d.slice(8)) + '</span>' +
-        l.slice(0, 3).map((a) => { const c = H.findCustomer(S.full || v, a.customerId) || {}; return '<span class="ev-dot ' + (a.done ? 'done' : Date.parse(a.at) < now - 3600000 ? 'late' : '') + '">' + H.thTime(a.at) + ' ' + esc(c.name || '') + '</span>'; }).join('') +
-        (l.length > 3 ? '<span class="small muted">+' + (l.length - 3) + ' นัด</span>' : '') + (l.length ? '<span class="small muted cnt" style="display:none">' + l.length + ' นัด</span>' : '') + '</button>';
+    const isLate = (a) => !a.done && Date.parse(a.at) < now - 3600000;
+    const overdue = appts.filter((a) => isLate(a) && H.dayKey(a.at) < T).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+    const dayInfo = (d) => { const l = byDay[d] || []; return { n: l.length, open: l.filter((a) => !a.done).length, late: l.filter(isLate).length }; };
+    const tdy = dayInfo(T), tmr = dayInfo(H.addDays(T, 1));
+    const wk0 = monOf(ui.calDay);
+    let wkTotal = 0; for (let i = 0; i < 7; i++) wkTotal += dayInfo(H.addDays(wk0, i)).open;
+    const fmtShort = (d) => { const x = new Date(d + 'T00:00:00Z'); return x.getUTCDate() + ' ' + H.TH_MON[x.getUTCMonth()]; };
+    // header
+    const ownerCtl = boss() ? segF('เซลล์', 'cal-owner', [{ v: 'all', l: 'ทั้งหมด' }].concat(H.teles(S.full || v).map((u) => ({ v: u.id, l: u.name }))), ui.calOwner) : '';
+    const title = ui.calView === 'week' ? fmtShort(wk0) + ' - ' + fmtShort(H.addDays(wk0, 6)) + ' ' + (new Date(wk0 + 'T00:00:00Z').getUTCFullYear() + 543)
+      : (() => { const [y, m] = ui.calMonth.split('-').map(Number); return H.TH_MON[m - 1] + ' ' + (y + 543); })();
+    const head = '<div class="cal-head"><div class="row" style="gap:6px"><button class="icon-btn" data-act="cal-nav" data-v="-1" aria-label="ก่อนหน้า">' + ico('left') + '</button>' +
+      '<h2 class="cal-title">' + title + '</h2><button class="icon-btn" data-act="cal-nav" data-v="1" aria-label="ถัดไป">' + ico('right') + '</button><button class="btn sm" data-act="cal-today">วันนี้</button></div>' +
+      '<div class="row">' + segF('', 'cal-view', [{ v: 'week', l: 'สัปดาห์' }, { v: 'month', l: 'เดือน' }], ui.calView) + ownerCtl + '<button class="btn primary sm" data-act="new-appt">' + ico('plus') + ' เพิ่มนัด</button></div></div>';
+    const sum = '<div class="cal-sum">' +
+      '<button class="cal-chip bad' + (overdue.length ? '' : ' zero') + '" data-act="cal-jump-late"><b>' + overdue.length + '</b><span>เลยนัด ยังไม่ได้โทร</span></button>' +
+      '<button class="cal-chip info" data-act="cal-day" data-v="' + T + '"><b>' + tdy.open + '</b><span>ต้องโทรวันนี้' + (tdy.n - tdy.open ? ' (โทรแล้ว ' + (tdy.n - tdy.open) + ')' : '') + '</span></button>' +
+      '<button class="cal-chip" data-act="cal-day" data-v="' + H.addDays(T, 1) + '"><b>' + tmr.open + '</b><span>พรุ่งนี้</span></button>' +
+      '<div class="cal-chip mute"><b>' + wkTotal + '</b><span>นัดที่เหลือในสัปดาห์นี้</span></div></div>';
+    // week strip or month grid
+    let picker = '';
+    if (ui.calView === 'week') {
+      picker = '<div class="wk">' + Array.from({ length: 7 }, (_, i) => {
+        const d = H.addDays(wk0, i), x = new Date(d + 'T00:00:00Z'), info = dayInfo(d);
+        return '<button class="wk-day' + (d === ui.calDay ? ' sel' : '') + (d === T ? ' today' : '') + '" data-act="cal-day" data-v="' + d + '"><span class="wk-dow">' + DOW_MON[i] + '</span><b>' + x.getUTCDate() + '</b>' +
+          '<span class="wk-n ' + (info.late ? 'late' : info.open ? 'open' : info.n ? 'done' : 'none') + '">' + (info.n ? (info.open ? info.open + ' นัด' : 'โทรครบ') : '-') + '</span></button>';
+      }).join('') + '</div>';
+    } else {
+      const first = ui.calMonth + '-01', start = monOf(first);
+      let cells = DOW_MON.map((d) => '<span class="dow">' + d + '</span>').join('');
+      for (let i = 0; i < 42; i++) {
+        const d = H.addDays(start, i); if (i >= 35 && d.slice(0, 7) !== ui.calMonth) break;
+        const info = dayInfo(d);
+        cells += '<button class="mo-day' + (d.slice(0, 7) !== ui.calMonth ? ' out' : '') + (d === T ? ' today' : '') + (d === ui.calDay ? ' sel' : '') + '" data-act="cal-day" data-v="' + d + '"><span>' + Number(d.slice(8)) + '</span>' +
+          (info.n ? '<i class="' + (info.late ? 'late' : info.open ? 'open' : 'done') + '">' + (info.open || '✓') + '</i>' : '') + '</button>';
+      }
+      picker = '<div class="mo">' + cells + '</div>';
     }
-    const dayList = (byDay[ui.calDay] || []);
-    const overdue = appts.filter((a) => !a.done && Date.parse(a.at) < now - 3600000).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-    const calOwnerCtl = boss() ? segF('เซลล์', 'cal-owner', [{ v: 'all', l: 'ทั้งหมด' }].concat(H.teles(S.full || v).map((u) => ({ v: u.id, l: u.name }))), ui.calOwner) : '';
-    const monthLabel = H.TH_MON[mm - 1] + ' ' + (yy + 543);
-    return '<div class="row between"><div class="row"><button class="icon-btn" data-act="cal-nav" data-v="-1" aria-label="เดือนก่อน">' + ico('left') + '</button><h2 style="font-size:20px;min-width:120px;text-align:center">' + monthLabel + '</h2><button class="icon-btn" data-act="cal-nav" data-v="1" aria-label="เดือนถัดไป">' + ico('right') + '</button><button class="btn sm" data-act="cal-today">วันนี้</button></div>' +
-      '<div class="row">' + calOwnerCtl + '<button class="btn primary sm" data-act="new-appt">' + ico('plus') + ' เพิ่มนัด</button></div></div>' +
-      '<div class="grid g-main"><section class="card"><div class="cal">' + cells + '</div><div class="legend" style="margin-top:12px"><span><i style="background:var(--info-soft);border:1px solid var(--info)"></i>นัดที่ต้องโทร</span><span><i style="background:var(--bad-soft);border:1px solid var(--bad)"></i>เลยนัด</span><span><i style="background:var(--mute-soft)"></i>โทรแล้ว</span></div></section>' +
-      '<div class="grid" style="align-content:start">' +
-      card('calendar', H.thDate(ui.calDay) + (ui.calDay === T ? ' (วันนี้)' : ''), dayList.length + ' นัด : ทำแล้ว ' + dayList.filter((a) => a.done).length, apptList('calday', dayList, 'ไม่มีนัดในวันนี้')) +
-      card('alert', 'เลยนัด ยังไม่ได้โทร', overdue.length ? 'โทรเคลียร์ก่อนนัดใหม่' : 'ไม่มีนัดค้าง', apptList('callate', overdue, 'ไม่มีนัดค้าง')) + '</div></div>';
+    const legend = '<div class="legend cal-legend"><span><i style="background:var(--info)"></i>มีนัดต้องโทร</span><span><i style="background:var(--bad)"></i>มีนัดเลยเวลา</span><span><i style="background:var(--good)"></i>โทรครบแล้ว</span></div>';
+    const dayList = byDay[ui.calDay] || [];
+    const dx = new Date(ui.calDay + 'T00:00:00Z');
+    const dayTitle = (ui.calDay === T ? 'วันนี้ : ' : ui.calDay === H.addDays(T, 1) ? 'พรุ่งนี้ : ' : '') + DOW_MON[(dx.getUTCDay() + 6) % 7] + ' ' + H.thDate(ui.calDay);
+    const lateCard = overdue.length ? '<section class="card cal-late" id="cal-late"><div class="card-h"><span class="card-ico" style="background:var(--bad-soft);color:var(--bad)">' + ico('alert') + '</span><div class="ttl"><h2>เลยนัด ยังไม่ได้โทร (' + overdue.length + ')</h2><small>โทรเคลียร์ก่อน หรือเลื่อนไปวันอื่น</small></div></div>' + apptList('callate', overdue, '', true) + '</section>' : '';
+    const dayCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('calendar') + '</span><div class="ttl"><h2>' + dayTitle + '</h2><small>' + dayList.length + ' นัด : โทรแล้ว ' + dayList.filter((a) => a.done).length + '</small></div></div>' + apptList('calday', dayList, 'ไม่มีนัดในวันนี้') + '</section>';
+    return head + sum + '<section class="card cal-pick">' + picker + legend + '</section>' + lateCard + dayCard;
   }
-  function apptList(key, list, emptyMsg) {
+  // appointment rows as simple cards: time, customer, why, actions
+  function apptList(key, list, emptyMsg, showDate) {
     return listView({
-      key, items: list, id: (a) => a.id, empty: emptyState(emptyMsg),
-      head: [{ h: 'เวลา' }, { h: 'ลูกค้า' }, { h: 'นัดเพื่อ', cls: 'hide-sm' }, { h: '', cls: 'n' }],
-      actions: [{ act: 'appt-done-sel', label: 'ทำแล้ว', icon: 'check' }, { act: 'appt-shift-sel', label: 'เลื่อน +1 วัน' }, { act: 'appt-del-sel', label: 'ลบ', icon: 'x', danger: true }],
-      rowDelete: () => true, rowDeleteAct: 'appt-del-one',
-      row: (a) => {
+      key, items: list, id: (a) => a.id, rows: true, empty: emptyState(emptyMsg || 'ไม่มีนัด'),
+      actions: [{ act: 'appt-done-sel', label: 'โทรแล้ว', icon: 'check' }, { act: 'appt-shift-sel', label: 'เลื่อน +1 วัน' }, { act: 'appt-del-sel', label: 'ลบ', icon: 'x', danger: true }],
+      card: (a) => {
         const c = H.findCustomer(S.full || V(), a.customerId) || {};
         const late = !a.done && Date.parse(a.at) < Date.now() - 3600000;
-        return ['<td class="tm' + (late ? ' late' : '') + (a.done ? ' done' : '') + '"><b>' + H.thTime(a.at) + '</b><div class="small faint">' + (H.dayKey(a.at) !== ui.calDay ? H.thDate(a.at).replace(/ \d{4}$/, '') : '') + '</div></td>',
-          '<td class="cust-name"><b class="link one" data-open="' + esc(c.id || '') + '">' + esc(c.name || 'ลูกค้า') + '</b><small>' + H.fmtPhone(c.phone) + (boss() ? ' : ' + esc(uname(a.owner)) : '') + '</small></td>',
-          '<td class="hide-sm"><div class="one" style="max-width:220px">' + esc(a.purpose) + '</div>' + roundTag(a.round) + '</td>',
-          '<td class="n"><div class="row" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">' + (a.done ? '<span class="pill good">' + ico('check') + ' โทรแล้ว</span>' : '<button class="btn sm" data-open="' + esc(c.id || '') + '" data-tab="call">' + ico('phone') + ' โทร</button><button class="btn sm good" data-act="appt-done" data-id="' + a.id + '" aria-label="ทำแล้ว">' + ico('check') + '</button>') + '</div></td>'];
+        return '<div class="ap-time' + (late ? ' late' : '') + (a.done ? ' done' : '') + '"><b>' + H.thTime(a.at) + '</b>' + (showDate ? '<small>' + H.thDate(a.at).replace(/ \d{4}$/, '') + '</small>' : '') + '</div>' +
+          '<div class="ap-main"><b class="link one" data-open="' + esc(c.id || '') + '">' + esc(c.name || 'ลูกค้า') + '</b>' +
+          '<div class="ap-why one">' + roundTag(a.round) + ' ' + esc(a.purpose) + '</div><small class="muted">' + H.fmtPhone(c.phone) + (boss() ? ' : ' + esc(uname(a.owner)) : '') + '</small></div>' +
+          '<div class="ap-act">' + (a.done ? '<span class="pill good">' + ico('check') + ' โทรแล้ว</span>'
+            : '<button class="btn sm primary" data-open="' + esc(c.id || '') + '" data-tab="call">' + ico('phone') + ' โทร</button><button class="btn sm" data-act="appt-shift" data-id="' + a.id + '" title="เลื่อนไปพรุ่งนี้">+1 วัน</button><button class="btn sm good" data-act="appt-done" data-id="' + a.id + '" aria-label="โทรแล้ว" title="โทรแล้ว">' + ico('check') + '</button>') +
+          '<button class="x" data-act="appt-del-one" data-key="' + key + '" data-id="' + a.id + '" aria-label="ลบนัด" title="ลบนัด">' + ico('x') + '</button></div>';
       },
     });
   }
@@ -1273,9 +1306,16 @@
       el.innerHTML = ico('stop') + ' หยุด (วางสาย)';
     },
     'seg-pick': (el) => { const seg = el.closest('[data-seg]'); $$('button', seg).forEach((b) => b.classList.toggle('on', b === el)); const f = el.closest('form'); f[seg.dataset.seg].value = el.dataset.v; const h = $('[data-round-hint]', f); if (h) h.textContent = H.ROUNDS[el.dataset.v] || ''; },
-    'cal-day': (el) => { ui.calDay = el.dataset.v; render(); },
-    'cal-nav': (el) => { let [y, m] = ui.calMonth.split('-').map(Number); m += Number(el.dataset.v); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } ui.calMonth = y + '-' + String(m).padStart(2, '0'); render(); },
-    'cal-today': () => { ui.calMonth = H.today().slice(0, 7); ui.calDay = H.today(); render(); },
+    'cal-day': (el) => { ui.calDay = el.dataset.v; ui.calMonth = ui.calDay.slice(0, 7); resetList('calday'); render(); },
+    'cal-nav': (el) => {
+      const n = Number(el.dataset.v);
+      if ((ui.calView || 'week') === 'week') { ui.calDay = H.addDays(ui.calDay, 7 * n); ui.calMonth = ui.calDay.slice(0, 7); }
+      else { let [y, m] = ui.calMonth.split('-').map(Number); m += n; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } ui.calMonth = y + '-' + String(m).padStart(2, '0'); ui.calDay = ui.calMonth === H.today().slice(0, 7) ? H.today() : ui.calMonth + '-01'; }
+      resetList('calday'); render();
+    },
+    'cal-today': () => { ui.calMonth = H.today().slice(0, 7); ui.calDay = H.today(); resetList('calday'); render(); },
+    'cal-view': (el) => { ui.calView = el.dataset.v; ui.calMonth = ui.calDay.slice(0, 7); render(); },
+    'cal-jump-late': () => { const el = $('#cal-late'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
     'new-appt': newApptModal,
     'appt-done': (el) => run(() => api.act('updateAppt', { id: el.dataset.id, patch: { done: true } }), 'ทำเครื่องหมายว่าโทรแล้ว'),
     'appt-shift': (el) => { const a = (V().appointments || []).find((x) => x.id === el.dataset.id); run(() => api.act('updateAppt', { id: a.id, patch: { at: new Date(Date.parse(a.at) + 86400000).toISOString() } }), 'เลื่อนนัดไปพรุ่งนี้แล้ว'); },
@@ -1334,7 +1374,7 @@
     if (e.target.closest('.pop-layer')) return;   // dropdown / date range handle their own clicks
     const cb = e.target.closest('input[type=checkbox][data-act^="ls-"]');
     if (cb) { handlers[cb.dataset.act](cb); return; }
-    if (e.target.closest('td.ck')) return;
+    if (e.target.closest('td.ck, label.ck')) return;
     const go_ = e.target.closest('[data-go]');
     if (go_ && !go_.closest('form')) { e.preventDefault(); closeModal(); if (go_.dataset.filter === 'due') { ui.cStatus = ['due']; resetList('cust'); } go(go_.dataset.go); return; }
     const a = e.target.closest('[data-act]');
