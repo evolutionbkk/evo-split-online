@@ -922,3 +922,5 @@ b.acc { color: var(--accent); }
 .rs-note { display: flex; align-items: center; gap: 6px; color: var(--good); font-size: 12.5px; }
 .rs-note .ico { width: 14px; height: 14px; flex: none; }
 .cd-prod.sold { border-color: var(--good); background: #f6fef9; }
+.rs-sub.good + .cd-prod.sold { margin-top: 8px; }
+@container (max-width: 560px) { .cd-prod-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .cd-prod-row .pp-chosen { grid-column: 1 / -1; } }
