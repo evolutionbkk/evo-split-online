@@ -21,9 +21,9 @@
   --c-tele: #2257e6; --c-admin: #10a3a3; --c-ecom: #f29a2e;
   --shadow: 0 1px 2px rgba(15, 27, 51, .05), 0 4px 14px rgba(15, 27, 51, .05);
   --radius: 14px;
-  --font: "IBM Plex Sans Thai", "Noto Sans Thai", "Leelawadee UI", Tahoma, system-ui, sans-serif;
-  --display: "Prompt", "IBM Plex Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font: "Noto Sans Thai", "Leelawadee UI", Tahoma, system-ui, sans-serif;
+  --display: "Noto Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
+  --mono: "Noto Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
   --side-w: 248px;
   --head-h: 64px;
 }
@@ -47,10 +47,10 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 var(--font); -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
-h1, h2, h3 { font-family: var(--display); font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -.005em; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: -.005em; }
 .num, .tab-num, td.n { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 svg { display: block; }
