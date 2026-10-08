@@ -842,9 +842,10 @@
     if (!items.length) return;
     openModal('<div class="row between" style="margin-bottom:6px"><h2 style="font-size:18px;display:flex;align-items:center;gap:8px">' + ico('ban') + ' ยกเลิกการติดต่อ' + (items.length === 1 ? ' : ' + esc(items[0].name || 'ลูกค้า') : ' ' + N(items.length) + ' ราย') + '</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' +
       '<div class="dnc-warn">' + ico('ban') + '<span>รายชื่อจะย้ายไปเมนู <b>ยกเลิกการติดต่อถาวร</b> นัดทั้งหมดจะถูกปิด และไม่ขึ้นในคิวโทรอีก (กู้คืนได้ภายหลัง)</span></div>' +
-      '<div class="field" style="margin-top:14px"><span>เหตุผล <em>*</em></span><div class="rg-opts dnc-opts">' + H.DNC_REASONS.map((r, i) => '<label class="rg-o"><input type="radio" name="dncr" value="' + esc(r) + '"' + (i === 0 ? ' checked' : '') + '><span>' + esc(r) + '</span></label>').join('') + '</div></div>' +
+      '<label class="field" style="margin-top:14px"><span>เหตุผล <em>*</em></span><select class="in" name="dncr"><option value="">เลือกเหตุผล</option>' + H.DNC_REASONS.map((r) => '<option>' + esc(r) + '</option>').join('') + '</select></label>' +
       '<div class="row" style="justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn" data-act="close-modal">ยกเลิก</button><button class="btn danger-solid" data-dnc-go>' + ico('ban') + ' ยืนยันยกเลิกการติดต่อ</button></div>');
-    $('[data-dnc-go]', modal).onclick = () => { const r = ($('input[name=dncr]:checked', modal) || {}).value; closeModal();
+    $('select[name=dncr]', modal).onchange = (e) => e.target.classList.remove('err');
+    $('[data-dnc-go]', modal).onclick = () => { const sel = $('select[name=dncr]', modal), r = sel.value; if (!r) { sel.focus(); sel.classList.add('err'); toast('เลือกเหตุผลก่อน', true); return; } closeModal();
       run(async () => { const x = await api.act('markDnc', { ids: items.map((c) => c.id), reason: r }); SEL.cust = null; return x; }, (x) => 'ย้ายไปยกเลิกการติดต่อถาวรแล้ว ' + N(x.updated) + ' ราย'); };
   }
   function reasonField(f, result) {

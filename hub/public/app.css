@@ -987,3 +987,4 @@ b.acc { color: var(--accent); }
 @media (max-width: 1080px) { .dnc-card, .dnc-card:has(.dnc-meta + .dnc-meta) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .dnc-card .ap-act { grid-column: 1 / -1; justify-content: flex-start; } }
 @media (max-width: 520px) { .dnc-card, .dnc-card:has(.dnc-meta + .dnc-meta) { grid-template-columns: minmax(0, 1fr); } .dnc-search { flex: 1 1 100%; } }
 .dnc-opts .rg-o input:checked + span { background: var(--bad); border-color: var(--bad); color: #fff; }
+.in.err { border-color: var(--bad); box-shadow: 0 0 0 3px #fee2e2; }
