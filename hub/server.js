@@ -64,6 +64,16 @@ app.get('/healthz', (req, res) => res.json({ ok: true, customers: state ? state.
 
 // login: pick a person + password
 app.get('/api/people', (req, res) => res.json(state.users.filter((u) => !u.disabled).map((u) => ({ id: u.id, name: u.name, role: u.role, title: u.title, initial: u.initial }))));
+// Landing page before login: team names, announcement titles and appointment counts only (no customer data)
+app.get('/api/public', (req, res) => {
+  const t = H.today(), cnt = {};
+  for (const a of state.appointments) { if (a.done) continue; const d = H.dayKey(a.at); if (d >= t) cnt[d] = (cnt[d] || 0) + 1; }
+  res.json({
+    people: state.users.filter((u) => !u.disabled).map((u) => ({ id: u.id, name: u.name, role: u.role, initial: u.initial })),
+    announcements: state.announcements.slice(0, 3).map((a) => ({ title: a.title, at: a.at })),
+    upcoming: Object.keys(cnt).sort().slice(0, 3).map((day) => ({ day, count: cnt[day] })),
+  });
+});
 const tries = new Map();
 app.post('/api/login', (req, res) => {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';

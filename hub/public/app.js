@@ -724,24 +724,60 @@
 
   // ------------------------------------------------------------ login (live)
   async function renderLogin() {
-    let people = [];
-    try { people = await (await fetch('/api/people')).json(); } catch (_) { /* offline */ }
-    let pick = null;
-    try { pick = localStorage.getItem('hub-last-user'); } catch (_) { /* ignore */ }
-    const draw = () => {
-      document.getElementById('app').innerHTML = '<div class="login"><div class="login-card"><div><h1 style="font-size:24px">Evolution Hub Commerce</h1><div class="muted">ระบบหลังบ้านทีมขาย Office · เลือกชื่อของคุณ</div></div>' +
-        '<div class="people">' + people.map((p) => '<button class="person ' + (pick === p.id ? 'on' : '') + '" data-pick="' + p.id + '">' + av(p, 'lg') + '<b>' + esc(p.name) + '</b><small>' + esc(H.ROLES[p.role].label) + '</small></button>').join('') + '</div>' +
-        '<form class="form" id="login-f"' + (pick ? '' : ' hidden') + '><label class="field"><span>รหัสผ่านของ ' + esc((people.find((p) => p.id === pick) || {}).name || '') + '</span><input class="in" type="password" name="password" autocomplete="current-password" required></label><button class="btn primary lg">เข้าสู่ระบบ</button><div class="small" id="login-err" style="color:var(--bad)"></div></form></div></div>';
-      $$('[data-pick]').forEach((b) => b.onclick = () => { pick = b.dataset.pick; draw(); const i = $('#login-f input'); i && i.focus(); });
-      const f = $('#login-f');
-      if (f) f.onsubmit = async (e) => {
-        e.preventDefault();
-        const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: pick, password: f.password.value }) });
-        if (r.ok) { try { localStorage.setItem('hub-last-user', pick); } catch (_) { /* ignore */ } start(); }
-        else { const j = await r.json().catch(() => ({})); $('#login-err').textContent = j.error || 'เข้าสู่ระบบไม่สำเร็จ'; }
+    // Public landing in the CloverX layout: sidebar, banner, announcements, upcoming work, departments.
+    // Nothing here shows customer data; the team picks a department, then a name and password.
+    let pub = { people: [], announcements: [], upcoming: [] };
+    try { pub = await (await fetch('/api/public')).json(); } catch (_) { /* offline */ }
+    const people = pub.people || [];
+    let last = null;
+    try { last = localStorage.getItem('hub-last-user'); } catch (_) { /* ignore */ }
+    const DEPTS = [
+      { key: 'exec', ico: 'brief', th: 'ผู้บริหาร', en: 'Executive', roles: ['exec', 'lead'], desc: 'ภาพรวมยอดขายทุกช่องทาง KPI ทีม Telesales และงานที่ต้องตัดสินใจ' },
+      { key: 'tele', ico: 'headset', th: 'Telesales', en: 'Telesales', roles: ['tele'], desc: 'รายชื่อ E-Commerce และ FB Page, Ticket ลูกค้า, ปฏิทินนัด และบันทึก KPI' },
+      { key: 'admin', ico: 'msg', th: 'Admin Sales', en: 'Admin Sales', roles: ['admin'], desc: 'บันทึกการปิดการขายจาก FB Page ระบบแจกรายชื่อให้ Telesales 50:50 อัตโนมัติ' },
+    ];
+    const T = H.today();
+    const anns = (pub.announcements || []).slice(0, 3);
+    const ups = (pub.upcoming || []).slice(0, 3);
+    const deptCards = DEPTS.map((d) => {
+      const who = people.filter((p) => d.roles.includes(p.role));
+      return '<button class="card dept" data-login="' + d.key + '"><div class="top"><span class="card-ico">' + ico(d.ico) + '</span><div><h3>' + d.th + '</h3><div class="en">' + d.en + '</div></div></div><p>' + d.desc + '</p>' +
+        '<div class="row"><div class="stack">' + who.map((u) => av(u, 'sm')).join('') + '</div><span class="small muted">' + who.map((u) => esc(u.name)).join(', ') + '</span></div>' +
+        '<div class="stat"><div><b class="link" style="font-size:14px">เข้าสู่ระบบ ' + d.th + ' →</b></div></div></button>';
+    }).join('');
+    document.getElementById('app').innerHTML =
+      '<div class="shell"><aside class="side" aria-label="เมนู"><div class="brand"><b>EVOLUTION</b><small>Hub Commerce · ทีมขาย Office</small></div>' +
+      '<nav class="nav"><button class="on">' + ico('home') + '<span>หน้าหลัก</span></button><div class="nav-label">ฝ่ายงาน</div>' +
+      DEPTS.map((d) => '<button data-login="' + d.key + '">' + ico(d.ico) + '<span>' + d.th + '</span></button>').join('') + '</nav>' +
+      '<div class="side-foot"><b>ติดต่อหัวหน้าทีม</b><span>คุณโม : Teamlead</span><span style="opacity:.75">ลืมรหัสผ่าน แจ้งหัวหน้าทีมได้เลย</span></div></aside>' +
+      '<div class="main"><header class="head"><button class="icon-btn burger" data-act="menu" aria-label="เปิดเมนู">' + ico('menu') + '</button><div class="grow"><div class="crumb">Evolution Hub Commerce</div><h1>หน้าหลัก</h1></div>' +
+      '<button class="btn primary" data-login="all">' + ico('lock') + ' เข้าสู่ระบบ</button></header>' +
+      '<main class="page"><section class="banner"><div class="grow"><h1>Welcome to "Evolution Hub Commerce"</h1><p>' + H.thDate(T) + ' · เลือกฝ่ายงานของคุณเพื่อเริ่มต้นการทำงาน</p></div><div class="stack">' + people.map((u) => av(u)).join('') + '</div></section>' +
+      '<div class="grid g2">' +
+      card('mega', 'ประกาศข่าวสาร', 'Announcements', anns.length ? '<div class="ann">' + anns.map((a) => '<div class="ann-item"><div><b>' + esc(a.title) + '</b><small>' + H.thDate(a.at, true) + '</small></div></div>').join('') + '</div>' : '<div class="empty">ยังไม่มีประกาศ</div>', '<button class="link" data-login="all">ดูทั้งหมด</button>') +
+      card('calendar', 'งานที่กำลังจะมาถึง', 'Upcoming', ups.length ? '<div class="ann">' + ups.map((u) => { const d = new Date(u.day + 'T00:00:00Z'); return '<div class="ev"><div class="datebox"><b>' + d.getUTCDate() + '</b><small>' + H.TH_MON[d.getUTCMonth()] + '</small></div><div><b>นัดโทรลูกค้า ' + u.count + ' นัด</b><div class="small muted">' + (u.day === T ? 'วันนี้' : H.TH_DOW[d.getUTCDay()] + ' ' + H.thDate(u.day)) + ' · Telesales</div></div><span></span></div>'; }).join('') + '</div>' : '<div class="empty">ยังไม่มีนัดที่กำลังจะมาถึง</div>', '<button class="link" data-login="tele">ดูปฏิทิน</button>') + '</div>' +
+      '<div class="grid g3">' + deptCards + '</div></main></div></div>';
+    const openLogin = (key) => {
+      const d = DEPTS.find((x) => x.key === key);
+      const list = d ? people.filter((p) => d.roles.includes(p.role)) : people;
+      let pick = list.find((p) => p.id === last) ? last : (list.length === 1 ? list[0].id : null);
+      const draw = () => {
+        const html = ('<div class="row between" style="margin-bottom:6px"><h2 style="font-size:19px">เข้าสู่ระบบ' + (d ? ' : ' + d.th : '') + '</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div><div class="muted small" style="margin-bottom:14px">เลือกชื่อของคุณ แล้วใส่รหัสผ่าน</div>' +
+          '<div class="people">' + list.map((p) => '<button type="button" class="person ' + (pick === p.id ? 'on' : '') + '" data-pick="' + p.id + '">' + av(p, 'lg') + '<b>' + esc(p.name) + '</b><small>' + esc(H.ROLES[p.role].label) + '</small></button>').join('') + '</div>' +
+          '<form class="form" id="login-f" style="margin-top:14px"' + (pick ? '' : ' hidden') + '><label class="field"><span>รหัสผ่านของ ' + esc((people.find((p) => p.id === pick) || {}).name || '') + '</span><input class="in" type="password" name="password" autocomplete="current-password" required></label><button class="btn primary lg">เข้าสู่ระบบ</button><div class="small" id="login-err" style="color:var(--bad)"></div></form>');
+        if (modal) $('.modal', modal).innerHTML = html; else openModal(html);
+        $$('[data-pick]', modal).forEach((b) => b.onclick = () => { pick = b.dataset.pick; draw(); });
+        const f = $('#login-f', modal); const i = f && $('input', f); if (i && pick) i.focus();
+        if (f) f.onsubmit = async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: pick, password: f.password.value }) });
+          if (r.ok) { try { localStorage.setItem('hub-last-user', pick); } catch (_) { /* ignore */ } closeModal(); start(); }
+          else { const j = await r.json().catch(() => ({})); $('#login-err', modal).textContent = j.error || 'เข้าสู่ระบบไม่สำเร็จ'; }
+        };
       };
+      draw();
     };
-    draw();
+    $$('[data-login]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); $('.side').classList.remove('open'); openLogin(b.dataset.login); }));
   }
 
   // ------------------------------------------------------------ render
