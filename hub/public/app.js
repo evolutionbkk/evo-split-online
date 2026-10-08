@@ -808,10 +808,10 @@
   }
 
   // ------------------------------------------------------------ CUSTOMER DETAIL (v2, full page)
-  const RESULT_GROUPS = [
-    { label: 'ขายได้', icon: 'checkc', tone: 'good', ids: ['won', 'awaiting_payment'] },
-    { label: 'สนใจ / ต้องตามต่อ', icon: 'clock', tone: 'warn', ids: ['hot', 'warm', 'info', 'followup', 'later'] },
-    { label: 'ไม่สำเร็จ', icon: 'x', tone: 'bad', ids: ['lost', 'no_answer'] },
+  const RESULT_STEPS = [
+    { id: 'sold', label: 'ขายได้', hint: 'ลูกค้าตกลงซื้อ', icon: 'checkc', tone: 'good', q: 'ชำระเงินแล้วหรือยัง', ids: ['won', 'awaiting_payment'] },
+    { id: 'talk', label: 'ยังไม่ซื้อ', hint: 'สนใจ / ขอคิด / ปฏิเสธ', icon: 'phone', tone: 'warn', q: 'ลูกค้าตอบว่าอย่างไร', ids: ['hot', 'warm', 'info', 'followup', 'later', 'lost'] },
+    { id: 'none', label: 'ติดต่อไม่ได้', hint: 'ไม่รับสาย / ปิดเครื่อง', icon: 'x', tone: 'bad', q: '', ids: ['no_answer'] },
   ];
   // products grouped by line ("Yanhee Anti-Aging") with pack sizes ("1 กล่อง") as a second step
   const SIZE_RE = /\s*(\d+\s*(กล่อง|หลอด|ขวด|กระปุก|ชิ้น|ซอง|ก้อน|ชุด|แพ็ค|แพ็ก|เซ็ต))$/;
@@ -881,7 +881,8 @@
     const nowLocal = localInput(new Date().toISOString());
     const callTab = '<form class="form cd-form" data-form="call2" data-id="' + c.id + '">' +
       (c.channel === 'fb' ? '<div class="cd-goal">' + ico('alert') + '<div><b>' + round + ' : ' + esc(H.ROUNDS[round]) + '</b><small>T1 ต้อนรับ / ยืนยันออเดอร์ : T2 ถามผลการใช้ / อัปเซล : T3 ติดตามซื้อซ้ำ</small></div></div>' : '') +
-      '<div class="field"><span>ผลการโทร <em>*</em></span><div class="rg">' + RESULT_GROUPS.map((g) => '<div class="rg-row ' + g.tone + '"><span class="rg-h">' + ico(g.icon) + g.label + '</span><div class="rg-opts">' + g.ids.map((id) => { const r = H.RESULTS.find((x) => x.id === id); return '<label class="rg-o"><input type="radio" name="result" value="' + id + '" required data-act-change="cd-result"><span>' + esc(r.short || r.label) + '</span></label>'; }).join('') + '</div></div>').join('') + '</div></div>' +
+      '<div class="field"><span>ผลการโทร <em>*</em></span><div class="rs">' + RESULT_STEPS.map((g) => '<label class="rs-card ' + g.tone + '"><input type="radio" name="rstep" value="' + g.id + '" data-act-change="cd-rstep"><span class="rs-ico">' + ico(g.icon) + '</span><span class="rs-txt"><b>' + g.label + '</b><small>' + g.hint + '</small></span></label>').join('') + '</div>' +
+        RESULT_STEPS.map((g) => '<div class="rs-sub ' + g.tone + '" data-rs="' + g.id + '" hidden>' + (g.ids.length > 1 ? '<span class="rs-q">' + g.q + '</span><div class="rg-opts">' + g.ids.map((id) => { const r = H.RESULTS.find((x) => x.id === id); return '<label class="rg-o"><input type="radio" name="result" value="' + id + '" data-act-change="cd-result"><span>' + esc(r.short || r.label) + '</span></label>'; }).join('') + '</div>' : '<input type="radio" name="result" value="' + g.ids[0] + '" hidden>') + '</div>').join('') + '</div>' +
       (c.channel === 'fb' ? '<div class="cd-row2"><label class="field"><span>รอบการโทร</span><select class="in" name="round">' + ['T1', 'T2', 'T3'].map((r) => '<option' + (round === r ? ' selected' : '') + '>' + r + '</option>').join('') + '</select></label><div></div></div>' : '') +
       '<div class="field" data-show="lost" hidden><span>เหตุผลที่ปฏิเสธ <em>*</em></span><select class="in" name="lostReason"><option value="">เลือกเหตุผล</option>' + H.LOST_REASONS.map((r) => '<option>' + r + '</option>').join('') + '</select></div>' +
       '<div class="cd-row2"><label class="field"><span>วันและเวลาที่โทร</span><input class="in" type="datetime-local" name="at" value="' + nowLocal + '" max="' + nowLocal + '"></label>' +
@@ -1589,6 +1590,15 @@
     else if (act === 'ci-file' && t.files[0]) {
       if (DEMO) { toast('โหมดตัวอย่าง: นำเข้าไฟล์ได้บนเว็บจริง', true); return; }
       (async () => { try { const r = await api.post('/api/upload/contacts', { file: await fileB64(t.files[0]), listSheets: true }); const sel = $('#ci-sheet'); sel.innerHTML = r.sheets.map((n) => '<option' + (/เขม|หวาน|ชีท/.test(n) ? '' : '') + '>' + esc(n) + '</option>').join(''); const pref = r.sheets.find((n) => /ชีท/.test(n)); if (pref) sel.value = pref; } catch (e) { toast(e.message, true); } })();
+    }
+    else if (act === 'cd-rstep') {
+      const f = t.closest('form'); $$('[data-rs]', f).forEach((x) => { x.hidden = x.dataset.rs !== t.value; });
+      $$('[name=result]', f).forEach((x) => { x.checked = false; });
+      const g = RESULT_STEPS.find((x) => x.id === t.value);
+      if (g.id !== 'talk') { const r = $('[data-rs="' + g.id + '"] [name=result][value="' + g.ids[0] + '"]', f); r.checked = true; }
+      $('[data-show=lost]', f).hidden = true; f.nd.dataset.touched = ''; suggestNext(f);
+      const pb = $('.cd-prod', f); if (pb) pb.hidden = g.id === 'none';
+      if (g.id === 'talk') { const h = $('[data-next-hint]', f); if (h) h.textContent = 'เลือกคำตอบของลูกค้า แล้วระบบจะนัดให้อัตโนมัติ'; }
     }
     else if (act === 'cd-result') { const f = t.closest('form'); $('[data-show=lost]', f).hidden = t.value !== 'lost'; suggestNext(f); }
     else if (act === 'cd-pline') {

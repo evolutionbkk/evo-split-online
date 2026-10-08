@@ -256,7 +256,7 @@
     if (result === 'lost') return null;
     if (result === 'no_answer') {
       const tries = st.kpi.filter((k) => k.customerId === c.id && k.date === today() && k.result === 'no_answer').length;
-      return tries < 2 ? { at: new Date(Date.now() + 2 * 3600000).toISOString(), round: c.round, purpose: 'โทรซ้ำ (ไม่รับสายครั้งที่ ' + tries + ')' }
+      return tries < 2 ? { at: new Date(Date.now() + 2 * 3600000).toISOString(), round: c.round, purpose: 'โทรซ้ำ ลูกค้าไม่รับสาย' }
         : { at: atDayTime(1, '10:30'), round: c.round, purpose: 'โทรซ้ำ ไม่รับสายเมื่อวาน' };
     }
     if (result === 'hot') return { at: atDayTime(2, '11:00'), round: c.round, purpose: 'ลูกค้าร้อน โทรปิดการขาย' };
