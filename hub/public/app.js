@@ -808,6 +808,7 @@
   }
 
   // ------------------------------------------------------------ CUSTOMER DETAIL (v2, full page)
+  const noTime = (a) => H.thTime(a.at) === '00:00';
   function pageCustomer() {
     const st = S.full || V();
     const c = H.findCustomer(st, ui.custId);
@@ -839,7 +840,8 @@
       (o0 ? '<section class="card"><h3 class="ct">คำสั่งซื้อล่าสุด</h3><div class="cd-last">' + (o0.items || []).map((i) => '<b>' + esc(i.name.replace(/ \([^)]*\)$/, '')) + ' × ' + i.qty + '</b>').join('') + '<div class="row between"><small class="muted">' + H.thDate(o0.date) + '</small><b>' + B(o0.total) + '</b></div>' +
         '<span class="pill ' + (o0.status === 'cancelled' ? 'bad' : o0.status === 'awaiting_payment' ? 'warn' : 'good') + '" style="justify-self:start">' + (o0.status === 'cancelled' ? 'ยกเลิก' : o0.status === 'awaiting_payment' ? 'รอชำระ' : 'ชำระแล้ว') + '</span></div></section>' : '') +
       (tip ? '<section class="card cd-tip"><h3 class="ct">' + ico('note') + ' ข้อควรรู้ก่อนโทร</h3><p>' + esc(tip.text) + '</p></section>' : '') + '</div>';
-    const banner = a0 ? '<section class="cd-appt' + (Date.parse(a0.at) < Date.now() - 3600000 ? ' late' : '') + '"><div class="row between"><b>' + ico('calendar') + ' ' + (H.dayKey(a0.at) === H.today() ? 'นัดวันนี้' : H.thDate(a0.at).replace(/ \d{4}$/, '')) + ' : ' + H.thTime(a0.at) + ' น.' + (Date.parse(a0.at) < Date.now() - 3600000 ? ' (เลยกำหนด)' : '') + '</b><span class="rtag">' + esc(a0.round || round) + '</span></div>' +
+    const a0late = a0 && (noTime(a0) ? H.dayKey(a0.at) < H.today() : Date.parse(a0.at) < Date.now() - 3600000);
+    const banner = a0 ? '<section class="cd-appt' + (a0late ? ' late' : '') + '"><div class="row between"><b>' + ico('calendar') + ' ' + (H.dayKey(a0.at) === H.today() ? 'นัดวันนี้' : H.thDate(a0.at).replace(/ \d{4}$/, '')) + (noTime(a0) ? '' : ' : ' + H.thTime(a0.at) + ' น.') + (a0late ? ' (เลยกำหนด)' : '') + '</b><span class="rtag">' + esc(a0.round || round) + '</span></div>' +
       '<p>' + esc(a0.purpose) + '</p><div class="row between"><small class="muted">นัดโดย ' + esc(uname(a0.by === 'system' || a0.by === 'import' ? a0.owner : a0.by)) + ' : ' + H.thDate(a0.createdAt) + '</small>' +
       '<a class="btn primary" href="tel:' + esc(H.normPhone(c.phone)) + '" data-act="cd-dial">' + ico('phone') + ' โทร ' + H.fmtPhone(c.phone) + '</a></div></section>'
       : '<section class="cd-appt none"><div class="row between"><b>' + ico('calendar') + ' ยังไม่มีนัด</b></div><p>' + esc(c.channel === 'fb' ? H.ROUNDS[round] : 'แนะนำตัว ถามผลการใช้ ชวนสั่งซ้ำ') + '</p><div class="row" style="justify-content:flex-end"><a class="btn primary" href="tel:' + esc(H.normPhone(c.phone)) + '" data-act="cd-dial">' + ico('phone') + ' โทร ' + H.fmtPhone(c.phone) + '</a></div></section>';
@@ -861,9 +863,11 @@
       '<div class="cd-submit"><span class="small" style="color:var(--good)">' + ico('checkc') + ' บันทึกครั้งเดียว : นับ KPI และอัปเดตนัดหมายอัตโนมัติ</span><span class="grow"></span><button type="reset" class="btn">ยกเลิก</button><button class="btn primary">' + ico('check') + ' บันทึกการโทร</button></div></form>';
     const apptTab = apptForm(c) + (appts.length ? '<div class="section-t" style="margin-top:14px">นัดที่ยังไม่ได้โทร</div>' + apptList('cdappt', appts, '', true) : '');
     const mid = '<div class="cd-col">' + banner + (canEdit ? '<section class="card cd-work"><div class="cd-tabs"><button class="' + (ui.dTab !== 'appt' ? 'on' : '') + '" data-act="dtab" data-v="call">บันทึกการโทร</button><button class="' + (ui.dTab === 'appt' ? 'on' : '') + '" data-act="dtab" data-v="appt">นัดหมาย' + (appts.length ? ' (' + appts.length + ')' : '') + '</button></div>' + (ui.dTab === 'appt' ? apptTab : callTab) + '</section>' : '<section class="card"><div class="empty">ลูกค้ารายนี้อยู่กับ ' + esc(uname(c.owner)) + ' ดูได้อย่างเดียว</div></section>') + '</div>';
-    const notes = (c.notes || []).slice(0, ui.cdAllNotes ? 200 : 6);
-    const right = '<div class="cd-col"><section class="card"><div class="row between"><h3 class="ct">ประวัติการติดต่อ</h3>' + ((c.notes || []).length > 6 ? '<button class="link-plain small" data-act="cd-notes">' + (ui.cdAllNotes ? 'ย่อ' : 'ดูทั้งหมด (' + c.notes.length + ')') + '</button>' : '') + '</div>' +
-      (notes.length ? '<div class="cd-tl">' + notes.map((n) => { const r = n.result ? H.RESULTS.find((x) => x.id === n.result) : null; return '<div class="cd-tli"><span class="b">' + ico(n.kind === 'call' ? 'phone' : n.kind === 'sale' ? 'bag' : n.kind === 'appt' ? 'calendar' : 'note') + '</span><div><small class="muted">' + H.thDate(n.at, true) + '</small><div class="row" style="gap:6px"><b>' + esc(r ? r.label : n.kind === 'sale' ? 'ปิดการขาย' : n.kind === 'appt' ? 'นัดหมาย' : n.kind === 'assign' ? 'มอบหมาย' : 'บันทึก') + '</b>' + (n.round ? '<span class="rtag">' + n.round + '</span>' : '') + '</div><p>' + esc(n.text) + '</p><small class="faint">' + esc(uname(n.by)) + (n.durationSec ? ' : ' + H.hms(n.durationSec).replace(/^00:/, '') + ' นาที' : '') + '</small></div></div>'; }).join('') + '</div>' : '<div class="empty">ยังไม่มีประวัติ</div>') +
+    const noise = (n) => /^(status|followup|distribute|note|assign\w*|owner|round)\s*(:|$)/i.test(String(n.text || '').trim()) || !String(n.text || '').trim();
+    const allNotes = (c.notes || []).filter((n) => n.kind === 'call' || n.kind === 'sale' || !noise(n));
+    const notes = allNotes.slice(0, ui.cdAllNotes ? 200 : 3);
+    const right = '<div class="cd-col"><section class="card"><div class="row between"><h3 class="ct">ประวัติการติดต่อ</h3>' + (allNotes.length > 3 ? '<button class="link-plain small" data-act="cd-notes">' + (ui.cdAllNotes ? 'ย่อ' : 'ดูทั้งหมด (' + allNotes.length + ')') + '</button>' : '') + '</div>' +
+      (notes.length ? '<div class="cd-tl">' + notes.map((n) => { const r = n.result ? H.RESULTS.find((x) => x.id === n.result) : null; return '<div class="cd-tli"><span class="b">' + ico(n.kind === 'call' ? 'phone' : n.kind === 'sale' ? 'bag' : n.kind === 'appt' ? 'calendar' : 'note') + '</span><div><small class="muted">' + H.thDate(n.at, true) + '</small><div class="row" style="gap:6px"><b>' + esc(r ? r.label : n.kind === 'sale' ? 'ปิดการขาย' : n.kind === 'appt' ? 'นัดหมาย' : n.kind === 'assign' ? 'มอบหมาย' : 'บันทึก') + '</b>' + (n.round ? '<span class="rtag">' + n.round + '</span>' : '') + '</div>' + (n.text && !noise(n) ? '<p>' + esc(n.text) + '</p>' : '') + '<small class="faint">' + esc(uname(n.by)) + (n.durationSec ? ' : ' + H.hms(n.durationSec).replace(/^00:/, '') + ' นาที' : '') + '</small></div></div>'; }).join('') + '</div>' : '<div class="empty">ยังไม่มีประวัติ</div>') +
       (canEdit ? '<form class="row" data-form="note" style="flex-wrap:nowrap;margin-top:10px"><input class="in" name="text" placeholder="เพิ่มโน้ตสั้น ๆ" aria-label="โน้ต"><button class="btn sm">บันทึก</button></form>' : '') + '</section>' +
       '<section class="card"><div class="row between"><h3 class="ct">ประวัติคำสั่งซื้อ</h3><span class="small" style="color:var(--accent)">' + (c.orders || []).length + ' รายการ</span></div>' +
       ((c.orders || []).length ? '<div class="cd-orders">' + c.orders.slice(0, 20).map((o) => '<div class="cd-ord"><div class="row between"><span class="cd-oid">' + esc(o.extId ? o.extId.replace(/^pc:/, 'PC-').replace(/^legacy:/, '').slice(0, 18) : 'EH-' + String(o.id).slice(-6).toUpperCase()) + '</span><small class="muted">' + H.thDate(o.date) + '</small></div>' +
@@ -879,11 +883,12 @@
   const CAL_ST = [{ v: 'all', l: 'ทั้งหมด' }, { v: 'open', l: 'รอดำเนินการ' }, { v: 'done', l: 'เสร็จแล้ว' }, { v: 'late', l: 'เลยกำหนด' }];
   function pageCalendar() {
     const v = V(), T = H.today(), now = Date.now();
+    if (ui.calV !== 3) { ui.calView = 'month'; ui.calV = 3; remember(); }
     ui.calView = ui.calView || 'month'; ui.calSt = ui.calSt || 'all';
     let appts = (v.appointments || []);
     if (boss() && ui.calOwner !== 'all') appts = appts.filter((a) => a.owner === ui.calOwner);
     if (!boss()) appts = appts.filter((a) => a.owner === S.me.id);
-    const isLate = (a) => !a.done && Date.parse(a.at) < now - 3600000;
+    const isLate = (a) => !a.done && (noTime(a) ? H.dayKey(a.at) < T : Date.parse(a.at) < now - 3600000);
     const pass = (a) => ui.calSt === 'all' || (ui.calSt === 'done' ? a.done : ui.calSt === 'late' ? isLate(a) : !a.done && !isLate(a));
     const shown = appts.filter(pass);
     const byDay = {}; for (const a of shown) { const d = H.dayKey(a.at); (byDay[d] = byDay[d] || []).push(a); }
@@ -893,7 +898,7 @@
     const lateBefore = lateAll.filter((a) => H.dayKey(a.at) < T).length, lateToday = lateAll.length - lateBefore;
     const cname = (a) => ((H.findCustomer(S.full || v, a.customerId) || {}).name || 'ลูกค้า');
     const first = (s) => String(s).split(' ')[0];
-    const chip = (a) => '<button class="ev ' + (a.done ? 'done' : isLate(a) ? 'late' : '') + '" data-act="cal-pick" data-v="' + H.dayKey(a.at) + '" title="' + esc(cname(a) + ' : ' + a.purpose) + '"><span class="one">' + H.thTime(a.at) + ' ' + esc(first(cname(a))) + '</span>' + (a.round ? '<i>' + a.round + '</i>' : '') + '</button>';
+    const chip = (a) => '<button class="ev ' + (a.done ? 'done' : isLate(a) ? 'late' : '') + '" data-act="cal-pick" data-v="' + H.dayKey(a.at) + '" title="' + esc(cname(a) + ' : ' + a.purpose) + '"><span class="one">' + (noTime(a) ? '' : H.thTime(a.at) + ' ') + esc(first(cname(a))) + '</span>' + (a.round ? '<i>' + a.round + '</i>' : '') + '</button>';
     const daySum = (l) => { if (!l || !l.length) return ''; const late = l.filter(isLate).length; return l.every((a) => a.done) ? '<small class="ok">เสร็จแล้วทั้งหมด</small>' : late ? '<small class="bad">เลยกำหนด ' + late + ' นัด</small>' : ''; };
     const tele = H.teles(S.full || v);
     const banner = lateAll.length ? '<div class="cal-banner"><span class="cb-ico">' + ico('clock') + '</span><b>เลยกำหนด ' + lateAll.length + ' นัดหมาย</b><span class="muted one">จากวันก่อน ' + lateBefore + ' นัด : วันนี้ ' + lateToday + ' นัด : ติดตามหรือเลื่อนนัดเพื่อไม่ให้พลาดลูกค้า</span><span class="grow"></span><button class="link-plain" data-act="cal-late">ดูนัดที่เลยกำหนด ' + ico('right') + '</button></div>' : '';
@@ -916,7 +921,7 @@
       }
       grid += '</div>';
     } else if (ui.calView === 'week') {
-      grid = '<div class="cw">' + Array.from({ length: 7 }, (_, i) => { const d = H.addDays(wk0, i), l = byDay[d] || []; return '<div class="cw-col' + (d === ui.calDay ? ' sel' : '') + '" data-act="cal-pick" data-v="' + d + '"><div class="cm-h">' + DOW_FULL_MON[i] + ' ' + Number(d.slice(8)) + '</div>' + (l.length ? l.map(chip).join('') : '<small class="faint">ไม่มีนัด</small>') + '</div>'; }).join('') + '</div>';
+      grid = '<div class="cw">' + Array.from({ length: 7 }, (_, i) => { const d = H.addDays(wk0, i), l = byDay[d] || []; return '<div class="cw-col' + (d === ui.calDay ? ' sel' : '') + '" data-act="cal-pick" data-v="' + d + '"><div class="cm-h">' + DOW_FULL_MON[i] + ' ' + Number(d.slice(8)) + '</div>' + (l.length ? l.slice(0, 8).map(chip).join('') + (l.length > 8 ? '<small class="more">+ อีก ' + (l.length - 8) + ' นัด</small>' : daySum(l)) : '<small class="faint">ไม่มีนัด</small>') + '</div>'; }).join('') + '</div>';
     } else {
       grid = '<div class="cday">' + dayPanelBody((byDay[ui.calDay] || []), isLate, cname) + '</div>';
     }
@@ -950,7 +955,7 @@
       const c = H.findCustomer(S.full || V(), a.customerId) || {};
       const st = a.done ? ['good', 'เสร็จแล้ว'] : isLate(a) ? ['bad', 'เลยกำหนด'] : a === nextOpen ? ['info', 'นัดถัดไป'] : ['mute', 'รอดำเนินการ'];
       const u = user(a.owner);
-      return '<div class="cp-item' + (a === nextOpen ? ' next' : '') + '"><div class="row between"><b class="cp-time ' + st[0] + '">' + ico(a.done ? 'checkc' : 'clock') + ' ' + H.thTime(a.at) + ' น.' + (showDate ? ' <small>' + H.thDate(a.at).replace(/ \d{4}$/, '') + '</small>' : '') + '</b><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
+      return '<div class="cp-item' + (a === nextOpen ? ' next' : '') + '"><div class="row between"><b class="cp-time ' + st[0] + '">' + ico(a.done ? 'checkc' : 'clock') + ' ' + (noTime(a) ? 'ไม่ระบุเวลา' : H.thTime(a.at) + ' น.') + (showDate ? ' <small>' + H.thDate(a.at).replace(/ \d{4}$/, '') + '</small>' : '') + '</b><span class="pill ' + st[0] + '">' + st[1] + '</span></div>' +
         '<div class="row between"><b class="cp-name one link" data-open="' + esc(c.id || '') + '">' + esc(c.name || 'ลูกค้า') + '</b>' + (a.round ? '<span class="rtag">' + a.round + '</span>' : '') + '</div>' +
         '<div class="small muted one">' + esc(a.purpose) + '</div>' +
         '<div class="row between"><span class="who small"><span class="mini">' + esc((u || {}).initial || '') + '</span>ผู้ดูแล : ' + esc(uname(a.owner)) + '</span>' +

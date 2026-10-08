@@ -813,3 +813,13 @@ a.btn { text-decoration: none; }
 .cd-prod-row { grid-template-columns: minmax(0, 1fr) 72px 104px; }
 .cm-d .ev i { display: none; }
 @media (min-width: 1500px) { .cm-d .ev i { display: inline; } }
+
+/* compact contact timeline */
+.cd-tl { gap: 0; max-height: 380px; overflow-y: auto; padding-right: 4px; }
+.cd-tli { grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding: 6px 0; }
+.cd-tli::before { left: 10px; top: 28px; }
+.cd-tli .b { width: 22px; height: 22px; }
+.cd-tli .b .ico { width: 12px; height: 12px; }
+.cd-tli b { font-size: 13.5px; }
+.cd-tli p { margin: 1px 0; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cd-tli small { font-size: 11.5px; }
