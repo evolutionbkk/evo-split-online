@@ -1248,8 +1248,9 @@
         '<div class="ap-who"><span class="ap-av' + (nm ? '' : ' none') + '">' + esc(nm ? nm.trim()[0] : '?') + '</span><div class="ap-id"><b class="' + (c.id ? 'link' : '') + '"' + (c.id ? ' data-open="' + esc(c.id) + '"' : '') + '>' + esc(nm || 'ลูกค้าไม่ระบุชื่อ') + '</b>' +
           '<small>' + (ph ? ico('phone') + ' ' + ph : '<span class="faint">ไม่มีเบอร์ในออเดอร์</span>') + (a.returning ? ' <span class="pill info">ลูกค้าเก่า</span>' : '') + '</small></div></div>' +
         '<div class="ap-items">' + items + '</div>' +
-        '<div class="ap-amt"><b>' + B(a.total) + '</b><small>ปิดโดย ' + esc(a.closerName || uname(a.closer) || '-') + ' : ' + H.thTime(a.at) + ' น.</small></div>' +
-        '<div class="ap-to">' + (pendingTab ? (boss() ? '<label class="ap-sel"><small>ส่งให้</small><select class="in" data-ap-to="' + a.id + '" aria-label="ส่งให้">' + tele.map((u) => '<option value="' + u.id + '"' + (a.proposed === u.id ? ' selected' : '') + '>' + esc(u.name) + (a.proposed === u.id ? ' (ตามคิว)' : '') + '</option>').join('') + '</select></label>' : '<span class="ap-me">' + av(tu || S.me, 'sm') + '<span><small>ส่งให้</small><b>คุณ</b></span></span>') : stTag) + '</div>' +
+        '<div class="ap-col ap-amt"><small>ยอดออเดอร์</small><b>' + B(a.total) + '</b></div>' +
+        '<div class="ap-col"><small>ปิดโดย</small><b class="one">' + esc(a.closerName || uname(a.closer) || '-') + '</b><span class="muted small">' + H.thTime(a.at) + ' น.</span></div>' +
+        '<div class="ap-to">' + (pendingTab ? (boss() ? '<label class="ap-col ap-sel"><small>ส่งให้</small><select class="in" data-ap-to="' + a.id + '" aria-label="ส่งให้">' + tele.map((u) => '<option value="' + u.id + '"' + (a.proposed === u.id ? ' selected' : '') + '>' + esc(u.name) + (a.proposed === u.id ? ' (คิว)' : '') + '</option>').join('') + '</select></label>' : '<div class="ap-col"><small>ส่งให้</small><span class="ap-me">' + av(tu || S.me, 'sm') + '<b>' + esc((tu || S.me).name) + '</b></span></div>') : stTag) + '</div>' +
         (pendingTab ? '<div class="ap-act"><button class="btn good" data-act="ap-ok" data-id="' + a.id + '">' + ico('check') + (boss() ? ' อนุมัติ' : ' รับรายชื่อ') + '</button>' + (boss() ? '<button class="btn danger-ghost" data-act="ap-no" data-id="' + a.id + '">ไม่ส่ง</button>' : '') + '</div>' : '') +
         '</article>';
     };

@@ -988,3 +988,33 @@ b.acc { color: var(--accent); }
 @media (max-width: 520px) { .dnc-card, .dnc-card:has(.dnc-meta + .dnc-meta) { grid-template-columns: minmax(0, 1fr); } .dnc-search { flex: 1 1 100%; } }
 .dnc-opts .rg-o input:checked + span { background: var(--bad); border-color: var(--bad); color: #fff; }
 .in.err { border-color: var(--bad); box-shadow: 0 0 0 3px #fee2e2; }
+
+/* lead card: balanced columns */
+.ap-card { grid-template-columns: minmax(200px, 1.3fr) minmax(160px, 1.2fr) 120px minmax(140px, .9fr) minmax(150px, .9fr) 150px; gap: 0; padding: 14px 18px; }
+.ap-card.done { grid-template-columns: minmax(200px, 1.3fr) minmax(160px, 1.2fr) 120px minmax(140px, .9fr) minmax(150px, .9fr); }
+.ap-card > * { padding: 0 16px; min-width: 0; }
+.ap-card > *:first-child { padding-left: 0; }
+.ap-card > .ap-act { padding-right: 0; }
+.ap-card > .ap-col, .ap-card > .ap-to { border-left: 1px solid var(--line); }
+.ap-col { display: grid; gap: 2px; align-content: center; text-align: left; }
+.ap-col > small { font-size: 11.5px; color: var(--muted); }
+.ap-col > b { font-size: 14px; }
+.ap-amt { text-align: left; } .ap-amt b { font-size: 18px; color: var(--text); }
+.ap-to { justify-content: flex-start; }
+.ap-to .ap-col { border: 0; padding: 0; }
+.ap-me { display: inline-flex; align-items: center; gap: 8px; } .ap-me b { font-size: 14px; }
+.ap-sel .in { min-width: 0; width: 100%; }
+.ap-act .btn { width: 100%; justify-content: center; }
+.ap-act { flex-direction: column; }
+@media (max-width: 1280px) {
+  .ap-card, .ap-card.done { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); row-gap: 12px; }
+  .ap-card > * { padding: 0 12px; }
+  .ap-card .ap-who { grid-column: 1 / -1; padding: 0; } .ap-card .ap-items { grid-column: 1 / -1; order: 0; padding: 0; }
+  .ap-card > .ap-col:nth-child(3) { border-left: 0; padding-left: 0; }
+  .ap-card .ap-to { order: 0; }
+  .ap-card .ap-act { grid-column: 1 / -1; flex-direction: row; padding: 0; order: 0; }
+}
+@media (max-width: 520px) {
+  .ap-card, .ap-card.done { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ap-card .ap-to { grid-column: 1 / -1; border-left: 0; padding-left: 0; }
+}
