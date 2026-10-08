@@ -193,4 +193,32 @@ function importLegacy(state, old) {
   return state.sync.legacy;
 }
 
-module.exports = { pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
+// ------------------------------------------------------------------ E-Commerce (Evolution / BigSeller customers)
+// The Evolution web app only works with a session token. The old system already receives that token (browser script)
+// and keeps it in its database, so we read it from there and pull the newest customers every few minutes.
+const EVO_API = 'https://app.evolutionecommerce.co.th:8443/api/person/getPersons/CUSTOMER/find';
+const codeNum = (x) => { const n = parseInt(String(x || '').replace(/\D/g, ''), 10); return isNaN(n) ? 0 : n; };
+async function evoPull(state, getLegacy) {
+  const sync = state.sync.bigseller = state.sync.bigseller || {};
+  let token = process.env.EVO_TOKEN || null, facility = 'WebStoreWarehouse';
+  try { const old = getLegacy ? await getLegacy() : null; if (old && old.evo && old.evo.token) { token = old.evo.token; facility = old.evo.facility || facility; } } catch (e) { sync.lastError = 'อ่าน token จากระบบเดิมไม่ได้'; }
+  if (!token) { sync.lastError = 'ยังไม่มี token ของ Evolution (เปิดหน้า Evolution ที่ติดตั้งสคริปต์ไว้ 1 ครั้ง)'; return { added: 0 }; }
+  const body = { filter: { FACILITY_ID: facility }, paginator: { page: 1, pageSize: 500, total: 0, pageSizes: [] }, sorting: { column: 'PARTY_ID', direction: 'desc' }, searchTerm: '', grouping: { selectedRowIds: {}, itemIds: [], selectAll: false } };
+  const r = await fetch(EVO_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-access-token': token }, body: JSON.stringify(body) });
+  if (r.status === 401 || r.status === 403) { sync.lastError = 'token ของ Evolution หมดอายุ : เปิดหน้า Evolution 1 ครั้งเพื่อต่ออายุ'; return { added: 0 }; }
+  if (!r.ok) { sync.lastError = 'Evolution HTTP ' + r.status; return { added: 0 }; }
+  const j = await r.json();
+  const list = (j.items || []).map((it) => { const p = it.person || {}; return { code: it.PARTY_ID, name: [p.FIRST_NAME, p.MIDDLE_NAME, p.LAST_NAME].filter((x) => x && String(x).trim()).join(' ').trim(), phone: (it.telecomNumber && it.telecomNumber.CONTACT_NUMBER) || '' }; });
+  const top = Math.max(0, ...list.map((c) => codeNum(c.code)));
+  if (sync.lastCode == null) {   // first run: start after the newest customer we already have, never back-fill the whole history
+    const known = Math.max(0, ...state.customers.map((c) => codeNum(c.legacyCode)));
+    sync.lastCode = known || top;
+  }
+  const fresh = list.filter((c) => codeNum(c.code) > sync.lastCode).sort((a, b) => codeNum(a.code) - codeNum(b.code)).slice(0, 300);
+  const res = fresh.length ? H.apply(state, 'ingestEcom', { rows: fresh.map((c) => ({ name: c.name, phone: c.phone, code: c.code, platform: 'evolution' })) }, SYSTEM) : { added: 0 };
+  if (fresh.length) sync.lastCode = Math.max(sync.lastCode, ...fresh.map((c) => codeNum(c.code)));
+  sync.lastRun = new Date().toISOString(); sync.lastError = null; sync.lastPulled = list.length; sync.lastAdded = res.added || 0;
+  return res;
+}
+
+module.exports = { evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };

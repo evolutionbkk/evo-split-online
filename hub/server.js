@@ -11,7 +11,8 @@ const PORT = process.env.PORT || 3000;
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const INGEST_KEY = process.env.INGEST_KEY || '';
 const PANCAKE_EVERY_MIN = Number(process.env.PANCAKE_EVERY_MIN) || 3;
-const ONECALL_EVERY_MIN = Number(process.env.ONECALL_EVERY_MIN) || 10;
+const ONECALL_EVERY_MIN = Number(process.env.ONECALL_EVERY_MIN) || 5;
+const EVO_EVERY_MIN = Number(process.env.EVO_EVERY_MIN) || 5;
 
 // ---------- passwords: PASS_<ID> per person, or USERS_JSON, or DEFAULT_PASS for everyone ----------
 const passwords = {};
@@ -98,6 +99,10 @@ app.get('/api/state', auth, (req, res) => {
   res.json({ me: req.actor, state: { ...v, onecall: (v.onecall || []).filter((o) => Date.parse(o.at) > cutoff), sync: { ...state.sync, onecall: { ...state.sync.onecall, token: undefined } } }, integrations: I.status(), updatedAt: state.updatedAt });
 });
 // team dashboard numbers for everyone (telesales see the same overview as executives; no customer details inside)
+app.post('/api/sync/evolution', auth, async (req, res) => {
+  if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'เฉพาะผู้บริหาร' });
+  try { res.json(await mutate((st) => I.evoPull(st, () => store.loadLegacy(process.env.LEGACY_DATABASE_URL)))); } catch (e) { res.status(502).json({ error: e.message }); }
+});
 app.get('/api/dashboard', auth, (req, res) => {
   const day = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? String(x) : H.today());
   const from = day(req.query.from), to = day(req.query.to) < from ? from : day(req.query.to);
@@ -215,9 +220,14 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
     }
   }
   { const n = H.autoDistribute(state); if (n) console.log('[boot] auto-distributed waiting leads', n); }
+  { const n = H.autoLogOnecall(state, H.today()); if (n) console.log('[boot] OneCall calls logged to KPI', n); }
   state = await store.save(state);
   app.listen(PORT, () => console.log('Evolution Hub Commerce on :' + PORT, '· customers', state.customers.length));
   const loop = (fn, min) => setInterval(() => mutate(fn).catch((e) => console.warn(e.message)), min * 60000);
   if (I.status().pancake) { loop((st) => I.pancakePull(st), PANCAKE_EVERY_MIN); setTimeout(() => mutate((st) => I.pancakePull(st)).catch(() => {}), 5000); }
-  if (I.status().onecall) loop((st) => I.onecallPull(st, 2), ONECALL_EVERY_MIN);
+  if (I.status().onecall) { loop((st) => I.onecallPull(st, 2), ONECALL_EVERY_MIN); setTimeout(() => mutate((st) => I.onecallPull(st, 2)).catch(() => {}), 8000); }
+  if (process.env.LEGACY_DATABASE_URL || process.env.EVO_TOKEN) {
+    const evo = (st) => I.evoPull(st, () => store.loadLegacy(process.env.LEGACY_DATABASE_URL)).then((r) => { if (r.added) console.log('[evo] new E-Commerce customers', r.added); return r; });
+    loop(evo, EVO_EVERY_MIN); setTimeout(() => mutate(evo).catch((e) => console.warn('[evo]', e.message)), 12000);
+  }
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -187,7 +187,7 @@
     const d = today();
     const cnt = {};
     for (const u of list) cnt[u.id] = 0;
-    for (const c of st.customers) if (c.channel === channel && c.owner in cnt && dayKey(c.assignedAt) === d) cnt[c.owner]++;
+    for (const c of st.customers) if (c.channel === channel && c.owner in cnt && c.autoAssignedAt && dayKey(c.autoAssignedAt) === d) cnt[c.owner]++;
     for (const a of st.approvals) if (a.status === 'pending' && a.proposed in cnt && channel === 'fb') cnt[a.proposed]++;
     const min = Math.min(...list.map((u) => cnt[u.id]));
     const tied = list.filter((u) => cnt[u.id] === min);
@@ -394,13 +394,16 @@
     const user = actor.role === 'tele' ? actor.id : (c.owner || actor.id);
     if (!c.owner && actor.role === 'tele') { c.owner = actor.id; c.assignedAt = nowIso(); }
     const when = p.at && !isNaN(Date.parse(p.at)) && Date.parse(p.at) <= Date.now() + 60000 ? new Date(p.at).toISOString() : nowIso();
-    const k = {
+    let k = {
       id: uid('k'), user, date: dayKey(when), at: when, mode: 'call', channel: c.channel === 'ecom' ? 'mkt' : 'fb',
       round: c.channel === 'ecom' ? '' : (p.round || c.round || 'T1'), phone: c.phone, name: c.name, customerId: c.id,
       durationSec, result: res.id, talked: res.talked, items, amount: res.id === 'won' || res.id === 'awaiting_payment' ? amount : 0,
       orders: (res.id === 'won' || res.id === 'awaiting_payment') && amount > 0 ? 1 : 0, note: clip(p.note, 500), lostReason: clip(p.lostReason, 60), by: actor.id,
     };
-    st.kpi.push(k);
+    // merge with the automatic OneCall entry for this customer (same day, within 3 h) so one call is counted once
+    const auto = st.kpi.find((x) => x.auto && !x.manual && x.user === k.user && x.date === k.date && x.customerId === c.id && Math.abs(Date.parse(x.at) - Date.parse(k.at)) < 3 * 3600000);
+    if (auto) { Object.assign(auto, k, { id: auto.id, at: auto.at, ocId: auto.ocId, auto: true, manual: true, durationSec: Math.max(auto.durationSec || 0, k.durationSec || 0) }); k = auto; }
+    else st.kpi.push(k);
     if (k.orders) {
       const o = pushOrder(c, { items, total: amount, status: res.id === 'won' ? 'paid' : 'awaiting_payment', source: 'tele', by: user, note: 'จากการโทร ' + (k.round || 'Marketplace') });
       k.orderId = o && o.id;
@@ -571,7 +574,7 @@
     const to = isBoss(actor) && p.to ? p.to : ap.proposed;
     const c = findCustomer(st, ap.customerId); if (!c) throw err('ไม่พบลูกค้า', 404);
     const prev = c.owner;
-    c.owner = to; c.assignedAt = nowIso(); c.channel = 'fb';
+    c.owner = to; c.assignedAt = nowIso(); c.channel = 'fb'; if (p.auto) c.autoAssignedAt = c.assignedAt;
     if (!ap.returning || !prev) { c.round = 'T1'; c.status = 'new'; }
     else { c.round = 'T1'; c.status = 'new'; }
     ap.status = 'approved'; ap.assigned = to; ap.decidedBy = actor.id; ap.decidedAt = nowIso(); ap.auto = !!p.auto;
@@ -610,6 +613,8 @@
       const { c, isNew } = upsertCustomer(st, { name: r.name, phone, address: r.address, channel: 'ecom', platform }, actor);
       if (isNew) { c.channel = 'ecom'; c.round = ''; c.owner = nextTele(st, 'ecom'); c.assignedAt = nowIso(); c.autoAssignedAt = c.assignedAt; added++; }
       else if (!existing.owner) { c.owner = nextTele(st, c.channel); c.assignedAt = nowIso(); c.autoAssignedAt = c.assignedAt; }
+      if (r.code && !c.legacyCode) c.legacyCode = clip(r.code, 30);
+      if (!r.orderNo && !r.total && !(r.items || []).length && !r.product) continue;
       let items = cleanItems(r.items, st.settings.products);
       if (!items.length && r.product) items = String(r.product).split(/[,\n]/).map((s) => s.trim()).filter(Boolean).map((s) => ({ name: clip(s, 120), qty: 1, price: 0 }));
       const extId = r.orderNo ? platform + ':' + String(r.orderNo).trim() : '';
@@ -621,6 +626,33 @@
     return { received: rows.length, added, orders, masked, invalid, dup };
   };
 
+  // Every OneCall call becomes a KPI call automatically (telesales do not log calls by hand).
+  // If the salesperson already saved a result for that customer around the same time, the call is attached to it instead.
+  const isOutbound = (o) => !o.dir || !/^in/i.test(o.dir);
+  function autoKpiFromCall(st, o) {
+    if (o.kpiId || !o.user || !isOutbound(o)) return null;
+    const minTalk = st.settings.minTalkSec || 7;
+    const c = o.phone ? byPhone(st, o.phone) : null;
+    const t = Date.parse(o.at), day = dayKey(o.at);
+    const near = st.kpi.find((k) => k.user === o.user && k.date === day && !k.ocId && k.mode === 'call' && !k.auto && (c ? k.customerId === c.id : k.phone === o.phone) && Math.abs(Date.parse(k.at) - t) < 3 * 3600000);
+    if (near) { near.ocId = o.id; if (o.dur > (near.durationSec || 0)) near.durationSec = o.dur; o.kpiId = near.id; return near; }
+    const talked = o.dur > minTalk;
+    const k = { id: uid('k'), user: o.user, date: day, at: o.at, mode: 'call', auto: true, ocId: o.id, channel: c && c.channel === 'ecom' ? 'mkt' : 'fb',
+      round: c && c.channel === 'ecom' ? '' : ((c && c.round) || 'T1'), phone: o.phone, name: c ? c.name : '', customerId: c ? c.id : null,
+      durationSec: o.dur, result: talked ? 'oc_talk' : 'no_answer', talked, items: [], amount: 0, orders: 0, note: '', by: 'system' };
+    st.kpi.push(k); o.kpiId = k.id;
+    if (c) {
+      if (!c.lastContactAt || o.at > c.lastContactAt) c.lastContactAt = o.at;
+      c.callCount = (c.callCount || 0) + 1;
+      pushNote(c, { by: o.user, kind: 'call', result: k.result, durationSec: o.dur, round: k.round, text: (talked ? 'โทรออก (OneCall) ได้คุย ' : 'โทรออก (OneCall) ไม่ได้คุย ') + Math.floor(o.dur / 60) + ':' + String(o.dur % 60).padStart(2, '0') + ' นาที', at: o.at });
+    }
+    return k;
+  }
+  function autoLogOnecall(st, sinceDay) {
+    let n = 0;
+    for (const o of st.onecall) if (!o.kpiId && dayKey(o.at) >= sinceDay && autoKpiFromCall(st, o)) n++;
+    return n;
+  }
   // OneCall recordings: [{id, timestamp, duration, localParty, remoteParty, direction}]
   A.ingestOnecall = (st, p, actor) => {
     const lines = st.settings.onecallLines || {};
@@ -636,8 +668,10 @@
       let at = rec.timestamp;
       if (typeof at === 'number') at = new Date(at < 1e12 ? at * 1000 : at).toISOString();
       else { let s = String(at || ''); if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) s = s.replace(' ', 'T') + 'Z'; at = isNaN(Date.parse(s)) ? nowIso() : new Date(s).toISOString(); }
-      st.onecall.push({ id, user, phone, dur: Math.max(0, parseInt(rec.duration, 10) || 0), at, dir: clip(rec.direction, 12) });
+      const o = { id, user, phone, dur: Math.max(0, parseInt(rec.duration, 10) || 0), at, dir: clip(rec.direction, 12) };
+      st.onecall.push(o);
       seen.add(id); added++;
+      autoKpiFromCall(st, o);
     }
     if (st.onecall.length > 40000) st.onecall = st.onecall.slice(-40000);
     st.sync.onecall = { ...(st.sync.onecall || {}), lastRun: nowIso(), lastAdded: added };
@@ -1036,7 +1070,7 @@
     sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
-    emptyState, normalize, apply, autoDistribute, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
+    emptyState, normalize, apply, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };
 });
