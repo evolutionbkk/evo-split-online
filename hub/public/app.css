@@ -823,3 +823,11 @@ a.btn { text-decoration: none; }
 .cd-tli b { font-size: 13.5px; }
 .cd-tli p { margin: 1px 0; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cd-tli small { font-size: 11.5px; }
+/* use the full screen width */
+.page { max-width: none; }
+@media (min-width: 1600px) {
+  .page { padding-left: 36px; padding-right: 36px; }
+  .cd-grid { grid-template-columns: minmax(0, 380px) minmax(0, 1fr) minmax(0, 440px); gap: 24px; }
+  .cal-grid { grid-template-columns: minmax(0, 1fr) 420px; }
+  .cd-tl { max-height: 560px; }
+}
