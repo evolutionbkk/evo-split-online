@@ -59,7 +59,9 @@ app.use((req, res, next) => {    // CORS only for browser helper scripts that pu
   next();
 });
 app.use(express.static(path.join(__dirname, 'public'), { index: false, maxAge: '5m' }));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+const BUILD = Date.now().toString(36);
+const INDEX_HTML = require('fs').readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8').replace(/(href|src)="\/(app\.css|core\.js|demo-seed\.js|app\.js)"/g, '$1="/$2?v=' + BUILD + '"');
+app.get('/', (req, res) => { res.set('Cache-Control', 'no-cache'); res.type('html').send(INDEX_HTML); });
 app.get('/healthz', (req, res) => res.json({ ok: true, customers: state ? state.customers.length : 0 }));
 
 // login: pick a person + password
