@@ -563,7 +563,7 @@
     return '<div class="kpi-person"><div class="kp-who">' + av(u, 'lg') + '<div><b>' + esc(u.name) + '</b><span class="pill ' + s[0] + '">' + s[1] + '</span><div class="small muted" style="margin-top:4px">ผ่าน ' + r.passed + '/4 เกณฑ์</div></div></div>' +
       '<div class="kp-bars">' +
       bar('โทร FB (Pancake)', r.fbCalls, r.target.fb, 'T1 ' + r.t1 + '/' + r.target.t1 + ' : T2 ' + r.t2 + '/' + r.target.t2 + ' : T3 ' + r.t3 + '/' + r.target.t3) +
-      bar('โทร Marketplace', r.mktCalls, r.target.mkt, 'Lazada / Shopee / TikTok / Evolution') +
+      bar('โทร Marketplace', r.mktCalls, r.target.mkt, 'Lazada / Shopee / TikTok / E-Commerce') +
       bar('เวลาคุยรวม', r.talkSec, r.target.talkSec, 'เฉลี่ย ' + H.dur(r.talked ? r.talkSec / r.talked : 0) + ' ต่อสายที่ได้คุย', (x) => Math.round(x / 60) + ' น.') +
       bar('ยอดขาย', r.amount, r.target.revenue, r.orders + ' ออเดอร์ : เฉลี่ย ' + B(r.aov), B) +
       '<div class="kp-foot"><span>ได้คุย <b>' + r.talked + '/' + r.calls + '</b> (' + pctTxt(r.contactRate) + ')</span><span>ปิดได้ <b>' + r.orders + '</b> (' + pctTxt(r.conversion) + ' ของสายที่คุย)</span><span>ยอดต่อสายที่คุย <b>' + B(r.perTalk) + '</b></span>' +
@@ -743,7 +743,7 @@
       '<section class="card"><div class="row between" style="margin-bottom:12px"><div class="seg" role="tablist">' +
       '<button class="' + (ui.custTab === 'fb' ? 'on' : '') + '" data-act="ctab" data-v="fb">' + ico('msg') + ' FB Page (Pancake) <span class="faint">' + N(scope('fb')) + '</span></button>' +
       '<button class="' + (ui.custTab === 'ecom' ? 'on' : '') + '" data-act="ctab" data-v="ecom">' + ico('store') + ' E-Commerce <span class="faint">' + N(scope('ecom')) + '</span></button></div>' +
-      '<span class="small muted one hide-sm" style="flex:1;min-width:0">' + (ui.custTab === 'fb' ? 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจก 50:50 : ตามรอบ T1 → T2 → T3' : 'รายชื่อจาก Lazada / Shopee / TikTok (ผ่าน BigSeller) และ Evolution') + '</span></div>' +
+      '<span class="small muted one hide-sm" style="flex:1;min-width:0">' + (ui.custTab === 'fb' ? 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจก 50:50 : ตามรอบ T1 → T2 → T3' : 'รายชื่อจาก Lazada / Shopee / TikTok (ผ่าน BigSeller) และ E-Commerce') + '</span></div>' +
       '<div class="toolbar">' + searchBox('cust', 'ค้นหาชื่อ เบอร์โทร เลขออเดอร์ สินค้า หรือที่อยู่', ui.q) +
       '<div class="filters">' + drBtn('cust', 'all', () => { resetList('cust'); render(); }) + statusCtl + roundCtl + ownerCtl + '</div>' +
       '<div class="tb-actions"><button class="btn primary sm" data-act="add-customer">' + ico('plus') + ' เพิ่มลูกค้า</button></div></div>' +
@@ -902,7 +902,7 @@
     const myCustomers = (v.customers || []).filter((c) => c.owner === who);
     const resOpts = H.RESULTS.map((r) => '<option value="' + r.id + '">' + esc(r.label) + '</option>').join('');
     const common = '<div class="f2"><label class="field"><span>วันที่</span><input class="in" type="date" name="date" value="' + date + '" max="' + H.today() + '"></label>' +
-      '<div class="field"><span>ช่องทาง</span><select class="in" name="channel" data-act-change="kpi-channel"><option value="fb">FB Page (Pancake)</option><option value="mkt">Marketplace (Lazada / Shopee / TikTok / Evolution)</option></select></div></div>' +
+      '<div class="field"><span>ช่องทาง</span><select class="in" name="channel" data-act-change="kpi-channel"><option value="fb">FB Page (Pancake)</option><option value="mkt">Marketplace (Lazada / Shopee / TikTok / E-Commerce)</option></select></div></div>' +
       '<div class="field" data-round-field><span>รอบ</span><div class="seg" data-seg="round">' + ['T1', 'T2', 'T3'].map((r, i) => '<button type="button" class="' + (i === 0 ? 'on' : '') + '" data-act="seg-pick" data-v="' + r + '">' + r + '</button>').join('') + '</div><input type="hidden" name="round" value="T1"><small class="small muted" data-round-hint>' + esc(H.ROUNDS.T1) + '</small></div>';
     const callForm = '<form class="form" data-form="kpi-call">' + common +
       '<div class="f2"><label class="field"><span>เบอร์ที่โทร <em>*</em></span><input class="in" name="phone" inputmode="tel" list="kpi-phones" placeholder="08x-xxx-xxxx" required data-act-input="kpi-phone"></label><label class="field"><span>ชื่อลูกค้า</span><input class="in" name="name" placeholder="เติมให้อัตโนมัติถ้ามีในระบบ"></label></div>' +
@@ -1052,7 +1052,7 @@
       '<label class="field"><span>ให้เซลล์</span><select class="in" name="owner"><option value="">ตามคอลัมน์ Telesale ในชีท</option>' + H.teles(st).map((u) => '<option value="' + u.id + '">' + esc(u.name) + '</option>').join('') + '</select></label>' +
       '<button class="btn primary sm">' + ico('upload') + ' นำเข้าฐานรายชื่อ</button></form>' +
       (Object.keys(sy.imports || {}).length ? '<div class="small muted" style="margin-top:8px">' + Object.values(sy.imports).slice(-3).map((x) => esc(x.label || 'นำเข้า') + ' : ใหม่ ' + N(x.added) + ' : รวมกับเดิม ' + N(x.merged) + ' : นัด ' + N(x.appts) + ' (' + H.thDate(x.at, true) + ')').join('<br>') + '</div>' : '') +
-      '<div class="section-t" style="margin-top:16px">นำเข้าออเดอร์ E-Commerce</div><form class="form" data-form="ecom-import" style="margin-top:8px"><div class="f2"><label class="field"><span>แพลตฟอร์ม</span><select class="in" name="platform"><option value="">ตามไฟล์ (ค่าเริ่มต้น Lazada)</option><option value="lazada">Lazada</option><option value="shopee">Shopee</option><option value="tiktok">TikTok Shop</option><option value="evolution">Evolution</option></select></label>' +
+      '<div class="section-t" style="margin-top:16px">นำเข้าออเดอร์ E-Commerce</div><form class="form" data-form="ecom-import" style="margin-top:8px"><div class="f2"><label class="field"><span>แพลตฟอร์ม</span><select class="in" name="platform"><option value="">ตามไฟล์ (ค่าเริ่มต้น Lazada)</option><option value="lazada">Lazada</option><option value="shopee">Shopee</option><option value="tiktok">TikTok Shop</option><option value="evolution">E-Commerce</option></select></label>' +
       '<label class="field"><span>ไฟล์ Excel / CSV จาก BigSeller</span><input class="in" type="file" name="file" accept=".xlsx,.xls,.csv"></label></div>' +
       '<label class="field"><span>หรือวางตารางที่คัดลอกมา (ต้องมีหัวคอลัมน์ เบอร์ / ชื่อ / ที่อยู่ / สินค้า / ยอด)</span><textarea class="in" name="paste" rows="4" placeholder="เลขที่คำสั่งซื้อ\tชื่อผู้รับ\tเบอร์โทร\tที่อยู่\tสินค้า\tยอด"></textarea></label><button class="btn primary sm">' + ico('upload') + ' นำเข้า</button></form>');
     const ann = card('mega', 'ประกาศข่าวสาร', 'แสดงที่หน้าหลักของทุกคน', '<form class="form" data-form="ann"><label class="field"><span>หัวข้อ <em>*</em></span><input class="in" name="title" required></label><label class="field"><span>รายละเอียด</span><textarea class="in" name="body"></textarea></label><button class="btn primary sm">ประกาศ</button></form>' +
@@ -1071,7 +1071,7 @@
       '<div class="f2"><label class="field"><span>ชื่อ-นามสกุล <em>*</em></span><input class="in" name="name" required></label><label class="field"><span>เบอร์ติดต่อ <em>*</em></span><input class="in" name="phone" inputmode="tel" required></label></div>' +
       '<label class="field"><span>ที่อยู่</span><textarea class="in" name="address"></textarea></label>' +
       '<div class="f2"><label class="field"><span>ช่องทาง</span><select class="in" name="channel"><option value="fb"' + (ui.custTab === 'fb' ? ' selected' : '') + '>FB Page</option><option value="ecom"' + (ui.custTab === 'ecom' ? ' selected' : '') + '>E-Commerce</option></select></label>' +
-      '<label class="field"><span>แพลตฟอร์ม</span><select class="in" name="platform"><option value="">ตามช่องทาง</option><option value="lazada">Lazada</option><option value="shopee">Shopee</option><option value="tiktok">TikTok Shop</option><option value="evolution">Evolution</option><option value="manual">เพิ่มเอง</option></select></label></div>' +
+      '<label class="field"><span>แพลตฟอร์ม</span><select class="in" name="platform"><option value="">ตามช่องทาง</option><option value="lazada">Lazada</option><option value="shopee">Shopee</option><option value="tiktok">TikTok Shop</option><option value="evolution">E-Commerce</option><option value="manual">เพิ่มเอง</option></select></label></div>' +
       (boss() ? '<label class="field"><span>ให้เซลล์</span><select class="in" name="owner"><option value="">ยังไม่แจก</option>' + tele.map((u) => '<option value="' + u.id + '">' + esc(u.name) + '</option>').join('') + '</select></label>' : '') +
       '<label class="field"><span>โน้ต</span><input class="in" name="note"></label><button class="btn primary">บันทึกลูกค้า</button></form>');
   }

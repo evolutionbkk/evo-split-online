@@ -59,7 +59,7 @@
     lazada: { label: 'Lazada', channel: 'ecom' },
     shopee: { label: 'Shopee', channel: 'ecom' },
     tiktok: { label: 'TikTok Shop', channel: 'ecom' },
-    evolution: { label: 'Evolution', channel: 'ecom' },
+    evolution: { label: 'E-Commerce', channel: 'ecom' },
     pancake: { label: 'FB Page (Pancake)', channel: 'fb' },
     manual: { label: 'เพิ่มเอง', channel: 'fb' },
   };
