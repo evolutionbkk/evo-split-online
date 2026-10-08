@@ -45,7 +45,7 @@
     bag: '<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
     store: '<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5 11v9h14v-9"/>',
     note: '<path d="M4 4h16v12l-4 4H4z"/><path d="M16 20v-4h4M8 9h8M8 13h5"/>',
-    left: '<path d="M15 5l-7 7 7 7"/>', right: '<path d="M9 5l7 7-7 7"/>',
+    left: '<path d="M15 5l-7 7 7 7"/>', right: '<path d="M9 5l7 7-7 7"/>', down: '<path d="M6 9l6 6 6-6"/>',
     play: '<path d="M7 4l13 8-13 8z"/>', stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
     send: '<path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4z"/>',
     alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
@@ -145,12 +145,14 @@
     close: { t: 'ปิดการขาย', crumb: 'Admin Sales : บันทึกปิดการขาย', ico: 'cart' },
     approvals: { t: 'อนุมัติแจกรายชื่อ', crumb: 'Telesales : แจกรายชื่อ FB Page 50:50', ico: 'inbox' },
     dnc: { t: 'ยกเลิกการติดต่อถาวร', crumb: '', ico: 'ban' },
+    ovtele: { t: 'ภาพรวมเทเลเซลล์', crumb: '', ico: 'phone' },
+    ovadmin: { t: 'ภาพรวมแอดมิน', crumb: '', ico: 'msg' },
     settings: { t: 'ตั้งค่า', crumb: 'System : ตั้งค่าและการเชื่อมต่อ', ico: 'gear' },
   };
   function allowed(page) {
     const r = S.me.role;
     if (page === 'home') return true;
-    if (page === 'overview' || page === 'settings') return boss();
+    if (page === 'overview' || page === 'ovtele' || page === 'ovadmin' || page === 'settings') return boss();
     if (page === 'kpi') return r === 'tele';
     if (['today', 'customers', 'customer', 'calendar'].includes(page)) return boss() || r === 'tele';
     if (page === 'close') return boss() || r === 'admin';
@@ -172,7 +174,18 @@
   function shell(content) {
     const me = S.me, role = me.role;
     const nb = (id, label) => allowed(id) ? '<button class="' + (S.page === id || (id === 'customers' && S.page === 'customer') ? 'on' : '') + '" data-go="' + id + '">' + ico(PAGES[id].ico) + '<span>' + label + '</span>' + (id === 'approvals' && pendingCount() ? '<span class="badge">' + pendingCount() + '</span>' : '') + (id === 'calendar' && overdueAppts().length ? '<span class="badge">' + overdueAppts().length + '</span>' : '') + '</button>' : '';
-    const nav = [
+    const isExec = role === 'exec';
+    // executive: a short two-group tree (overview -> tele/admin, customers -> distributed/cancelled)
+    const tree = () => {
+      ui.navOpen = ui.navOpen || { ov: true, cu: true, all: true };
+      const on = (ids) => ids.includes(S.page === 'customer' ? 'customers' : S.page);
+      const grp = (key, id, label, icon, ids, kids) => '<div class="ngrp' + (ui.navOpen[key] ? ' open' : '') + '"><button class="ngrp-h' + (on([id]) ? ' on' : on(ids) ? ' in' : '') + '"' + (id ? ' data-go="' + id + '"' : ' data-act="nav-toggle" data-v="' + key + '"') + ' data-nav-key="' + key + '">' + ico(icon) + '<span>' + label + '</span><i class="chev" data-act="nav-toggle" data-v="' + key + '" aria-label="ย่อ/ขยาย">' + ico('down') + '</i></button><div class="nsub">' + kids + '</div></div>';
+      const sub = (id, label, lvl) => '<button class="nsub-i l' + (lvl || 1) + (on([id]) ? ' on' : '') + '" data-go="' + id + '"><i class="dot"></i><span>' + label + '</span></button>';
+      const sub2grp = (key, id, label, kids) => '<div class="ngrp2' + (ui.navOpen[key] ? ' open' : '') + '"><button class="nsub-i l1' + (on([id]) ? ' on' : '') + '" data-go="' + id + '" data-nav-key="' + key + '"><i class="dot"></i><span>' + label + '</span><i class="chev" data-act="nav-toggle" data-v="' + key + '" aria-label="ย่อ/ขยาย">' + ico('down') + '</i></button><div class="nsub">' + kids + '</div></div>';
+      return grp('ov', 'overview', 'ภาพรวมทั้งหมด', 'chart', ['overview', 'ovtele', 'ovadmin'], sub('ovtele', 'เทเลเซลล์') + sub('ovadmin', 'แอดมิน')) +
+        grp('cu', '', 'รายชื่อลูกค้า', 'users', ['customers', 'approvals', 'dnc'], sub2grp('all', 'customers', 'รายชื่อลูกค้าทั้งหมด', sub('approvals', 'รายชื่อลูกค้าที่ถูกแจก', 2) + sub('dnc', 'รายชื่อลูกค้าที่ยกเลิกการติดต่อ', 2)));
+    };
+    const nav = isExec ? tree() : [
       nb('home', 'หน้าหลัก'),
       boss() ? '<div class="nav-label">ผู้บริหาร</div>' + nb('overview', 'ภาพรวมผู้บริหาร') : '',
       (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'การแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
@@ -507,7 +520,7 @@
   }
 
   // ------------------------------------------------------------ OVERVIEW (executive)
-  function pageOverview() {
+  function pageOverview(mode) {
     const st = S.full || V();
     const ovd = drGet('ov', 'today');
     let [from, to] = drRange('ov');
@@ -516,7 +529,7 @@
     const d = H.dashboard(st, from, to);
     const t = st.settings.targets;
     const monthPct = pct(d.monthRev, d.monthTarget);
-    const head = '<div class="row between"><div><h2 style="font-size:20px">ภาพรวมทีมขาย : ' + label + '</h2><div class="small muted">' + (from === to ? H.thDate(from) : H.thDate(from) + ' - ' + H.thDate(to)) + ' : ยอด Telesales มาจากบันทึก KPI : ยอดแอดมินมาจาก Pancake/บันทึกปิดการขาย : E-Commerce จาก BigSeller</div></div>' +
+    const head = '<div class="row between"><div><h2 style="font-size:20px">' + (mode === 'tele' ? 'ภาพรวมเทเลเซลล์' : mode === 'admin' ? 'ภาพรวมแอดมิน' : 'ภาพรวมทั้งหมด') + ' : ' + label + '</h2><div class="small muted">' + (from === to ? H.thDate(from) : H.thDate(from) + ' - ' + H.thDate(to)) + ' : ยอด Telesales มาจากบันทึก KPI : ยอดแอดมินมาจาก Pancake/บันทึกปิดการขาย : E-Commerce จาก BigSeller</div></div>' +
       '<div class="row">' + drBtn('ov', 'today', render) +
       '<button class="btn sm" data-act="refresh">' + ico('refresh') + ' รีเฟรช</button></div></div>';
     const tiles = '<div class="tiles">' +
@@ -527,7 +540,7 @@
       tile('ออเดอร์ทั้งหมด', N(d.orders), 'เฉลี่ย ' + B(d.aov) + ' ต่อออเดอร์') +
       tile('งานที่ต้องจัดการ', N(d.pending + d.overdue), 'เลยนัด ' + d.overdue + ' : เงียบเกินกำหนด ' + d.stale, d.pending + d.overdue ? 'alert' : '') + '</div>';
     const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : FB ' + t.fbCalls + ' สาย (T1 ' + t.t1 + ' : T2 ' + t.t2 + ' : T3 ' + t.t3 + ') : Marketplace ' + t.mktCalls + ' สาย : คุย ' + t.talkMinutes + ' นาที : ยอด ' + B(t.teleRevenue) + (from !== to ? ' : คูณตามจำนวนวันอัตโนมัติ' : '') + '</small></div>' +
-      '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button></div>' + d.team.map(kpiPerson).join('') + '</section>';
+      (allowed('kpi') ? '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button>' : '') + '</div>' + '<div class="kpc-list">' + d.team.map(kpiPerson).join('') + '</div></section>';
     // daily chart: at least 14 days for context
     const cFrom = H.daysBetween(from, to) < 13 ? H.addDays(to, -13) : from;
     const cd = cFrom === from ? d : H.dashboard(st, cFrom, to);
@@ -546,7 +559,6 @@
     const heatCard = card('clock', 'ช่วงเวลาโทรและขาย', 'จำนวนสาย + ออเดอร์ต่อชั่วโมง (08:00-21:00)', '<div class="heat">' + hrs.map((h, i) => { const v = h.calls + h.orders; return '<div title="' + (i + 8) + ':00 น. : ' + h.calls + ' สาย : ' + h.orders + ' ออเดอร์" style="opacity:' + (0.12 + 0.88 * v / hMax).toFixed(2) + ';color:' + (v / hMax > .5 ? '#fff' : 'var(--text)') + '">' + (v || '') + '</div>'; }).join('') + '</div><div class="heat-lbl">' + hrs.map((h, i) => '<span>' + (i + 8) + '</span>').join('') + '</div>' +
       '<div class="small muted" style="margin-top:10px">ช่วงที่คึกคักที่สุด : <b style="color:var(--text)">' + (hrs.reduce((b, h, i) => (h.calls + h.orders > b.v ? { v: h.calls + h.orders, i } : b), { v: -1, i: 0 }).i + 8) + ':00 น.</b></div>');
     const alerts = '<div class="alerts">' +
-      alertRow('bad', d.pending, 'รายชื่อรออนุมัติ', 'แอดมินปิดการขายแล้ว รอส่งให้ Telesales', 'approvals') +
       alertRow('bad', d.overdue, 'นัดโทรที่เลยกำหนด', 'ลูกค้าที่นัดไว้แต่ยังไม่ได้โทร', 'calendar') +
       alertRow('warn', d.stale, 'ลูกค้าเงียบเกินกำหนด', 'FB เกิน ' + st.settings.staleDays.fb + ' วัน : Marketplace เกิน ' + st.settings.staleDays.ecom + ' วัน ไม่มีความเคลื่อนไหว', 'customers', 'due') +
       alertRow('info', d.todayAppts - d.todayApptsDone, 'นัดที่เหลือของวันนี้', 'ทำแล้ว ' + d.todayApptsDone + ' จาก ' + d.todayAppts + ' นัด', 'calendar') + '</div>';
@@ -555,8 +567,29 @@
     const sideCard = card('alert', 'ต้องติดตาม', 'กดเพื่อไปยังรายการ', alerts +
       '<div class="section-t" style="margin-top:16px">E-Commerce แยกแพลตฟอร์ม</div>' + (pf.length ? '<div class="rank" style="margin-top:8px">' + pf.map(([k, v], i) => '<div class="rank-row"><span class="no">' + (i + 1) + '</span><span>' + esc(k) + '</span><span class="bar"><i style="width:' + pct(v, pfMax) + '%;background:var(--c-ecom)"></i></span><span class="v">' + B(v) + '</span></div>').join('') + '</div>' : '<div class="small faint" style="margin-top:6px">ไม่มีออเดอร์ในช่วงนี้</div>') +
       '<div class="section-t" style="margin-top:16px">เหตุผลที่ลูกค้าปฏิเสธ</div>' + (lr.length ? '<div class="chips" style="margin-top:8px">' + lr.map(([k, v]) => '<span class="pill mute">' + esc(k) + ' ' + v + '</span>').join('') + '</div>' : '<div class="small faint" style="margin-top:6px">ไม่มีรายการ</div>'));
-    return head + tiles + teamCard + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + '<div class="grid g3">' + adminCard + funnelCard + heatCard + '</div>' + prodCard +
-      '<div class="small faint">ข้อมูลล่าสุด ' + H.thDate(new Date().toISOString(), true) + '</div>';
+    const foot = '<div class="small faint">ข้อมูลล่าสุด ' + H.thDate(new Date().toISOString(), true) + '</div>';
+    const two = d.rev.tele + d.rev.admin, twoN = d.cnt.tele + d.cnt.admin;
+    if (mode === 'tele') {
+      const tt = '<div class="tiles">' + tile('<i style="background:var(--c-tele)"></i>ยอดขาย Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์จากการโทร', 'hero') +
+        tile('จำนวนสาย', N(d.teamSum.calls), 'ได้คุย ' + N(d.teamSum.talked) + ' สาย') + tile('อัตราติดต่อได้', pctTxt(d.contactRate), 'จากสายทั้งหมด') + tile('อัตราปิดการขาย', pctTxt(d.conversion), 'จากสายที่ได้คุย') +
+        tile('เฉลี่ยต่อออเดอร์', B(d.cnt.tele ? d.rev.tele / d.cnt.tele : 0), 'ยอด Telesales') + tile('นัดที่เลยกำหนด', N(d.overdue), 'เงียบเกินกำหนด ' + d.stale, d.overdue ? 'alert' : '') + '</div>';
+      return head + tt + teamCard + '<div class="grid g3">' + funnelCard + heatCard + card('alert', 'ต้องติดตาม', 'งานค้างของทีม Telesales', alerts) + '</div>' + foot;
+    }
+    if (mode === 'admin') {
+      const T = H.today(), dist = (st.approvals || []).filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) >= from && H.dayKey(a.decidedAt || a.at) <= to).length;
+      const at = '<div class="tiles">' + tile('<i style="background:var(--c-admin)"></i>ยอดขาย Admin (FB Page)', B(d.rev.admin), N(d.cnt.admin) + ' ออเดอร์ที่แอดมินปิด', 'hero') +
+        tile('เฉลี่ยต่อออเดอร์', B(d.cnt.admin ? d.rev.admin / d.cnt.admin : 0), 'ยอด Admin') + tile('รายชื่อที่แจกให้ Telesales', N(dist), 'แจกอัตโนมัติ 50:50') +
+        tile('แอดมินที่มียอด', N(d.admins.filter((a) => a.revenue > 0).length), 'จาก ' + N(d.admins.length) + ' คน') + '</div>';
+      const splitCard = card('send', 'สัดส่วนรายชื่อวันนี้', 'แจกให้ Telesales อัตโนมัติ 50:50', splitBar(todaySplit()), '<button class="btn sm" data-go="approvals">ดูรายชื่อที่ถูกแจก</button>');
+      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + foot;
+    }
+    const ct = '<div class="tiles">' + tile('ยอดขายรวม (Telesales + Admin)', B(two), 'เดือนนี้ ' + B(d.monthRev) + ' : ' + monthPct + '% ของเป้า ' + B(d.monthTarget), 'hero', monthPct) +
+      tile('<i style="background:var(--c-tele)"></i>Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์ : ' + (two ? Math.round(d.rev.tele / two * 100) : 0) + '% ของยอดรวม') +
+      tile('<i style="background:var(--c-admin)"></i>Admin (FB Page)', B(d.rev.admin), N(d.cnt.admin) + ' ออเดอร์ : ' + (two ? Math.round(d.rev.admin / two * 100) : 0) + '% ของยอดรวม') +
+      tile('ออเดอร์ทั้งหมด', N(twoN), 'เฉลี่ย ' + B(twoN ? two / twoN : 0) + ' ต่อออเดอร์') + '</div>';
+    const goCards = '<div class="grid g2"><button class="ov-go" data-go="ovtele"><span class="ov-go-i" style="background:var(--c-tele)">' + ico('phone') + '</span><span><b>เทเลเซลล์</b><small>' + B(d.rev.tele) + ' : ' + N(d.teamSum.calls) + ' สาย : KPI รายคน</small></span>' + ico('right') + '</button>' +
+      '<button class="ov-go" data-go="ovadmin"><span class="ov-go-i" style="background:var(--c-admin)">' + ico('msg') + '</span><span><b>แอดมิน</b><small>' + B(d.rev.admin) + ' : ' + N(d.cnt.admin) + ' ออเดอร์ : อันดับแอดมิน</small></span>' + ico('right') + '</button></div>';
+    return head + ct + goCards + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + foot;
   }
   function tile(lbl, val, sub, cls, meter) {
     return '<div class="tile ' + (cls || '') + '"><span class="lbl">' + lbl + '</span><span class="val">' + val + '</span><span class="sub">' + sub + '</span>' + (meter != null ? '<div class="meter"><i style="width:' + Math.min(100, meter) + '%"></i></div>' : '') + '</div>';
@@ -568,16 +601,15 @@
   function kpiPerson(r) {
     const u = user(r.user) || { id: r.user, name: r.name };
     const s = KSTAT[r.status];
-    const bar = (label, v, t, mini, fmt) => { const p = pct(v, t); return '<div class="kp-bar"><div class="top"><span>' + label + '</span><b>' + (fmt ? fmt(v) : N(v)) + ' / ' + (fmt ? fmt(t) : N(t)) + '</b></div><div class="meter ' + meterCls(p) + '"><i style="width:' + p + '%"></i></div>' + (mini ? '<div class="mini">' + mini + '</div>' : '') + '</div>'; };
-    return '<div class="kpi-person"><div class="kp-who">' + av(u, 'lg') + '<div><b>' + esc(u.name) + '</b><span class="pill ' + s[0] + '">' + s[1] + '</span><div class="small muted" style="margin-top:4px">ผ่าน ' + r.passed + '/4 เกณฑ์</div></div></div>' +
-      '<div class="kp-bars">' +
-      bar('โทร FB (Pancake)', r.fbCalls, r.target.fb, 'T1 ' + r.t1 + '/' + r.target.t1 + ' : T2 ' + r.t2 + '/' + r.target.t2 + ' : T3 ' + r.t3 + '/' + r.target.t3) +
-      bar('โทร Marketplace', r.mktCalls, r.target.mkt, 'Lazada / Shopee / TikTok / E-Commerce') +
-      bar('เวลาคุยรวม', r.talkSec, r.target.talkSec, 'เฉลี่ย ' + H.dur(r.talked ? r.talkSec / r.talked : 0) + ' ต่อสายที่ได้คุย', (x) => Math.round(x / 60) + ' น.') +
-      bar('ยอดขาย', r.amount, r.target.revenue, r.orders + ' ออเดอร์ : เฉลี่ย ' + B(r.aov), B) +
-      '<div class="kp-foot"><span>ได้คุย <b>' + r.talked + '/' + r.calls + '</b> (' + pctTxt(r.contactRate) + ')</span><span>ปิดได้ <b>' + r.orders + '</b> (' + pctTxt(r.conversion) + ' ของสายที่คุย)</span><span>ยอดต่อสายที่คุย <b>' + B(r.perTalk) + '</b></span>' +
-      '<span>นัด : ทำแล้ว <b>' + r.appts.done + '/' + r.appts.due + '</b>' + (r.appts.overdue ? ' : <b style="color:var(--bad)">เลยนัด ' + r.appts.overdue + '</b>' : '') + '</span>' +
-      '<span title="ตัวเลขจากระบบ OneCall ใช้ตรวจเทียบกับที่บันทึกเอง">OneCall : <b>' + r.oc.calls + '</b> สาย : คุยจริง <b>' + Math.round(r.oc.talkSec / 60) + '</b> น.</span></div></div></div>';
+    const stat = (label, v, t, sub, fmt) => { const p = pct(v, t); return '<div class="kq"><span class="kq-l">' + label + '</span><span class="kq-v"><b>' + (fmt ? fmt(v) : N(v)) + '</b><small>/ ' + (fmt ? fmt(t) : N(t)) + '</small></span><div class="meter ' + meterCls(p) + '"><i style="width:' + p + '%"></i></div><span class="kq-s">' + sub + '</span></div>'; };
+    return '<div class="kpc"><div class="kpc-h">' + av(u, 'lg') + '<div class="kpc-n"><b>' + esc(u.name) + '</b><small>ผ่าน ' + r.passed + ' จาก 4 เกณฑ์</small></div><span class="pill ' + s[0] + '">' + s[1] + '</span></div>' +
+      '<div class="kpc-g">' +
+      stat('โทร FB', r.fbCalls, r.target.fb, 'T1 ' + r.t1 + ' · T2 ' + r.t2 + ' · T3 ' + r.t3) +
+      stat('โทร E-Commerce', r.mktCalls, r.target.mkt, 'Lazada · Shopee · TikTok') +
+      stat('เวลาคุย', r.talkSec, r.target.talkSec, 'นาที', (x) => N(Math.round(x / 60))) +
+      stat('ยอดขาย', r.amount, r.target.revenue, N(r.orders) + ' ออเดอร์', B) + '</div>' +
+      '<div class="kpc-f"><span>ได้คุย <b>' + pctTxt(r.contactRate) + '</b></span><span>ปิดได้ <b>' + pctTxt(r.conversion) + '</b></span><span>นัดวันนี้ <b>' + r.appts.done + '/' + r.appts.due + '</b></span>' +
+      (r.appts.overdue ? '<span class="bad">เลยนัด <b>' + N(r.appts.overdue) + '</b></span>' : '') + '</div></div>';
   }
   function barChart(d) {
     const days = d.days, W = Math.max(560, days.length * 46), Hh = 230, padL = 52, padB = 26, padT = 12, iw = W - padL - 10, ih = Hh - padB - padT;
@@ -716,13 +748,13 @@
   const TH_MON_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   const longDay = (d) => { const x = new Date(d + 'T00:00:00Z'); return TH_DAYS_FULL[x.getUTCDay()] + ' ' + H.thDate(d); };
   const CRUMB = { home: ['หน้าหลัก'], overview: ['ภาพรวม', 'ภาพรวมผู้บริหาร'], today: ['งานขาย', 'คิวโทรวันนี้'], customers: ['งานขาย', 'ลูกค้า'], customer: ['งานขาย', 'ลูกค้า', 'รายละเอียดลูกค้า'],
-    calendar: ['งานขาย', 'ปฏิทินนัดหมาย'], kpi: ['งานขาย', 'บันทึก KPI'], approvals: ['งานขาย', 'รายชื่อใหม่'], dnc: ['งานขาย', 'ยกเลิกการติดต่อถาวร'], close: ['การจัดการ', 'ปิดการขาย'], settings: ['การจัดการ', 'ตั้งค่า'] };
-  const PH = { overview: ['ภาพรวมทีมขาย', 'ยอดขายทุกช่องทาง KPI ทีม Telesales และงานที่ต้องตัดสินใจ'], today: ['คิวโทรวันนี้', 'ระบบเรียงลำดับให้แล้ว โทรทีละคน กดผลแล้วไปคนถัดไป'],
+    calendar: ['งานขาย', 'ปฏิทินนัดหมาย'], kpi: ['งานขาย', 'บันทึก KPI'], approvals: ['งานขาย', 'รายชื่อใหม่'], ovtele: ['ภาพรวมทั้งหมด', 'เทเลเซลล์'], ovadmin: ['ภาพรวมทั้งหมด', 'แอดมิน'], dnc: ['งานขาย', 'ยกเลิกการติดต่อถาวร'], close: ['การจัดการ', 'ปิดการขาย'], settings: ['การจัดการ', 'ตั้งค่า'] };
+  const PH = { today: ['คิวโทรวันนี้', 'ระบบเรียงลำดับให้แล้ว โทรทีละคน กดผลแล้วไปคนถัดไป'],
     kpi: ['บันทึก KPI', 'กรอกทีละสายหรือยอดรวมทั้งวัน ตัวเลขขึ้น Dashboard ผู้บริหารทันที'], dnc: ['ยกเลิกการติดต่อถาวร', 'ลูกค้าที่ขอไม่ให้ติดต่ออีก ไม่อยู่ในคิวโทรและรายชื่อลูกค้า กู้คืนได้ถ้าต้องการ'], approvals: ['การแจกรายชื่อ', 'ระบบแจกรายชื่อจากแอดมินที่ปิดการขายบน FB Page ให้ Telesales อัตโนมัติ 50:50'],
     close: ['บันทึกปิดการขาย', 'ปิดการขายแล้วระบบส่งรายชื่อให้ Telesales อัตโนมัติ'], settings: ['ตั้งค่า', 'เป้า KPI ทีมงาน สินค้า และการเชื่อมต่อระบบ'] };
   function pageHead(title, sub, actions) { return '<div class="ph"><div class="ph-t"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (actions ? '<div class="ph-act">' + actions + '</div>' : '') + '</div>'; }
   function crumbHtml() {
-    const c = S.page === 'approvals' && boss() ? ['งานขาย', 'การแจกรายชื่อ'] : CRUMB[S.page] || ['หน้าหลัก'];
+    const c = S.page === 'approvals' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าที่ถูกแจก'] : S.page === 'dnc' && boss() ? ['รายชื่อลูกค้า', 'ยกเลิกการติดต่อ'] : S.page === 'customers' && S.me.role === 'exec' ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าทั้งหมด'] : S.page === 'overview' ? ['ภาพรวมทั้งหมด'] : CRUMB[S.page] || ['หน้าหลัก'];
     return '<nav class="bc" aria-label="ตำแหน่งหน้า">' + c.map((x, i) => (i === c.length - 1 ? '<b>' + x + '</b>' : (S.page === 'customer' && x === 'ลูกค้า' ? '<button class="link-plain" data-go="customers">' + x + '</button>' : '<span>' + x + '</span>'))).join('<i>›</i>') + '</nav>';
   }
 
@@ -1390,7 +1422,7 @@
   function render() {
     if (!S.me) return;
     if (!allowed(S.page)) S.page = 'home';
-    const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: pageOverview, customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, dnc: pageDnc, settings: pageSettings }[S.page];
+    const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: () => pageOverview(), ovtele: () => pageOverview('tele'), ovadmin: () => pageOverview('admin'), customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, dnc: pageDnc, settings: pageSettings }[S.page];
     const keepScroll = $('.drawer-b') ? $('.drawer-b').scrollTop : 0;
     const body = fn();
     document.getElementById('app').innerHTML = shell((PH[S.page] ? (S.page === 'approvals' && !boss() ? pageHead('รายชื่อใหม่', 'ลูกค้าที่แอดมินปิดการขายแล้ว ระบบส่งมาให้คุณโทรดูแลต่ออัตโนมัติ') : pageHead(PH[S.page][0], PH[S.page][1])) : '') + body);
@@ -1555,6 +1587,7 @@
     'appt-shift': (el) => { const a = (V().appointments || []).find((x) => x.id === el.dataset.id); run(() => api.act('updateAppt', { id: a.id, patch: { at: new Date(Date.parse(a.at) + 86400000).toISOString() } }), 'เลื่อนนัดไปพรุ่งนี้แล้ว'); },
     'kpi-mode': (el) => { ui.kpiMode = el.dataset.v; render(); },
     'kpi-del': (el) => delKpi((V().kpi || []).filter((k) => k.id === el.dataset.id)),
+    'nav-toggle': (el) => { ui.navOpen = ui.navOpen || {}; ui.navOpen[el.dataset.v] = !ui.navOpen[el.dataset.v]; remember(); render(); },
     'ap-tab': (el) => { ui.apTab = el.dataset.v; render(); },
     'ap-ok': (el) => { const sel = $('[data-ap-to="' + el.dataset.id + '"]'); run(() => api.act('approve', { id: el.dataset.id, to: sel ? sel.value : undefined }), (r) => 'ส่งรายชื่อให้ ' + uname(r && r.to) + ' แล้ว'); },
     'ap-no': (el) => confirmInline(el, () => run(() => api.act('reject', { id: el.dataset.id }), 'ไม่ส่งรายชื่อนี้')),
@@ -1627,6 +1660,8 @@
     const cb = e.target.closest('input[type=checkbox][data-act^="ls-"]');
     if (cb) { handlers[cb.dataset.act](cb); return; }
     if (e.target.closest('td.ck, label.ck')) return;
+    const nt = e.target.closest('[data-act=nav-toggle]');
+    if (nt) { e.preventDefault(); handlers['nav-toggle'](nt); return; }
     const go_ = e.target.closest('[data-go]');
     if (go_ && !go_.closest('form')) { e.preventDefault(); closeModal(); if (go_.dataset.filter === 'due') { ui.cStatus = ['due']; resetList('cust'); } go(go_.dataset.go); return; }
     const a = e.target.closest('[data-act]');
@@ -1786,7 +1821,7 @@
     try { ok = await api.boot(); } catch (e) { bootError(); return; }
     if (!ok) { renderLogin(); return; }
     const hash = (location.hash || '').slice(1);
-    S.page = PAGES[hash] && allowed(hash) ? hash : (S.me.role === 'tele' ? 'today' : 'home');
+    S.page = PAGES[hash] && allowed(hash) ? hash : (S.me.role === 'tele' ? 'today' : S.me.role === 'exec' ? 'overview' : 'home');
     render();
     if (!DEMO) setInterval(async () => {
       if (document.hidden || modal || ui.drawer || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return;
