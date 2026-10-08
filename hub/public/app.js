@@ -594,7 +594,11 @@
       tile('ออเดอร์ทั้งหมด', N(twoN), 'เฉลี่ย ' + B(twoN ? two / twoN : 0) + ' ต่อออเดอร์') + '</div>';
     const goCards = '<div class="grid g2"><button class="ov-go" data-go="ovtele"><span class="ov-go-i" style="background:var(--c-tele)">' + ico('phone') + '</span><span><b>เทเลเซลล์</b><small>' + B(d.rev.tele) + ' : ' + N(d.teamSum.calls) + ' สาย : KPI รายคน</small></span>' + ico('right') + '</button>' +
       '<button class="ov-go" data-go="ovadmin"><span class="ov-go-i" style="background:var(--c-admin)">' + ico('msg') + '</span><span><b>แอดมิน</b><small>' + B(d.rev.admin) + ' : ' + N(d.cnt.admin) + ' ออเดอร์ : อันดับแอดมิน</small></span>' + ico('right') + '</button></div>';
-    return head + ct + goCards + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + foot;
+    const prods = d.products.slice(0, 5), prodRest = d.products.slice(5).reduce((t, x) => t + x.revenue, 0);
+    const donutCard = '<div class="grid g2">' +
+      card('chart', 'สัดส่วนยอดขายตามทีม', label + ' : Telesales เทียบ Admin', donut([{ l: 'Telesales', v: d.rev.tele, c: 'var(--c-tele)' }, { l: 'Admin (FB Page)', v: d.rev.admin, c: 'var(--c-admin)' }], B(two), 'ยอดรวม')) +
+      card('bag', 'สัดส่วนยอดขายตามสินค้า', label + ' : 5 อันดับแรก ทุกช่องทาง', donut(prods.map((x, i) => ({ l: x.name.replace(/ \([^)]*\)$/, ''), v: x.revenue, c: DONUT_COL[i] })).concat(prodRest ? [{ l: 'อื่น ๆ', v: prodRest, c: '#cbd5e1' }] : []), N(d.products.length), 'รายการสินค้า')) + '</div>';
+    return head + ct + goCards + donutCard + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + foot;
   }
   function tile(lbl, val, sub, cls, meter) {
     return '<div class="tile ' + (cls || '') + '"><span class="lbl">' + lbl + '</span><span class="val">' + val + '</span><span class="sub">' + sub + '</span>' + (meter != null ? '<div class="meter"><i style="width:' + Math.min(100, meter) + '%"></i></div>' : '') + '</div>';
@@ -613,7 +617,7 @@
       { l: 'T3 · ตามรอบ 3', col: '#7c3aed', v: (r) => r.t3, t: (r) => r.target.t3 },
       { l: 'เวลาคุย', sub: 'นาที', col: '#475569', v: (r) => Math.round(r.talkSec / 60), t: (r) => Math.round(r.target.talkSec / 60) },
     ];
-    const cell = (v, t, col) => { const p = pct(v, t); return '<td><div class="kt-c"><span><b>' + N(v) + '</b><small>/' + N(t) + '</small></span><em style="color:' + col + '">' + p + '%</em></div><div class="kt-bar"><i style="width:' + p + '%;background:' + col + '"></i></div></td>'; };
+    const cell = (v, t, col) => { const p = pct(v, t), ok = t > 0 && v >= t, c2 = ok ? 'var(--good)' : col; return '<td' + (ok ? ' class="kt-ok"' : '') + '><div class="kt-c"><span><b>' + N(v) + '</b><small>/' + N(t) + '</small></span><em style="color:' + c2 + '">' + (ok ? '✓ ครบ' : p + '%') + '</em></div><div class="kt-bar"><i style="width:' + p + '%;background:' + c2 + '"></i></div></td>'; };
     const head = '<tr><th>รายการ</th>' + team.map((r) => { const u = user(r.user) || { name: r.name }; return '<th>' + esc(u.name) + '</th>'; }).join('') + '<th class="n">รวมทีม</th></tr>';
     const body = rows.map((x) => '<tr><td class="kt-l"><b style="color:' + x.col + '">' + x.l + '</b>' + (x.sub ? '<small>' + x.sub + '</small>' : '') + '</td>' + team.map((r) => cell(x.v(r), x.t(r), x.col)).join('') + '<td class="n"><b>' + N(team.reduce((s, r) => s + x.v(r), 0)) + '</b></td></tr>').join('') +
       '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขาย</b><small>จากการโทร</small></td>' + team.map((r) => '<td><div class="kt-c"><span><b style="color:var(--good)">' + B(r.amount) + '</b><small>/' + B(r.target.revenue) + '</small></span><em class="muted">' + N(r.orders) + ' ปิด</em></div>' + (r.appts.overdue ? '<small class="kt-od">เลยนัด ' + N(r.appts.overdue) + '</small>' : '') + '</td>').join('') +
@@ -632,6 +636,17 @@
       stat('ยอดขาย', r.amount, r.target.revenue, N(r.orders) + ' ออเดอร์', B) + '</div>' +
       '<div class="kpc-f"><span>ได้คุย <b>' + pctTxt(r.contactRate) + '</b></span><span>ปิดได้ <b>' + pctTxt(r.conversion) + '</b></span><span>นัดวันนี้ <b>' + r.appts.done + '/' + r.appts.due + '</b></span>' +
       (r.appts.overdue ? '<span class="bad">เลยนัด <b>' + N(r.appts.overdue) + '</b></span>' : '') + '</div></div>';
+  }
+  // donut: share of a whole, legend with amount + percent beside it
+  const DONUT_COL = ['#2563eb', '#0d9488', '#f59e0b', '#8b5cf6', '#ec4899'];
+  function donut(parts, center, sub) {
+    parts = parts.filter((p) => p.v > 0);
+    const tot = parts.reduce((t, p) => t + p.v, 0);
+    if (!tot) return '<div class="empty">ยังไม่มียอดขายในช่วงนี้</div>';
+    const R = 70, C = 2 * Math.PI * R; let acc = 0;
+    const segs = parts.map((p, i) => { const len = p.v / tot * C, gap = parts.length > 1 ? Math.min(3, len / 3) : 0; const s = '<circle class="dn-seg" style="--d:' + (i * 0.08) + 's" r="' + R + '" cx="90" cy="90" fill="none" stroke="' + p.c + '" stroke-width="22" stroke-dasharray="' + Math.max(0, len - gap) + ' ' + (C - Math.max(0, len - gap)) + '" stroke-dashoffset="' + (-acc) + '" transform="rotate(-90 90 90)"><title>' + esc(p.l) + ' : ' + B(p.v) + ' (' + Math.round(p.v / tot * 100) + '%)</title></circle>'; acc += len; return s; }).join('');
+    return '<div class="dn"><div class="dn-c"><svg viewBox="0 0 180 180" class="dn-svg"><circle r="' + R + '" cx="90" cy="90" fill="none" stroke="#eef2f7" stroke-width="22"/>' + segs + '</svg><div class="dn-mid"><b>' + center + '</b><small>' + sub + '</small></div></div>' +
+      '<div class="dn-leg">' + parts.map((p) => '<div class="dn-row"><i style="background:' + p.c + '"></i><span class="one">' + esc(p.l) + '</span><b>' + Math.round(p.v / tot * 100) + '%</b><small>' + B(p.v) + '</small></div>').join('') + '</div></div>';
   }
   // grouped bars by weekday: Telesales vs Admin side by side
   function weekdayBars(d) {
@@ -674,7 +689,8 @@
     for (let v = 0; v <= top + 0.001; v += step) g += '<line class="grid-l" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text class="ax" x="' + (padL - 10) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + fmtAxis(v) + '</text>';
     const every = Math.max(1, Math.ceil(days.length / 8));
     days.forEach((k, i) => { if (i % every === 0 || i === days.length - 1) { const dt = new Date(k + 'T00:00:00Z'); g += '<text class="ax" x="' + X(i) + '" y="' + (Hh - 8) + '" text-anchor="middle">' + dt.getUTCDate() + ' ' + H.TH_MON[dt.getUTCMonth()] + '</text>'; } });
-    g += '<path d="' + area + '" fill="url(#lc-fill)"/><path d="' + path + '" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+    g += '<path class="lc-area" d="' + area + '" fill="url(#lc-fill)"/><path class="lc-line" pathLength="1" d="' + path + '" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (days[days.length - 1] === H.today()) { const lp = pts[pts.length - 1]; g += '<circle class="lc-now-p" cx="' + lp[0] + '" cy="' + lp[1] + '" r="10"/><circle class="lc-now" cx="' + lp[0] + '" cy="' + lp[1] + '" r="5"/>'; }
     const colW = iw / Math.max(1, days.length - 1);
     days.forEach((k, i) => {
       const x = d.series[k], tipW = 168, tx = Math.min(Math.max(X(i) - tipW / 2, padL), W - padR - tipW), lines = rev ? [['Telesales', B(x.tele)], ['Admin', B(x.admin)]] : [['สาย', N(x.calls)]];
@@ -1526,6 +1542,31 @@
     if ($('.drawer-b') && keepScroll) $('.drawer-b').scrollTop = keepScroll;
     document.title = PAGES[S.page].t + ' : Evolution Hub Commerce';
     remember();
+    liven();
+  }
+  // ---- motion: numbers count up, bars fill, lines draw — only when the page or its numbers change
+  let lastLive = '';
+  const NUM_SEL = '.tile .val, .ap-tile b, .lc-total, .kt-c b, .kt td.n b, .dn-c b';
+  function liven() {
+    const app = document.getElementById('app');
+    const els = $$(NUM_SEL, app);
+    const key = S.page + '|' + (ui.chart || '') + '|' + els.map((e) => e.textContent).join(',');
+    if (key === lastLive) return;
+    lastLive = key;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    app.classList.remove('anim'); void app.offsetWidth; app.classList.add('anim');
+    clearTimeout(liven.t); liven.t = setTimeout(() => app.classList.remove('anim'), 1600);
+    for (const el of els) {
+      const node = [...el.childNodes].find((n) => n.nodeType === 3 && /\d/.test(n.nodeValue));
+      if (!node) continue;
+      const m = /^([^\d-]*)([\d,]+(?:\.\d+)?)(.*)$/.exec(node.nodeValue);
+      if (!m) continue;
+      const target = Number(m[2].replace(/,/g, '')); if (!target) continue;
+      const dec = (m[2].split('.')[1] || '').length, t0 = performance.now(), dur = 900;
+      const fmt = (v) => m[1] + v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) + m[3];
+      const step = (t) => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); node.nodeValue = fmt(k < 1 ? (dec ? target * e : Math.round(target * e)) : target); if (k < 1) requestAnimationFrame(step); };
+      node.nodeValue = fmt(0); requestAnimationFrame(step);
+    }
   }
 
   // ------------------------------------------------------------ events
