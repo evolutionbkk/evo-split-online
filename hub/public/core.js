@@ -247,6 +247,27 @@
     c.nextApptAt = open.length ? open[0].at : null;
   }
 
+  // Next call after a result, so telesales never has to work out dates or rounds.
+  // FB: talked at T1 -> T2 in 7 days, T2 -> T3 in 25 days, T3 -> T3 again in 30 days.
+  // Marketplace: talked -> repeat-order call in 25 days. No answer -> retry in 2 hours, then next morning.
+  const ROUND_NEXT = { T1: ['T2', 7, 'T2 ถามผลการใช้ เสนออัปเซล'], T2: ['T3', 25, 'T3 เช็กของใกล้หมด ชวนสั่งซ้ำ'], T3: ['T3', 30, 'T3 ชวนสั่งซ้ำรอบถัดไป'] };
+  function atDayTime(daysAhead, hhmm) { const d = addDays(today(), daysAhead); return new Date(Date.parse(d + 'T' + (hhmm || '10:00') + ':00Z') - TZ).toISOString(); }
+  function planNext(st, c, result) {
+    if (result === 'lost') return null;
+    if (result === 'no_answer') {
+      const tries = st.kpi.filter((k) => k.customerId === c.id && k.date === today() && k.result === 'no_answer').length;
+      return tries < 2 ? { at: new Date(Date.now() + 2 * 3600000).toISOString(), round: c.round, purpose: 'โทรซ้ำ (ไม่รับสายครั้งที่ ' + tries + ')' }
+        : { at: atDayTime(1, '10:30'), round: c.round, purpose: 'โทรซ้ำ ไม่รับสายเมื่อวาน' };
+    }
+    if (result === 'hot') return { at: atDayTime(2, '11:00'), round: c.round, purpose: 'ลูกค้าร้อน โทรปิดการขาย' };
+    if (result === 'warm') return { at: atDayTime(3, '11:00'), round: c.round, purpose: 'ลูกค้าขอคิด โทรตามผล' };
+    if (result === 'info') return { at: atDayTime(1, '11:00'), round: c.round, purpose: 'ส่งรายละเอียดแล้ว โทรถามต่อ' };
+    if (result === 'later') return { at: atDayTime(14, '11:00'), round: c.round, purpose: 'ลูกค้ายังไม่พร้อม โทรอีกครั้ง' };
+    if (c.channel === 'ecom') return { at: atDayTime(25, '10:30'), round: '', purpose: 'ชวนสั่งซ้ำ (Marketplace)' };
+    const nx = ROUND_NEXT[c.round || 'T1'] || ROUND_NEXT.T1;
+    return { at: atDayTime(nx[1], '10:30'), round: nx[0], purpose: nx[2] };
+  }
+
   // ---------------------------------------------------------------- permissions
   const PERM = {
     addCustomer: ['exec', 'lead', 'tele', 'admin'],
@@ -270,6 +291,14 @@
     updateSettings: ['exec', 'lead'],
     updateUser: ['exec', 'lead'],
     resetDemo: ['exec', 'lead'],
+    deleteCustomers: ['exec', 'lead'],
+    bulkUpdateCustomers: ['exec', 'lead', 'tele'],
+    deleteKpiMany: ['exec', 'lead', 'tele'],
+    deleteApprovals: ['exec', 'lead', 'admin'],
+    approveMany: ['exec', 'lead', 'tele'],
+    rejectMany: ['exec', 'lead'],
+    updateApptMany: ['exec', 'lead', 'tele'],
+    deleteApptMany: ['exec', 'lead', 'tele'],
   };
   function can(actor, type) {
     if (!actor) return false;
@@ -361,13 +390,18 @@
     c.callCount = (c.callCount || 0) + 1;
     if (k.round && c.channel !== 'ecom') c.round = k.round;
     pushNote(c, { by: actor.id, kind: 'call', result: res.id, durationSec, round: k.round, amount: k.amount,
-      text: [res.label + (k.lostReason ? ' (' + k.lostReason + ')' : ''), k.note].filter(Boolean).join(' · ') });
+      text: [res.label + (k.lostReason ? ' (' + k.lostReason + ')' : ''), k.note].filter(Boolean).join(' : ') });
+    let planned = null;
     if (p.nextAt) A.addAppt(st, { customerId: c.id, at: p.nextAt, purpose: p.nextPurpose || (res.id === 'won' ? 'ติดตามหลังการขาย' : 'โทรติดตาม'), round: p.nextRound || '' }, actor);
+    else if (p.autoNext) {
+      planned = planNext(st, c, res.id);
+      if (planned) A.addAppt(st, { customerId: c.id, at: planned.at, purpose: planned.purpose, round: planned.round || '', owner: c.owner || user }, actor);
+    }
     // close today's open appointment for this customer: the call was made
     for (const a of st.appointments) if (a.customerId === c.id && !a.done && dayKey(a.at) <= today() && a.id !== st._lastApptId) { a.done = true; a.doneAt = nowIso(); a.outcome = res.id; }
     setNextAppt(st, c);
     log(st, actor, userName(st, user) + ' โทรหา ' + (c.name || fmtPhone(c.phone)) + ' : ' + res.label + (k.amount ? ' ' + baht(k.amount) : ''));
-    return { kpiId: k.id };
+    return { kpiId: k.id, next: planned };
   };
 
   A.addAppt = (st, p, actor) => {
@@ -428,7 +462,7 @@
         items, amount, orders: amount > 0 ? 1 : 0 };
       if (c) {
         c.lastContactAt = nowIso(); c.updatedAt = nowIso(); c.status = res.id; c.callCount = (c.callCount || 0) + 1;
-        pushNote(c, { by: actor.id, kind: 'call', result: res.id, durationSec: k.durationSec, round, amount, text: res.label + (k.note ? ' · ' + k.note : '') + ' (บันทึกจากหน้า KPI)' });
+        pushNote(c, { by: actor.id, kind: 'call', result: res.id, durationSec: k.durationSec, round, amount, text: res.label + (k.note ? ' : ' + k.note : '') + ' (บันทึกจากหน้า KPI)' });
         if (amount > 0) { const o = pushOrder(c, { items, total: amount, source: 'tele', by: user, note: 'บันทึกจากหน้า KPI' }); k.orderId = o && o.id; }
       }
     }
@@ -482,7 +516,7 @@
     if (!ap.returning || !prev) { c.round = 'T1'; c.status = 'new'; }
     else { c.round = 'T1'; c.status = 'new'; }
     ap.status = 'approved'; ap.assigned = to; ap.decidedBy = actor.id; ap.decidedAt = nowIso(); ap.auto = !!p.auto;
-    pushNote(c, { by: actor.id, kind: 'assign', text: (p.auto ? 'ระบบมอบหมาย' : 'อนุมัติมอบหมาย') + 'ให้ ' + userName(st, to) + ' (T1)' + (ap.returning ? ' · ลูกค้าเก่าซื้อซ้ำ' : '') });
+    pushNote(c, { by: actor.id, kind: 'assign', text: (p.auto ? 'ระบบมอบหมาย' : 'อนุมัติมอบหมาย') + 'ให้ ' + userName(st, to) + ' (T1)' + (ap.returning ? ' : ลูกค้าเก่าซื้อซ้ำ' : '') });
     // T1 call is due today
     if (!st.appointments.some((a) => a.customerId === c.id && !a.done)) {
       const due = new Date(Date.now() + 2 * 3600000).toISOString();
@@ -524,7 +558,7 @@
       if (o) orders++; else dup++;
     }
     st.sync.bigseller = { ...(st.sync.bigseller || {}), lastRun: nowIso(), lastAdded: added, lastOrders: orders, lastMasked: masked };
-    log(st, actor, 'นำเข้า E-Commerce ' + rows.length + ' แถว · ลูกค้าใหม่ ' + added + ' · ออเดอร์ ' + orders);
+    log(st, actor, 'นำเข้า E-Commerce ' + rows.length + ' แถว : ลูกค้าใหม่ ' + added + ' : ออเดอร์ ' + orders);
     return { received: rows.length, added, orders, masked, invalid, dup };
   };
 
@@ -575,6 +609,77 @@
     if (p.pancakeName != null) u.pancakeName = clip(p.pancakeName, 80);
     if (u.pancakeName) { st.settings.pancakeAdminMap = st.settings.pancakeAdminMap || {}; st.settings.pancakeAdminMap[u.pancakeName] = u.id; }
     return { ok: true };
+  };
+
+  // ---- bulk actions for lists with checkboxes (validate everything first, then change)
+  A.deleteCustomers = (st, p, actor) => {
+    const ids = new Set(p.ids || []);
+    const before = st.customers.length;
+    st.customers = st.customers.filter((c) => !ids.has(c.id));
+    st.appointments = st.appointments.filter((a) => !ids.has(a.customerId));
+    for (const ap of st.approvals) if (ids.has(ap.customerId) && ap.status === 'pending') { ap.status = 'rejected'; ap.reason = 'ลบลูกค้าแล้ว'; }
+    const n = before - st.customers.length;
+    log(st, actor, 'ลบลูกค้า ' + n + ' ราย');
+    return { deleted: n };
+  };
+  A.bulkUpdateCustomers = (st, p, actor) => {
+    const list = (p.ids || []).map((id) => findCustomer(st, id)).filter(Boolean);
+    for (const c of list) if (!ownsOrBoss(actor, c)) throw err('มีลูกค้าที่อยู่กับเซลล์คนอื่น', 403);
+    for (const c of list) A.updateCustomer(st, { id: c.id, patch: p.patch || {} }, actor);
+    log(st, actor, 'แก้ไขลูกค้า ' + list.length + ' ราย');
+    return { updated: list.length };
+  };
+  A.deleteKpiMany = (st, p, actor) => {
+    const list = st.kpi.filter((k) => (p.ids || []).includes(k.id));
+    for (const k of list) if (!isBoss(actor) && (k.user !== actor.id || k.date !== today())) throw err('ลบได้เฉพาะรายการของตัวเองในวันนี้', 403);
+    for (const k of list) A.deleteKpi(st, { id: k.id }, actor);
+    return { deleted: list.length };
+  };
+  A.deleteApprovals = (st, p, actor) => {
+    const ids = new Set(p.ids || []);
+    const list = st.approvals.filter((a) => ids.has(a.id));
+    for (const ap of list) if (!isBoss(actor) && !(actor.role === 'admin' && ap.closer === actor.id && ap.status === 'pending')) throw err('ยกเลิกได้เฉพาะรายการของคุณที่ยังรออนุมัติ', 403);
+    for (const ap of list) {
+      const c = findCustomer(st, ap.customerId);
+      if (!c) continue;
+      c.orders = (c.orders || []).filter((o) => o.id !== ap.orderId);
+      if (!c.orders.length && (ap.status === 'pending' || !c.owner)) {
+        st.customers = st.customers.filter((x) => x.id !== c.id);
+        st.appointments = st.appointments.filter((a) => a.customerId !== c.id);
+      }
+    }
+    st.approvals = st.approvals.filter((a) => !ids.has(a.id));
+    log(st, actor, 'ยกเลิกการปิดการขาย ' + list.length + ' รายการ');
+    return { deleted: list.length };
+  };
+  A.approveMany = (st, p, actor) => {
+    const list = (p.ids || []).map((id) => st.approvals.find((a) => a.id === id)).filter((a) => a && a.status === 'pending');
+    for (const a of list) if (actor.role === 'tele' && a.proposed !== actor.id) throw err('มีรายการที่เสนอให้เซลล์คนอื่น', 403);
+    for (const a of list) A.approve(st, { id: a.id, to: p.to }, actor);
+    return { approved: list.length };
+  };
+  A.rejectMany = (st, p, actor) => {
+    const list = (p.ids || []).map((id) => st.approvals.find((a) => a.id === id)).filter((a) => a && a.status === 'pending');
+    for (const a of list) A.reject(st, { id: a.id, reason: p.reason }, actor);
+    return { rejected: list.length };
+  };
+  A.updateApptMany = (st, p, actor) => {
+    const list = st.appointments.filter((a) => (p.ids || []).includes(a.id));
+    for (const a of list) if (!isBoss(actor) && a.owner !== actor.id) throw err('มีนัดของเซลล์คนอื่น', 403);
+    for (const a of list) {
+      if (p.done) { a.done = true; a.doneAt = nowIso(); }
+      if (p.shiftDays) a.at = new Date(Date.parse(a.at) + p.shiftDays * 86400000).toISOString();
+      const c = findCustomer(st, a.customerId); if (c) setNextAppt(st, c);
+    }
+    return { updated: list.length };
+  };
+  A.deleteApptMany = (st, p, actor) => {
+    const ids = new Set(p.ids || []);
+    const list = st.appointments.filter((a) => ids.has(a.id));
+    for (const a of list) if (!isBoss(actor) && a.owner !== actor.id) throw err('มีนัดของเซลล์คนอื่น', 403);
+    st.appointments = st.appointments.filter((a) => !ids.has(a.id));
+    for (const a of list) { const c = findCustomer(st, a.customerId); if (c) setNextAppt(st, c); }
+    return { deleted: list.length };
   };
 
   function apply(st, type, payload, actor) {
@@ -768,6 +873,6 @@
     TZ, ROLES, RESULTS, LOST_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
     emptyState, normalize, apply, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
-    visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele,
+    visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };
 });

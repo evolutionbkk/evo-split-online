@@ -59,9 +59,9 @@
     calMonth: H.today().slice(0, 7), calDay: H.today(), calOwner: 'all',
     kpiMode: 'call', kpiUser: null, kpiDate: H.today(), apTab: 'pending', drawer: null, dTab: 'call', closeAdmin: 'all',
   };
-  try { Object.assign(ui, JSON.parse(localStorage.getItem('hub-ui') || '{}'), { drawer: null, q: '' }); } catch (_) { /* storage blocked */ }
+  try { Object.assign(ui, JSON.parse(localStorage.getItem('hub-ui') || '{}'), { drawer: null }); } catch (_) { /* storage blocked */ }
   if (ui.calMonth < H.today().slice(0, 7) || ui.kpiDate !== H.today()) { ui.calMonth = H.today().slice(0, 7); ui.calDay = H.today(); ui.kpiDate = H.today(); }
-  const remember = () => { try { const { drawer, q, ...rest } = ui; localStorage.setItem('hub-ui', JSON.stringify(rest)); } catch (_) { /* ignore */ } };
+  const remember = () => { try { const { drawer, ...rest } = ui; localStorage.setItem('hub-ui', JSON.stringify(rest)); } catch (_) { /* ignore */ } };
   const V = () => S.view;
   const boss = () => H.isBoss(S.me);
   const user = (id) => H.userById(S.full || S.view, id);
@@ -134,20 +134,21 @@
 
   // ------------------------------------------------------------ navigation
   const PAGES = {
-    home: { t: 'หน้าหลัก', crumb: 'Evolution Hub Commerce', ico: 'home' },
-    overview: { t: 'ภาพรวมผู้บริหาร', crumb: 'ผู้บริหาร > Overview', ico: 'chart' },
-    customers: { t: 'ลูกค้าของฉัน', crumb: 'Telesales > รายชื่อลูกค้า', ico: 'users' },
-    calendar: { t: 'ปฏิทินนัดหมาย', crumb: 'Telesales > นัดโทรลูกค้า', ico: 'calendar' },
-    kpi: { t: 'บันทึก KPI', crumb: 'Telesales > KPI รายวัน', ico: 'clip' },
-    close: { t: 'บันทึกปิดการขาย', crumb: 'Admin Sales > ปิดการขาย', ico: 'cart' },
-    approvals: { t: 'รออนุมัติรายชื่อ', crumb: 'แจกรายชื่อ FB Page 50:50', ico: 'inbox' },
-    settings: { t: 'ตั้งค่าระบบ', crumb: 'ผู้บริหาร > ตั้งค่า', ico: 'gear' },
+    home: { t: 'Home', crumb: 'Evolution Hub Commerce : หน้าหลัก', ico: 'home' },
+    overview: { t: 'Overview', crumb: 'Executive : ภาพรวมทีมขาย', ico: 'chart' },
+    today: { t: 'Today', crumb: 'Telesales : คิวโทรวันนี้', ico: 'phone' },
+    customers: { t: 'Customers', crumb: 'Telesales : รายชื่อลูกค้า', ico: 'users' },
+    calendar: { t: 'Calendar', crumb: 'Telesales : ปฏิทินนัดโทรลูกค้า', ico: 'calendar' },
+    kpi: { t: 'KPI Log', crumb: 'Telesales : บันทึก KPI รายวัน', ico: 'clip' },
+    close: { t: 'Close Sale', crumb: 'Admin Sales : บันทึกปิดการขาย', ico: 'cart' },
+    approvals: { t: 'Lead Approval', crumb: 'Telesales : แจกรายชื่อ FB Page 50:50', ico: 'inbox' },
+    settings: { t: 'Settings', crumb: 'System : ตั้งค่าและการเชื่อมต่อ', ico: 'gear' },
   };
   function allowed(page) {
     const r = S.me.role;
     if (page === 'home') return true;
     if (page === 'overview' || page === 'settings') return boss();
-    if (['customers', 'calendar', 'kpi'].includes(page)) return boss() || r === 'tele';
+    if (['today', 'customers', 'calendar', 'kpi'].includes(page)) return boss() || r === 'tele';
     if (page === 'close') return boss() || r === 'admin';
     if (page === 'approvals') return boss() || r === 'tele';
     return false;
@@ -167,17 +168,17 @@
     const me = S.me, role = me.role;
     const nb = (id, label) => allowed(id) ? '<button class="' + (S.page === id ? 'on' : '') + '" data-go="' + id + '">' + ico(PAGES[id].ico) + '<span>' + label + '</span>' + (id === 'approvals' && pendingCount() ? '<span class="badge">' + pendingCount() + '</span>' : '') + (id === 'calendar' && overdueAppts().length ? '<span class="badge">' + overdueAppts().length + '</span>' : '') + '</button>' : '';
     const nav = [
-      nb('home', 'หน้าหลัก'),
-      boss() ? '<div class="nav-label">ผู้บริหาร</div>' + nb('overview', 'ภาพรวม Overview') : '',
-      (boss() || role === 'tele') ? '<div class="nav-label">Telesales</div>' + nb('customers', boss() ? 'รายชื่อลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'รออนุมัติรายชื่อ' : 'รายชื่อใหม่ส่งถึงฉัน') : '',
-      (boss() || role === 'admin') ? '<div class="nav-label">Admin Sales</div>' + nb('close', 'บันทึกปิดการขาย') : '',
-      boss() ? '<div class="nav-label">ระบบ</div>' + nb('settings', 'ตั้งค่า & การเชื่อมต่อ') : '',
+      nb('home', 'Home'),
+      boss() ? '<div class="nav-label">Executive</div>' + nb('overview', 'Overview') : '',
+      (boss() || role === 'tele') ? '<div class="nav-label">Telesales</div>' + nb('today', 'Today') + nb('customers', boss() ? 'Customers' : 'My Customers') + nb('calendar', 'Calendar') + nb('kpi', 'KPI Log') + nb('approvals', boss() ? 'Lead Approval' : 'New Leads') : '',
+      (boss() || role === 'admin') ? '<div class="nav-label">Admin Sales</div>' + nb('close', 'Close Sale') : '',
+      boss() ? '<div class="nav-label">System</div>' + nb('settings', 'Settings') : '',
     ].join('');
     const p = PAGES[S.page];
     const bellN = pendingCount() + overdueAppts().length;
     const sync = (V().sync || {}).pancake || {};
     return (DEMO ? demoBar() : '') +
-      '<div class="shell"><aside class="side" aria-label="เมนู"><div class="brand"><b>EVOLUTION</b><small>Hub Commerce · ทีมขาย Office</small></div>' +
+      '<div class="shell"><aside class="side" aria-label="เมนู"><div class="brand"><b>EVOLUTION</b><small>Hub Commerce : ทีมขาย Office</small></div>' +
       '<nav class="nav">' + nav + '</nav>' +
       '<div class="side-foot"><b>สถานะการเชื่อมต่อ</b><span class="live">Pancake ' + (sync.lastRun ? H.thTime(sync.lastRun) + ' น.' : 'รอเชื่อมต่อ') + '</span><span style="opacity:.75">ข้อมูลอัปเดตอัตโนมัติ</span></div></aside>' +
       '<div class="main"><header class="head"><button class="icon-btn burger" data-act="menu" aria-label="เปิดเมนู">' + ico('menu') + '</button>' +
@@ -189,7 +190,7 @@
   }
   function demoBar() {
     const ppl = (S.full.users || []).map((u) => '<button class="' + (S.me.id === u.id ? 'on' : '') + '" data-act="demo-user" data-id="' + u.id + '">' + esc(u.name) + '</button>').join('');
-    return '<div class="demo-bar"><b>โหมดตัวอย่าง</b><span>ข้อมูลลูกค้าเป็นข้อมูลสมมติ ทดลองกดบันทึกได้ทุกปุ่ม · ดูในมุมมองของ</span><div class="seg">' + ppl + '</div><button class="link" data-act="demo-reset">ล้างข้อมูลตัวอย่าง</button></div>';
+    return '<div class="demo-bar"><b>โหมดตัวอย่าง</b><span>ข้อมูลลูกค้าเป็นข้อมูลสมมติ ทดลองกดบันทึกได้ทุกปุ่ม : ดูในมุมมองของ</span><div class="seg">' + ppl + '</div><button class="link" data-act="demo-reset">ล้างข้อมูลตัวอย่าง</button></div>';
   }
 
   // ------------------------------------------------------------ helpers (UI)
@@ -197,13 +198,6 @@
   const roundTag = (r) => r ? '<span class="tag ' + r.toLowerCase() + '">' + r + '</span>' : '';
   const platformTag = (p) => '<span class="tag">' + esc((H.PLATFORMS[p] || {}).label || p || '-') + '</span>';
   const srcLabel = { tele: 'Telesales', admin: 'Admin ปิดการขาย', pancake: 'Pancake (Admin)', ecom: 'E-Commerce', manual: 'บันทึกเอง', legacy: 'ระบบเดิม' };
-  function rangeOf(key) {
-    const t = H.today();
-    if (key === 'yesterday') { const y = H.addDays(t, -1); return [y, y, 'เมื่อวาน']; }
-    if (key === '7d') return [H.addDays(t, -6), t, '7 วันล่าสุด'];
-    if (key === 'month') return [t.slice(0, 8) + '01', t, 'เดือนนี้'];
-    return [t, t, 'วันนี้'];
-  }
   function meterCls(p) { return p >= 100 ? 'good' : p >= 60 ? 'warn' : 'bad'; }
   function lastOrderLine(c) {
     const o = (c.orders || [])[0]; if (!o) return '<span class="faint">ยังไม่มีออเดอร์</span>';
@@ -242,6 +236,225 @@
   const fromLocal = (v) => v ? new Date(Date.parse(v + ':00Z') - H.TZ).toISOString() : '';
   function plusDays(n, hh) { const d = H.addDays(H.today(), n); return d + 'T' + (hh || '10:00'); }
 
+  // ------------------------------------------------------------ list standard
+  // Search, dropdowns, paging (10/20/50/100), checkboxes with bulk actions, date range.
+  // Same look and behaviour on every list in the hub.
+  const PER_OPTS = [10, 20, 50, 100];
+  ui.lists = ui.lists || {};
+  ui.dr = ui.dr || {};
+  ui.cStatus = ui.cStatus || [];
+  const SEL = {}, LVITEMS = {}, LVID = {}, LVB = {};
+  const ls = (key) => ui.lists[key] || (ui.lists[key] = { page: 1, per: 20 });
+  const sel = (key) => SEL[key] || (SEL[key] = { ids: new Set(), all: false });
+  function resetList(key) { ls(key).page = 1; SEL[key] = { ids: new Set(), all: false }; }
+  function refreshList(key) { const el = document.getElementById('lv-' + key); if (el && LVB[key]) { el.innerHTML = LVB[key](); remember(); } else render(); }
+  function selectedOf(key) { const s = sel(key), items = LVITEMS[key] || []; return s.all ? items.slice() : items.filter((i) => s.ids.has(LVID[key](i))); }
+  function pageNums(cur, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    let a = Math.max(2, cur - 1), b = Math.min(total - 1, cur + 1);
+    if (cur <= 3) { a = 2; b = 4; }
+    if (cur >= total - 2) { a = total - 3; b = total - 1; }
+    const out = [1]; if (a > 2) out.push('…');
+    for (let i = a; i <= b; i++) out.push(i);
+    if (b < total - 1) out.push('…'); out.push(total);
+    return out;
+  }
+  // cfg: { key, items, id, head:[{h,cls}], row(it)->[td...], click(it)->customerId, actions:[{act,label,icon,danger}], rowDelete(it)->bool, rowDeleteAct, empty }
+  function listView(cfg) {
+    LVITEMS[cfg.key] = cfg.items; LVID[cfg.key] = cfg.id;
+    const st = ls(cfg.key), s = sel(cfg.key), n = cfg.items.length;
+    if (!n) return cfg.empty;
+    if (!PER_OPTS.includes(st.per)) st.per = 20;
+    const pages = Math.max(1, Math.ceil(n / st.per)); if (st.page > pages) st.page = pages; if (st.page < 1) st.page = 1;
+    const from = (st.page - 1) * st.per, slice = cfg.items.slice(from, from + st.per);
+    const selectable = !!(cfg.actions && cfg.actions.length);
+    const ids = slice.map(cfg.id);
+    const isOn = (id) => s.all || s.ids.has(id);
+    const pageAll = selectable && ids.length > 0 && ids.every(isOn);
+    const count = s.all ? n : s.ids.size;
+    const K = ' data-key="' + cfg.key + '"';
+    let bar = '';
+    if (selectable && count) {
+      bar = '<div class="selbar"><b>เลือกแล้ว ' + N(count) + ' รายการ</b>' +
+        (pageAll && !s.all && n > ids.length ? '<button class="link" data-act="ls-selall"' + K + '>เลือกทั้งหมด ' + N(n) + ' รายการ</button>' : '') +
+        '<span class="grow"></span>' + cfg.actions.map((a) => '<button class="btn sm' + (a.danger ? ' danger' : '') + '" data-act="' + a.act + '"' + K + '>' + (a.icon ? ico(a.icon) : '') + ' ' + a.label + '</button>').join('') +
+        '<button class="btn sm" data-act="ls-clear"' + K + '>ยกเลิกการเลือก</button></div>';
+    }
+    const th = (selectable ? '<th class="ck"><input type="checkbox" data-act="ls-pageall"' + K + ' aria-label="เลือกทั้งหมดในหน้านี้"' + (pageAll ? ' checked' : '') + '></th>' : '') +
+      cfg.head.map((h) => '<th class="' + (h.cls || '') + '">' + h.h + '</th>').join('') + (cfg.rowDelete ? '<th class="n"><span class="sr">ลบ</span></th>' : '');
+    const rows = slice.map((it) => {
+      const id = cfg.id(it), on = isOn(id), cid = cfg.click ? cfg.click(it) : '';
+      return '<tr class="' + (cid ? 'click ' : '') + (on ? 'sel' : '') + '"' + (cid ? ' data-open="' + esc(cid) + '"' : '') + '>' +
+        (selectable ? '<td class="ck"><input type="checkbox" data-act="ls-check"' + K + ' data-id="' + esc(id) + '"' + (on ? ' checked' : '') + ' aria-label="เลือกรายการ"></td>' : '') +
+        cfg.row(it).join('') +
+        (cfg.rowDelete ? '<td class="n">' + (cfg.rowDelete(it) ? '<button class="x" data-act="' + cfg.rowDeleteAct + '"' + K + ' data-id="' + esc(id) + '" aria-label="ลบรายการนี้" title="ลบ">' + ico('x') + '</button>' : '') + '</td>' : '') + '</tr>';
+    }).join('');
+    const pager = n > 10 ? '<div class="pager"><span class="small muted">แสดง ' + N(from + 1) + ' - ' + N(Math.min(n, from + st.per)) + ' จาก ' + N(n) + ' รายการ</span><span class="grow"></span>' +
+      '<div class="seg sm" aria-label="จำนวนต่อหน้า">' + PER_OPTS.map((p) => '<button class="' + (st.per === p ? 'on' : '') + '" data-act="ls-per"' + K + ' data-v="' + p + '">' + p + '</button>').join('') + '</div>' +
+      (pages > 1 ? '<div class="pages"><button data-act="ls-page"' + K + ' data-v="' + (st.page - 1) + '"' + (st.page <= 1 ? ' disabled' : '') + ' aria-label="หน้าก่อน">‹</button>' +
+        pageNums(st.page, pages).map((p) => p === '…' ? '<span>…</span>' : '<button class="' + (p === st.page ? 'on' : '') + '" data-act="ls-page"' + K + ' data-v="' + p + '"' + (p === st.page ? ' aria-current="page"' : '') + '>' + p + '</button>').join('') +
+        '<button data-act="ls-page"' + K + ' data-v="' + (st.page + 1) + '"' + (st.page >= pages ? ' disabled' : '') + ' aria-label="หน้าถัดไป">›</button></div>' : '') + '</div>'
+      : '<div class="small faint" style="margin-top:10px">ทั้งหมด ' + N(n) + ' รายการ</div>';
+    return bar + '<div class="tbl-wrap"><table class="tbl"><thead><tr>' + th + '</tr></thead><tbody>' + rows + '</tbody></table></div>' + pager;
+  }
+  function emptyState(msg, buttons) { return '<div class="empty"><div>' + msg + '</div>' + (buttons ? '<div class="row" style="justify-content:center;margin-top:10px">' + buttons + '</div>' : '') + '</div>'; }
+  function searchBox(key, placeholder, value) {
+    return '<div class="search"><span class="s-ico">' + ico('search') + '</span><input class="in" id="q-' + key + '" data-search="' + key + '" placeholder="' + esc(placeholder) + '" value="' + esc(value || '') + '" aria-label="' + esc(placeholder) + '" autocomplete="off">' +
+      '<button class="s-x" data-act="search-clear" data-key="' + key + '" aria-label="ล้างคำค้น"' + (value ? '' : ' hidden') + '>' + ico('x') + '</button></div>';
+  }
+  // segmented control for 4 options or fewer
+  function segF(label, act, opts, value) {
+    return '<div class="seg-f"><span class="lbl">' + label + '</span><div class="seg sm">' + opts.map((o) => '<button class="' + (String(value) === String(o.v) ? 'on' : '') + '" data-act="' + act + '" data-v="' + esc(o.v) + '">' + esc(o.l) + '</button>').join('') + '</div></div>';
+  }
+
+  // ---- dropdown: plain (5-10), with search (>10), multi-select with checkboxes
+  const DD = {};
+  function ddBtn(key, cfg) {
+    DD[key] = cfg;
+    let txt;
+    if (cfg.multi) {
+      const vals = cfg.value || [], picked = cfg.options.filter((o) => vals.includes(o.v));
+      txt = !picked.length ? cfg.label + ' : ทั้งหมด' : picked.length <= 2 ? cfg.label + ' : ' + picked.map((o) => o.l).join(', ') : cfg.label + ' (' + picked.length + ')';
+    } else {
+      const o = cfg.options.find((x) => String(x.v) === String(cfg.value)) || cfg.options[0];
+      txt = cfg.label + ' : ' + o.l;
+    }
+    return '<button class="dd-btn' + ((cfg.multi ? (cfg.value || []).length : String(cfg.value) !== String(cfg.options[0].v)) ? ' set' : '') + '" data-act="dd-open" data-key="' + key + '" aria-haspopup="listbox"><span class="one">' + esc(txt) + '</span><span class="caret">▾</span></button>';
+  }
+  let pop = null;
+  function openPop(btn, html, cls) {
+    closePop();
+    pop = document.createElement('div'); pop.className = 'pop-layer' + (innerWidth <= 640 ? ' sheet' : '');
+    pop.innerHTML = '<div class="pop-backdrop"></div><div class="pop ' + (cls || '') + '" role="dialog">' + html + '</div>';
+    document.body.appendChild(pop);
+    const box = $('.pop', pop);
+    if (innerWidth > 640) {
+      const r = btn.getBoundingClientRect();
+      let left = Math.max(12, Math.min(r.left, innerWidth - box.offsetWidth - 12));
+      let top = r.bottom + 6;
+      if (top + box.offsetHeight > innerHeight - 12) top = Math.max(12, r.top - box.offsetHeight - 6);
+      box.style.left = left + 'px'; box.style.top = top + 'px';
+    }
+    $('.pop-backdrop', pop).addEventListener('click', closePop);
+    pop._btn = btn;
+    return box;
+  }
+  function closePop() { if (pop) { const b = pop._btn; pop.remove(); pop = null; if (b && b.isConnected) b.focus(); } }
+  function openDropdown(btn) {
+    const cfg = DD[btn.dataset.key]; if (!cfg) return;
+    const temp = new Set(cfg.multi ? (cfg.value || []) : []);
+    const many = cfg.options.length > 10;
+    const box = openPop(btn, '<div class="pop-h">' + esc(cfg.label) + '</div>' + (many ? '<div class="search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาตัวเลือก" aria-label="ค้นหาตัวเลือก"></div>' : '') +
+      '<div class="dd-list" role="listbox"' + (cfg.multi ? ' aria-multiselectable="true"' : '') + '>' + cfg.options.map((o) => '<button type="button" role="option" class="dd-opt" data-pv="' + esc(o.v) + '">' + (cfg.multi ? '<span class="ck-box"></span>' : '') + '<span class="one">' + esc(o.l) + '</span><span class="tick">✓</span></button>').join('') + '</div>' +
+      (cfg.multi ? '<div class="dd-foot"><button type="button" class="btn sm" data-pv-act="clear">ล้าง</button><button type="button" class="btn primary sm" data-pv-act="ok">ตกลง</button></div>' : ''), 'dd-pop');
+    const sync = () => $$('.dd-opt', box).forEach((b) => { const on = cfg.multi ? temp.has(b.dataset.pv) : b.dataset.pv === String(cfg.value); b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    sync();
+    box.addEventListener('click', (e) => {
+      const o = e.target.closest('.dd-opt');
+      if (o) { if (cfg.multi) { temp.has(o.dataset.pv) ? temp.delete(o.dataset.pv) : temp.add(o.dataset.pv); sync(); } else { closePop(); cfg.onPick(o.dataset.pv); } return; }
+      const a = e.target.closest('[data-pv-act]');
+      if (a) { if (a.dataset.pvAct === 'clear') { temp.clear(); sync(); } else { closePop(); cfg.onPick([...temp]); } }
+    });
+    const s = $('.search input', box);
+    if (s) s.addEventListener('input', () => { const q = s.value.trim().toLowerCase(); $$('.dd-opt', box).forEach((b) => { b.hidden = !!q && !b.textContent.toLowerCase().includes(q); }); });
+    box.addEventListener('keydown', (e) => {
+      const opts = $$('.dd-opt', box).filter((b) => !b.hidden); const i = opts.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); (opts[i + 1] || opts[0]).focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); (opts[i - 1] || opts[opts.length - 1]).focus(); }
+    });
+    (s || $('.dd-opt.on', box) || $('.dd-opt', box)).focus();
+  }
+
+  // ---- date range (same as Return & Refund): presets, day/week/month/custom, Monday-first, Thai time
+  const DR_MODES = { today: 'วันนี้', '7d': '7 วันที่ผ่านมา', '28d': '28 วันที่ผ่านมา', all: 'ทั้งหมด', day: 'วัน', week: 'สัปดาห์', month: 'เดือน', custom: 'กำหนดเอง' };
+  const DRCB = {};
+  const drGet = (key, def) => ui.dr[key] || (ui.dr[key] = { mode: def || 'all' });
+  function drRange(key) {
+    const d = drGet(key), T = H.today();
+    if (d.mode === 'today') return [T, T];
+    if (d.mode === '7d') return [H.addDays(T, -6), T];
+    if (d.mode === '28d') return [H.addDays(T, -27), T];
+    if (d.mode === 'all' || !d.from) return [null, null];
+    return [d.from, d.to];
+  }
+  const drFmt = (day) => { const [y, m, dd] = day.split('-').map(Number); return H.TH_MON[m - 1] + ' ' + dd + ', ' + y; };
+  function drText(key) { const d = drGet(key), [f, t] = drRange(key); return DR_MODES[d.mode] + ' : ' + (f ? drFmt(f) + ' - ' + drFmt(t) : 'ทุกช่วงเวลา'); }
+  function drBtn(key, def, onChange) { drGet(key, def); DRCB[key] = onChange; return '<button class="dd-btn' + (drGet(key).mode !== 'all' ? ' set' : '') + '" data-act="dr-open" data-key="' + key + '">' + ico('calendar') + '<span class="one">' + esc(drText(key)) + '</span><span class="caret">▾</span></button>'; }
+  function openDateRange(btn) {
+    const key = btn.dataset.key, cur = drGet(key), T = H.today();
+    let tab = ['day', 'week', 'month', 'custom'].includes(cur.mode) ? cur.mode : 'custom';
+    let [rf, rt] = drRange(key);
+    let view = (rt || T).slice(0, 7);
+    let tempStart = null;
+    const apply = (val) => { ui.dr[key] = val; closePop(); remember(); if (DRCB[key]) DRCB[key](); };
+    const clip = (d) => (d > T ? T : d);
+    const monStart = (d) => { const dow = (new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7; return H.addDays(d, -dow); };
+    const lastOfMonth = (ym) => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); };
+    const box = openPop(btn, '<div class="dr"></div>', 'dr-pop');
+    const host = $('.dr', box);
+    const draw = () => {
+      const [y, m] = view.split('-').map(Number);
+      let grid = '';
+      if (tab === 'month') {
+        grid = '<div class="dr-months">' + H.TH_MON.map((mn, i) => { const ym = y + '-' + String(i + 1).padStart(2, '0'); const fut = ym + '-01' > T; const on = rf && rf.slice(0, 7) === ym && cur.mode === 'month'; return '<button type="button" class="' + (on ? 'edge' : '') + '" data-ym="' + ym + '"' + (fut ? ' disabled' : '') + '>' + mn + '</button>'; }).join('') + '</div>';
+      } else {
+        const first = view + '-01', start = monStart(first);
+        grid = '<div class="dr-grid">' + ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'].map((d) => '<span class="dow">' + d + '</span>').join('');
+        for (let i = 0; i < 42; i++) {
+          const d = H.addDays(start, i);
+          if (i >= 35 && d.slice(0, 7) !== view) break;
+          const a = tempStart || rf, b = tempStart ? null : rt;
+          const cls = [d.slice(0, 7) !== view ? 'out' : '', d === T ? 'today' : '', (a && b && d > a && d < b) ? 'in' : '', (d === a || d === b) ? 'edge' : ''].join(' ');
+          grid += '<button type="button" class="' + cls + '" data-day="' + d + '"' + (d > T ? ' disabled' : '') + '>' + Number(d.slice(8)) + '</button>';
+        }
+        grid += '</div>';
+      }
+      host.innerHTML = '<div class="dr-side">' + ['today', '7d', '28d', 'all'].map((k) => '<button type="button" class="' + (cur.mode === k ? 'on' : '') + '" data-preset="' + k + '">' + DR_MODES[k] + '</button>').join('') + '</div>' +
+        '<div class="dr-main"><div class="seg sm dr-tabs">' + ['day', 'week', 'month', 'custom'].map((k) => '<button type="button" class="' + (tab === k ? 'on' : '') + '" data-tab="' + k + '">' + DR_MODES[k] + '</button>').join('') + '</div>' +
+        '<div class="dr-nav"><button type="button" data-nav="-12" aria-label="ปีก่อน">«</button><button type="button" data-nav="-1" aria-label="เดือนก่อน">‹</button><b>' + (tab === 'month' ? y : H.TH_MON[m - 1] + ' ' + y) + '</b><button type="button" data-nav="1" aria-label="เดือนถัดไป">›</button><button type="button" data-nav="12" aria-label="ปีถัดไป">»</button></div>' +
+        grid + '<div class="small muted dr-hint">' + (tab === 'custom' ? (tempStart ? 'เลือกวันสิ้นสุด' : 'เลือกวันเริ่ม แล้วเลือกวันสิ้นสุด') : tab === 'week' ? 'เลือกวันใดก็ได้ในสัปดาห์ (จันทร์ - อาทิตย์)' : tab === 'month' ? 'เลือกเดือน' : 'เลือกวัน') + ' : นับตามเวลาไทย</div></div>';
+    };
+    draw();
+    host.addEventListener('mouseover', (e) => {
+      if (tab !== 'custom' || !tempStart) return;
+      const h = e.target.closest('[data-day]'); if (!h) return;
+      const a = tempStart < h.dataset.day ? tempStart : h.dataset.day, b = tempStart < h.dataset.day ? h.dataset.day : tempStart;
+      $$('[data-day]', host).forEach((x) => x.classList.toggle('in', x.dataset.day > a && x.dataset.day < b));
+    });
+    host.addEventListener('click', (e) => {
+      const t = e.target.closest('button'); if (!t || t.disabled) return;
+      if (t.dataset.preset) return apply({ mode: t.dataset.preset });
+      if (t.dataset.tab) { tab = t.dataset.tab; tempStart = null; return draw(); }
+      if (t.dataset.nav) { const n = Number(t.dataset.nav); let [yy, mm] = view.split('-').map(Number); mm += n; while (mm < 1) { mm += 12; yy--; } while (mm > 12) { mm -= 12; yy++; } view = yy + '-' + String(mm).padStart(2, '0'); return draw(); }
+      if (t.dataset.ym) return apply({ mode: 'month', from: t.dataset.ym + '-01', to: clip(lastOfMonth(t.dataset.ym)) });
+      const d = t.dataset.day; if (!d) return;
+      if (tab === 'day') return apply({ mode: 'day', from: d, to: d });
+      if (tab === 'week') { const s0 = monStart(d); return apply({ mode: 'week', from: s0, to: clip(H.addDays(s0, 6)) }); }
+      if (!tempStart) { tempStart = d; return draw(); }
+      const a = tempStart < d ? tempStart : d, b = tempStart < d ? d : tempStart;   // end before start → swap
+      return apply({ mode: 'custom', from: a, to: b });
+    });
+  }
+
+  // ---- confirm before delete, CSV export
+  function confirmDelete(o) {
+    openModal('<div class="row between" style="margin-bottom:6px"><h2 style="font-size:18px">' + esc(o.title) + '</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' +
+      '<p style="margin:8px 0">ต้องการ' + esc(o.verb || 'ลบ') + ' <b>' + N(o.count) + ' รายการ</b> ใช่ไหม</p>' +
+      (o.names && o.names.length ? '<div class="small muted">เช่น ' + o.names.slice(0, 3).map(esc).join(', ') + (o.count > 3 ? ' และอีก ' + N(o.count - 3) + ' รายการ' : '') + '</div>' : '') +
+      (o.warn ? '<div class="warnbox">' + ico('alert') + '<span>' + esc(o.warn) + '</span></div>' : '') +
+      '<div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn" data-act="close-modal">ยกเลิก</button><button class="btn danger-solid" id="confirm-ok">' + esc(o.okLabel || (o.verb || 'ลบ') + ' ' + N(o.count) + ' รายการ') + '</button></div>');
+    $('#confirm-ok', modal).onclick = () => { closeModal(); o.onOk(); };
+  }
+  function downloadCsv(name, rows) {
+    const q = (x) => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';
+    try {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['﻿' + rows.map((r) => r.map(q).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' }));
+      a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      toast('ส่งออก ' + N(rows.length - 1) + ' รายการแล้ว');
+    } catch (e) { toast('ส่งออกไฟล์จากหน้านี้ไม่ได้', true); }
+  }
+
   // ------------------------------------------------------------ HOME
   function pageHome() {
     const v = V(), me = S.me, full = S.full || v;
@@ -261,10 +474,10 @@
     const tk = dash ? dash.teamSum : null;
     const depts = [
       { id: 'overview', ico: 'brief', th: 'ผู้บริหาร', en: 'Executive', who: team.filter((u) => H.isBoss(u)), desc: 'ภาพรวมยอดขายทุกช่องทาง KPI ทีม Telesales และงานที่ต้องตัดสินใจ', stats: dash ? [[B(dash.total), 'ยอดขายวันนี้'], [N(dash.pending), 'รออนุมัติ']] : null },
-      { id: 'customers', ico: 'headset', th: 'Telesales', en: 'Telesales', who: team.filter((u) => u.role === 'tele'), desc: 'รายชื่อ E-Commerce และ FB Page, Ticket ลูกค้า, ปฏิทินนัด และบันทึก KPI', stats: myK ? [[myK.fbCalls + myK.mktCalls + '/' + (myK.target.fb + myK.target.mkt), 'สายวันนี้'], [B(myK.amount), 'ยอดขาย']] : tk ? [[N(tk.calls), 'สายวันนี้ทั้งทีม'], [B(tk.amount), 'ยอดขาย Telesales']] : null },
+      { id: 'today', ico: 'headset', th: 'Telesales', en: 'Telesales', who: team.filter((u) => u.role === 'tele'), desc: 'รายชื่อ E-Commerce และ FB Page, Ticket ลูกค้า, ปฏิทินนัด และบันทึก KPI', stats: myK ? [[myK.fbCalls + myK.mktCalls + '/' + (myK.target.fb + myK.target.mkt), 'สายวันนี้'], [B(myK.amount), 'ยอดขาย']] : tk ? [[N(tk.calls), 'สายวันนี้ทั้งทีม'], [B(tk.amount), 'ยอดขาย Telesales']] : null },
       { id: 'close', ico: 'msg', th: 'Admin Sales', en: 'Admin Sales', who: team.filter((u) => u.role === 'admin'), desc: 'บันทึกการปิดการขายจาก FB Page ระบบแจกรายชื่อให้ Telesales 50:50 อัตโนมัติ', stats: v.adminBoard ? [[N((v.adminBoard.find((x) => x.user === me.id) || {}).closes || 0), 'ปิดได้วันนี้'], [B((v.adminBoard.find((x) => x.user === me.id) || {}).revenue || 0), 'ยอดวันนี้']] : dash ? [[N(dash.cnt.admin), 'ออเดอร์วันนี้'], [B(dash.rev.admin), 'ยอดแอดมิน']] : null },
     ];
-    return '<section class="banner"><div class="grow"><h1>ยินดีต้อนรับสู่ Evolution Hub Commerce</h1><p>' + esc(me.name) + ' : ' + H.thDate(T) + ' · เลือกฝ่ายงานด้านล่างเพื่อเริ่มทำงาน</p></div><div class="stack">' + team.map((u) => av(u)).join('') + '</div></section>' +
+    return '<section class="banner"><div class="grow"><h1>ยินดีต้อนรับสู่ Evolution Hub Commerce</h1><p>' + esc(me.name) + ' : ' + H.thDate(T) + ' : เลือกฝ่ายงานด้านล่างเพื่อเริ่มทำงาน</p></div><div class="stack">' + team.map((u) => av(u)).join('') + '</div></section>' +
       '<div class="grid g2">' + card('mega', 'ประกาศข่าวสาร', 'Announcements', anns.length ? '<div class="ann">' + anns.map((a) => '<div class="ann-item"><div><b>' + esc(a.title) + '</b>' + (a.body ? '<div class="small muted">' + esc(a.body) + '</div>' : '') + '<small>' + H.thDate(a.at, true) + ' : ' + esc(uname(a.by)) + '</small></div></div>').join('') + '</div>' : '<div class="empty">ยังไม่มีประกาศ</div>', boss() ? '<button class="link" data-go="settings">จัดการประกาศ</button>' : '') + right + '</div>' +
       '<div class="grid g3">' + depts.map((d) => {
         const ok = allowed(d.id);
@@ -286,12 +499,15 @@
   // ------------------------------------------------------------ OVERVIEW (executive)
   function pageOverview() {
     const st = S.full || V();
-    const [from, to, label] = rangeOf(ui.range);
+    const ovd = drGet('ov', 'today');
+    let [from, to] = drRange('ov');
+    if (!from) { from = H.today(); for (const k of (st.kpi || [])) if (k.date < from) from = k.date; for (const c of st.customers || []) { const d = H.dayKey(c.createdAt); if (d && d < from) from = d; } if (H.daysBetween(from, H.today()) > 365) from = H.addDays(H.today(), -365); to = H.today(); }
+    const label = ovd.mode === 'today' ? 'วันนี้' : DR_MODES[ovd.mode];
     const d = H.dashboard(st, from, to);
     const t = st.settings.targets;
     const monthPct = pct(d.monthRev, d.monthTarget);
-    const head = '<div class="row between"><div><h2 style="font-size:20px">ภาพรวมทีมขาย : ' + label + '</h2><div class="small muted">' + (from === to ? H.thDate(from) : H.thDate(from) + ' - ' + H.thDate(to)) + ' · ยอด Telesales มาจากบันทึก KPI · ยอดแอดมินมาจาก Pancake/บันทึกปิดการขาย · E-Commerce จาก BigSeller</div></div>' +
-      '<div class="row"><div class="seg">' + [['today', 'วันนี้'], ['yesterday', 'เมื่อวาน'], ['7d', '7 วัน'], ['month', 'เดือนนี้']].map(([k, l]) => '<button class="' + (ui.range === k ? 'on' : '') + '" data-act="range" data-v="' + k + '">' + l + '</button>').join('') + '</div>' +
+    const head = '<div class="row between"><div><h2 style="font-size:20px">ภาพรวมทีมขาย : ' + label + '</h2><div class="small muted">' + (from === to ? H.thDate(from) : H.thDate(from) + ' - ' + H.thDate(to)) + ' : ยอด Telesales มาจากบันทึก KPI : ยอดแอดมินมาจาก Pancake/บันทึกปิดการขาย : E-Commerce จาก BigSeller</div></div>' +
+      '<div class="row">' + drBtn('ov', 'today', render) +
       '<button class="btn sm" data-act="refresh">' + ico('refresh') + ' รีเฟรช</button></div></div>';
     const tiles = '<div class="tiles">' +
       tile('ยอดขายรวม', B(d.total), 'เดือนนี้ ' + B(d.monthRev) + ' : ' + monthPct + '% ของเป้า ' + B(d.monthTarget), 'hero', monthPct) +
@@ -300,7 +516,7 @@
       tile('<i style="background:var(--c-ecom)"></i>E-Commerce', B(d.rev.ecom), N(d.cnt.ecom) + ' ออเดอร์ Lazada / Shopee / TikTok') +
       tile('ออเดอร์ทั้งหมด', N(d.orders), 'เฉลี่ย ' + B(d.aov) + ' ต่อออเดอร์') +
       tile('งานที่ต้องจัดการ', N(d.pending + d.overdue), 'รออนุมัติ ' + d.pending + ' : เลยนัด ' + d.overdue + ' : เงียบเกินกำหนด ' + d.stale, d.pending + d.overdue ? 'alert' : '') + '</div>';
-    const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : FB ' + t.fbCalls + ' สาย (T1 ' + t.t1 + ' · T2 ' + t.t2 + ' · T3 ' + t.t3 + ') · Marketplace ' + t.mktCalls + ' สาย · คุย ' + t.talkMinutes + ' นาที · ยอด ' + B(t.teleRevenue) + (from !== to ? ' · คูณตามจำนวนวันอัตโนมัติ' : '') + '</small></div>' +
+    const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : FB ' + t.fbCalls + ' สาย (T1 ' + t.t1 + ' : T2 ' + t.t2 + ' : T3 ' + t.t3 + ') : Marketplace ' + t.mktCalls + ' สาย : คุย ' + t.talkMinutes + ' นาที : ยอด ' + B(t.teleRevenue) + (from !== to ? ' : คูณตามจำนวนวันอัตโนมัติ' : '') + '</small></div>' +
       '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button></div>' + d.team.map(kpiPerson).join('') + '</section>';
     // daily chart: at least 14 days for context
     const cFrom = H.daysBetween(from, to) < 13 ? H.addDays(to, -13) : from;
@@ -317,12 +533,12 @@
       [['รายชื่อเข้าใหม่', f.leads], ['โทรแล้ว', f.called], ['ได้คุย', f.talked], ['ปิดการขาย', f.won]].map(([l, v]) => '<div class="funnel-row"><span>' + l + '</span><span class="bar"><i style="width:' + Math.max(2, pct(v, fMax)) + '%"></i></span><span class="v">' + N(v) + '</span></div>').join('') +
       '</div><div class="row small muted" style="margin-top:12px;gap:16px"><span>อัตราติดต่อได้ <b style="color:var(--text)">' + pctTxt(d.contactRate) + '</b></span><span>อัตราปิดการขาย <b style="color:var(--text)">' + pctTxt(d.conversion) + '</b></span><span>ยอดต่อสายที่ได้คุย <b style="color:var(--text)">' + B(d.teamSum.talked ? d.teamSum.amount / d.teamSum.talked : 0) + '</b></span></div>');
     const hrs = d.hours.slice(8, 22), hMax = Math.max(1, ...hrs.map((h) => h.calls + h.orders));
-    const heatCard = card('clock', 'ช่วงเวลาโทรและขาย', 'จำนวนสาย + ออเดอร์ต่อชั่วโมง (08:00-21:00)', '<div class="heat">' + hrs.map((h, i) => { const v = h.calls + h.orders; return '<div title="' + (i + 8) + ':00 น. : ' + h.calls + ' สาย · ' + h.orders + ' ออเดอร์" style="opacity:' + (0.12 + 0.88 * v / hMax).toFixed(2) + ';color:' + (v / hMax > .5 ? '#fff' : 'var(--text)') + '">' + (v || '') + '</div>'; }).join('') + '</div><div class="heat-lbl">' + hrs.map((h, i) => '<span>' + (i + 8) + '</span>').join('') + '</div>' +
+    const heatCard = card('clock', 'ช่วงเวลาโทรและขาย', 'จำนวนสาย + ออเดอร์ต่อชั่วโมง (08:00-21:00)', '<div class="heat">' + hrs.map((h, i) => { const v = h.calls + h.orders; return '<div title="' + (i + 8) + ':00 น. : ' + h.calls + ' สาย : ' + h.orders + ' ออเดอร์" style="opacity:' + (0.12 + 0.88 * v / hMax).toFixed(2) + ';color:' + (v / hMax > .5 ? '#fff' : 'var(--text)') + '">' + (v || '') + '</div>'; }).join('') + '</div><div class="heat-lbl">' + hrs.map((h, i) => '<span>' + (i + 8) + '</span>').join('') + '</div>' +
       '<div class="small muted" style="margin-top:10px">ช่วงที่คึกคักที่สุด : <b style="color:var(--text)">' + (hrs.reduce((b, h, i) => (h.calls + h.orders > b.v ? { v: h.calls + h.orders, i } : b), { v: -1, i: 0 }).i + 8) + ':00 น.</b></div>');
     const alerts = '<div class="alerts">' +
       alertRow('bad', d.pending, 'รายชื่อรออนุมัติ', 'แอดมินปิดการขายแล้ว รอส่งให้ Telesales', 'approvals') +
       alertRow('bad', d.overdue, 'นัดโทรที่เลยกำหนด', 'ลูกค้าที่นัดไว้แต่ยังไม่ได้โทร', 'calendar') +
-      alertRow('warn', d.stale, 'ลูกค้าเงียบเกินกำหนด', 'FB เกิน ' + st.settings.staleDays.fb + ' วัน · Marketplace เกิน ' + st.settings.staleDays.ecom + ' วัน ไม่มีความเคลื่อนไหว', 'customers', 'due') +
+      alertRow('warn', d.stale, 'ลูกค้าเงียบเกินกำหนด', 'FB เกิน ' + st.settings.staleDays.fb + ' วัน : Marketplace เกิน ' + st.settings.staleDays.ecom + ' วัน ไม่มีความเคลื่อนไหว', 'customers', 'due') +
       alertRow('info', d.todayAppts - d.todayApptsDone, 'นัดที่เหลือของวันนี้', 'ทำแล้ว ' + d.todayApptsDone + ' จาก ' + d.todayAppts + ' นัด', 'calendar') + '</div>';
     const lr = Object.entries(d.lostReasons).sort((a, b) => b[1] - a[1]);
     const pf = Object.entries(d.platform).sort((a, b) => b[1] - a[1]), pfMax = Math.max(1, ...pf.map((x) => x[1]));
@@ -345,13 +561,13 @@
     const bar = (label, v, t, mini, fmt) => { const p = pct(v, t); return '<div class="kp-bar"><div class="top"><span>' + label + '</span><b>' + (fmt ? fmt(v) : N(v)) + ' / ' + (fmt ? fmt(t) : N(t)) + '</b></div><div class="meter ' + meterCls(p) + '"><i style="width:' + p + '%"></i></div>' + (mini ? '<div class="mini">' + mini + '</div>' : '') + '</div>'; };
     return '<div class="kpi-person"><div class="kp-who">' + av(u, 'lg') + '<div><b>' + esc(u.name) + '</b><span class="pill ' + s[0] + '">' + s[1] + '</span><div class="small muted" style="margin-top:4px">ผ่าน ' + r.passed + '/4 เกณฑ์</div></div></div>' +
       '<div class="kp-bars">' +
-      bar('โทร FB (Pancake)', r.fbCalls, r.target.fb, 'T1 ' + r.t1 + '/' + r.target.t1 + ' · T2 ' + r.t2 + '/' + r.target.t2 + ' · T3 ' + r.t3 + '/' + r.target.t3) +
+      bar('โทร FB (Pancake)', r.fbCalls, r.target.fb, 'T1 ' + r.t1 + '/' + r.target.t1 + ' : T2 ' + r.t2 + '/' + r.target.t2 + ' : T3 ' + r.t3 + '/' + r.target.t3) +
       bar('โทร Marketplace', r.mktCalls, r.target.mkt, 'Lazada / Shopee / TikTok / Evolution') +
       bar('เวลาคุยรวม', r.talkSec, r.target.talkSec, 'เฉลี่ย ' + H.dur(r.talked ? r.talkSec / r.talked : 0) + ' ต่อสายที่ได้คุย', (x) => Math.round(x / 60) + ' น.') +
       bar('ยอดขาย', r.amount, r.target.revenue, r.orders + ' ออเดอร์ : เฉลี่ย ' + B(r.aov), B) +
       '<div class="kp-foot"><span>ได้คุย <b>' + r.talked + '/' + r.calls + '</b> (' + pctTxt(r.contactRate) + ')</span><span>ปิดได้ <b>' + r.orders + '</b> (' + pctTxt(r.conversion) + ' ของสายที่คุย)</span><span>ยอดต่อสายที่คุย <b>' + B(r.perTalk) + '</b></span>' +
-      '<span>นัด : ทำแล้ว <b>' + r.appts.done + '/' + r.appts.due + '</b>' + (r.appts.overdue ? ' · <b style="color:var(--bad)">เลยนัด ' + r.appts.overdue + '</b>' : '') + '</span>' +
-      '<span title="ตัวเลขจากระบบ OneCall ใช้ตรวจเทียบกับที่บันทึกเอง">OneCall : <b>' + r.oc.calls + '</b> สาย · คุยจริง <b>' + Math.round(r.oc.talkSec / 60) + '</b> น.</span></div></div></div>';
+      '<span>นัด : ทำแล้ว <b>' + r.appts.done + '/' + r.appts.due + '</b>' + (r.appts.overdue ? ' : <b style="color:var(--bad)">เลยนัด ' + r.appts.overdue + '</b>' : '') + '</span>' +
+      '<span title="ตัวเลขจากระบบ OneCall ใช้ตรวจเทียบกับที่บันทึกเอง">OneCall : <b>' + r.oc.calls + '</b> สาย : คุยจริง <b>' + Math.round(r.oc.talkSec / 60) + '</b> น.</span></div></div></div>';
   }
   function barChart(d) {
     const days = d.days, W = Math.max(560, days.length * 46), Hh = 230, padL = 52, padB = 26, padT = 12, iw = W - padL - 10, ih = Hh - padB - padT;
@@ -374,65 +590,182 @@
   }
   function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, x)))); const n = x / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p; }
 
+  // ------------------------------------------------------------ TODAY (call queue for Telesales)
+  // One customer at a time, in the order they should be called. One tap logs the result,
+  // counts KPI and books the next call automatically (T1 -> T2 -> T3).
+  ui.tq = ui.tq || { bucket: 'all', user: null };
+  const qSkipped = new Set();
+  let qCur = null, qTimer0 = null, qTick = null;
+  const Q_BUCKETS = [{ v: 'all', l: 'ทั้งหมด' }, { v: 'appt', l: 'นัดถึงเวลา' }, { v: 'new', l: 'ใหม่ T1' }, { v: 'T2', l: 'T2' }, { v: 'T3', l: 'T3' }, { v: 'mkt', l: 'Marketplace' }];
+  function queueFor(who) {
+    const v = V(), now = Date.now(), endToday = Date.parse(H.addDays(H.today(), 1) + 'T00:00:00Z') - H.TZ;
+    const out = [];
+    for (const c of (v.customers || [])) {
+      if (c.owner !== who || c.status === 'lost' || c.status === 'won' && !c.nextApptAt) continue;
+      const appt = c.nextApptAt ? Date.parse(c.nextApptAt) : null;
+      let why = null, rank = 9, t = appt || 0;
+      if (appt && appt <= endToday) { why = appt < now - 3600000 ? 'late' : 'appt'; rank = appt < now ? 0 : 3; }
+      else if (!appt && c.status === 'new') { why = 'new'; rank = 1; t = Date.parse(c.assignedAt || c.createdAt || 0); }
+      else if (!appt && H.isStale(v, c)) { why = 'stale'; rank = 4; t = Date.parse(c.updatedAt || 0); }
+      if (!why) continue;
+      const bucket = c.channel === 'ecom' ? 'mkt' : why === 'new' ? 'new' : (c.round === 'T2' || c.round === 'T3') ? c.round : (why === 'appt' || why === 'late') ? 'appt' : 'new';
+      out.push({ c, why, rank, t, bucket, appt });
+    }
+    return out.sort((a, b) => a.rank - b.rank || a.t - b.t);
+  }
+  const WHY = { late: ['bad', 'เลยนัด'], appt: ['warn', 'นัดวันนี้'], new: ['info', 'รายชื่อใหม่'], stale: ['mute', 'เงียบนาน'] };
+  function pageToday() {
+    const v = V(), T = H.today();
+    const tele = H.teles(S.full || v);
+    const who = boss() ? (ui.tq.user && tele.find((u) => u.id === ui.tq.user) ? ui.tq.user : (tele[0] || {}).id) : S.me.id;
+    if (!who) return emptyState('ยังไม่มี Telesales ในระบบ');
+    const all = queueFor(who);
+    const counts = {}; Q_BUCKETS.forEach((b) => { counts[b.v] = b.v === 'all' ? all.length : b.v === 'appt' ? all.filter((x) => x.why === 'appt' || x.why === 'late').length : all.filter((x) => x.bucket === b.v).length; });
+    const list = ui.tq.bucket === 'all' ? all : ui.tq.bucket === 'appt' ? all.filter((x) => x.why === 'appt' || x.why === 'late') : all.filter((x) => x.bucket === ui.tq.bucket);
+    const ready = list.filter((x) => !qSkipped.has(x.c.id));
+    const pick = ready.find((x) => x.c.id === qCur) || ready[0] || list[0] || null;
+    if (!pick || pick.c.id !== qCur) { qCur = pick ? pick.c.id : null; qTimer0 = null; }
+    const k = H.teleKpi(v, who, T, T);
+    const target = k.target.fb + k.target.mkt, done = k.fbCalls + k.mktCalls;
+    const head = '<section class="q-head"><div class="q-prog"><div class="row between"><b>วันนี้โทรแล้ว ' + done + ' / ' + target + ' สาย</b><span class="small muted">' + (target > done ? 'เหลืออีก ' + (target - done) + ' สาย' : 'ครบเป้าแล้ว') + '</span></div>' +
+      '<div class="meter ' + meterCls(pct(done, target)) + '" style="height:10px"><i style="width:' + pct(done, target) + '%"></i></div>' +
+      '<div class="q-stats"><span>ได้คุย <b>' + k.talked + '</b></span><span>ปิดได้ <b>' + k.orders + '</b></span><span>ยอดขาย <b>' + B(k.amount) + '</b></span><span>เวลาคุย <b>' + Math.round(k.talkSec / 60) + ' น.</b></span></div></div>' +
+      (boss() ? segF('ดูคิวของ', 'tq-user', tele.map((u) => ({ v: u.id, l: u.name })), who) : '') + '</section>' +
+      '<div class="chips q-buckets">' + Q_BUCKETS.map((b) => '<button class="chip ' + (ui.tq.bucket === b.v ? 'on' : '') + '" data-act="tq-bucket" data-v="' + b.v + '">' + b.l + '<span class="c">' + counts[b.v] + '</span></button>').join('') + '</div>';
+    if (!pick) return head + '<section class="card q-card">' + emptyState('<b style="font-size:17px;color:var(--text)">เคลียร์คิวนี้ครบแล้ว</b><div class="small" style="margin-top:4px">ลูกค้าที่โทรแล้วจะกลับมาในคิวเองตามวันนัดครั้งถัดไป</div>', '<button class="btn sm" data-go="customers">ดูลูกค้าทั้งหมด</button>' + (ui.tq.bucket !== 'all' ? '<button class="btn sm" data-act="tq-bucket" data-v="all">ดูคิวทั้งหมด</button>' : '')) + '</section>';
+    const c = pick.c, o = (c.orders || [])[0];
+    const idx = list.indexOf(pick) + 1;
+    const lastNote = (c.notes || []).find((n) => n.kind === 'call' || n.kind === 'note');
+    const days = o ? H.daysBetween(H.dayKey(o.date), T) : null;
+    const reason = WHY[pick.why];
+    const goal = c.channel === 'fb' ? (H.ROUNDS[c.round || 'T1']) : 'ลูกค้า Marketplace : แนะนำตัว ถามผลการใช้ ชวนสั่งซ้ำช่องทางโทร';
+    const prods = products().slice(0, 14);
+    const next = ready.filter((x) => x !== pick).slice(0, 5);
+    return head + '<div class="grid q-grid"><section class="card q-card" data-q="' + c.id + '">' +
+      '<div class="row" style="gap:8px"><span class="pill ' + reason[0] + '">' + reason[1] + (pick.appt ? ' ' + H.thTime(new Date(pick.appt).toISOString()) : '') + '</span>' + (c.channel === 'fb' ? roundTag(c.round || 'T1') : platformTag(c.platform)) + '<span class="grow"></span><span class="small muted">คิวที่ ' + idx + ' จาก ' + list.length + '</span></div>' +
+      '<h2 class="q-name one">' + esc(c.name || 'ไม่ระบุชื่อ') + '</h2>' +
+      '<div class="q-dial"><div><span class="phone-big">' + H.fmtPhone(c.phone) + '</span> <button class="copy" data-act="copy" data-text="' + esc(H.normPhone(c.phone)) + '">คัดลอก</button></div>' +
+      '<a class="btn primary lg" href="tel:' + esc(H.normPhone(c.phone)) + '" data-act="q-dial">' + ico('phone') + ' โทรเลย</a><span class="q-timer" id="q-timer">' + (qTimer0 ? H.hms((Date.now() - qTimer0) / 1000) : '00:00:00') + '</span></div>' +
+      '<div class="q-goal"><b>คุยเรื่องอะไร</b><span>' + esc(pick.why === 'appt' || pick.why === 'late' ? ((V().appointments || []).find((a) => a.customerId === c.id && !a.done) || {}).purpose || goal : goal) + '</span></div>' +
+      '<div class="q-facts"><div><small>ซื้อล่าสุด</small><b class="one">' + (o ? esc((o.items || []).map((i) => i.name + (i.qty > 1 ? ' x' + i.qty : '')).join(', ') || 'ออเดอร์') : 'ยังไม่มี') + '</b><span class="small muted">' + (o ? B(o.total) + ' : ' + (days === 0 ? 'วันนี้' : days + ' วันก่อน') : '-') + '</span></div>' +
+      '<div><small>ซื้อทั้งหมด</small><b>' + B(H.customerTotal(c)) + '</b><span class="small muted">' + (c.orders || []).length + ' ครั้ง : โทรแล้ว ' + (c.callCount || 0) + ' ครั้ง</span></div></div>' +
+      (lastNote ? '<div class="q-note">' + ico('note') + '<span class="one">ครั้งก่อน : ' + esc(lastNote.text) + '</span></div>' : '') +
+      '<div class="section-t" style="margin-top:4px">ผลการโทร</div>' +
+      '<div class="q-out"><button class="q-btn mute" data-act="q-save" data-r="no_answer">' + ico('phone') + '<b>ไม่รับสาย</b><small>ระบบนัดโทรซ้ำให้เอง</small></button>' +
+      '<button class="q-btn info" data-act="q-sub" data-v="talk">' + ico('msg') + '<b>คุยแล้ว</b><small>ยังไม่ซื้อ</small></button>' +
+      '<button class="q-btn good" data-act="q-sub" data-v="sale">' + ico('bag') + '<b>ปิดการขายได้</b><small>เลือกสินค้า</small></button>' +
+      '<button class="q-btn warn" data-act="q-sub" data-v="later">' + ico('calendar') + '<b>นัดโทรใหม่</b><small>ลูกค้าขอให้โทรกลับ</small></button></div>' +
+      '<div class="q-sub" data-sub="talk" hidden><div class="small muted">ลูกค้าเป็นอย่างไร (กดแล้วบันทึกทันที)</div><div class="chips">' +
+      [['hot', 'สนใจมาก', 'นัด 2 วัน'], ['warm', 'ขอคิดก่อน', 'นัด 3 วัน'], ['info', 'ขอรายละเอียด', 'นัดพรุ่งนี้'], ['later', 'ยังไม่พร้อม', 'นัด 14 วัน'], [c.channel === 'fb' ? 'followup' : 'followup', 'คุยจบรอบนี้', c.channel === 'fb' ? 'ขึ้นรอบถัดไป' : 'นัด 25 วัน']].map(([r, l, d]) => '<button class="chip" data-act="q-save" data-r="' + r + '">' + l + ' <span class="c">' + d + '</span></button>').join('') +
+      '<button class="chip" data-act="q-lost">ไม่สนใจ</button></div><div class="chips" data-lost hidden>' + H.LOST_REASONS.map((r) => '<button class="chip" data-act="q-save" data-r="lost" data-reason="' + esc(r) + '">' + esc(r) + '</button>').join('') + '</div></div>' +
+      '<div class="q-sub" data-sub="sale" hidden><div class="small muted">แตะสินค้าที่ขายได้ (แตะซ้ำเพิ่มจำนวน)</div><div class="chips q-prods">' + prods.map((p) => '<button class="chip" data-act="q-prod" data-code="' + esc(p.code) + '">' + esc(p.name) + ' <span class="c">' + B(p.price) + '</span></button>').join('') + '</div>' +
+      '<div class="q-cart" id="q-cart"></div><div class="f2"><label class="field"><span>ยอดขาย (บาท)</span><input class="in" type="number" min="0" id="q-amount" placeholder="คำนวณให้อัตโนมัติ"></label><div class="field"><span>การชำระเงิน</span><div class="seg sm" data-seg-pay><button class="on" data-act="q-pay" data-v="won">ชำระแล้ว</button><button data-act="q-pay" data-v="awaiting_payment">รอชำระ</button></div></div></div>' +
+      '<button class="btn good lg" data-act="q-save" data-r="sale">' + ico('check') + ' บันทึกการขาย</button></div>' +
+      '<div class="q-sub" data-sub="later" hidden><div class="small muted">โทรกลับเมื่อไร</div><div class="chips">' + [[0, 'เย็นนี้', '17:00'], [1, 'พรุ่งนี้', '10:30'], [3, 'อีก 3 วัน', '10:30'], [7, 'อีก 7 วัน', '10:30']].map(([d, l, t]) => '<button class="chip" data-act="q-later" data-d="' + d + '" data-t="' + t + '">' + l + '</button>').join('') + '</div>' +
+      '<div class="row" style="flex-wrap:nowrap"><input class="in" type="datetime-local" id="q-later-at" aria-label="วันเวลานัด"><button class="btn primary" data-act="q-save" data-r="followup-custom">บันทึกนัด</button></div></div>' +
+      '<div class="q-extra"><input class="in" id="q-note" placeholder="โน้ตสั้น ๆ (ไม่บังคับ)" aria-label="โน้ต"><label class="q-dur"><span class="small muted">เวลาคุย</span><input class="in" id="q-dur" placeholder="นาที:วินาที" inputmode="numeric" aria-label="เวลาคุย นาที:วินาที"></label></div>' +
+      '<div class="row between"><button class="btn sm" data-act="q-skip">ข้ามไปก่อน</button><button class="btn sm" data-open="' + c.id + '">' + ico('note') + ' ดูประวัติทั้งหมด</button></div></section>' +
+      '<aside class="card q-next"><div class="section-t">คิวถัดไป</div>' + (next.length ? next.map((x) => '<button class="q-next-row" data-act="q-jump" data-id="' + x.c.id + '"><span class="pill ' + WHY[x.why][0] + '">' + WHY[x.why][1] + '</span><span class="one">' + esc(x.c.name || H.fmtPhone(x.c.phone)) + '</span>' + (x.c.channel === 'fb' ? roundTag(x.c.round || 'T1') : '<span class="tag">MKT</span>') + '</button>').join('') : '<div class="small faint">ไม่มีคิวถัดไป</div>') +
+      (qSkipped.size ? '<button class="link small" data-act="q-unskip" style="margin-top:8px">นำรายชื่อที่ข้ามกลับเข้าคิว (' + qSkipped.size + ')</button>' : '') +
+      '<div class="small muted" style="margin-top:12px">ลำดับคิว : เลยนัด → รายชื่อใหม่ → นัดวันนี้ → ลูกค้าเงียบนาน</div></aside></div>';
+  }
+  const qCart = {};
+  function qCartHtml() {
+    const items = Object.entries(qCart).filter(([, q]) => q > 0);
+    const total = items.reduce((s, [code, q]) => s + q * ((products().find((p) => p.code === code) || {}).price || 0), 0);
+    const amt = $('#q-amount'); if (amt && !amt.dataset.touched) amt.value = total || '';
+    return items.map(([code, q]) => { const p = products().find((x) => x.code === code) || { name: code, price: 0 }; return '<span class="pill info">' + esc(p.name) + ' x' + q + ' <button class="x" style="width:20px;height:20px" data-act="q-unprod" data-code="' + esc(code) + '" aria-label="เอาออก">' + ico('x') + '</button></span>'; }).join('');
+  }
+  function qDuration() {
+    const raw = ($('#q-dur') || {}).value || '';
+    if (raw.trim()) { const parts = raw.split(/[:.\s]/).map(Number); return parts.length > 1 ? (parts[0] || 0) * 60 + (parts[1] || 0) : (parts[0] || 0) * 60; }
+    return qTimer0 ? Math.round((Date.now() - qTimer0) / 1000) : 0;
+  }
+  async function qSave(el) {
+    const id = qCur; if (!id) return;
+    let r = el.dataset.r, payload = { customerId: id, durationSec: qDuration(), note: ($('#q-note') || {}).value || '', autoNext: true };
+    if (r === 'sale') {
+      const items = Object.entries(qCart).filter(([, q]) => q > 0).map(([code, qty]) => ({ name: code, qty }));
+      if (!items.length && !Number(($('#q-amount') || {}).value)) { toast('แตะเลือกสินค้าที่ขายได้ก่อน', true); return; }
+      r = ($('[data-seg-pay] .on') || {}).dataset ? $('[data-seg-pay] .on').dataset.v : 'won';
+      Object.assign(payload, { items, amount: ($('#q-amount') || {}).value });
+    } else if (r === 'followup-custom') {
+      const at = fromLocal(($('#q-later-at') || {}).value); if (!at) { toast('เลือกวันเวลาที่จะโทรกลับ', true); return; }
+      r = 'followup'; payload.nextAt = at; payload.nextPurpose = 'ลูกค้าขอให้โทรกลับ';
+    } else if (r === 'lost') payload.lostReason = el.dataset.reason;
+    payload.result = r;
+    if (r === 'followup' && !payload.nextAt) payload.autoNext = true;   // "คุยจบรอบนี้": move to the next round
+    const c = H.findCustomer(V(), id);
+    const res = await run(() => api.act('logCall', payload), (x) => 'บันทึกแล้ว : ' + (c ? c.name : '') + (x && x.next ? ' : โทรครั้งถัดไป ' + H.thDate(x.next.at, true) + (x.next.round ? ' (' + x.next.round + ')' : '') : r === 'lost' ? ' : ปิดรายชื่อนี้' : ''));
+    if (res !== null) { Object.keys(qCart).forEach((k) => delete qCart[k]); qCur = null; qTimer0 = null; render(); }
+  }
+
   // ------------------------------------------------------------ CUSTOMERS (Telesales)
+  const C_STATUS_OPTS = [{ v: 'due', l: 'ต้องโทรวันนี้' }].concat(Object.entries(H.STATUS).map(([k, s]) => ({ v: k, l: s.label })));
+  function custFiltersActive() { return (ui.cStatus || []).length > 0 || (ui.custTab === 'fb' && ui.round !== 'all') || (boss() && ui.owner !== 'all') || !!drRange('cust')[0]; }
   function custList() {
-    const v = V(); const T = H.today();
+    const v = V(), T = H.today();
     let list = (v.customers || []).filter((c) => c.channel === ui.custTab && (c.owner || boss()));
     if (boss() && ui.owner !== 'all') list = list.filter((c) => (ui.owner === 'none' ? !c.owner : c.owner === ui.owner));
-    const q = ui.q.trim().toLowerCase(), qd = q.replace(/\D/g, '');
-    if (q) list = list.filter((c) => (c.name || '').toLowerCase().includes(q) || (qd.length >= 3 && H.normPhone(c.phone).includes(qd)) || (c.orders || []).some((o) => (o.items || []).some((i) => i.name.toLowerCase().includes(q))) || (c.address || '').toLowerCase().includes(q));
+    const q = (ui.q || '').trim().toLowerCase(), qd = q.replace(/\D/g, '');
+    if (q) list = list.filter((c) => (c.name || '').toLowerCase().includes(q) || (qd.length >= 3 && H.normPhone(c.phone).includes(qd)) || (c.address || '').toLowerCase().includes(q) ||
+      (c.orders || []).some((o) => (o.extId || '').toLowerCase().includes(q) || (o.items || []).some((i) => (i.name || '').toLowerCase().includes(q))));
+    const [f, t] = drRange('cust');
+    if (f) list = list.filter((c) => { const o = (c.orders || [])[0]; const d = o ? H.dayKey(o.date) : ''; return d && d >= f && d <= t; });
     const due = (c) => c.status === 'new' || (c.nextApptAt && H.dayKey(c.nextApptAt) <= T) || H.isStale(v, c);
-    const counts = { all: list.length, due: list.filter(due).length };
-    for (const k of Object.keys(H.STATUS)) counts[k] = list.filter((c) => c.status === k).length;
-    if (ui.status === 'due') list = list.filter(due);
-    else if (ui.status === 'hotwarm') list = list.filter((c) => ['hot', 'warm', 'info'].includes(c.status));
-    else if (ui.status === 'closed') list = list.filter((c) => ['won', 'awaiting_payment'].includes(c.status));
-    else if (ui.status !== 'all') list = list.filter((c) => c.status === ui.status);
+    const sts = ui.cStatus || [];
+    if (sts.length) list = list.filter((c) => sts.some((s) => (s === 'due' ? due(c) : c.status === s)));
     if (ui.custTab === 'fb' && ui.round !== 'all') list = list.filter((c) => c.round === ui.round);
     const score = (c) => { if (c.nextApptAt && Date.parse(c.nextApptAt) < Date.now()) return 0; if (c.nextApptAt && H.dayKey(c.nextApptAt) === T) return 1; if (c.status === 'new') return 2; if (H.isStale(v, c)) return 3; return 4; };
-    list.sort((a, b) => score(a) - score(b) || (Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0)));
-    return { list, counts };
+    return list.sort((a, b) => score(a) - score(b) || (Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0)));
   }
   function pageCustomers() {
     const v = V(), T = H.today();
-    const fbN = (v.customers || []).filter((c) => c.channel === 'fb' && (c.owner || boss()) && (!boss() || ui.owner === 'all' || c.owner === ui.owner)).length;
-    const ecN = (v.customers || []).filter((c) => c.channel === 'ecom' && (c.owner || boss()) && (!boss() || ui.owner === 'all' || c.owner === ui.owner)).length;
+    const scope = (ch) => (v.customers || []).filter((c) => c.channel === ch && (c.owner || boss()) && (!boss() || ui.owner === 'all' || (ui.owner === 'none' ? !c.owner : c.owner === ui.owner))).length;
     const who = boss() ? (ui.owner !== 'all' && ui.owner !== 'none' ? ui.owner : null) : S.me.id;
     let strip = '';
     if (who) {
       const k = H.teleKpi(v, who, T, T);
       const left = (v.appointments || []).filter((a) => a.owner === who && !a.done && H.dayKey(a.at) <= T).length;
-      strip = '<div class="strip">' + tile('โทร FB วันนี้', k.fbCalls + '/' + k.target.fb, 'T1 ' + k.t1 + ' · T2 ' + k.t2 + ' · T3 ' + k.t3, '', pct(k.fbCalls, k.target.fb)) +
+      strip = '<div class="strip">' + tile('โทร FB วันนี้', k.fbCalls + '/' + k.target.fb, 'T1 ' + k.t1 + ' : T2 ' + k.t2 + ' : T3 ' + k.t3, '', pct(k.fbCalls, k.target.fb)) +
         tile('โทร Marketplace', k.mktCalls + '/' + k.target.mkt, 'เหลืออีก ' + Math.max(0, k.target.mkt - k.mktCalls) + ' สาย', '', pct(k.mktCalls, k.target.mkt)) +
         tile('เวลาคุยรวม', Math.round(k.talkSec / 60) + ' น.', 'เป้า ' + Math.round(k.target.talkSec / 60) + ' นาที', '', pct(k.talkSec, k.target.talkSec)) +
         tile('ยอดขายวันนี้', B(k.amount), k.orders + ' ออเดอร์ : เป้า ' + B(k.target.revenue), '', pct(k.amount, k.target.revenue)) +
         tile('นัดที่ต้องโทร', N(left), left ? 'รวมนัดที่เลยกำหนด' : 'เคลียร์นัดวันนี้ครบแล้ว', left ? 'alert' : '') + '</div>';
     }
-    const { counts } = custList();
-    const chip = (k, l) => '<button class="chip ' + (ui.status === k ? 'on' : '') + '" data-act="cstatus" data-v="' + k + '">' + l + (counts[k] != null ? '<span class="c">' + counts[k] + '</span>' : '') + '</button>';
-    const teleOpts = H.teles(S.full || v).map((u) => '<option value="' + u.id + '"' + (ui.owner === u.id ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('');
+    const tele = H.teles(S.full || v);
+    const ownerOpts = [{ v: 'all', l: 'ทั้งหมด' }].concat(tele.map((u) => ({ v: u.id, l: u.name })), [{ v: 'none', l: 'ยังไม่แจก' }]);
+    const ownerCtl = !boss() ? '' : ownerOpts.length <= 4 ? segF('เซลล์', 'cowner', ownerOpts, ui.owner) : ddBtn('cowner', { label: 'เซลล์', options: ownerOpts, value: ui.owner, onPick: (x) => { ui.owner = x; resetList('cust'); render(); } });
+    const statusCtl = ddBtn('cstatus', { label: 'สถานะ', multi: true, options: C_STATUS_OPTS, value: ui.cStatus, onPick: (vals) => { ui.cStatus = vals; resetList('cust'); render(); } });
+    const roundCtl = ui.custTab === 'fb' ? segF('รอบ', 'cround', [{ v: 'all', l: 'ทั้งหมด' }, { v: 'T1', l: 'T1' }, { v: 'T2', l: 'T2' }, { v: 'T3', l: 'T3' }], ui.round) : '';
     return strip +
-      '<section class="card"><div class="row between" style="margin-bottom:14px"><div class="seg" role="tablist">' +
-      '<button class="' + (ui.custTab === 'fb' ? 'on' : '') + '" data-act="ctab" data-v="fb">' + ico('msg') + ' FB Page (Pancake) <span class="faint">' + fbN + '</span></button>' +
-      '<button class="' + (ui.custTab === 'ecom' ? 'on' : '') + '" data-act="ctab" data-v="ecom">' + ico('store') + ' E-Commerce <span class="faint">' + ecN + '</span></button></div>' +
-      '<div class="row">' + (boss() ? '<select class="in" style="width:auto" data-act="cowner" aria-label="เลือกเซลล์"><option value="all">ทุกคน</option>' + teleOpts + '<option value="none"' + (ui.owner === 'none' ? ' selected' : '') + '>ยังไม่มีเจ้าของ</option></select>' : '') +
-      '<button class="btn primary sm" data-act="add-customer">' + ico('plus') + ' เพิ่มลูกค้า</button></div></div>' +
-      '<div class="small muted" style="margin:-4px 0 12px">' + (ui.custTab === 'fb' ? 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจกให้ Telesales 50:50 · ตามรอบ T1 → T2 → T3' : 'รายชื่อจาก Lazada / Shopee / TikTok (ผ่าน BigSeller) และ Evolution · ไม่มีรอบ T') + '</div>' +
-      '<div class="row" style="margin-bottom:10px"><label class="row" style="flex:1;min-width:220px;position:relative"><span style="position:absolute;left:11px;color:var(--faint)">' + ico('search') + '</span><input class="in" id="cust-q" style="padding-left:38px" placeholder="ค้นหาชื่อ เบอร์ สินค้า หรือที่อยู่" value="' + esc(ui.q) + '" aria-label="ค้นหาลูกค้า"></label></div>' +
-      '<div class="chips" style="margin-bottom:8px">' + chip('all', 'ทั้งหมด') + chip('due', 'ต้องโทรวันนี้') + chip('new', 'ใหม่') + chip('hotwarm', 'ร้อน / อุ่น') + chip('followup', 'นัดติดตาม') + chip('closed', 'ปิดได้') + chip('no_answer', 'ไม่รับสาย') + chip('lost', 'ไม่สำเร็จ') + '</div>' +
-      (ui.custTab === 'fb' ? '<div class="chips" style="margin-bottom:12px">' + ['all', 'T1', 'T2', 'T3'].map((r) => '<button class="chip ' + (ui.round === r ? 'on' : '') + '" data-act="cround" data-v="' + r + '" title="' + esc(H.ROUNDS[r] || '') + '">' + (r === 'all' ? 'ทุกรอบ' : r) + '</button>').join('') + '</div>' : '') +
-      '<div id="cust-list">' + custTable() + '</div></section>';
+      '<section class="card"><div class="row between" style="margin-bottom:12px"><div class="seg" role="tablist">' +
+      '<button class="' + (ui.custTab === 'fb' ? 'on' : '') + '" data-act="ctab" data-v="fb">' + ico('msg') + ' FB Page (Pancake) <span class="faint">' + N(scope('fb')) + '</span></button>' +
+      '<button class="' + (ui.custTab === 'ecom' ? 'on' : '') + '" data-act="ctab" data-v="ecom">' + ico('store') + ' E-Commerce <span class="faint">' + N(scope('ecom')) + '</span></button></div>' +
+      '<span class="small muted one hide-sm" style="flex:1;min-width:0">' + (ui.custTab === 'fb' ? 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจก 50:50 : ตามรอบ T1 → T2 → T3' : 'รายชื่อจาก Lazada / Shopee / TikTok (ผ่าน BigSeller) และ Evolution') + '</span></div>' +
+      '<div class="toolbar">' + searchBox('cust', 'ค้นหาชื่อ เบอร์โทร เลขออเดอร์ สินค้า หรือที่อยู่', ui.q) +
+      '<div class="filters">' + drBtn('cust', 'all', () => { resetList('cust'); render(); }) + statusCtl + roundCtl + ownerCtl + '</div>' +
+      '<div class="tb-actions"><button class="btn primary sm" data-act="add-customer">' + ico('plus') + ' เพิ่มลูกค้า</button></div></div>' +
+      '<div class="small faint" style="margin:-4px 0 8px">ฟิลเตอร์วันที่ใช้วันที่สั่งซื้อล่าสุดของลูกค้า</div>' +
+      '<div id="lv-cust">' + custListHtml() + '</div></section>';
   }
-  function custTable() {
-    const { list } = custList();
-    if (!list.length) return '<div class="empty">ไม่พบลูกค้าตามเงื่อนไขนี้</div>';
-    const rows = list.slice(0, ui.limit).map((c) => '<tr class="click" data-open="' + c.id + '"><td class="cust-name"><b>' + esc(c.name || 'ไม่ระบุชื่อ') + '</b><small>' + H.fmtPhone(c.phone) + '</small></td>' +
-      '<td>' + lastOrderLine(c) + '</td><td class="n hide-sm">' + B(H.customerTotal(c)) + '<div class="small muted">' + (c.orders || []).length + ' ออเดอร์</div></td>' +
-      '<td>' + statusPill(c.status) + (H.isStale(V(), c) ? '<div class="small" style="color:var(--warn);margin-top:3px">เงียบเกินกำหนด</div>' : '') + '</td>' +
-      '<td>' + (c.channel === 'fb' ? roundTag(c.round) : platformTag(c.platform)) + '</td><td>' + apptLabel(c) + '</td>' +
-      (boss() ? '<td class="hide-sm">' + (c.owner ? av(user(c.owner), 'sm') : '<span class="pill warn">ยังไม่แจก</span>') + '</td>' : '') + '</tr>').join('');
-    return '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>ลูกค้า</th><th>ออเดอร์ล่าสุด</th><th class="n hide-sm">ยอดซื้อรวม</th><th>สถานะ</th><th>' + (ui.custTab === 'fb' ? 'รอบ' : 'แพลตฟอร์ม') + '</th><th>นัดถัดไป</th>' + (boss() ? '<th class="hide-sm">เซลล์</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      (list.length > ui.limit ? '<div class="row" style="justify-content:center;margin-top:12px"><button class="btn sm" data-act="more">แสดงเพิ่ม (' + (list.length - ui.limit) + ' ราย)</button></div>' : '<div class="small faint" style="margin-top:10px">ทั้งหมด ' + list.length + ' ราย</div>');
+  LVB.cust = () => custListHtml();
+  function custListHtml() {
+    const list = custList(), active = custFiltersActive(), q = (ui.q || '').trim();
+    const clearQ = '<button class="btn sm" data-act="search-clear" data-key="cust">ล้างคำค้น</button>';
+    const clearF = '<button class="btn sm" data-act="filters-clear">ล้างฟิลเตอร์ทั้งหมด</button>';
+    const empty = q ? emptyState('ไม่พบ “' + esc(q) + '”' + (active ? '<div class="small" style="margin-top:4px">กำลังกรองด้วยฟิลเตอร์อื่นอยู่ด้วย</div>' : ''), clearQ + (active ? clearF : ''))
+      : active ? emptyState('ไม่พบลูกค้าตามฟิลเตอร์ที่เลือก', clearF) : emptyState('ยังไม่มีลูกค้าในแท็บนี้', '<button class="btn sm primary" data-act="add-customer">' + ico('plus') + ' เพิ่มลูกค้า</button>');
+    const head = [{ h: 'ลูกค้า' }, { h: 'ออเดอร์ล่าสุด' }, { h: 'ยอดซื้อรวม', cls: 'n hide-sm' }, { h: 'สถานะ' }, { h: ui.custTab === 'fb' ? 'รอบ' : 'แพลตฟอร์ม' }, { h: 'นัดถัดไป' }].concat(boss() ? [{ h: 'เซลล์', cls: 'hide-sm' }] : []);
+    const actions = (boss() ? [{ act: 'cust-assign', label: 'ย้ายให้เซลล์', icon: 'send' }] : []).concat([{ act: 'cust-status', label: 'เปลี่ยนสถานะ', icon: 'note' }, { act: 'cust-export', label: 'ส่งออก', icon: 'upload' }], boss() ? [{ act: 'cust-del', label: 'ลบ', icon: 'x', danger: true }] : []);
+    return ((q || active) && list.length ? '<div class="result-line small muted">พบ ' + N(list.length) + ' รายการ</div>' : '') + listView({
+      key: 'cust', items: list, id: (c) => c.id, click: (c) => c.id, head, actions,
+      rowDelete: boss() ? () => true : null, rowDeleteAct: 'cust-del-one', empty,
+      row: (c) => ['<td class="cust-name"><b class="one">' + esc(c.name || 'ไม่ระบุชื่อ') + '</b><small>' + H.fmtPhone(c.phone) + '</small></td>',
+        '<td>' + lastOrderLine(c) + '</td>', '<td class="n hide-sm">' + B(H.customerTotal(c)) + '<div class="small muted">' + (c.orders || []).length + ' ออเดอร์</div></td>',
+        '<td>' + statusPill(c.status) + (H.isStale(V(), c) ? '<div class="small" style="color:var(--warn);margin-top:3px">เงียบเกินกำหนด</div>' : '') + '</td>',
+        '<td>' + (c.channel === 'fb' ? roundTag(c.round) : platformTag(c.platform)) + '</td>', '<td>' + apptLabel(c) + '</td>'].concat(boss() ? ['<td class="hide-sm">' + (c.owner ? av(user(c.owner), 'sm') : '<span class="pill warn">ยังไม่แจก</span>') + '</td>'] : []),
+    });
   }
 
   // ------------------------------------------------------------ ticket drawer
@@ -531,21 +864,30 @@
     }
     const dayList = (byDay[ui.calDay] || []);
     const overdue = appts.filter((a) => !a.done && Date.parse(a.at) < now - 3600000).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-    const teleOpts = H.teles(S.full || v).map((u) => '<option value="' + u.id + '"' + (ui.calOwner === u.id ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('');
+    const calOwnerCtl = boss() ? segF('เซลล์', 'cal-owner', [{ v: 'all', l: 'ทั้งหมด' }].concat(H.teles(S.full || v).map((u) => ({ v: u.id, l: u.name }))), ui.calOwner) : '';
     const monthLabel = H.TH_MON[mm - 1] + ' ' + (yy + 543);
     return '<div class="row between"><div class="row"><button class="icon-btn" data-act="cal-nav" data-v="-1" aria-label="เดือนก่อน">' + ico('left') + '</button><h2 style="font-size:20px;min-width:120px;text-align:center">' + monthLabel + '</h2><button class="icon-btn" data-act="cal-nav" data-v="1" aria-label="เดือนถัดไป">' + ico('right') + '</button><button class="btn sm" data-act="cal-today">วันนี้</button></div>' +
-      '<div class="row">' + (boss() ? '<select class="in" style="width:auto" data-act="cal-owner" aria-label="เลือกเซลล์"><option value="all">ทุกคน</option>' + teleOpts + '</select>' : '') + '<button class="btn primary sm" data-act="new-appt">' + ico('plus') + ' เพิ่มนัด</button></div></div>' +
+      '<div class="row">' + calOwnerCtl + '<button class="btn primary sm" data-act="new-appt">' + ico('plus') + ' เพิ่มนัด</button></div></div>' +
       '<div class="grid g-main"><section class="card"><div class="cal">' + cells + '</div><div class="legend" style="margin-top:12px"><span><i style="background:var(--info-soft);border:1px solid var(--info)"></i>นัดที่ต้องโทร</span><span><i style="background:var(--bad-soft);border:1px solid var(--bad)"></i>เลยนัด</span><span><i style="background:var(--mute-soft)"></i>โทรแล้ว</span></div></section>' +
       '<div class="grid" style="align-content:start">' +
-      card('calendar', H.thDate(ui.calDay) + (ui.calDay === T ? ' (วันนี้)' : ''), dayList.length + ' นัด : ทำแล้ว ' + dayList.filter((a) => a.done).length, dayList.length ? dayList.map(apptRow).join('') : '<div class="empty">ไม่มีนัดในวันนี้</div>') +
-      card('alert', 'เลยนัด ยังไม่ได้โทร', overdue.length ? 'โทรเคลียร์ก่อนนัดใหม่' : 'ไม่มีนัดค้าง', overdue.length ? overdue.slice(0, 12).map(apptRow).join('') : '<div class="empty">เยี่ยม ไม่มีนัดค้าง</div>') + '</div></div>';
+      card('calendar', H.thDate(ui.calDay) + (ui.calDay === T ? ' (วันนี้)' : ''), dayList.length + ' นัด : ทำแล้ว ' + dayList.filter((a) => a.done).length, apptList('calday', dayList, 'ไม่มีนัดในวันนี้')) +
+      card('alert', 'เลยนัด ยังไม่ได้โทร', overdue.length ? 'โทรเคลียร์ก่อนนัดใหม่' : 'ไม่มีนัดค้าง', apptList('callate', overdue, 'ไม่มีนัดค้าง')) + '</div></div>';
   }
-  function apptRow(a) {
-    const c = H.findCustomer(S.full || V(), a.customerId) || {};
-    const late = !a.done && Date.parse(a.at) < Date.now() - 3600000;
-    return '<div class="appt ' + (a.done ? 'done ' : '') + (late ? 'late' : '') + '"><span class="tm">' + H.thTime(a.at) + '<div class="small faint" style="font-family:var(--font);font-weight:400">' + (H.dayKey(a.at) !== ui.calDay ? H.thDate(a.at).replace(/ \d{4}$/, '') : '') + '</div></span>' +
-      '<div class="who"><b data-open="' + esc(c.id || '') + '">' + esc(c.name || 'ลูกค้า') + '</b><small>' + esc(a.purpose) + ' ' + roundTag(a.round) + (boss() ? ' : ' + esc(uname(a.owner)) : '') + ' : ' + H.fmtPhone(c.phone) + '</small></div>' +
-      '<div class="row" style="gap:6px">' + (a.done ? '<span class="pill good">' + ico('check') + '</span>' : '<button class="btn sm" data-open="' + esc(c.id || '') + '" data-tab="call">' + ico('phone') + ' โทร</button><button class="btn sm" data-act="appt-shift" data-id="' + a.id + '" title="เลื่อนไปพรุ่งนี้">+1 วัน</button><button class="btn sm good" data-act="appt-done" data-id="' + a.id + '" aria-label="ทำแล้ว">' + ico('check') + '</button>') + '</div></div>';
+  function apptList(key, list, emptyMsg) {
+    return listView({
+      key, items: list, id: (a) => a.id, empty: emptyState(emptyMsg),
+      head: [{ h: 'เวลา' }, { h: 'ลูกค้า' }, { h: 'นัดเพื่อ', cls: 'hide-sm' }, { h: '', cls: 'n' }],
+      actions: [{ act: 'appt-done-sel', label: 'ทำแล้ว', icon: 'check' }, { act: 'appt-shift-sel', label: 'เลื่อน +1 วัน' }, { act: 'appt-del-sel', label: 'ลบ', icon: 'x', danger: true }],
+      rowDelete: () => true, rowDeleteAct: 'appt-del-one',
+      row: (a) => {
+        const c = H.findCustomer(S.full || V(), a.customerId) || {};
+        const late = !a.done && Date.parse(a.at) < Date.now() - 3600000;
+        return ['<td class="tm' + (late ? ' late' : '') + (a.done ? ' done' : '') + '"><b>' + H.thTime(a.at) + '</b><div class="small faint">' + (H.dayKey(a.at) !== ui.calDay ? H.thDate(a.at).replace(/ \d{4}$/, '') : '') + '</div></td>',
+          '<td class="cust-name"><b class="link one" data-open="' + esc(c.id || '') + '">' + esc(c.name || 'ลูกค้า') + '</b><small>' + H.fmtPhone(c.phone) + (boss() ? ' : ' + esc(uname(a.owner)) : '') + '</small></td>',
+          '<td class="hide-sm"><div class="one" style="max-width:220px">' + esc(a.purpose) + '</div>' + roundTag(a.round) + '</td>',
+          '<td class="n"><div class="row" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap">' + (a.done ? '<span class="pill good">' + ico('check') + ' โทรแล้ว</span>' : '<button class="btn sm" data-open="' + esc(c.id || '') + '" data-tab="call">' + ico('phone') + ' โทร</button><button class="btn sm good" data-act="appt-done" data-id="' + a.id + '" aria-label="ทำแล้ว">' + ico('check') + '</button>') + '</div></td>'];
+      },
+    });
   }
 
   // ------------------------------------------------------------ KPI (manual log)
@@ -577,18 +919,23 @@
       '<button class="btn primary lg">' + ico('send') + ' บันทึกยอดรวมทั้งวัน</button></form>';
     const teleOpts = tele.map((u) => '<option value="' + u.id + '"' + (who === u.id ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('');
     const left = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('clip') + '</span><div class="ttl"><h2>บันทึก KPI แบบ Manual</h2><small>กรอกทีละสาย หรือกรอกยอดรวมทั้งวันทีเดียว ตัวเลขขึ้น Dashboard ผู้บริหารทันที</small></div></div>' +
-      (boss() ? '<div class="f2" style="margin-bottom:12px"><label class="field"><span>Telesales</span><select class="in" data-act="kpi-user">' + teleOpts + '</select></label><label class="field"><span>ดูวันที่</span><input class="in" type="date" data-act="kpi-date" value="' + date + '" max="' + H.today() + '"></label></div>' : '') +
+      (boss() ? '<div class="f2" style="margin-bottom:12px"><div class="field"><span>Telesales</span>' + segF('', 'kpi-user', tele.map((u) => ({ v: u.id, l: u.name })), who) + '</div><label class="field"><span>ดูวันที่</span><input class="in" type="date" data-act="kpi-date" value="' + date + '" max="' + H.today() + '"></label></div>' : '') +
       '<div class="seg" style="margin-bottom:14px"><button class="' + (ui.kpiMode === 'call' ? 'on' : '') + '" data-act="kpi-mode" data-v="call">' + ico('phone') + ' ทีละสาย</button><button class="' + (ui.kpiMode === 'sum' ? 'on' : '') + '" data-act="kpi-mode" data-v="sum">' + ico('clip') + ' สรุปทั้งวัน</button></div>' +
       (ui.kpiMode === 'call' ? callForm : sumForm) + '<div class="small muted" style="margin-top:10px">เคล็ดลับ : ถ้าโทรจากหน้า Ticket ลูกค้า กด "บันทึกการโทร" ที่นั่นได้เลย ระบบนับ KPI ให้โดยไม่ต้องกรอกซ้ำ</div></section>';
     const checks = '<div class="alerts">' + k.checks.map((c) => '<div class="alert-row" style="cursor:default"><span class="check ' + (c.ok ? 'ok' : 'no') + '">' + ico(c.ok ? 'checkc' : 'x') + '</span><span class="t"><b>' + c.label + '</b><small>' + (c.time ? Math.round(c.value / 60) + ' / ' + Math.round(c.target / 60) + ' นาที' : c.money ? B(c.value) + ' / ' + B(c.target) : c.value + ' / ' + c.target + ' สาย') + '</small></span><span class="pill ' + (c.ok ? 'good' : 'bad') + '">' + (c.ok ? 'ครบ' : 'ขาด ' + (c.time ? Math.ceil((c.target - c.value) / 60) + ' น.' : c.money ? B(c.target - c.value) : (c.target - c.value) + ' สาย')) + '</span></div>').join('') + '</div>';
-    const rows = entries.map((e) => { const r = H.RESULTS.find((x) => x.id === e.result); return '<tr><td>' + H.thTime(e.at) + '</td><td>' + (e.channel === 'fb' ? 'FB ' + roundTag(e.round) : 'Marketplace') + '</td>' +
-      '<td>' + (e.mode === 'summary' ? '<b>สรุปทั้งวัน</b><div class="small muted">' + e.calls + ' สาย · คุย ' + e.talkedCount + '</div>' : '<span class="cust-name"><b>' + esc(e.name || '-') + '</b><small>' + H.fmtPhone(e.phone) + '</small></span>') + '</td>' +
-      '<td>' + (r ? '<span class="pill ' + r.tone + '">' + esc(r.group) + '</span>' : '-') + '</td><td class="n">' + H.hms(e.durationSec) + '</td><td class="n">' + (e.amount ? B(e.amount) : '-') + '</td>' +
-      '<td class="n"><button class="btn sm danger" data-act="kpi-del" data-id="' + e.id + '" aria-label="ลบรายการ">' + ico('x') + '</button></td></tr>'; }).join('');
-    const right = '<div class="grid" style="align-content:start"><section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>สิ่งที่ผู้บริหารเห็น : ' + esc(uname(who)) + '</h2><small>' + H.thDate(date) + ' · ' + KSTAT[k.status][1] + '</small></div><span class="pill ' + KSTAT[k.status][0] + '">' + k.passed + '/4</span></div>' + checks +
+    const kpiList = listView({
+      key: 'kpi', items: entries, id: (e) => e.id, empty: emptyState('ยังไม่มีรายการในวันนี้'),
+      head: [{ h: 'เวลา' }, { h: 'ช่องทาง' }, { h: 'ลูกค้า' }, { h: 'ผล' }, { h: 'เวลาคุย', cls: 'n' }, { h: 'ยอด', cls: 'n' }],
+      actions: [{ act: 'kpi-del-sel', label: 'ลบ', icon: 'x', danger: true }],
+      rowDelete: (e) => boss() || e.date === H.today(), rowDeleteAct: 'kpi-del-one',
+      row: (e) => { const r = H.RESULTS.find((x) => x.id === e.result); return ['<td>' + H.thTime(e.at) + '</td>', '<td>' + (e.channel === 'fb' ? 'FB ' + roundTag(e.round) : 'Marketplace') + '</td>',
+        '<td>' + (e.mode === 'summary' ? '<b>สรุปทั้งวัน</b><div class="small muted">' + e.calls + ' สาย : คุย ' + e.talkedCount + '</div>' : '<span class="cust-name"><b class="one">' + esc(e.name || '-') + '</b><small>' + H.fmtPhone(e.phone) + '</small></span>') + '</td>',
+        '<td>' + (r ? '<span class="pill ' + r.tone + '">' + esc(r.group) + '</span>' : '-') + '</td>', '<td class="n">' + H.hms(e.durationSec) + '</td>', '<td class="n">' + (e.amount ? B(e.amount) : '-') + '</td>']; },
+    });
+    const right = '<div class="grid" style="align-content:start"><section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>สิ่งที่ผู้บริหารเห็น : ' + esc(uname(who)) + '</h2><small>' + H.thDate(date) + ' : ' + KSTAT[k.status][1] + '</small></div><span class="pill ' + KSTAT[k.status][0] + '">' + k.passed + '/4</span></div>' + checks +
       '<div class="row small muted" style="margin-top:12px;gap:14px"><span>ได้คุย <b style="color:var(--text)">' + k.talked + '/' + k.calls + '</b></span><span>ปิดได้ <b style="color:var(--text)">' + k.orders + '</b></span><span>เวลาคุย <b style="color:var(--text)">' + H.hms(k.talkSec) + '</b></span><span>OneCall <b style="color:var(--text)">' + k.oc.calls + ' สาย</b></span></div></section>' +
       '<section class="card"><div class="card-h"><span class="card-ico">' + ico('note') + '</span><div class="ttl"><h2>รายการที่บันทึก</h2><small>' + entries.length + ' รายการ : ลบได้เฉพาะของวันนี้</small></div></div>' +
-      (entries.length ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>เวลา</th><th>ช่องทาง</th><th>ลูกค้า</th><th>ผล</th><th class="n">เวลาคุย</th><th class="n">ยอด</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="empty">ยังไม่มีรายการในวันนี้</div>') + '</section></div>';
+      kpiList + '</section></div>';
     return '<div class="grid g-kpi">' + left + right + '</div>';
   }
 
@@ -629,13 +976,22 @@
       '<label class="field"><span>ยอดที่ลูกค้าจ่ายจริง (ถ้ามีส่วนลด)</span><input class="in" type="number" min="0" name="total" placeholder="เว้นว่าง = ใช้ยอดรวมด้านบน"></label>' +
       '<label class="field"><span>หมายเหตุถึง Telesales</span><input class="in" name="note" placeholder="เช่น ลูกค้าสะดวกรับสายหลัง 17:00"></label>' + prodDatalist() +
       '<button class="btn primary lg">' + ico('send') + ' บันทึกและส่งรายชื่อให้ Telesales</button></form>';
-    const list = closes.length ? closes.map((a) => { const c = H.findCustomer(S.full || v, a.customerId) || {}; return '<div class="appt"><span class="tm">' + H.thTime(a.at) + '</span><div class="who"><b>' + esc(c.name || '-') + ' : ' + B(a.total) + '</b><small>' + esc((a.items || []).map((i) => i.name + ' x' + i.qty).join(', ')) + (boss() ? ' : ' + esc(a.closerName) : '') + (a.returning ? ' : ลูกค้าเก่า' : '') + '</small></div>' +
-      (a.status === 'pending' ? '<span class="pill warn">รออนุมัติ → ' + esc(uname(a.proposed)) + '</span>' : a.status === 'rejected' ? '<span class="pill bad">ไม่ส่ง</span>' : '<span class="pill good">' + esc(uname(a.assigned)) + '</span>') + '</div>'; }).join('') : '<div class="empty">ยังไม่มีการปิดการขายวันนี้</div>';
+    const canCancel = (a) => boss() || (a.status === 'pending' && a.closer === S.me.id);
+    const list = listView({
+      key: 'close', items: closes, id: (a) => a.id, empty: emptyState('ยังไม่มีการปิดการขายวันนี้'),
+      head: [{ h: 'เวลา' }, { h: 'ลูกค้า' }, { h: 'ยอด', cls: 'n' }, { h: 'สถานะ' }],
+      actions: [{ act: 'close-del-sel', label: 'ยกเลิกรายการ', icon: 'x', danger: true }],
+      rowDelete: canCancel, rowDeleteAct: 'close-del-one',
+      row: (a) => { const c = H.findCustomer(S.full || v, a.customerId) || {}; return ['<td><b>' + H.thTime(a.at) + '</b></td>',
+        '<td class="cust-name"><b class="one">' + esc(c.name || '-') + '</b><small class="one" style="display:block;max-width:240px;font-family:var(--font)">' + esc((a.items || []).map((i) => i.name + ' x' + i.qty).join(', ')) + (boss() ? ' : ' + esc(a.closerName) : '') + (a.returning ? ' : ลูกค้าเก่า' : '') + '</small></td>',
+        '<td class="n"><b>' + B(a.total) + '</b></td>',
+        '<td>' + (a.status === 'pending' ? '<span class="pill warn">รอ → ' + esc(uname(a.proposed)) + '</span>' : a.status === 'rejected' ? '<span class="pill bad">ไม่ส่ง</span>' : '<span class="pill good">' + esc(uname(a.assigned)) + '</span>') + '</td>']; },
+    });
     return '<div class="grid g-main">' + card('cart', 'บันทึกการปิดการขาย', 'กรอกเมื่อปิดการขายได้ ระบบจะส่งรายชื่อให้ Telesales แบบ 50:50 ทันที', form) +
       '<div class="grid" style="align-content:start">' +
-      card('send', 'รายชื่อถัดไปจะส่งให้', 'แบ่งเท่ากัน 50:50 ทุกครั้ง · ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม', '<div class="row" style="gap:14px;margin-bottom:14px">' + (next ? av(user(next), 'lg') + '<div><b style="font-size:18px">' + esc(uname(next)) + '</b><div class="small muted">' + ((S.full || v).settings.autoApprove ? 'ส่งถึงเซลล์ทันที' : 'เข้าคิวรออนุมัติก่อนส่ง') + '</div></div>' : '<span class="muted">ไม่มี Telesales ที่พร้อมรับ</span>') + '</div><div class="section-t" style="margin-bottom:8px">รายชื่อที่แจกวันนี้</div>' + splitBar(todaySplit())) +
+      card('send', 'รายชื่อถัดไปจะส่งให้', 'แบ่งเท่ากัน 50:50 ทุกครั้ง : ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม', '<div class="row" style="gap:14px;margin-bottom:14px">' + (next ? av(user(next), 'lg') + '<div><b style="font-size:18px">' + esc(uname(next)) + '</b><div class="small muted">' + ((S.full || v).settings.autoApprove ? 'ส่งถึงเซลล์ทันที' : 'เข้าคิวรออนุมัติก่อนส่ง') + '</div></div>' : '<span class="muted">ไม่มี Telesales ที่พร้อมรับ</span>') + '</div><div class="section-t" style="margin-bottom:8px">รายชื่อที่แจกวันนี้</div>' + splitBar(todaySplit())) +
       card('link', 'ดึงจาก Pancake อัตโนมัติ', 'ออเดอร์ที่ปิดใน Pancake POS เข้าระบบเองทุก 3 นาที ไม่ต้องกรอกซ้ำ', '<dl class="kv"><dt>ล่าสุด</dt><dd>' + (sync.lastRun ? H.thDate(sync.lastRun, true) : 'ยังไม่เคยดึง') + '</dd><dt>รอบล่าสุด</dt><dd>' + (sync.lastAdded || 0) + ' ออเดอร์ใหม่</dd>' + (sync.lastError ? '<dt>สถานะ</dt><dd style="color:var(--bad)">' + esc(sync.lastError) + '</dd>' : '') + '</dl>', '<button class="btn sm" data-act="sync-pancake">' + ico('refresh') + ' ดึงตอนนี้</button>') +
-      '<section class="card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>ปิดการขายวันนี้</h2><small>' + closes.length + ' ออเดอร์ : ' + B(myRev) + '</small></div>' + (boss() ? '<select class="in" style="width:auto" data-act="close-admin"><option value="all">ทุกคน</option>' + admins.map((u) => '<option value="' + u.id + '"' + (ui.closeAdmin === u.id ? ' selected' : '') + '>' + esc(u.name) + '</option>').join('') + '</select>' : '') + '</div>' + list + '</section></div></div>';
+      '<section class="card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>ปิดการขายวันนี้</h2><small>' + closes.length + ' ออเดอร์ : ' + B(myRev) + '</small></div>' + (boss() ? segF('', 'close-admin', [{ v: 'all', l: 'ทั้งหมด' }].concat(admins.map((u) => ({ v: u.id, l: u.name }))), ui.closeAdmin) : '') + '</div>' + list + '</section></div></div>';
   }
 
   // ------------------------------------------------------------ APPROVALS
@@ -645,19 +1001,26 @@
     const done = (v.approvals || []).filter((a) => a.status !== 'pending' && a.status !== 'history' && H.dayKey(a.decidedAt || a.at) === T && (boss() || a.assigned === S.me.id));
     const list = ui.apTab === 'pending' ? pend : done;
     const tele = H.teles(S.full || v);
-    const rows = list.map((a) => {
-      const c = H.findCustomer(S.full || v, a.customerId) || {};
-      return '<div class="ap-card"><div><div class="row" style="gap:8px"><b class="link" data-open="' + esc(c.id || '') + '">' + esc(c.name || '-') + '</b><span class="small muted">' + H.fmtPhone(c.phone) + '</span>' + (a.returning ? '<span class="pill info">ลูกค้าเก่า</span>' : '') + '</div>' +
-        '<div class="small muted">' + esc((a.items || []).map((i) => i.name + ' x' + i.qty).join(', ') || '-') + '</div><div class="small faint">' + esc(a.page || '') + '</div></div>' +
-        '<div><b style="font-family:var(--display);font-size:17px">' + B(a.total) + '</b><div class="small muted">ปิดโดย ' + esc(a.closerName || '-') + ' : ' + H.thTime(a.at) + ' น.</div></div>' +
-        (a.status === 'pending' ? '<div class="row">' + (boss() ? '<select class="in" style="width:auto" data-ap-to="' + a.id + '" aria-label="ส่งให้">' + tele.map((u) => '<option value="' + u.id + '"' + (a.proposed === u.id ? ' selected' : '') + '>' + esc(u.name) + (a.proposed === u.id ? ' (คิว)' : '') + '</option>').join('') + '</select>' : '') +
-          '<button class="btn good sm" data-act="ap-ok" data-id="' + a.id + '">' + ico('check') + (boss() ? ' อนุมัติ' : ' รับรายชื่อ') + '</button>' + (boss() ? '<button class="btn sm danger" data-act="ap-no" data-id="' + a.id + '">ไม่ส่ง</button>' : '') + '</div>'
-          : '<div>' + (a.status === 'approved' ? '<span class="pill good">' + esc(uname(a.assigned)) + (a.auto ? ' : อัตโนมัติ' : '') + '</span>' : '<span class="pill bad">ไม่ส่ง : ' + esc(a.reason || '') + '</span>') + '</div>') + '</div>';
-    }).join('');
+    const pendingTab = ui.apTab === 'pending';
+    const rows = listView({
+      key: 'ap-' + ui.apTab, items: list, id: (a) => a.id, empty: emptyState(pendingTab ? 'ไม่มีรายชื่อรออนุมัติ' : 'ยังไม่มีรายการวันนี้'),
+      head: [{ h: 'ลูกค้า' }, { h: 'ยอด', cls: 'n' }, { h: 'ปิดโดย', cls: 'hide-sm' }, { h: pendingTab ? 'ส่งให้' : 'ผล' }].concat(pendingTab ? [{ h: '', cls: 'n' }] : []),
+      actions: pendingTab ? (boss() ? [{ act: 'ap-ok-sel', label: 'อนุมัติ', icon: 'check' }, { act: 'ap-no-sel', label: 'ไม่ส่ง', icon: 'x', danger: true }] : [{ act: 'ap-ok-sel', label: 'รับรายชื่อ', icon: 'check' }]) : null,
+      row: (a) => {
+        const c = H.findCustomer(S.full || v, a.customerId) || {};
+        const r = ['<td class="cust-name"><b class="link one" data-open="' + esc(c.id || '') + '">' + esc(c.name || '-') + '</b><small>' + H.fmtPhone(c.phone) + (a.returning ? ' : ลูกค้าเก่า' : '') + '</small><div class="small muted one" style="max-width:260px">' + esc((a.items || []).map((i) => i.name + ' x' + i.qty).join(', ') || '-') + '</div></td>',
+          '<td class="n"><b>' + B(a.total) + '</b></td>', '<td class="hide-sm"><div class="one">' + esc(a.closerName || '-') + '</div><div class="small muted">' + H.thTime(a.at) + ' น.</div></td>'];
+        if (pendingTab) {
+          r.push('<td>' + (boss() ? '<select class="in" style="width:auto;padding:5px 8px" data-ap-to="' + a.id + '" aria-label="ส่งให้">' + tele.map((u) => '<option value="' + u.id + '"' + (a.proposed === u.id ? ' selected' : '') + '>' + esc(u.name) + (a.proposed === u.id ? ' (คิว)' : '') + '</option>').join('') + '</select>' : esc(uname(a.proposed))) + '</td>');
+          r.push('<td class="n"><div class="row" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap"><button class="btn good sm" data-act="ap-ok" data-id="' + a.id + '">' + ico('check') + (boss() ? ' อนุมัติ' : ' รับ') + '</button>' + (boss() ? '<button class="btn sm danger" data-act="ap-no" data-id="' + a.id + '">ไม่ส่ง</button>' : '') + '</div></td>');
+        } else r.push('<td>' + (a.status === 'approved' ? '<span class="pill good">' + esc(uname(a.assigned)) + (a.auto ? ' : อัตโนมัติ' : '') + '</span>' : '<span class="pill bad">ไม่ส่ง</span>') + '</td>');
+        return r;
+      },
+    });
     const st = S.full || v;
     return '<div class="grid g-main"><section class="card"><div class="row between" style="margin-bottom:10px"><div class="seg"><button class="' + (ui.apTab === 'pending' ? 'on' : '') + '" data-act="ap-tab" data-v="pending">รออนุมัติ <span class="faint">' + pend.length + '</span></button><button class="' + (ui.apTab === 'done' ? 'on' : '') + '" data-act="ap-tab" data-v="done">ดำเนินการวันนี้ <span class="faint">' + done.length + '</span></button></div>' +
       (boss() && pend.length ? '<button class="btn primary sm" data-act="ap-all">' + ico('check') + ' อนุมัติทั้งหมด (' + pend.length + ')</button>' : '') + '</div>' +
-      (rows || '<div class="empty">' + (ui.apTab === 'pending' ? 'ไม่มีรายชื่อรออนุมัติ' : 'ยังไม่มีรายการวันนี้') + '</div>') + '</section>' +
+      rows + '</section>' +
       '<div class="grid" style="align-content:start">' + card('users', 'สัดส่วนรายชื่อวันนี้', 'FB Page แบ่งเท่ากันเสมอ 50:50', splitBar(todaySplit())) +
       (boss() ? card('gear', 'การอนุมัติ', 'เลือกว่าจะตรวจก่อนส่ง หรือให้ระบบส่งเลย', '<label class="switch"><input type="checkbox" data-act="auto-approve"' + (st.settings.autoApprove ? ' checked' : '') + '><span>ส่งรายชื่อให้ Telesales อัตโนมัติ ไม่ต้องรออนุมัติ</span></label><div class="small muted" style="margin-top:10px">ลูกค้าเก่าที่กลับมาซื้อซ้ำ ระบบส่งกลับให้เซลล์คนเดิมทันทีเสมอ</div>') :
         card('phone', 'เมื่อรับรายชื่อแล้ว', 'ระบบสร้างนัด T1 ให้อัตโนมัติ', '<div class="small muted">รายชื่อจะไปอยู่ในแท็บ FB Page ของ "ลูกค้าของฉัน" พร้อมนัด T1 ต้อนรับและยืนยันออเดอร์ภายใน 2 ชั่วโมง</div>')) + '</div></div>';
@@ -672,15 +1035,15 @@
       '<button class="btn primary">บันทึกเป้า</button></form>');
     const users = card('users', 'ทีมงานและสิทธิ์', 'ตั้งชื่อ แจ้งลา และจับคู่ชื่อแอดมินใน Pancake', '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>ชื่อ</th><th>ฝ่าย</th><th>ตั้งค่า</th><th></th></tr></thead><tbody>' + st.users.map((u) => '<tr data-user-row="' + u.id + '"><td><div class="row" style="flex-wrap:nowrap">' + av(u, 'sm') + '<input class="in" data-u="name" value="' + esc(u.name) + '" style="min-width:110px" aria-label="ชื่อ"></div></td><td><span class="small">' + esc(H.ROLES[u.role].label) + '</span>' + (u.id === 'mo' ? '<div class="small muted">ใช้สิทธิ์ผู้บริหารได้</div>' : '') + '</td>' +
       '<td>' + (u.role === 'tele' ? '<label class="switch small"><input type="checkbox" data-u="off"' + (u.off ? ' checked' : '') + '><span>ลาวันนี้ (ไม่รับรายชื่อ)</span></label>' : u.role === 'admin' ? '<input class="in" data-u="pancakeName" value="' + esc(u.pancakeName || '') + '" placeholder="ชื่อใน Pancake เช่น Chonlakarn Eadnai" aria-label="ชื่อใน Pancake">' : '<span class="faint small">-</span>') + '</td>' +
-      '<td><button class="btn sm" data-act="save-user" data-id="' + u.id + '">บันทึก</button></td></tr>').join('') + '</tbody></table></div><div class="small muted" style="margin-top:8px">ชื่อแอดมินที่พบใน Pancake ช่วง 3 สัปดาห์ล่าสุด : Chonlakarn Eadnai, ชาเย็น ไม่หวาน, ณิชาภา ศรีวัฒนกุล, สมร นอนน้อย, Numwhan Yanhee · จับคู่แล้วยอดจะรวมเข้าชื่อในระบบ</div>');
+      '<td><button class="btn sm" data-act="save-user" data-id="' + u.id + '">บันทึก</button></td></tr>').join('') + '</tbody></table></div><div class="small muted" style="margin-top:8px">ชื่อแอดมินที่พบใน Pancake ช่วง 3 สัปดาห์ล่าสุด : Chonlakarn Eadnai, ชาเย็น ไม่หวาน, ณิชาภา ศรีวัฒนกุล, สมร นอนน้อย, Numwhan Yanhee : จับคู่แล้วยอดจะรวมเข้าชื่อในระบบ</div>');
     const prods = card('bag', 'รายการสินค้าและราคา', 'ใช้ในช่องเลือกสินค้าทุกฟอร์ม', '<div class="items" id="prod-edit">' + st.settings.products.map((p) => '<div class="item-row" style="grid-template-columns:110px minmax(0,1fr) 90px 32px"><input class="in" data-p="code" value="' + esc(p.code) + '" aria-label="รหัส"><input class="in" data-p="name" value="' + esc(p.name) + '" aria-label="ชื่อสินค้า"><input class="in" type="number" data-p="price" value="' + p.price + '" aria-label="ราคา"><button type="button" class="x" data-act="item-del" aria-label="ลบ">' + ico('x') + '</button></div>').join('') + '</div>' +
       '<div class="row" style="margin-top:10px"><button class="btn sm" data-act="prod-add">' + ico('plus') + ' เพิ่มสินค้า</button><button class="btn primary sm" data-act="prod-save">บันทึกรายการสินค้า</button></div>');
     const ints = S.integrations || {};
-    const conn = (name, ok, last, desc, btn) => '<div class="alert-row" style="cursor:default"><span class="pill ' + (ok ? 'good' : 'warn') + '">' + (ok ? 'เชื่อมต่อ' : 'ยังไม่ตั้งค่า') + '</span><span class="t"><b>' + name + '</b><small>' + desc + (last ? ' · ล่าสุด ' + H.thDate(last, true) : '') + '</small></span>' + (btn || '') + '</div>';
+    const conn = (name, ok, last, desc, btn) => '<div class="alert-row" style="cursor:default"><span class="pill ' + (ok ? 'good' : 'warn') + '">' + (ok ? 'เชื่อมต่อ' : 'ยังไม่ตั้งค่า') + '</span><span class="t"><b>' + name + '</b><small>' + desc + (last ? ' : ล่าสุด ' + H.thDate(last, true) : '') + '</small></span>' + (btn || '') + '</div>';
     const integrations = card('link', 'การเชื่อมต่อระบบ', 'ข้อมูลไหลเข้าเองอัตโนมัติ ไม่ต้องกรอกซ้ำ', '<div class="alerts">' +
-      conn('Pancake POS (FB Page)', ints.pancake, sy.pancake && sy.pancake.lastRun, 'ออเดอร์ที่แอดมินปิดเข้าคิวแจก 50:50 ทุก 3 นาที' + (sy.pancake && sy.pancake.lastError ? ' · <span style="color:var(--bad)">' + esc(sy.pancake.lastError) + '</span>' : ''), '<button class="btn sm" data-act="sync-pancake">ดึงตอนนี้</button>') +
+      conn('Pancake POS (FB Page)', ints.pancake, sy.pancake && sy.pancake.lastRun, 'ออเดอร์ที่แอดมินปิดเข้าคิวแจก 50:50 ทุก 3 นาที' + (sy.pancake && sy.pancake.lastError ? ' : <span style="color:var(--bad)">' + esc(sy.pancake.lastError) + '</span>' : ''), '<button class="btn sm" data-act="sync-pancake">ดึงตอนนี้</button>') +
       conn('OneCall (บันทึกเสียงสาย)', ints.onecall, sy.onecall && sy.onecall.lastRun, 'ใช้ตรวจจำนวนสายและเวลาคุยจริงเทียบกับที่บันทึก', '<button class="btn sm" data-act="sync-onecall">ดึงตอนนี้</button>') +
-      conn('BigSeller (Lazada / Shopee / TikTok)', !!(sy.bigseller && sy.bigseller.lastRun), sy.bigseller && sy.bigseller.lastRun, 'อัปโหลดไฟล์ Export หรือวางตารางด้านล่าง · สคริปต์เดิมส่งเข้าที่ /api/bigseller/ingest ได้เลย') +
+      conn('BigSeller (Lazada / Shopee / TikTok)', !!(sy.bigseller && sy.bigseller.lastRun), sy.bigseller && sy.bigseller.lastRun, 'อัปโหลดไฟล์ Export หรือวางตารางด้านล่าง : สคริปต์เดิมส่งเข้าที่ /api/bigseller/ingest ได้เลย') +
       conn('ระบบเดิม (evo-split-online)', !!(sy.legacy && sy.legacy.importedAt), sy.legacy && sy.legacy.importedAt, sy.legacy && sy.legacy.importedAt ? 'ย้ายลูกค้า ' + N(sy.legacy.customers) + ' ราย ออเดอร์ ' + N(sy.legacy.orders) + ' รายการ' : 'ย้ายรายชื่อ ประวัติ และนัดจากระบบเดิมครั้งเดียว', '<button class="btn sm" data-act="import-legacy">นำเข้า</button>') + '</div>' +
       '<div class="section-t" style="margin-top:16px">นำเข้าออเดอร์ E-Commerce</div><form class="form" data-form="ecom-import" style="margin-top:8px"><div class="f2"><label class="field"><span>แพลตฟอร์ม</span><select class="in" name="platform"><option value="">ตามไฟล์ (ค่าเริ่มต้น Lazada)</option><option value="lazada">Lazada</option><option value="shopee">Shopee</option><option value="tiktok">TikTok Shop</option><option value="evolution">Evolution</option></select></label>' +
       '<label class="field"><span>ไฟล์ Excel / CSV จาก BigSeller</span><input class="in" type="file" name="file" accept=".xlsx,.xls,.csv"></label></div>' +
@@ -709,7 +1072,7 @@
     const v = V();
     const list = (v.customers || []).filter((c) => boss() || c.owner === S.me.id);
     openModal('<div class="row between" style="margin-bottom:14px"><h2 style="font-size:18px">เพิ่มนัดโทร</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div><form class="form" data-form="new-appt">' +
-      '<label class="field"><span>ลูกค้า <em>*</em> (พิมพ์ชื่อหรือเบอร์)</span><input class="in" name="cust" list="appt-cust" required autocomplete="off"></label><datalist id="appt-cust">' + list.slice(0, 600).map((c) => '<option value="' + esc(c.name + ' · ' + H.fmtPhone(c.phone)) + '"></option>').join('') + '</datalist>' +
+      '<label class="field"><span>ลูกค้า <em>*</em> (พิมพ์ชื่อหรือเบอร์)</span><input class="in" name="cust" list="appt-cust" required autocomplete="off"></label><datalist id="appt-cust">' + list.slice(0, 600).map((c) => '<option value="' + esc(c.name + ' : ' + H.fmtPhone(c.phone)) + '"></option>').join('') + '</datalist>' +
       '<div class="f2"><label class="field"><span>วันเวลา <em>*</em></span><input class="in" type="datetime-local" name="at" required value="' + ui.calDay + 'T10:00"></label><label class="field"><span>รอบ</span><select class="in" name="round"><option value="">-</option><option>T1</option><option>T2</option><option>T3</option></select></label></div>' +
       '<label class="field"><span>นัดเพื่อ</span><input class="in" name="purpose" placeholder="โทรติดตาม"></label><button class="btn primary">บันทึกนัด</button></form>');
   }
@@ -746,16 +1109,16 @@
         '<div class="stat"><div><b class="link" style="font-size:14px">เข้าสู่ระบบ ' + d.th + ' →</b></div></div></button>';
     }).join('');
     document.getElementById('app').innerHTML =
-      '<div class="shell"><aside class="side" aria-label="เมนู"><div class="brand"><b>EVOLUTION</b><small>Hub Commerce · ทีมขาย Office</small></div>' +
-      '<nav class="nav"><button class="on">' + ico('home') + '<span>หน้าหลัก</span></button><div class="nav-label">ฝ่ายงาน</div>' +
-      DEPTS.map((d) => '<button data-login="' + d.key + '">' + ico(d.ico) + '<span>' + d.th + '</span></button>').join('') + '</nav>' +
+      '<div class="shell"><aside class="side" aria-label="เมนู"><div class="brand"><b>EVOLUTION</b><small>Hub Commerce : ทีมขาย Office</small></div>' +
+      '<nav class="nav"><button class="on">' + ico('home') + '<span>Home</span></button><div class="nav-label">Departments</div>' +
+      DEPTS.map((d) => '<button data-login="' + d.key + '">' + ico(d.ico) + '<span>' + d.en + '</span></button>').join('') + '</nav>' +
       '<div class="side-foot"><b>ติดต่อหัวหน้าทีม</b><span>คุณโม : Teamlead</span><span style="opacity:.75">ลืมรหัสผ่าน แจ้งหัวหน้าทีมได้เลย</span></div></aside>' +
-      '<div class="main"><header class="head"><button class="icon-btn burger" data-act="menu" aria-label="เปิดเมนู">' + ico('menu') + '</button><div class="grow"><div class="crumb">Evolution Hub Commerce</div><h1>หน้าหลัก</h1></div>' +
+      '<div class="main"><header class="head"><button class="icon-btn burger" data-act="menu" aria-label="เปิดเมนู">' + ico('menu') + '</button><div class="grow"><div class="crumb">Evolution Hub Commerce : หน้าหลัก</div><h1>Home</h1></div>' +
       '<button class="btn primary" data-login="all">' + ico('lock') + ' เข้าสู่ระบบ</button></header>' +
-      '<main class="page"><section class="banner"><div class="grow"><h1>Welcome to "Evolution Hub Commerce"</h1><p>' + H.thDate(T) + ' · เลือกฝ่ายงานของคุณเพื่อเริ่มต้นการทำงาน</p></div><div class="stack">' + people.map((u) => av(u)).join('') + '</div></section>' +
+      '<main class="page"><section class="banner"><div class="grow"><h1>Welcome to "Evolution Hub Commerce"</h1><p>' + H.thDate(T) + ' : เลือกฝ่ายงานของคุณเพื่อเริ่มต้นการทำงาน</p></div><div class="stack">' + people.map((u) => av(u)).join('') + '</div></section>' +
       '<div class="grid g2">' +
       card('mega', 'ประกาศข่าวสาร', 'Announcements', anns.length ? '<div class="ann">' + anns.map((a) => '<div class="ann-item"><div><b>' + esc(a.title) + '</b><small>' + H.thDate(a.at, true) + '</small></div></div>').join('') + '</div>' : '<div class="empty">ยังไม่มีประกาศ</div>', '<button class="link" data-login="all">ดูทั้งหมด</button>') +
-      card('calendar', 'งานที่กำลังจะมาถึง', 'Upcoming', ups.length ? '<div class="ann">' + ups.map((u) => { const d = new Date(u.day + 'T00:00:00Z'); return '<div class="ev"><div class="datebox"><b>' + d.getUTCDate() + '</b><small>' + H.TH_MON[d.getUTCMonth()] + '</small></div><div><b>นัดโทรลูกค้า ' + u.count + ' นัด</b><div class="small muted">' + (u.day === T ? 'วันนี้' : H.TH_DOW[d.getUTCDay()] + ' ' + H.thDate(u.day)) + ' · Telesales</div></div><span></span></div>'; }).join('') + '</div>' : '<div class="empty">ยังไม่มีนัดที่กำลังจะมาถึง</div>', '<button class="link" data-login="tele">ดูปฏิทิน</button>') + '</div>' +
+      card('calendar', 'งานที่กำลังจะมาถึง', 'Upcoming', ups.length ? '<div class="ann">' + ups.map((u) => { const d = new Date(u.day + 'T00:00:00Z'); return '<div class="ev"><div class="datebox"><b>' + d.getUTCDate() + '</b><small>' + H.TH_MON[d.getUTCMonth()] + '</small></div><div><b>นัดโทรลูกค้า ' + u.count + ' นัด</b><div class="small muted">' + (u.day === T ? 'วันนี้' : H.TH_DOW[d.getUTCDay()] + ' ' + H.thDate(u.day)) + ' : Telesales</div></div><span></span></div>'; }).join('') + '</div>' : '<div class="empty">ยังไม่มีนัดที่กำลังจะมาถึง</div>', '<button class="link" data-login="tele">ดูปฏิทิน</button>') + '</div>' +
       '<div class="grid g3">' + deptCards + '</div></main></div></div>';
     const openLogin = (key) => {
       const d = DEPTS.find((x) => x.key === key);
@@ -784,11 +1147,11 @@
   function render() {
     if (!S.me) return;
     if (!allowed(S.page)) S.page = 'home';
-    const fn = { home: pageHome, overview: pageOverview, customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, settings: pageSettings }[S.page];
+    const fn = { today: pageToday, home: pageHome, overview: pageOverview, customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, settings: pageSettings }[S.page];
     const keepScroll = $('.drawer-b') ? $('.drawer-b').scrollTop : 0;
     document.getElementById('app').innerHTML = shell(fn());
     if ($('.drawer-b') && keepScroll) $('.drawer-b').scrollTop = keepScroll;
-    document.title = PAGES[S.page].t + ' · Evolution Hub Commerce';
+    document.title = PAGES[S.page].t + ' : Evolution Hub Commerce';
     remember();
   }
 
@@ -802,12 +1165,86 @@
     refresh: async () => { await api.refresh(true); render(); toast('อัปเดตข้อมูลแล้ว'); },
     'demo-user': (el) => { S.me = H.userById(S.full, el.dataset.id); S.view = H.visibleState(S.full, S.me); try { localStorage.setItem('hub-demo-user', S.me.id); } catch (_) { /* ignore */ } ui.owner = 'all'; if (!allowed(S.page)) S.page = 'home'; render(); toast('กำลังดูในมุมมองของ ' + S.me.name); },
     'demo-reset': () => { S.full = window.HubDemoSeed.build(); S.view = H.visibleState(S.full, S.me); api.saveDemo(); render(); toast('สร้างข้อมูลตัวอย่างใหม่แล้ว'); },
-    range: (el) => { ui.range = el.dataset.v; render(); },
     chart: (el) => { ui.chart = el.dataset.v; render(); },
-    ctab: (el) => { ui.custTab = el.dataset.v; ui.round = 'all'; ui.limit = 120; render(); },
-    cstatus: (el) => { ui.status = el.dataset.v; ui.limit = 120; render(); },
-    cround: (el) => { ui.round = el.dataset.v; render(); },
-    more: () => { ui.limit += 200; $('#cust-list').innerHTML = custTable(); },
+    ctab: (el) => { ui.custTab = el.dataset.v; ui.round = 'all'; resetList('cust'); render(); },
+    cround: (el) => { ui.round = el.dataset.v; resetList('cust'); render(); },
+    cowner: (el) => { ui.owner = el.dataset.v; resetList('cust'); render(); },
+    'cal-owner': (el) => { ui.calOwner = el.dataset.v; resetList('calday'); resetList('callate'); render(); },
+    'kpi-user': (el) => { ui.kpiUser = el.dataset.v; resetList('kpi'); render(); },
+    'close-admin': (el) => { ui.closeAdmin = el.dataset.v; resetList('close'); render(); },
+    // ---- call queue
+    'tq-bucket': (el) => { ui.tq.bucket = el.dataset.v; qCur = null; render(); },
+    'tq-user': (el) => { ui.tq.user = el.dataset.v; qCur = null; qSkipped.clear(); render(); },
+    'q-dial': (el) => {
+      if (!qTimer0) qTimer0 = Date.now();
+      clearInterval(qTick); qTick = setInterval(() => { const t = $('#q-timer'); if (!t || !qTimer0) { clearInterval(qTick); return; } t.textContent = H.hms((Date.now() - qTimer0) / 1000); t.classList.add('on'); }, 1000);
+      try { window.location.href = el.getAttribute('href'); } catch (_) { /* dialer not available */ }
+    },
+    'q-sub': (el) => { const card = el.closest('.q-card'); $$('.q-btn', card).forEach((b) => b.classList.toggle('on', b === el)); $$('.q-sub', card).forEach((x) => { x.hidden = x.dataset.sub !== el.dataset.v; }); },
+    'q-lost': (el) => { const box = $('[data-lost]', el.closest('.q-sub')); box.hidden = !box.hidden; },
+    'q-save': (el) => qSave(el),
+    'q-prod': (el) => { qCart[el.dataset.code] = (qCart[el.dataset.code] || 0) + 1; $('#q-cart').innerHTML = qCartHtml(); },
+    'q-unprod': (el) => { delete qCart[el.dataset.code]; $('#q-cart').innerHTML = qCartHtml(); },
+    'q-pay': (el) => { $$('button', el.parentElement).forEach((b) => b.classList.toggle('on', b === el)); },
+    'q-later': (el) => { $('#q-later-at').value = plusDays(Number(el.dataset.d), el.dataset.t); qSave({ dataset: { r: 'followup-custom' } }); },
+    'q-skip': () => { if (qCur) qSkipped.add(qCur); qCur = null; render(); },
+    'q-unskip': () => { qSkipped.clear(); render(); },
+    'q-jump': (el) => { qCur = el.dataset.id; qSkipped.delete(qCur); qTimer0 = null; render(); },
+    // ---- list standard
+    'dd-open': (el) => openDropdown(el),
+    'dr-open': (el) => openDateRange(el),
+    'search-clear': (el) => { const key = el.dataset.key; if (key === 'cust') ui.q = ''; const i = $('#q-' + key); if (i) { i.value = ''; i.focus(); } const x = $('.search [data-key="' + key + '"].s-x'); if (x) x.hidden = true; resetList(key); refreshList(key); },
+    'filters-clear': () => { ui.cStatus = []; ui.round = 'all'; ui.owner = 'all'; ui.dr.cust = { mode: 'all' }; resetList('cust'); render(); },
+    'ls-page': (el) => { ls(el.dataset.key).page = Number(el.dataset.v); refreshList(el.dataset.key); const box = $('#lv-' + el.dataset.key) || el.closest('.card'); if (box && box.getBoundingClientRect().top < 0) box.scrollIntoView({ block: 'start' }); },
+    'ls-per': (el) => { const st = ls(el.dataset.key); st.per = Number(el.dataset.v); st.page = 1; refreshList(el.dataset.key); },
+    'ls-check': (el) => {
+      const key = el.dataset.key, s = sel(key);
+      if (s.all) { s.all = false; s.ids = new Set((LVITEMS[key] || []).map(LVID[key])); }
+      el.checked ? s.ids.add(el.dataset.id) : s.ids.delete(el.dataset.id);
+      refreshList(key);
+    },
+    'ls-pageall': (el) => {
+      const key = el.dataset.key, s = sel(key), st = ls(key);
+      const pageIds = (LVITEMS[key] || []).slice((st.page - 1) * st.per, st.page * st.per).map(LVID[key]);
+      if (s.all) { s.all = false; s.ids = new Set((LVITEMS[key] || []).map(LVID[key])); }
+      pageIds.forEach((id) => (el.checked ? s.ids.add(id) : s.ids.delete(id)));
+      refreshList(key);
+    },
+    'ls-selall': (el) => { sel(el.dataset.key).all = true; refreshList(el.dataset.key); },
+    'ls-clear': (el) => { SEL[el.dataset.key] = { ids: new Set(), all: false }; refreshList(el.dataset.key); },
+    // customers bulk
+    'cust-assign': (el) => {
+      const items = selectedOf('cust');
+      openModal('<div class="row between" style="margin-bottom:10px"><h2 style="font-size:18px">ย้ายลูกค้า ' + N(items.length) + ' รายการให้</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div><div class="people">' +
+        H.teles(S.full || V()).map((u) => '<button class="person" data-assign-to="' + u.id + '">' + av(u, 'lg') + '<b>' + esc(u.name) + '</b><small>Telesales</small></button>').join('') + '</div>');
+      $$('[data-assign-to]', modal).forEach((b) => b.onclick = () => { closeModal(); run(async () => { const r = await api.act('bulkUpdateCustomers', { ids: items.map((c) => c.id), patch: { owner: b.dataset.assignTo } }); SEL.cust = null; return r; }, (r) => 'ย้ายให้ ' + uname(b.dataset.assignTo) + ' แล้ว ' + N(r.updated) + ' รายการ'); });
+    },
+    'cust-status': () => {
+      const items = selectedOf('cust');
+      openModal('<div class="row between" style="margin-bottom:10px"><h2 style="font-size:18px">เปลี่ยนสถานะ ' + N(items.length) + ' รายการ</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div><div class="result-grid">' +
+        Object.entries(H.STATUS).map(([k, x]) => '<button data-set-status="' + k + '"><b>' + esc(x.label) + '</b></button>').join('') + '</div>');
+      $$('[data-set-status]', modal).forEach((b) => b.onclick = () => { closeModal(); run(async () => { const r = await api.act('bulkUpdateCustomers', { ids: items.map((c) => c.id), patch: { status: b.dataset.setStatus } }); SEL.cust = null; return r; }, (r) => 'เปลี่ยนสถานะแล้ว ' + N(r.updated) + ' รายการ'); });
+    },
+    'cust-export': () => {
+      const items = selectedOf('cust');
+      downloadCsv('customers-' + H.today() + '.csv', [['ชื่อ', 'เบอร์', 'ที่อยู่', 'ช่องทาง', 'แพลตฟอร์ม', 'เซลล์', 'สถานะ', 'รอบ', 'ยอดซื้อรวม', 'ออเดอร์ล่าสุด', 'สินค้าล่าสุด']].concat(items.map((c) => { const o = (c.orders || [])[0] || {}; return [c.name, H.fmtPhone(c.phone), c.address, c.channel === 'fb' ? 'FB Page' : 'E-Commerce', (H.PLATFORMS[c.platform] || {}).label || c.platform, uname(c.owner), (H.STATUS[c.status] || {}).label, c.round, H.customerTotal(c), o.date ? H.thDate(o.date) : '', (o.items || []).map((i) => i.name + ' x' + i.qty).join(', ')]; })));
+    },
+    'cust-del': () => delCustomers(selectedOf('cust')),
+    'cust-del-one': (el) => delCustomers([H.findCustomer(S.full || V(), el.dataset.id)].filter(Boolean)),
+    // kpi bulk
+    'kpi-del-sel': () => delKpi(selectedOf('kpi')),
+    'kpi-del-one': (el) => delKpi((V().kpi || []).filter((k) => k.id === el.dataset.id)),
+    // appointments bulk
+    'appt-done-sel': (el) => { const ids = selectedOf(el.dataset.key).map((a) => a.id); run(async () => { const r = await api.act('updateApptMany', { ids, done: true }); SEL[el.dataset.key] = null; return r; }, (r) => 'ทำเครื่องหมายว่าโทรแล้ว ' + N(r.updated) + ' นัด'); },
+    'appt-shift-sel': (el) => { const ids = selectedOf(el.dataset.key).map((a) => a.id); run(async () => { const r = await api.act('updateApptMany', { ids, shiftDays: 1 }); SEL[el.dataset.key] = null; return r; }, (r) => 'เลื่อนไปพรุ่งนี้ ' + N(r.updated) + ' นัด'); },
+    'appt-del-sel': (el) => delAppts(el.dataset.key, selectedOf(el.dataset.key)),
+    'appt-del-one': (el) => delAppts(el.dataset.key, (V().appointments || []).filter((a) => a.id === el.dataset.id)),
+    // closes bulk
+    'close-del-sel': () => delCloses(selectedOf('close')),
+    'close-del-one': (el) => delCloses((V().approvals || []).filter((a) => a.id === el.dataset.id)),
+    // approvals bulk
+    'ap-ok-sel': (el) => { const ids = selectedOf(el.dataset.key).map((a) => a.id); run(async () => { const r = await api.act('approveMany', { ids }); SEL[el.dataset.key] = null; return r; }, (r) => 'อนุมัติ ' + N(r.approved) + ' รายชื่อแล้ว'); },
+    'ap-no-sel': (el) => { const items = selectedOf(el.dataset.key); confirmDelete({ title: 'ไม่ส่งรายชื่อให้ Telesales', verb: 'ไม่ส่ง', count: items.length, names: items.map((a) => (H.findCustomer(S.full || V(), a.customerId) || {}).name || '-'), onOk: () => run(async () => { const r = await api.act('rejectMany', { ids: items.map((a) => a.id) }); SEL[el.dataset.key] = null; return r; }, (r) => 'ไม่ส่ง ' + N(r.rejected) + ' รายชื่อ') }); },
     'add-customer': addCustomerModal,
     'close-drawer': () => { ui.drawer = null; render(); },
     dtab: (el) => { ui.dTab = el.dataset.v; render(); },
@@ -836,7 +1273,7 @@
     'appt-done': (el) => run(() => api.act('updateAppt', { id: el.dataset.id, patch: { done: true } }), 'ทำเครื่องหมายว่าโทรแล้ว'),
     'appt-shift': (el) => { const a = (V().appointments || []).find((x) => x.id === el.dataset.id); run(() => api.act('updateAppt', { id: a.id, patch: { at: new Date(Date.parse(a.at) + 86400000).toISOString() } }), 'เลื่อนนัดไปพรุ่งนี้แล้ว'); },
     'kpi-mode': (el) => { ui.kpiMode = el.dataset.v; render(); },
-    'kpi-del': (el) => confirmInline(el, () => run(() => api.act('deleteKpi', { id: el.dataset.id }), 'ลบรายการแล้ว')),
+    'kpi-del': (el) => delKpi((V().kpi || []).filter((k) => k.id === el.dataset.id)),
     'ap-tab': (el) => { ui.apTab = el.dataset.v; render(); },
     'ap-ok': (el) => { const sel = $('[data-ap-to="' + el.dataset.id + '"]'); run(() => api.act('approve', { id: el.dataset.id, to: sel ? sel.value : undefined }), (r) => 'ส่งรายชื่อให้ ' + uname(r && r.to) + ' แล้ว'); },
     'ap-no': (el) => confirmInline(el, () => run(() => api.act('reject', { id: el.dataset.id }), 'ไม่ส่งรายชื่อนี้')),
@@ -849,6 +1286,32 @@
     'prod-save': () => { const products = $$('#prod-edit .item-row').map((r) => ({ code: $('[data-p=code]', r).value, name: $('[data-p=name]', r).value, price: $('[data-p=price]', r).value })).filter((p) => p.name); run(() => api.act('updateSettings', { products }), 'บันทึกรายการสินค้า ' + products.length + ' รายการ'); },
     'ann-del': (el) => run(() => api.act('deleteAnnouncement', { id: el.dataset.id }), 'ลบประกาศแล้ว'),
   };
+  function delCustomers(items) {
+    if (!items.length) return;
+    const withOrders = items.filter((c) => (c.orders || []).length).length;
+    confirmDelete({ title: 'ลบลูกค้า', count: items.length, names: items.map((c) => c.name || H.fmtPhone(c.phone)),
+      warn: withOrders ? 'มี ' + N(withOrders) + ' รายที่มีประวัติการสั่งซื้อ การลบจะลบประวัติและนัดของลูกค้าเหล่านี้ด้วย' : '',
+      onOk: () => run(async () => { const r = await api.act('deleteCustomers', { ids: items.map((c) => c.id) }); SEL.cust = null; if (ui.drawer && items.some((c) => c.id === ui.drawer)) ui.drawer = null; return r; }, (r) => 'ลบลูกค้าแล้ว ' + N(r.deleted) + ' ราย') });
+  }
+  function delKpi(items) {
+    if (!items.length) return;
+    const sold = items.filter((k) => k.amount > 0).length;
+    confirmDelete({ title: 'ลบรายการ KPI', count: items.length, names: items.map((k) => (k.mode === 'summary' ? 'สรุปทั้งวัน ' + k.calls + ' สาย' : (k.name || H.fmtPhone(k.phone)))),
+      warn: sold ? 'มี ' + N(sold) + ' รายการที่มียอดขาย ยอดจะหายจาก Dashboard ผู้บริหารด้วย' : '',
+      onOk: () => run(async () => { const r = await api.act('deleteKpiMany', { ids: items.map((k) => k.id) }); SEL.kpi = null; return r; }, (r) => 'ลบแล้ว ' + N(r.deleted) + ' รายการ') });
+  }
+  function delAppts(key, items) {
+    if (!items.length) return;
+    confirmDelete({ title: 'ลบนัด', count: items.length, names: items.map((a) => (H.findCustomer(S.full || V(), a.customerId) || {}).name || 'ลูกค้า'),
+      onOk: () => run(async () => { const r = await api.act('deleteApptMany', { ids: items.map((a) => a.id) }); SEL[key] = null; return r; }, (r) => 'ลบนัดแล้ว ' + N(r.deleted) + ' นัด') });
+  }
+  function delCloses(items) {
+    if (!items.length) return;
+    const sent = items.filter((a) => a.status === 'approved').length;
+    confirmDelete({ title: 'ยกเลิกการปิดการขาย', verb: 'ยกเลิก', count: items.length, names: items.map((a) => ((H.findCustomer(S.full || V(), a.customerId) || {}).name || '-') + ' ' + B(a.total)),
+      warn: sent ? 'มี ' + N(sent) + ' รายการที่ส่งให้ Telesales แล้ว ออเดอร์จะถูกลบออกจากประวัติลูกค้าด้วย' : '',
+      onOk: () => run(async () => { const r = await api.act('deleteApprovals', { ids: items.map((a) => a.id) }); SEL.close = null; return r; }, (r) => 'ยกเลิกแล้ว ' + N(r.deleted) + ' รายการ') });
+  }
   function confirmInline(el, fn) {
     if (el.dataset.confirm) { fn(); return; }
     el.dataset.confirm = '1'; const old = el.innerHTML; el.innerHTML = 'กดอีกครั้งเพื่อยืนยัน'; el.classList.add('danger');
@@ -861,20 +1324,20 @@
   }
 
   document.addEventListener('click', (e) => {
+    if (e.target.closest('.pop-layer')) return;   // dropdown / date range handle their own clicks
+    const cb = e.target.closest('input[type=checkbox][data-act^="ls-"]');
+    if (cb) { handlers[cb.dataset.act](cb); return; }
+    if (e.target.closest('td.ck')) return;
     const go_ = e.target.closest('[data-go]');
-    if (go_ && !go_.closest('form')) { e.preventDefault(); closeModal(); if (go_.dataset.filter === 'due') { ui.status = 'due'; } go(go_.dataset.go); return; }
-    const op = e.target.closest('[data-open]');
-    if (op && op.dataset.open) { e.preventDefault(); closeModal(); ui.drawer = op.dataset.open; ui.dTab = op.dataset.tab || (boss() ? 'call' : 'call'); render(); return; }
+    if (go_ && !go_.closest('form')) { e.preventDefault(); closeModal(); if (go_.dataset.filter === 'due') { ui.cStatus = ['due']; resetList('cust'); } go(go_.dataset.go); return; }
     const a = e.target.closest('[data-act]');
-    if (a && handlers[a.dataset.act] && !(a.tagName === 'SELECT' || (a.tagName === 'INPUT' && a.type !== 'button'))) { e.preventDefault(); handlers[a.dataset.act](a, e); }
+    if (a && handlers[a.dataset.act] && !(a.tagName === 'SELECT' || (a.tagName === 'INPUT' && a.type !== 'button'))) { e.preventDefault(); handlers[a.dataset.act](a, e); return; }
+    const op = e.target.closest('[data-open]');
+    if (op && op.dataset.open) { e.preventDefault(); closeModal(); ui.drawer = op.dataset.open; ui.dTab = op.dataset.tab || 'call'; render(); }
   });
   document.addEventListener('change', (e) => {
     const t = e.target, act = t.dataset.act || t.dataset.actChange;
-    if (act === 'cowner') { ui.owner = t.value; render(); }
-    else if (act === 'cal-owner') { ui.calOwner = t.value; render(); }
-    else if (act === 'kpi-user') { ui.kpiUser = t.value; render(); }
-    else if (act === 'kpi-date') { ui.kpiDate = t.value || H.today(); render(); }
-    else if (act === 'close-admin') { ui.closeAdmin = t.value; render(); }
+    if (act === 'kpi-date') { ui.kpiDate = t.value || H.today(); resetList('kpi'); render(); }
     else if (act === 'auto-approve') run(() => api.act('updateSettings', { autoApprove: t.checked }), t.checked ? 'ระบบจะส่งรายชื่อให้ Telesales ทันที' : 'รายชื่อจะรออนุมัติก่อนส่ง');
     else if (act === 'kpi-channel') { const f = t.closest('form'); const rf = $('[data-round-field]', f); if (rf) rf.hidden = t.value !== 'fb'; }
     if (t.name === 'round' && t.closest('form[data-form=call]')) { const h = $('[data-round-hint]', t.closest('form')); if (h) h.textContent = H.ROUNDS[t.value] || ''; }
@@ -882,13 +1345,16 @@
   let qTimer = null;
   document.addEventListener('input', (e) => {
     const t = e.target;
-    if (t.id === 'cust-q') { clearTimeout(qTimer); qTimer = setTimeout(() => { ui.q = t.value; ui.limit = 120; $('#cust-list').innerHTML = custTable(); }, 180); return; }
+    if (t.dataset.search) {   // search as you type, 250 ms after the last key, back to page 1
+      const key = t.dataset.search; const x = t.parentElement.querySelector('.s-x'); if (x) x.hidden = !t.value;
+      clearTimeout(qTimer); qTimer = setTimeout(() => { if (key === 'cust') ui.q = t.value; resetList(key); refreshList(key); }, 250); return;
+    }
     if (t.dataset.item) {
       const row = t.closest('.item-row');
       if (t.dataset.item === 'name') { const p = products().find((x) => x.code === t.value.trim() || x.name === t.value.trim()); if (p) $('[data-item=price]', row).value = p.price; }
       updateTotals(row); return;
     }
-    if (t.dataset.totalFor) { t.dataset.touched = t.value ? '1' : ''; }
+    if (t.dataset.totalFor || t.id === 'q-amount') { t.dataset.touched = t.value ? '1' : ''; }
     if (t.dataset.actInput === 'kpi-phone') { const c = H.byPhone(V(), t.value); const f = t.closest('form'); if (c && f.name && !f.name.value) { f.name.value = c.name; if (c.channel === 'ecom') { f.channel.value = 'mkt'; $('[data-round-field]', f).hidden = true; } } }
     if (t.dataset.actInput === 'close-phone') {
       const hint = $('[data-close-hint]'); const ph = H.normPhone(t.value);
@@ -898,7 +1364,7 @@
       if (c && !t.form.address.value) t.form.address.value = c.address || '';
     }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (modal) closeModal(); else if (ui.drawer) { ui.drawer = null; render(); } } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (pop) closePop(); else if (modal) closeModal(); else if (ui.drawer) { ui.drawer = null; render(); } } });
 
   document.addEventListener('submit', async (e) => {
     const f = e.target; const kind = f.dataset.form; if (!kind) return;
@@ -909,7 +1375,7 @@
         if (!f.result.value) throw new Error('เลือกผลการโทรก่อนบันทึก');
         if (timers.d) handlers.timer($('[data-act=timer]', f));
         await api.act('logCall', { customerId: f.dataset.id, result: f.result.value, lostReason: f.lostReason.value, durationSec: readHms(f, 'd'), round: f.round ? f.round.value : '', items: readItems('call-items'), amount: f.amount.value, note: f.note.value, nextAt: fromLocal(f.nextAt.value), nextPurpose: f.nextPurpose.value });
-        toast('บันทึกการโทรแล้ว · นับเข้า KPI วันนี้');
+        toast('บันทึกการโทรแล้ว : นับเข้า KPI วันนี้');
       } else if (kind === 'appt') {
         await api.act('addAppt', { customerId: f.dataset.id, at: fromLocal(f.at.value), purpose: f.purpose.value, round: f.round.value }); toast('บันทึกนัดแล้ว');
       } else if (kind === 'order') {
@@ -920,20 +1386,20 @@
         await api.act('addNote', { customerId: ui.drawer, text: f.text.value }); toast('บันทึกโน้ตแล้ว');
       } else if (kind === 'kpi-call' || kind === 'kpi-sum') {
         if (timers.d) handlers.timer($('[data-act=timer]', f));
-        const user = boss() ? ($('[data-act=kpi-user]') || {}).value : undefined;
+        const tl = H.teles(S.full || V()); const user = boss() ? (ui.kpiUser && tl.find((u) => u.id === ui.kpiUser) ? ui.kpiUser : (tl[0] || {}).id) : undefined;
         const base = { user, date: f.date.value, channel: f.channel.value, round: f.round.value, note: f.note.value, durationSec: readHms(f, 'd'), amount: f.amount.value };
         if (kind === 'kpi-call') await api.act('addKpi', { ...base, mode: 'call', phone: f.phone.value, name: f.name.value, result: f.result.value, items: readItems('kpi-items') });
         else await api.act('addKpi', { ...base, mode: 'summary', calls: f.calls.value, talkedCount: f.talkedCount.value, orders: f.orders.value, items: readItems('sum-items') });
-        toast('บันทึก KPI แล้ว · ขึ้น Dashboard ผู้บริหารทันที');
+        toast('บันทึก KPI แล้ว : ขึ้น Dashboard ผู้บริหารทันที');
       } else if (kind === 'close') {
         const r = await api.act('createClose', { name: f.name.value, phone: f.phone.value, address: f.address.value, page: f.page.value, items: readItems('close-items'), total: f.total.value, note: f.note.value, closer: f.closer ? f.closer.value : undefined });
         const ap = (S.full || V()).approvals.find((a) => a.id === (r && r.id)) || (V().approvals || [])[0];
-        toast(ap && ap.status === 'approved' ? 'บันทึกแล้ว · ส่งรายชื่อให้ ' + uname(ap.assigned) + ' แล้ว' : 'บันทึกแล้ว · เสนอให้ ' + uname(r && r.proposed) + ' (รออนุมัติ)');
+        toast(ap && ap.status === 'approved' ? 'บันทึกแล้ว : ส่งรายชื่อให้ ' + uname(ap.assigned) + ' แล้ว' : 'บันทึกแล้ว : เสนอให้ ' + uname(r && r.proposed) + ' (รออนุมัติ)');
       } else if (kind === 'add-customer') {
         const r = await api.act('addCustomer', { name: f.name.value, phone: f.phone.value, address: f.address.value, channel: f.channel.value, platform: f.platform.value || undefined, owner: f.owner ? f.owner.value : undefined, note: f.note.value });
         closeModal(); ui.drawer = r && r.id; ui.dTab = 'call'; toast('เพิ่มลูกค้าแล้ว');
       } else if (kind === 'new-appt') {
-        const v = V(); const val = f.cust.value; const ph = H.normPhone(val.split('·').pop());
+        const v = V(); const val = f.cust.value; const ph = H.normPhone(val.split(' : ').pop());
         const c = H.byPhone(v, ph) || (v.customers || []).find((x) => x.name === val.trim());
         if (!c) throw new Error('ไม่พบลูกค้า เลือกจากรายการที่แสดง');
         await api.act('addAppt', { customerId: c.id, at: fromLocal(f.at.value), purpose: f.purpose.value, round: f.round.value }); closeModal(); toast('บันทึกนัดแล้ว');
@@ -954,18 +1420,23 @@
           if (f.platform.value) rows.forEach((x) => { x.platform = f.platform.value; });
           r = await api.act('ingestEcom', { rows });
         }
-        toast('นำเข้า ' + r.received + ' แถว · ลูกค้าใหม่ ' + r.added + ' · ออเดอร์ ' + r.orders + (r.masked ? ' · เบอร์ถูกปิด ' + r.masked : ''));
+        toast('นำเข้า ' + r.received + ' แถว : ลูกค้าใหม่ ' + r.added + ' : ออเดอร์ ' + r.orders + (r.masked ? ' : เบอร์ถูกปิด ' + r.masked : ''));
       }
       render();
     } catch (err) { toast(err.message || String(err), true); if (btn) btn.disabled = false; }
   });
 
   // ------------------------------------------------------------ boot
+  function bootError() {
+    document.getElementById('app').innerHTML = '<div class="login"><div class="login-card" style="text-align:center"><h1 style="font-size:20px">โหลดข้อมูลไม่สำเร็จ</h1><div class="muted">ตรวจสอบอินเทอร์เน็ต แล้วลองใหม่อีกครั้ง</div><button class="btn primary lg" data-act="retry">ลองใหม่</button></div></div>';
+  }
+  handlers.retry = () => { document.getElementById('app').innerHTML = '<div class="boot"><div class="sk"></div><div class="sk"></div><div class="sk short"></div></div>'; start(); };
   async function start() {
-    const ok = await api.boot().catch(() => false);
+    let ok;
+    try { ok = await api.boot(); } catch (e) { bootError(); return; }
     if (!ok) { renderLogin(); return; }
     const hash = (location.hash || '').slice(1);
-    S.page = PAGES[hash] && allowed(hash) ? hash : (boss() ? 'home' : 'home');
+    S.page = PAGES[hash] && allowed(hash) ? hash : (S.me.role === 'tele' ? 'today' : 'home');
     render();
     if (!DEMO) setInterval(async () => {
       if (document.hidden || modal || ui.drawer || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return;
