@@ -32,6 +32,7 @@
     plus: '<path d="M12 5v14M5 12h14"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
     x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    ban: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     refresh: '<path d="M20 11a8 8 0 0 0-14.7-4.3L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.7 4.3L21 15"/><path d="M21 20v-5h-5"/>',
     lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
@@ -143,6 +144,7 @@
     kpi: { t: 'บันทึก KPI', crumb: 'Telesales : บันทึก KPI รายวัน', ico: 'clip' },
     close: { t: 'ปิดการขาย', crumb: 'Admin Sales : บันทึกปิดการขาย', ico: 'cart' },
     approvals: { t: 'อนุมัติแจกรายชื่อ', crumb: 'Telesales : แจกรายชื่อ FB Page 50:50', ico: 'inbox' },
+    dnc: { t: 'ยกเลิกการติดต่อถาวร', crumb: '', ico: 'ban' },
     settings: { t: 'ตั้งค่า', crumb: 'System : ตั้งค่าและการเชื่อมต่อ', ico: 'gear' },
   };
   function allowed(page) {
@@ -151,7 +153,7 @@
     if (page === 'overview' || page === 'settings') return boss();
     if (['today', 'customers', 'customer', 'calendar', 'kpi'].includes(page)) return boss() || r === 'tele';
     if (page === 'close') return boss() || r === 'admin';
-    if (page === 'approvals') return boss() || r === 'tele';
+    if (page === 'approvals' || page === 'dnc') return boss() || r === 'tele';
     return false;
   }
   function go(page) {
@@ -171,7 +173,7 @@
     const nav = [
       nb('home', 'หน้าหลัก'),
       boss() ? '<div class="nav-label">ผู้บริหาร</div>' + nb('overview', 'ภาพรวมผู้บริหาร') : '',
-      (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'อนุมัติแจกรายชื่อ' : 'รายชื่อใหม่') : '',
+      (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'อนุมัติแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
       (boss() || role === 'admin') ? '<div class="nav-label">แอดมินเซลล์</div>' + nb('close', 'ปิดการขาย') : '',
       boss() ? '<div class="nav-label">ระบบ</div>' + nb('settings', 'ตั้งค่า') : '',
     ].join('');
@@ -607,7 +609,7 @@
     const v = V(), now = Date.now(), endToday = Date.parse(H.addDays(H.today(), 1) + 'T00:00:00Z') - H.TZ;
     const out = [];
     for (const c of (v.customers || [])) {
-      if (c.owner !== who || c.status === 'lost' || c.status === 'won' && !c.nextApptAt) continue;
+      if (c.owner !== who || c.status === 'lost' || c.status === 'dnc' || c.status === 'won' && !c.nextApptAt) continue;
       const appt = c.nextApptAt ? Date.parse(c.nextApptAt) : null;
       let why = null, rank = 9, t = appt || 0;
       if (appt && appt <= endToday) { why = appt < now - 3600000 ? 'late' : 'appt'; rank = appt < now ? 0 : 3; }
@@ -712,9 +714,9 @@
   const TH_MON_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   const longDay = (d) => { const x = new Date(d + 'T00:00:00Z'); return TH_DAYS_FULL[x.getUTCDay()] + ' ' + H.thDate(d); };
   const CRUMB = { home: ['หน้าหลัก'], overview: ['ภาพรวม', 'ภาพรวมผู้บริหาร'], today: ['งานขาย', 'คิวโทรวันนี้'], customers: ['งานขาย', 'ลูกค้า'], customer: ['งานขาย', 'ลูกค้า', 'รายละเอียดลูกค้า'],
-    calendar: ['งานขาย', 'ปฏิทินนัดหมาย'], kpi: ['งานขาย', 'บันทึก KPI'], approvals: ['งานขาย', 'รายชื่อใหม่'], close: ['การจัดการ', 'ปิดการขาย'], settings: ['การจัดการ', 'ตั้งค่า'] };
+    calendar: ['งานขาย', 'ปฏิทินนัดหมาย'], kpi: ['งานขาย', 'บันทึก KPI'], approvals: ['งานขาย', 'รายชื่อใหม่'], dnc: ['งานขาย', 'ยกเลิกการติดต่อถาวร'], close: ['การจัดการ', 'ปิดการขาย'], settings: ['การจัดการ', 'ตั้งค่า'] };
   const PH = { overview: ['ภาพรวมทีมขาย', 'ยอดขายทุกช่องทาง KPI ทีม Telesales และงานที่ต้องตัดสินใจ'], today: ['คิวโทรวันนี้', 'ระบบเรียงลำดับให้แล้ว โทรทีละคน กดผลแล้วไปคนถัดไป'],
-    kpi: ['บันทึก KPI', 'กรอกทีละสายหรือยอดรวมทั้งวัน ตัวเลขขึ้น Dashboard ผู้บริหารทันที'], approvals: ['อนุมัติแจกรายชื่อ', 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจกให้ Telesales 50:50'],
+    kpi: ['บันทึก KPI', 'กรอกทีละสายหรือยอดรวมทั้งวัน ตัวเลขขึ้น Dashboard ผู้บริหารทันที'], dnc: ['ยกเลิกการติดต่อถาวร', 'ลูกค้าที่ขอไม่ให้ติดต่ออีก ไม่อยู่ในคิวโทรและรายชื่อลูกค้า กู้คืนได้ถ้าต้องการ'], approvals: ['อนุมัติแจกรายชื่อ', 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจกให้ Telesales 50:50'],
     close: ['บันทึกปิดการขาย', 'ปิดการขายแล้วระบบส่งรายชื่อให้ Telesales อัตโนมัติ'], settings: ['ตั้งค่า', 'เป้า KPI ทีมงาน สินค้า และการเชื่อมต่อระบบ'] };
   function pageHead(title, sub, actions) { return '<div class="ph"><div class="ph-t"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (actions ? '<div class="ph-act">' + actions + '</div>' : '') + '</div>'; }
   function crumbHtml() {
@@ -726,7 +728,7 @@
   const ROUND_OPTS = [{ v: 'all', l: 'T1 / T2 / T3' }, { v: 'T1', l: 'T1' }, { v: 'T2', l: 'T2' }, { v: 'T3', l: 'T3' }];
   function apptMap() { const m = {}; for (const a of (V().appointments || [])) if (!a.done && (!m[a.customerId] || Date.parse(a.at) < Date.parse(m[a.customerId].at))) m[a.customerId] = a; return m; }
   function custFiltersActive() { return (ui.cStatus || []).length > 0 || (ui.custTab === 'fb' && ui.round !== 'all') || (boss() && ui.owner !== 'all') || !!drRange('cust')[0]; }
-  function custBase() { const v = V(); return (v.customers || []).filter((c) => c.channel === ui.custTab && (c.owner || boss()) && (!boss() || ui.owner === 'all' || (ui.owner === 'none' ? !c.owner : c.owner === ui.owner))); }
+  function custBase() { const v = V(); return (v.customers || []).filter((c) => c.status !== 'dnc' && c.channel === ui.custTab && (c.owner || boss()) && (!boss() || ui.owner === 'all' || (ui.owner === 'none' ? !c.owner : c.owner === ui.owner))); }
   const isTodayAppt = (c) => c.nextApptAt && H.dayKey(c.nextApptAt) === H.today();
   const isLateAppt = (c) => c.nextApptAt && Date.parse(c.nextApptAt) < Date.now() - 3600000;
   function custList() {
@@ -748,7 +750,7 @@
   }
   function pageCustomers() {
     const v = V();
-    const scope = (ch) => (v.customers || []).filter((c) => c.channel === ch && (c.owner || boss()) && (!boss() || ui.owner === 'all' || (ui.owner === 'none' ? !c.owner : c.owner === ui.owner))).length;
+    const scope = (ch) => (v.customers || []).filter((c) => c.status !== 'dnc' && c.channel === ch && (c.owner || boss()) && (!boss() || ui.owner === 'all' || (ui.owner === 'none' ? !c.owner : c.owner === ui.owner))).length;
     const base = custBase();
     const nToday = base.filter(isTodayAppt).length, nLate = base.filter((c) => isLateAppt(c) || H.isStale(v, c)).length;
     const am = apptMap();
@@ -789,7 +791,7 @@
     const empty = q ? emptyState('ไม่พบ “' + esc(q) + '”' + (active ? '<div class="small" style="margin-top:4px">กำลังกรองด้วยฟิลเตอร์อื่นอยู่ด้วย</div>' : ''), clearQ + (active ? clearF : ''))
       : active || ui.cView !== 'all' ? emptyState('ไม่พบลูกค้าตามเงื่อนไขที่เลือก', clearF) : emptyState('ยังไม่มีลูกค้าในแท็บนี้', '<button class="btn sm primary" data-act="add-customer">' + ico('plus') + ' เพิ่มลูกค้า</button>');
     const head = [{ h: 'ชื่อ / เบอร์โทร' }, { h: 'คำสั่งซื้อล่าสุด' }, { h: 'ยอดซื้อสะสม', cls: 'hide-sm' }, { h: 'สถานะ' }, { h: ui.custTab === 'fb' ? 'รอบ' : 'แพลตฟอร์ม' }, { h: 'นัดหมายถัดไป ↑', cls: 'th-acc' }].concat(boss() ? [{ h: 'ผู้ดูแล', cls: 'hide-sm' }] : []).concat([{ h: '', cls: 'n' }]);
-    const actions = [{ act: 'cust-status', label: 'เปลี่ยนสถานะ' }].concat([{ act: 'cust-assign', label: 'เปลี่ยนผู้ดูแล' }], [{ act: 'cust-export', label: 'ส่งออก' }], boss() ? [{ act: 'cust-del', label: 'ลบ', danger: true }] : []);
+    const actions = [{ act: 'cust-status', label: 'เปลี่ยนสถานะ' }].concat([{ act: 'cust-assign', label: 'เปลี่ยนผู้ดูแล' }, { act: 'cust-dnc', label: 'ยกเลิกการติดต่อ', danger: true }], [{ act: 'cust-export', label: 'ส่งออก' }], boss() ? [{ act: 'cust-del', label: 'ลบ', danger: true }] : []);
     return listView({
       key: 'cust', items: list, id: (c) => c.id, click: (c) => c.id, head, actions, empty, unit: 'ลูกค้า',
       row: (c) => {
@@ -810,7 +812,7 @@
   // ------------------------------------------------------------ CUSTOMER DETAIL (v2, full page)
   const RESULT_STEPS = [
     { id: 'sold', label: 'ขายได้', hint: 'ลูกค้าตกลงซื้อ', icon: 'checkc', tone: 'good', q: 'ชำระเงินแล้วหรือยัง', ids: ['won', 'awaiting_payment'] },
-    { id: 'talk', label: 'ยังไม่ซื้อ', hint: 'สนใจ / ขอคิด / ปฏิเสธ', icon: 'phone', tone: 'warn', q: 'ลูกค้าตอบว่าอย่างไร', ids: ['hot', 'warm', 'info', 'followup', 'later', 'lost'] },
+    { id: 'talk', label: 'ยังไม่ซื้อ', hint: 'สนใจ / ขอคิด / ปฏิเสธ / ยกเลิกถาวร', icon: 'phone', tone: 'warn', q: 'ลูกค้าตอบว่าอย่างไร', ids: ['hot', 'warm', 'info', 'followup', 'later', 'lost', 'dnc'] },
     { id: 'none', label: 'ติดต่อไม่ได้', hint: 'ไม่รับสาย / ปิดเครื่อง', icon: 'x', tone: 'bad', q: '', ids: ['no_answer'] },
   ];
   // products grouped by line ("Yanhee Anti-Aging") with pack sizes ("1 กล่อง") as a second step
@@ -835,6 +837,43 @@
     $$('[data-assign-to]', modal).forEach((b) => b.onclick = () => { closeModal(); const to = b.dataset.assignTo;
       run(async () => { const r = await api.act('bulkUpdateCustomers', { ids: items.map((c) => c.id), patch: { owner: to } }); SEL.cust = null;
         if (fromDetail && !boss() && to !== S.me.id) go('customers'); return r; }, (r) => 'ย้ายให้ ' + uname(to) + ' แล้ว ' + N(r.updated) + ' ราย'); });
+  }
+  function dncModal(items) {
+    if (!items.length) return;
+    openModal('<div class="row between" style="margin-bottom:6px"><h2 style="font-size:18px;display:flex;align-items:center;gap:8px">' + ico('ban') + ' ยกเลิกการติดต่อ' + (items.length === 1 ? ' : ' + esc(items[0].name || 'ลูกค้า') : ' ' + N(items.length) + ' ราย') + '</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' +
+      '<div class="dnc-warn">' + ico('ban') + '<span>รายชื่อจะย้ายไปเมนู <b>ยกเลิกการติดต่อถาวร</b> นัดทั้งหมดจะถูกปิด และไม่ขึ้นในคิวโทรอีก (กู้คืนได้ภายหลัง)</span></div>' +
+      '<div class="field" style="margin-top:14px"><span>เหตุผล <em>*</em></span><div class="rg-opts dnc-opts">' + H.DNC_REASONS.map((r, i) => '<label class="rg-o"><input type="radio" name="dncr" value="' + esc(r) + '"' + (i === 0 ? ' checked' : '') + '><span>' + esc(r) + '</span></label>').join('') + '</div></div>' +
+      '<div class="row" style="justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn" data-act="close-modal">ยกเลิก</button><button class="btn danger-solid" data-dnc-go>' + ico('ban') + ' ยืนยันยกเลิกการติดต่อ</button></div>');
+    $('[data-dnc-go]', modal).onclick = () => { const r = ($('input[name=dncr]:checked', modal) || {}).value; closeModal();
+      run(async () => { const x = await api.act('markDnc', { ids: items.map((c) => c.id), reason: r }); SEL.cust = null; return x; }, (x) => 'ย้ายไปยกเลิกการติดต่อถาวรแล้ว ' + N(x.updated) + ' ราย'); };
+  }
+  function reasonField(f, result) {
+    const box = $('[data-show=lost]', f); if (!box) return;
+    const on = result === 'lost' || result === 'dnc'; box.hidden = !on; if (!on) return;
+    const sel = f.lostReason, list = result === 'dnc' ? H.DNC_REASONS : H.LOST_REASONS;
+    if (sel.dataset.kind !== result) { sel.innerHTML = '<option value="">เลือกเหตุผล</option>' + list.map((r) => '<option>' + esc(r) + '</option>').join(''); sel.dataset.kind = result; }
+    const lab = $('[data-reason-label]', box); if (lab) lab.innerHTML = (result === 'dnc' ? 'เหตุผลที่ยกเลิกการติดต่อถาวร' : 'เหตุผลที่ปฏิเสธ') + ' <em>*</em>';
+    const w = $('[data-dnc-warn]', box); if (w) w.hidden = result !== 'dnc';
+    if (result === 'dnc') { f.nd.value = ''; f.np.value = ''; }
+  }
+  // ------------------------------------------------------------ DO-NOT-CONTACT list
+  function pageDnc() {
+    const v = V(), st = S.full || v;
+    let list = (v.customers || []).filter((c) => c.status === 'dnc' && (boss() || c.owner === S.me.id));
+    const q = (ui.dncQ || '').trim().toLowerCase();
+    if (q) list = list.filter((c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q.replace(/\D/g, '') || '###'));
+    list.sort((a, b) => Date.parse((b.dnc || {}).at || b.updatedAt || 0) - Date.parse((a.dnc || {}).at || a.updatedAt || 0));
+    const total = (v.customers || []).filter((c) => c.status === 'dnc' && (boss() || c.owner === S.me.id)).length;
+    const row = (c) => { const d = c.dnc || {}; return '<article class="dnc-card"><div class="ap-who"><span class="ap-av dnc">' + esc((c.name || '?').trim()[0] || '?') + '</span><div class="ap-id"><b class="link" data-open="' + esc(c.id) + '">' + esc(c.name || 'ลูกค้าไม่ระบุชื่อ') + '</b><small>' + (c.phone ? ico('phone') + ' ' + H.fmtPhone(c.phone) : '<span class="faint">ไม่มีเบอร์</span>') + ' <span class="pill mute">' + (c.channel === 'ecom' ? 'E-Commerce' : 'FB Page') + '</span></small></div></div>' +
+      '<div class="dnc-reason"><small>เหตุผล</small><b>' + esc(d.reason || '-') + '</b></div>' +
+      '<div class="dnc-meta"><small>ยกเลิกโดย</small><b>' + esc(uname(d.by) || '-') + '</b><small>' + (d.at ? H.thDate(d.at, true) : '') + '</small></div>' +
+      (boss() ? '<div class="dnc-meta"><small>ผู้ดูแล</small><b>' + esc(uname(c.owner) || '-') + '</b></div>' : '') +
+      '<div class="ap-act"><button class="btn sm" data-open="' + esc(c.id) + '">ดูประวัติ</button><button class="btn sm" data-act="dnc-restore" data-id="' + esc(c.id) + '">' + ico('refresh') + ' กู้คืน</button></div></article>'; };
+    const per = 20, page = Math.max(1, Math.min(ui.dncPage || 1, Math.ceil(list.length / per) || 1)), pages = Math.ceil(list.length / per);
+    return '<section class="card dnc-main"><div class="ap-bar"><div class="dnc-sum"><span class="ap-ti dnc">' + ico('ban') + '</span><div><b>' + N(total) + ' รายชื่อ</b><small>ไม่อยู่ในคิวโทร ปฏิทิน และรายชื่อลูกค้า</small></div></div>' +
+      '<label class="search dnc-search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาชื่อหรือเบอร์" value="' + esc(ui.dncQ || '') + '" data-act-change="dnc-q" aria-label="ค้นหา"></label></div>' +
+      (list.length ? '<div class="ap-list">' + list.slice((page - 1) * per, page * per).map(row).join('') + '</div>' + (pages > 1 ? '<div class="cp-pager"><small class="muted">' + ((page - 1) * per + 1) + '–' + Math.min(page * per, list.length) + ' จาก ' + list.length + '</small><div class="pages">' + Array.from({ length: pages }, (_, i) => '<button class="' + (page === i + 1 ? 'on' : '') + '" data-act="dnc-page" data-v="' + (i + 1) + '">' + (i + 1) + '</button>').join('') + '</div></div>' : '')
+        : '<div class="ap-empty"><span>' + ico('ban') + '</span><b>' + (q ? 'ไม่พบรายชื่อที่ค้นหา' : 'ยังไม่มีรายชื่อที่ยกเลิกถาวร') + '</b><small>เมื่อบันทึกผลการโทรเป็น "ยังไม่ซื้อ → ยกเลิกถาวร" รายชื่อจะมาอยู่ที่นี่</small></div>') + '</section>';
   }
   const noTime = (a) => H.thTime(a.at) === '00:00';
   function pageCustomer() {
@@ -884,7 +923,7 @@
       '<div class="field"><span>ผลการโทร <em>*</em></span><div class="rs">' + RESULT_STEPS.map((g) => '<label class="rs-card ' + g.tone + '"><input type="radio" name="rstep" value="' + g.id + '" data-act-change="cd-rstep"><span class="rs-ico">' + ico(g.icon) + '</span><span class="rs-txt"><b>' + g.label + '</b><small>' + g.hint + '</small></span></label>').join('') + '</div>' +
         RESULT_STEPS.map((g) => '<div class="rs-sub ' + g.tone + '" data-rs="' + g.id + '" hidden>' + (g.ids.length > 1 ? '<span class="rs-q">' + g.q + '</span>' + (g.id === 'sold' ? '<small class="rs-note">' + ico('checkc') + ' กรอกรายการขายด้านล่าง (สินค้า จำนวน ยอด) แล้วกดบันทึกครั้งเดียว ระบบสร้างคำสั่งซื้อให้อัตโนมัติ</small>' : '') + '<div class="rg-opts">' + g.ids.map((id) => { const r = H.RESULTS.find((x) => x.id === id); return '<label class="rg-o"><input type="radio" name="result" value="' + id + '" data-act-change="cd-result"><span>' + esc(r.short || r.label) + '</span></label>'; }).join('') + '</div>' : '<input type="radio" name="result" value="' + g.ids[0] + '" hidden>') + '</div>').join('') + '</div>' +
       (c.channel === 'fb' ? '<div class="cd-row2"><label class="field"><span>รอบการโทร</span><select class="in" name="round">' + ['T1', 'T2', 'T3'].map((r) => '<option' + (round === r ? ' selected' : '') + '>' + r + '</option>').join('') + '</select></label><div></div></div>' : '') +
-      '<div class="field" data-show="lost" hidden><span>เหตุผลที่ปฏิเสธ <em>*</em></span><select class="in" name="lostReason"><option value="">เลือกเหตุผล</option>' + H.LOST_REASONS.map((r) => '<option>' + r + '</option>').join('') + '</select></div>' +
+      '<div class="field" data-show="lost" hidden><span data-reason-label>เหตุผลที่ปฏิเสธ <em>*</em></span><select class="in" name="lostReason"><option value="">เลือกเหตุผล</option>' + H.LOST_REASONS.map((r) => '<option>' + r + '</option>').join('') + '</select><div class="dnc-warn" data-dnc-warn hidden>' + ico('ban') + '<span>บันทึกแล้วรายชื่อนี้จะย้ายไปเมนู <b>ยกเลิกการติดต่อถาวร</b> นัดทั้งหมดจะถูกปิด และไม่ขึ้นในคิวโทรอีก (กู้คืนได้ภายหลัง)</span></div></div>' +
       '<div class="cd-row2"><label class="field"><span>วันและเวลาที่โทร</span><input class="in" type="datetime-local" name="at" value="' + nowLocal + '" max="' + nowLocal + '"></label>' +
       '<label class="field"><span>ระยะเวลา (นาที:วินาที)</span><input class="in" name="dur" placeholder="00:00" inputmode="numeric" id="cd-dur"></label></div>' +
       '<div data-prod-home></div><div class="cd-prod"><div class="row between"><b class="small">รายละเอียดสินค้าที่ขาย / สนใจ</b><small class="muted" data-prod-hint>บันทึกเป็นคำสั่งซื้อเมื่อเลือก "ปิดการขายสำเร็จ" หรือ "รอชำระเงิน"</small></div>' +
@@ -897,7 +936,8 @@
       '<label class="field"><span>วัตถุประสงค์</span><input class="in" name="np" placeholder="เช่น ยืนยันคำสั่งซื้อ 1 กล่อง"></label></div></div>' +
       '<div class="cd-submit"><span class="small" style="color:var(--good)">' + ico('checkc') + ' บันทึกครั้งเดียว : นับ KPI และอัปเดตนัดหมายอัตโนมัติ</span><span class="grow"></span><button type="reset" class="btn">ยกเลิก</button><button class="btn primary">' + ico('check') + ' บันทึกการโทร</button></div></form>';
     const apptTab = apptForm(c) + (appts.length ? '<div class="section-t" style="margin-top:14px">นัดที่ยังไม่ได้โทร</div>' + apptList('cdappt', appts, '', true) : '');
-    const mid = '<div class="cd-col">' + banner + (canEdit ? '<section class="card cd-work"><div class="cd-tabs"><button class="' + (ui.dTab !== 'appt' ? 'on' : '') + '" data-act="dtab" data-v="call">บันทึกการโทร</button><button class="' + (ui.dTab === 'appt' ? 'on' : '') + '" data-act="dtab" data-v="appt">นัดหมาย' + (appts.length ? ' (' + appts.length + ')' : '') + '</button></div>' + (ui.dTab === 'appt' ? apptTab : callTab) + '</section>' : '<section class="card"><div class="empty">ลูกค้ารายนี้อยู่กับ ' + esc(uname(c.owner)) + ' ดูได้อย่างเดียว</div></section>') + '</div>';
+    const dncBox = c.status === 'dnc' ? '<section class="dnc-alert">' + ico('ban') + '<div class="grow"><b>ยกเลิกการติดต่อถาวร</b><small>' + esc((c.dnc || {}).reason || '') + ((c.dnc || {}).at ? ' : ' + H.thDate(c.dnc.at, true) + ' โดย ' + esc(uname(c.dnc.by)) : '') + '</small></div>' + (canEdit ? '<button class="btn sm" data-act="dnc-restore" data-id="' + esc(c.id) + '">' + ico('refresh') + ' กู้คืน</button>' : '') + '</section>' : '';
+    const mid = '<div class="cd-col">' + dncBox + (c.status === 'dnc' ? '' : banner) + (canEdit ? '<section class="card cd-work"><div class="cd-tabs"><button class="' + (ui.dTab !== 'appt' ? 'on' : '') + '" data-act="dtab" data-v="call">บันทึกการโทร</button><button class="' + (ui.dTab === 'appt' ? 'on' : '') + '" data-act="dtab" data-v="appt">นัดหมาย' + (appts.length ? ' (' + appts.length + ')' : '') + '</button></div>' + (ui.dTab === 'appt' ? apptTab : callTab) + '</section>' : '<section class="card"><div class="empty">ลูกค้ารายนี้อยู่กับ ' + esc(uname(c.owner)) + ' ดูได้อย่างเดียว</div></section>') + '</div>';
     const noise = (n) => /^(status|followup|distribute|note|assign\w*|owner|round)\s*(:|$)/i.test(String(n.text || '').trim()) || !String(n.text || '').trim();
     const allNotes = (c.notes || []).filter((n) => n.kind === 'call' || n.kind === 'sale' || !noise(n));
     const notes = allNotes.slice(0, ui.cdAllNotes ? 200 : 3);
@@ -1347,7 +1387,7 @@
   function render() {
     if (!S.me) return;
     if (!allowed(S.page)) S.page = 'home';
-    const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: pageOverview, customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, settings: pageSettings }[S.page];
+    const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: pageOverview, customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, dnc: pageDnc, settings: pageSettings }[S.page];
     const keepScroll = $('.drawer-b') ? $('.drawer-b').scrollTop : 0;
     const body = fn();
     document.getElementById('app').innerHTML = shell((PH[S.page] ? (S.page === 'approvals' && !boss() ? pageHead('รายชื่อใหม่', 'ลูกค้าที่แอดมินปิดการขายแล้ว ส่งมาให้คุณโทรดูแลต่อ') : pageHead(PH[S.page][0], PH[S.page][1])) : '') + body);
@@ -1378,8 +1418,8 @@
     'cust-io': () => go('settings'),
     'row-menu': (el) => {
       const c = H.findCustomer(S.full || V(), el.dataset.id); if (!c) return;
-      const box = openPop(el, '<div class="menu"><button data-m="open">' + ico('users') + ' เปิดรายละเอียด</button><button data-m="call">' + ico('phone') + ' บันทึกการโทร</button><button data-m="appt">' + ico('calendar') + ' นัดหมาย</button><button data-m="assign">' + ico('users') + ' เปลี่ยนผู้ดูแล</button>' + (boss() ? '<button data-m="del" class="danger">' + ico('x') + ' ลบลูกค้า</button>' : '') + '</div>', 'menu-pop');
-      box.addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; closePop(); if (b.dataset.m === 'del') delCustomers([c]); else if (b.dataset.m === 'assign') assignModal([c]); else openCustomer(c.id, b.dataset.m === 'appt' ? 'appt' : 'call'); });
+      const box = openPop(el, '<div class="menu"><button data-m="open">' + ico('users') + ' เปิดรายละเอียด</button><button data-m="call">' + ico('phone') + ' บันทึกการโทร</button><button data-m="appt">' + ico('calendar') + ' นัดหมาย</button><button data-m="assign">' + ico('users') + ' เปลี่ยนผู้ดูแล</button><button data-m="dnc" class="danger">' + ico('ban') + ' ยกเลิกการติดต่อ</button>' + (boss() ? '<button data-m="del" class="danger">' + ico('x') + ' ลบลูกค้า</button>' : '') + '</div>', 'menu-pop');
+      box.addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; closePop(); if (b.dataset.m === 'del') delCustomers([c]); else if (b.dataset.m === 'assign') assignModal([c]); else if (b.dataset.m === 'dnc') dncModal([c]); else openCustomer(c.id, b.dataset.m === 'appt' ? 'appt' : 'call'); });
     },
     'appt-menu': (el) => {
       const a = (V().appointments || []).find((x) => x.id === el.dataset.id); if (!a) return;
@@ -1447,6 +1487,7 @@
     'ls-clear': (el) => { SEL[el.dataset.key] = { ids: new Set(), all: false }; refreshList(el.dataset.key); },
     // customers bulk
     'cust-assign': () => assignModal(selectedOf('cust')),
+    'cust-dnc': () => dncModal(selectedOf('cust')),
     'cd-assign': () => { const c = H.findCustomer(S.full || V(), ui.custId); if (c) assignModal([c], true); },
     'cust-status': () => {
       const items = selectedOf('cust');
@@ -1514,6 +1555,8 @@
     'ap-tab': (el) => { ui.apTab = el.dataset.v; render(); },
     'ap-ok': (el) => { const sel = $('[data-ap-to="' + el.dataset.id + '"]'); run(() => api.act('approve', { id: el.dataset.id, to: sel ? sel.value : undefined }), (r) => 'ส่งรายชื่อให้ ' + uname(r && r.to) + ' แล้ว'); },
     'ap-no': (el) => confirmInline(el, () => run(() => api.act('reject', { id: el.dataset.id }), 'ไม่ส่งรายชื่อนี้')),
+    'dnc-restore': (el) => run(() => api.act('restoreCustomer', { id: el.dataset.id }), 'กู้คืนรายชื่อแล้ว : กลับไปอยู่ในรายชื่อลูกค้าสถานะรอติดตาม'),
+    'dnc-page': (el) => { ui.dncPage = Number(el.dataset.v); render(); },
     'ap-mine-all': () => { const ids = (V().approvals || []).filter((a) => a.status === 'pending' && a.proposed === S.me.id).map((a) => a.id); run(() => api.act('approveMany', { ids }), (r) => 'รับ ' + N(r.approved) + ' รายชื่อแล้ว'); },
     'ap-all': () => run(() => api.act('approveAll', {}), (r) => 'อนุมัติ ' + (r && r.approved) + ' รายชื่อแล้ว'),
     'sync-pancake': () => run(() => api.post('/api/sync/pancake', {}), (r) => 'ดึงจาก Pancake : ' + (r.added || 0) + ' ออเดอร์ใหม่' + (r.error ? ' (' + r.error + ')' : '')),
@@ -1606,7 +1649,8 @@
       const pb = $('.cd-prod', f); if (pb) { if (g.id === 'sold') $('[data-rs=sold]', f).after(pb); else $('[data-prod-home]', f).after(pb); pb.hidden = g.id === 'none'; pb.classList.toggle('sold', g.id === 'sold'); const ph = $('[data-prod-hint]', pb); if (ph) ph.textContent = g.id === 'sold' ? 'จำเป็น : เลือกสินค้า จำนวน และยอด' : 'ไม่บังคับ : บันทึกว่าลูกค้าสนใจอะไร'; const pt = $('b.small', pb); if (pt) pt.textContent = g.id === 'sold' ? 'สินค้าที่ขาย' : 'สินค้าที่ลูกค้าสนใจ'; }
       if (g.id === 'talk') { const h = $('[data-next-hint]', f); if (h) h.textContent = 'เลือกคำตอบของลูกค้า แล้วระบบจะนัดให้อัตโนมัติ'; }
     }
-    else if (act === 'cd-result') { const f = t.closest('form'); $('[data-show=lost]', f).hidden = t.value !== 'lost'; suggestNext(f); }
+    else if (act === 'dnc-q') { ui.dncQ = t.value; ui.dncPage = 1; render(); }
+    else if (act === 'cd-result') { const f = t.closest('form'); reasonField(f, t.value); suggestNext(f); if (t.value === 'dnc') nextSum(f); }
     else if (act === 'cd-pline') {
       const f = t.closest('form'); $$('[data-pl]', f).forEach((x) => { x.hidden = x.dataset.pl !== t.value; });
       $$('[name=psize]', f).forEach((x) => { x.checked = false; }); f.prod.value = ''; f.prod.dataset.price = ''; f.prod.dataset.label = '';

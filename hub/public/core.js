@@ -35,8 +35,10 @@
     { id: 'followup', short: 'นัดโทรกลับ', label: 'นัดติดตาม / นัดวันโทรกลับ', group: 'รอติดตาม', tone: 'info', talked: true },
     { id: 'later', short: 'ยังไม่พร้อมซื้อ', label: 'สนใจ แต่ยังไม่พร้อมซื้อ', group: 'ตามรอบถัดไป', tone: 'info', talked: true },
     { id: 'lost', label: 'ปฏิเสธการซื้อ', group: 'ไม่สำเร็จ', tone: 'bad', talked: true },
+    { id: 'dnc', short: 'ยกเลิกถาวร', label: 'ยกเลิกการติดต่อถาวร', group: 'ยกเลิกถาวร', tone: 'bad', talked: true },
     { id: 'no_answer', short: 'ไม่รับสาย / ติดต่อไม่ได้', label: 'ไม่รับสาย / ติดต่อไม่ได้', group: 'ไม่ได้คุย', tone: 'mute', talked: false },
   ];
+  const DNC_REASONS = ['ลูกค้าขอไม่ให้ติดต่ออีก', 'เบอร์ผิด / ไม่มีผู้ใช้เบอร์นี้', 'ไม่ใช่กลุ่มลูกค้า', 'ร้องเรียน / ไม่พอใจ', 'อื่น ๆ'];
   const LOST_REASONS = ['ราคาแพง', 'ยังมีของเหลือ', 'ไม่เห็นผล', 'ซื้อช่องทางอื่น', 'ไม่สะดวกคุย', 'อื่น ๆ'];
   const STATUS = {
     new: { label: 'ลูกค้าใหม่', tone: 'good' },
@@ -49,6 +51,7 @@
     awaiting_payment: { label: 'รอชำระ', tone: 'info' },
     no_answer: { label: 'ติดต่อไม่ได้', tone: 'mute' },
     lost: { label: 'ไม่สำเร็จ', tone: 'bad' },
+    dnc: { label: 'ยกเลิกถาวร', tone: 'bad' },
   };
   const ROUNDS = {
     T1: 'โทรครั้งแรก ต้อนรับ ยืนยันคำสั่งซื้อและการจัดส่ง สร้างความสัมพันธ์',
@@ -170,7 +173,7 @@
     return ts.length ? Math.max(...ts) : 0;
   }
   function isStale(st, c) {
-    if (['won', 'lost'].includes(c.status)) return false;
+    if (['won', 'lost', 'dnc'].includes(c.status)) return false;
     if (c.nextApptAt && Date.parse(c.nextApptAt) > Date.now()) return false;
     const lim = (st.settings.staleDays || {})[c.channel] || (c.channel === 'fb' ? 2 : 5);
     return Date.now() - lastActivity(c) > lim * 86400000;
@@ -253,7 +256,7 @@
   const ROUND_NEXT = { T1: ['T2', 7, 'T2 ถามผลการใช้ เสนออัปเซล'], T2: ['T3', 25, 'T3 เช็กของใกล้หมด ชวนสั่งซ้ำ'], T3: ['T3', 30, 'T3 ชวนสั่งซ้ำรอบถัดไป'] };
   function atDayTime(daysAhead, hhmm) { const d = addDays(today(), daysAhead); return new Date(Date.parse(d + 'T' + (hhmm || '10:00') + ':00Z') - TZ).toISOString(); }
   function planNext(st, c, result) {
-    if (result === 'lost') return null;
+    if (result === 'lost' || result === 'dnc') return null;
     if (result === 'no_answer') {
       const tries = st.kpi.filter((k) => k.customerId === c.id && k.date === today() && k.result === 'no_answer').length;
       return tries < 2 ? { at: new Date(Date.now() + 2 * 3600000).toISOString(), round: c.round, purpose: 'โทรซ้ำ ลูกค้าไม่รับสาย' }
@@ -276,6 +279,8 @@
     logCall: ['exec', 'lead', 'tele'],
     addNote: ['exec', 'lead', 'tele', 'admin'],
     addAppt: ['exec', 'lead', 'tele'],
+    restoreCustomer: ['exec', 'lead', 'tele'],
+    markDnc: ['exec', 'lead', 'tele'],
     updateAppt: ['exec', 'lead', 'tele'],
     deleteAppt: ['exec', 'lead', 'tele'],
     addKpi: ['exec', 'lead', 'tele'],
@@ -382,6 +387,7 @@
     if (!ownsOrBoss(actor, c)) throw err('ลูกค้ารายนี้อยู่กับเซลล์คนอื่น', 403);
     const res = RESULTS.find((r) => r.id === p.result); if (!res) throw err('เลือกผลการโทร');
     if (res.id === 'lost' && !p.lostReason) throw err('เลือกเหตุผลที่ลูกค้าปฏิเสธ');
+    if (res.id === 'dnc' && !p.lostReason) throw err('เลือกเหตุผลที่ยกเลิกการติดต่อถาวร');
     const durationSec = Math.max(0, Math.round(Number(p.durationSec) || 0));
     const items = cleanItems(p.items, st.settings.products);
     const amount = p.amount != null && p.amount !== '' ? money(p.amount) : itemsTotal(items);
@@ -412,13 +418,44 @@
     }
     // close today's open appointment for this customer: the call was made
     for (const a of st.appointments) if (a.customerId === c.id && !a.done && dayKey(a.at) <= today() && a.id !== st._lastApptId) { a.done = true; a.doneAt = nowIso(); a.outcome = res.id; }
+    // permanent stop: close every open appointment and park the customer in the do-not-contact list
+    if (res.id === 'dnc') {
+      for (const a of st.appointments) if (a.customerId === c.id && !a.done) { a.done = true; a.doneAt = nowIso(); a.outcome = 'dnc'; }
+      c.dnc = { at: nowIso(), by: actor.id, reason: k.lostReason, prevStatus: 'followup' };
+    }
     setNextAppt(st, c);
     log(st, actor, userName(st, user) + ' โทรหา ' + (c.name || fmtPhone(c.phone)) + ' : ' + res.label + (k.amount ? ' ' + baht(k.amount) : ''));
     return { kpiId: k.id, next: planned };
   };
 
+  A.markDnc = (st, p, actor) => {
+    const ids = p.ids || (p.id ? [p.id] : []);
+    if (!clip(p.reason)) throw err('เลือกเหตุผลที่ยกเลิกการติดต่อ');
+    const list = ids.map((id) => findCustomer(st, id)).filter(Boolean);
+    for (const c of list) if (!ownsOrBoss(actor, c)) throw err('มีลูกค้าที่อยู่กับเซลล์คนอื่น', 403);
+    for (const c of list) {
+      if (c.status === 'dnc') continue;
+      for (const a of st.appointments) if (a.customerId === c.id && !a.done) { a.done = true; a.doneAt = nowIso(); a.outcome = 'dnc'; }
+      c.dnc = { at: nowIso(), by: actor.id, reason: clip(p.reason, 60), prevStatus: c.status };
+      c.status = 'dnc'; c.updatedAt = nowIso();
+      pushNote(c, { by: actor.id, kind: 'note', text: 'ยกเลิกการติดต่อถาวร : ' + clip(p.reason, 60) });
+      setNextAppt(st, c);
+    }
+    log(st, actor, 'ยกเลิกการติดต่อถาวร ' + list.length + ' ราย');
+    return { updated: list.length };
+  };
+  A.restoreCustomer = (st, p, actor) => {
+    const c = findCustomer(st, p.id); if (!c) throw err('ไม่พบลูกค้า', 404);
+    if (!ownsOrBoss(actor, c)) throw err('ลูกค้ารายนี้อยู่กับเซลล์คนอื่น', 403);
+    if (c.status !== 'dnc') return { id: c.id };
+    const prev = (c.dnc || {}).prevStatus; c.status = prev && prev !== 'dnc' && STATUS[prev] && prev !== 'lost' ? prev : 'followup'; c.updatedAt = nowIso(); delete c.dnc;
+    pushNote(c, { by: actor.id, kind: 'note', text: 'กู้คืนจากรายชื่อยกเลิกการติดต่อถาวร' });
+    log(st, actor, 'กู้คืนรายชื่อ ' + (c.name || fmtPhone(c.phone)));
+    return { id: c.id };
+  };
   A.addAppt = (st, p, actor) => {
     const c = findCustomer(st, p.customerId); if (!c) throw err('เลือกลูกค้าที่จะนัด');
+    if (c.status === 'dnc') throw err('ลูกค้ารายนี้ยกเลิกการติดต่อถาวรแล้ว กู้คืนก่อนจึงนัดได้');
     const t = Date.parse(p.at); if (isNaN(t)) throw err('ระบุวันและเวลานัด');
     const a = { id: uid('a'), customerId: c.id, owner: p.owner || (actor.role === 'tele' ? actor.id : c.owner || actor.id), at: new Date(t).toISOString(),
       purpose: clip(p.purpose || 'โทรติดตาม', 120), round: clip(p.round, 4), note: clip(p.note, 300), done: false, createdAt: nowIso(), by: actor.id };
@@ -987,7 +1024,7 @@
 
   return {
     sheetToContacts,
-    TZ, ROLES, RESULTS, LOST_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
+    TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
     emptyState, normalize, apply, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,

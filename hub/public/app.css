@@ -969,3 +969,21 @@ b.acc { color: var(--accent); }
 @media (max-width: 760px) { .ap-tiles { grid-template-columns: 1fr 1fr; } .ap-tile.split { grid-column: 1 / -1; } }
 @media (max-width: 520px) { .ap-card, .ap-card.done { grid-template-columns: minmax(0, 1fr); } .ap-amt { text-align: left; } .ap-act .btn { flex: 1; } .ap-tile b { font-size: 20px; } }
 .ap-item { white-space: normal; }
+
+/* do-not-contact */
+.dnc-warn { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: #fef2f2; color: #991b1b; font-size: 13px; }
+.dnc-warn[hidden] { display: none !important; }
+.dnc-warn .ico { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.dnc-alert { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+.dnc-alert > .ico { width: 22px; height: 22px; flex: none; }
+.dnc-alert small { display: block; color: #b91c1c; }
+.dnc-sum { display: flex; align-items: center; gap: 12px; } .dnc-sum b { display: block; font-size: 18px; } .dnc-sum small { color: var(--muted); font-size: 12.5px; }
+.ap-ti.dnc { background: #fef2f2; color: var(--bad); }
+.dnc-search { flex: 0 1 320px; margin: 0 !important; }
+.dnc-card { display: grid; grid-template-columns: minmax(200px, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) auto auto; gap: 16px; align-items: center; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.dnc-card:has(.dnc-meta + .dnc-meta) { grid-template-columns: minmax(200px, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .8fr) auto; }
+.dnc-reason, .dnc-meta { display: grid; min-width: 0; } .dnc-reason small, .dnc-meta small { color: var(--muted); font-size: 12px; } .dnc-reason b, .dnc-meta b { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-av.dnc { background: #fef2f2; color: var(--bad); }
+@media (max-width: 1080px) { .dnc-card, .dnc-card:has(.dnc-meta + .dnc-meta) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .dnc-card .ap-act { grid-column: 1 / -1; justify-content: flex-start; } }
+@media (max-width: 520px) { .dnc-card, .dnc-card:has(.dnc-meta + .dnc-meta) { grid-template-columns: minmax(0, 1fr); } .dnc-search { flex: 1 1 100%; } }
+.dnc-opts .rg-o input:checked + span { background: var(--bad); border-color: var(--bad); color: #fff; }
