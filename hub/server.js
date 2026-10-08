@@ -97,6 +97,17 @@ app.get('/api/state', auth, (req, res) => {
   const cutoff = Date.now() - 45 * 86400000;
   res.json({ me: req.actor, state: { ...v, onecall: (v.onecall || []).filter((o) => Date.parse(o.at) > cutoff), sync: { ...state.sync, onecall: { ...state.sync.onecall, token: undefined } } }, integrations: I.status(), updatedAt: state.updatedAt });
 });
+// team dashboard numbers for everyone (telesales see the same overview as executives; no customer details inside)
+app.get('/api/dashboard', auth, (req, res) => {
+  const day = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? String(x) : H.today());
+  const from = day(req.query.from), to = day(req.query.to) < from ? from : day(req.query.to);
+  const d = H.dashboard(state, from, to);
+  const T = H.today(), split = {};
+  for (const u of H.teles(state)) split[u.id] = 0;
+  for (const a of state.approvals) if (H.dayKey(a.at) === T && a.status !== 'rejected' && a.status !== 'history') { const w = a.assigned || a.proposed; if (w in split) split[w]++; }
+  const dist = state.approvals.filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) >= from && H.dayKey(a.decidedAt || a.at) <= to).length;
+  res.json({ d, split, dist, updatedAt: state.updatedAt });
+});
 app.post('/api/action', auth, async (req, res) => {
   const { type, payload } = req.body || {};
   if (type === 'resetDemo') return res.status(400).json({ error: 'ใช้ได้เฉพาะโหมดตัวอย่าง' });
@@ -198,7 +209,7 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
         const d = crypto.createDecipheriv('aes-256-gcm', Buffer.from(process.env.IMPORT_KEY, 'base64'), Buffer.from(box.iv, 'base64'));
         d.setAuthTag(Buffer.from(box.tag, 'base64'));
         const pay = JSON.parse(Buffer.concat([d.update(Buffer.from(box.data, 'base64')), d.final()]).toString('utf8'));
-        const r = H.apply(state, 'importContacts', { rows: pay.rows, owner: pay.owner, label: pay.label, importId: f }, { id: 'system', role: 'system' });
+        const r = H.apply(state, 'importContacts', { rows: pay.rows, owner: pay.owner, label: pay.label, importId: f, keepOwner: !!pay.keepOwner }, { id: 'system', role: 'system' });
         console.log('[import]', f, JSON.stringify(r));
       } catch (e) { console.warn('[import] failed', f, e.message); }
     }

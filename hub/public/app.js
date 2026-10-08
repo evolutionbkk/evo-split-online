@@ -152,7 +152,8 @@
   function allowed(page) {
     const r = S.me.role;
     if (page === 'home') return true;
-    if (page === 'overview' || page === 'ovtele' || page === 'ovadmin' || page === 'settings') return boss();
+    if (page === 'overview' || page === 'ovtele' || page === 'ovadmin') return boss() || r === 'tele';
+    if (page === 'settings') return boss();
     if (page === 'kpi') return r === 'tele';
     if (['today', 'customers', 'customer', 'calendar'].includes(page)) return boss() || r === 'tele';
     if (page === 'close') return boss() || r === 'admin';
@@ -187,6 +188,7 @@
     };
     const nav = isExec ? tree() : [
       nb('home', 'หน้าหลัก'),
+      role === 'tele' ? nb('overview', 'ภาพรวมทีม') : '',
       boss() ? '<div class="nav-label">ผู้บริหาร</div>' + nb('overview', 'ภาพรวมผู้บริหาร') : '',
       (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'การแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
       (boss() || role === 'admin') ? '<div class="nav-label">แอดมินเซลล์</div>' + nb('close', 'ปิดการขาย') : '',
@@ -526,7 +528,7 @@
     let [from, to] = drRange('ov');
     if (!from) { from = H.today(); for (const k of (st.kpi || [])) if (k.date < from) from = k.date; for (const c of st.customers || []) { const d = H.dayKey(c.createdAt); if (d && d < from) from = d; } if (H.daysBetween(from, H.today()) > 365) from = H.addDays(H.today(), -365); to = H.today(); }
     const label = ovd.mode === 'today' ? 'วันนี้' : DR_MODES[ovd.mode];
-    const d = H.dashboard(st, from, to);
+    const d = dashFor(from, to); if (!d) return '<div class="card"><div class="empty">กำลังโหลดภาพรวม…</div></div>';
     const t = st.settings.targets;
     const monthPct = pct(d.monthRev, d.monthTarget);
     const head = '<div class="row between"><div><h2 style="font-size:20px">' + (mode === 'tele' ? 'ภาพรวมเทเลเซลล์' : mode === 'admin' ? 'ภาพรวมแอดมิน' : 'ภาพรวมทั้งหมด') + ' : ' + label + '</h2><div class="small muted">' + (from === to ? H.thDate(from) : H.thDate(from) + ' - ' + H.thDate(to)) + ' : ยอด Telesales มาจากบันทึก KPI : ยอดแอดมินมาจาก Pancake/บันทึกปิดการขาย : E-Commerce จาก BigSeller</div></div>' +
@@ -543,7 +545,7 @@
       (allowed('kpi') ? '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button>' : '') + '</div>' + kpiTable(d.team) + '</section>';
     // daily chart: at least 14 days for context
     const cFrom = H.daysBetween(from, to) < 13 ? H.addDays(to, -13) : from;
-    const cd = cFrom === from ? d : H.dashboard(st, cFrom, to);
+    const cd = cFrom === from ? d : (dashFor(cFrom, to) || d);
     const lineVal = (x) => ui.chart === 'rev' ? x.tele + x.admin : x.calls;
     const lineSum = cd.days.reduce((t, k) => t + lineVal(cd.series[k]), 0);
     const cmp = ui.chart === 'cmp';
@@ -579,7 +581,7 @@
       return head + tt + teamCard + '<div class="grid g3">' + funnelCard + heatCard + card('alert', 'ต้องติดตาม', 'งานค้างของทีม Telesales', alerts) + '</div>' + foot;
     }
     if (mode === 'admin') {
-      const T = H.today(), dist = (st.approvals || []).filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) >= from && H.dayKey(a.decidedAt || a.at) <= to).length;
+      const dist = fullView() ? (st.approvals || []).filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) >= from && H.dayKey(a.decidedAt || a.at) <= to).length : (DASH[from + '|' + to] || {}).dist || 0;
       const at = '<div class="tiles">' + tile('<i style="background:var(--c-admin)"></i>ยอดขาย Admin (FB Page)', B(d.rev.admin), N(d.cnt.admin) + ' ออเดอร์ที่แอดมินปิด', 'hero') +
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.admin ? d.rev.admin / d.cnt.admin : 0), 'ยอด Admin') + tile('รายชื่อที่แจกให้ Telesales', N(dist), 'แจกอัตโนมัติ 50:50') +
         tile('แอดมินที่มียอด', N(d.admins.filter((a) => a.revenue > 0).length), 'จาก ' + N(d.admins.length) + ' คน') + '</div>';
@@ -1283,7 +1285,22 @@
     const copy = { ...st, settings: { ...st.settings, rr: { ...(st.settings.rr || {}) } } };
     return H.nextTele(copy, 'fb');
   }
+  // overview numbers: computed here for executives/demo, fetched from the server for telesales (they only hold their own records)
+  const DASH = {};
+  const fullView = () => DEMO || boss();
+  function dashFor(from, to) {
+    const st = S.full || V();
+    if (fullView()) return H.dashboard(st, from, to);
+    const k = from + '|' + to, hit = DASH[k];
+    if (hit && hit.at > Date.now() - 60000) return hit.d;
+    if (!hit || !hit.loading) {
+      DASH[k] = Object.assign(hit || {}, { loading: true });
+      fetch('/api/dashboard?from=' + from + '&to=' + to, { credentials: 'same-origin' }).then((r) => r.json()).then((j) => { DASH[k] = { d: j.d, split: j.split, dist: j.dist, at: Date.now() }; DASH._split = j.split; if (['overview', 'ovtele', 'ovadmin'].includes(S.page)) render(); }).catch(() => { DASH[k].loading = false; });
+    }
+    return hit ? hit.d : null;
+  }
   function todaySplit() {
+    if (!fullView() && DASH._split) return DASH._split;
     const T = H.today(), cnt = {};
     for (const u of H.teles(S.full || V())) cnt[u.id] = 0;
     for (const a of (V().approvals || [])) if (H.dayKey(a.at) === T && a.status !== 'rejected' && a.status !== 'history') { const who = a.assigned || a.proposed; if (who in cnt) cnt[who]++; }

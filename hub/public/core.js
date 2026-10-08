@@ -684,7 +684,8 @@
       const channel = r.platform && PLATFORMS[r.platform] && PLATFORMS[r.platform].channel === 'ecom' ? 'ecom' : 'fb';
       const { c } = upsertCustomer(st, { name: r.name, phone, address: r.address, page: r.page, channel, platform: r.platform || (channel === 'fb' ? 'pancake' : 'lazada') }, actor);
       if (!existed) { c.channel = channel; c.createdAt = r.firstBuy ? new Date(Date.parse(r.firstBuy + 'T03:00:00Z')).toISOString() : nowIso(); res.added++; } else res.merged++;
-      if (owner) { if (c.owner !== owner) c.assignedAt = nowIso(); c.owner = owner; }
+      if (owner && p.keepOwner && existed && c.owner && c.owner !== owner) { res.keptOwner = (res.keptOwner || 0) + 1; }
+      else if (owner) { if (c.owner !== owner) c.assignedAt = nowIso(); c.owner = owner; }
       if (channel === 'fb' && ['T1', 'T2', 'T3'].includes(r.round)) c.round = r.round;
       if (r.lost) { c.status = 'lost'; res.lost++; }
       else if (c.status === 'new' && r.lastCall) c.status = 'followup';
