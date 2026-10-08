@@ -868,3 +868,14 @@ a.btn { text-decoration: none; }
 .pp .rg-o input:checked + span b { color: #fff; }
 .in.ro { background: var(--bg); color: var(--muted); display: flex; align-items: center; min-height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person[disabled] { cursor: default; opacity: .7; }
+
+/* merged call + appointment: existing appointments listed inside the next-appointment block */
+.cd-appts { display: grid; gap: 6px; }
+.cd-ap { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-width: 0; }
+.cd-ap.late { border-color: #fecaca; background: #fef2f2; }
+.cd-ap.late .cd-ap-t b { color: var(--bad); }
+.cd-ap-t { white-space: nowrap; font-size: 13.5px; }
+.cd-ap .grow { flex: 1; min-width: 0; font-size: 13px; }
+.cd-ap .btn.sm { padding: 4px 8px; }
+.cd-tabs button[type=button].on { cursor: default; }
+.cd-next > .row b { display: inline-flex; align-items: center; gap: 6px; }
