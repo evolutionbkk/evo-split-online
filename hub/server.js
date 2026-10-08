@@ -12,6 +12,7 @@ const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('he
 const INGEST_KEY = process.env.INGEST_KEY || '';
 const PANCAKE_EVERY_MIN = Number(process.env.PANCAKE_EVERY_MIN) || 3;
 const ONECALL_EVERY_MIN = Number(process.env.ONECALL_EVERY_MIN) || 5;
+let evoLastErr = null;
 const EVO_EVERY_MIN = Number(process.env.EVO_EVERY_MIN) || 5;
 
 // ---------- passwords: PASS_<ID> per person, or USERS_JSON, or DEFAULT_PASS for everyone ----------
@@ -227,7 +228,7 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
   if (I.status().pancake) { loop((st) => I.pancakePull(st), PANCAKE_EVERY_MIN); setTimeout(() => mutate((st) => I.pancakePull(st)).catch(() => {}), 5000); }
   if (I.status().onecall) { loop((st) => I.onecallPull(st, 2), ONECALL_EVERY_MIN); setTimeout(() => mutate((st) => I.onecallPull(st, 2)).catch(() => {}), 8000); }
   if (process.env.LEGACY_DATABASE_URL || process.env.EVO_TOKEN) {
-    const evo = (st) => I.evoPull(st, () => store.loadLegacy(process.env.LEGACY_DATABASE_URL)).then((r) => { if (r.added) console.log('[evo] new E-Commerce customers', r.added); return r; });
+    const evo = (st) => I.evoPull(st, () => store.loadLegacy(process.env.LEGACY_DATABASE_URL)).then((r) => { const sy = st.sync.bigseller || {}; if (r.added) console.log('[evo] new E-Commerce customers', r.added); else if (sy.lastError && sy.lastError !== evoLastErr) console.warn('[evo]', sy.lastError); evoLastErr = sy.lastError; return r; });
     loop(evo, EVO_EVERY_MIN); setTimeout(() => mutate(evo).catch((e) => console.warn('[evo]', e.message)), 12000);
   }
 })().catch((e) => { console.error(e); process.exit(1); });
