@@ -808,6 +808,11 @@
   }
 
   // ------------------------------------------------------------ CUSTOMER DETAIL (v2, full page)
+  const RESULT_GROUPS = [
+    { label: 'ขายได้', icon: 'checkc', tone: 'good', ids: ['won', 'awaiting_payment'] },
+    { label: 'สนใจ / ต้องตามต่อ', icon: 'clock', tone: 'warn', ids: ['hot', 'warm', 'info', 'followup', 'later'] },
+    { label: 'ไม่สำเร็จ', icon: 'x', tone: 'bad', ids: ['lost', 'no_answer'] },
+  ];
   const noTime = (a) => H.thTime(a.at) === '00:00';
   function pageCustomer() {
     const st = S.full || V();
@@ -849,8 +854,8 @@
     const nowLocal = localInput(new Date().toISOString());
     const callTab = '<form class="form cd-form" data-form="call2" data-id="' + c.id + '">' +
       (c.channel === 'fb' ? '<div class="cd-goal">' + ico('alert') + '<div><b>' + round + ' : ' + esc(H.ROUNDS[round]) + '</b><small>T1 ต้อนรับ / ยืนยันออเดอร์ : T2 ถามผลการใช้ / อัปเซล : T3 ติดตามซื้อซ้ำ</small></div></div>' : '') +
-      '<div class="cd-row2"><label class="field"><span>ผลการโทร <em>*</em></span><select class="in" name="result" required data-act-change="cd-result"><option value="">เลือกผลการโทร</option>' + H.RESULTS.map((r) => '<option value="' + r.id + '">' + esc(r.label) + '</option>').join('') + '</select></label>' +
-      (c.channel === 'fb' ? '<label class="field"><span>รอบการโทร</span><select class="in" name="round">' + ['T1', 'T2', 'T3'].map((r) => '<option' + (round === r ? ' selected' : '') + '>' + r + '</option>').join('') + '</select></label>' : '<div></div>') + '</div>' +
+      '<div class="field"><span>ผลการโทร <em>*</em></span><div class="rg">' + RESULT_GROUPS.map((g) => '<div class="rg-row ' + g.tone + '"><span class="rg-h">' + ico(g.icon) + g.label + '</span><div class="rg-opts">' + g.ids.map((id) => { const r = H.RESULTS.find((x) => x.id === id); return '<label class="rg-o"><input type="radio" name="result" value="' + id + '" required data-act-change="cd-result"><span>' + esc(r.short || r.label) + '</span></label>'; }).join('') + '</div></div>').join('') + '</div></div>' +
+      (c.channel === 'fb' ? '<div class="cd-row2"><label class="field"><span>รอบการโทร</span><select class="in" name="round">' + ['T1', 'T2', 'T3'].map((r) => '<option' + (round === r ? ' selected' : '') + '>' + r + '</option>').join('') + '</select></label><div></div></div>' : '') +
       '<div class="field" data-show="lost" hidden><span>เหตุผลที่ปฏิเสธ <em>*</em></span><select class="in" name="lostReason"><option value="">เลือกเหตุผล</option>' + H.LOST_REASONS.map((r) => '<option>' + r + '</option>').join('') + '</select></div>' +
       '<div class="cd-row2"><label class="field"><span>วันและเวลาที่โทร</span><input class="in" type="datetime-local" name="at" value="' + nowLocal + '" max="' + nowLocal + '"></label>' +
       '<label class="field"><span>ระยะเวลา (นาที:วินาที)</span><input class="in" name="dur" placeholder="00:00" inputmode="numeric" id="cd-dur"></label></div>' +

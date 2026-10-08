@@ -29,13 +29,13 @@
   const RESULTS = [
     { id: 'won', label: 'ปิดการขายสำเร็จ', group: 'ปิดได้', tone: 'good', talked: true },
     { id: 'awaiting_payment', label: 'รอชำระเงิน', group: 'ปิดแล้วรอจ่าย', tone: 'good', talked: true },
-    { id: 'hot', label: 'สนใจมาก มีโอกาสซื้อสูง', group: 'ลูกค้าร้อน', tone: 'hot', talked: true },
-    { id: 'warm', label: 'สนใจ ขอเวลาตัดสินใจ', group: 'ลูกค้าอุ่น', tone: 'warm', talked: true },
+    { id: 'hot', short: 'สนใจมาก', label: 'สนใจมาก มีโอกาสซื้อสูง', group: 'ลูกค้าร้อน', tone: 'hot', talked: true },
+    { id: 'warm', short: 'ขอเวลาตัดสินใจ', label: 'สนใจ ขอเวลาตัดสินใจ', group: 'ลูกค้าอุ่น', tone: 'warm', talked: true },
     { id: 'info', label: 'ขอรายละเอียดเพิ่ม', group: 'ต้องตามต่อ', tone: 'warm', talked: true },
-    { id: 'followup', label: 'นัดติดตาม / นัดวันโทรกลับ', group: 'รอติดตาม', tone: 'info', talked: true },
-    { id: 'later', label: 'สนใจ แต่ยังไม่พร้อมซื้อ', group: 'ตามรอบถัดไป', tone: 'info', talked: true },
+    { id: 'followup', short: 'นัดโทรกลับ', label: 'นัดติดตาม / นัดวันโทรกลับ', group: 'รอติดตาม', tone: 'info', talked: true },
+    { id: 'later', short: 'ยังไม่พร้อมซื้อ', label: 'สนใจ แต่ยังไม่พร้อมซื้อ', group: 'ตามรอบถัดไป', tone: 'info', talked: true },
     { id: 'lost', label: 'ปฏิเสธการซื้อ', group: 'ไม่สำเร็จ', tone: 'bad', talked: true },
-    { id: 'no_answer', label: 'ไม่รับสาย / ติดต่อไม่ได้', group: 'ไม่ได้คุย', tone: 'mute', talked: false },
+    { id: 'no_answer', short: 'ไม่รับสาย / ติดต่อไม่ได้', label: 'ไม่รับสาย / ติดต่อไม่ได้', group: 'ไม่ได้คุย', tone: 'mute', talked: false },
   ];
   const LOST_REASONS = ['ราคาแพง', 'ยังมีของเหลือ', 'ไม่เห็นผล', 'ซื้อช่องทางอื่น', 'ไม่สะดวกคุย', 'อื่น ๆ'];
   const STATUS = {
