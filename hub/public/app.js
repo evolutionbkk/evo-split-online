@@ -134,16 +134,16 @@
 
   // ------------------------------------------------------------ navigation
   const PAGES = {
-    home: { t: 'Home', crumb: 'Evolution Hub Commerce : หน้าหลัก', ico: 'home' },
-    overview: { t: 'Overview', crumb: 'Executive : ภาพรวมทีมขาย', ico: 'chart' },
-    today: { t: 'Today', crumb: 'Telesales : คิวโทรวันนี้', ico: 'phone' },
-    customer: { t: 'Customer', crumb: '', ico: 'users' },
-    customers: { t: 'Customers', crumb: 'Telesales : รายชื่อลูกค้า', ico: 'users' },
-    calendar: { t: 'Calendar', crumb: 'Telesales : ปฏิทินนัดโทรลูกค้า', ico: 'calendar' },
-    kpi: { t: 'KPI Log', crumb: 'Telesales : บันทึก KPI รายวัน', ico: 'clip' },
-    close: { t: 'Close Sale', crumb: 'Admin Sales : บันทึกปิดการขาย', ico: 'cart' },
-    approvals: { t: 'Lead Approval', crumb: 'Telesales : แจกรายชื่อ FB Page 50:50', ico: 'inbox' },
-    settings: { t: 'Settings', crumb: 'System : ตั้งค่าและการเชื่อมต่อ', ico: 'gear' },
+    home: { t: 'หน้าหลัก', crumb: 'Evolution Hub Commerce : หน้าหลัก', ico: 'home' },
+    overview: { t: 'ภาพรวมผู้บริหาร', crumb: 'Executive : ภาพรวมทีมขาย', ico: 'chart' },
+    today: { t: 'คิวโทรวันนี้', crumb: 'Telesales : คิวโทรวันนี้', ico: 'phone' },
+    customer: { t: 'รายละเอียดลูกค้า', crumb: '', ico: 'users' },
+    customers: { t: 'ลูกค้า', crumb: 'Telesales : รายชื่อลูกค้า', ico: 'users' },
+    calendar: { t: 'ปฏิทินนัดหมาย', crumb: 'Telesales : ปฏิทินนัดโทรลูกค้า', ico: 'calendar' },
+    kpi: { t: 'บันทึก KPI', crumb: 'Telesales : บันทึก KPI รายวัน', ico: 'clip' },
+    close: { t: 'ปิดการขาย', crumb: 'Admin Sales : บันทึกปิดการขาย', ico: 'cart' },
+    approvals: { t: 'อนุมัติแจกรายชื่อ', crumb: 'Telesales : แจกรายชื่อ FB Page 50:50', ico: 'inbox' },
+    settings: { t: 'ตั้งค่า', crumb: 'System : ตั้งค่าและการเชื่อมต่อ', ico: 'gear' },
   };
   function allowed(page) {
     const r = S.me.role;
@@ -162,18 +162,18 @@
     render(); window.scrollTo(0, 0);
   }
   function pendingCount() { const v = V(); return (v.approvals || []).filter((a) => a.status === 'pending' && (boss() || a.proposed === S.me.id)).length; }
-  function overdueAppts() { const now = Date.now(); return (V().appointments || []).filter((a) => !a.done && Date.parse(a.at) < now - 3600000 && (boss() || a.owner === S.me.id)); }
+  function overdueAppts() { const now = Date.now(), T = H.today(); return (V().appointments || []).filter((a) => !a.done && (H.thTime(a.at) === '00:00' ? H.dayKey(a.at) < T : Date.parse(a.at) < now - 3600000) && (boss() || a.owner === S.me.id)); }
 
   // ------------------------------------------------------------ shell
   function shell(content) {
     const me = S.me, role = me.role;
     const nb = (id, label) => allowed(id) ? '<button class="' + (S.page === id || (id === 'customers' && S.page === 'customer') ? 'on' : '') + '" data-go="' + id + '">' + ico(PAGES[id].ico) + '<span>' + label + '</span>' + (id === 'approvals' && pendingCount() ? '<span class="badge">' + pendingCount() + '</span>' : '') + (id === 'calendar' && overdueAppts().length ? '<span class="badge">' + overdueAppts().length + '</span>' : '') + '</button>' : '';
     const nav = [
-      nb('home', 'Home'),
-      boss() ? '<div class="nav-label">Executive</div>' + nb('overview', 'Overview') : '',
-      (boss() || role === 'tele') ? '<div class="nav-label">Telesales</div>' + nb('today', 'Today') + nb('customers', boss() ? 'Customers' : 'My Customers') + nb('calendar', 'Calendar') + nb('kpi', 'KPI Log') + nb('approvals', boss() ? 'Lead Approval' : 'New Leads') : '',
-      (boss() || role === 'admin') ? '<div class="nav-label">Admin Sales</div>' + nb('close', 'Close Sale') : '',
-      boss() ? '<div class="nav-label">System</div>' + nb('settings', 'Settings') : '',
+      nb('home', 'หน้าหลัก'),
+      boss() ? '<div class="nav-label">ผู้บริหาร</div>' + nb('overview', 'ภาพรวมผู้บริหาร') : '',
+      (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'อนุมัติแจกรายชื่อ' : 'รายชื่อใหม่') : '',
+      (boss() || role === 'admin') ? '<div class="nav-label">แอดมินเซลล์</div>' + nb('close', 'ปิดการขาย') : '',
+      boss() ? '<div class="nav-label">ระบบ</div>' + nb('settings', 'ตั้งค่า') : '',
     ].join('');
     const p = PAGES[S.page];
     const bellN = pendingCount() + overdueAppts().length;
