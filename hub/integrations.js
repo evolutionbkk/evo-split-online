@@ -1,0 +1,196 @@
+// Connectors: Pancake POS (FB Page closes), OneCall (call recordings), BigSeller (marketplace export),
+// and a one-time import from the old evo-split-online database.
+// Every connector turns outside data into core actions, so the same rules apply as when a person types it.
+'use strict';
+const H = require('./public/core.js');
+
+const SYSTEM = { id: 'system', role: 'system' };
+
+// ------------------------------------------------------------------ Pancake POS
+const PANCAKE_HOST = process.env.PANCAKE_HOST || 'https://pos.pancake.vn/api/v1';
+const PANCAKE_API_KEY = process.env.PANCAKE_API_KEY || '';
+const PANCAKE_SHOP_ID = process.env.PANCAKE_SHOP_ID || '1328953496';
+// Not a closed sale: 0 new, 5 returned, 6 canceled, 7 returning, 11 deleted
+const SKIP = new Set(String(process.env.PANCAKE_SKIP_STATUS || '0,5,6,7,11').split(',').map((s) => s.trim()));
+
+function pcAddress(o) {
+  const a = o.shipping_address || {};
+  const full = a.new_full_address || a.full_address;
+  if (full) return String(full).trim();
+  return [a.address, a.commune_name, a.district_name, a.province_name, a.post_code].filter(Boolean).join(' ');
+}
+function pcItems(o) {
+  return (o.items || []).map((it) => {
+    const vi = it.variation_info || {};
+    return { name: String(vi.name || it.name || '').trim(), qty: Number(it.quantity) || 1, price: (Number(vi.retail_price) || 0) / 100 };
+  }).filter((i) => i.name && !/^up$/i.test(i.name) && i.name !== '0');   // "UP" = upsell marker with price 0
+}
+function pcTime(s) { if (!s) return new Date().toISOString(); return /Z|[+-]\d\d:?\d\d$/.test(s) ? new Date(s).toISOString() : new Date(s + 'Z').toISOString(); }
+function pancakeToClose(o) {
+  const nm = (x) => (x && typeof x === 'object' ? String(x.name || '').trim() : '');
+  return {
+    extId: 'pc:' + (o.id || o.system_id),
+    name: String(o.bill_full_name || (o.customer && o.customer.name) || '').trim() || 'ลูกค้า Pancake',
+    phone: String(o.bill_phone_number || (o.customer && (o.customer.phone_numbers || [])[0]) || ''),
+    address: pcAddress(o),
+    page: (o.page && o.page.name) || o.order_sources_name || '',
+    items: pcItems(o),
+    total: (Number(o.total_price_after_sub_discount || o.total_price) || 0) / 100,
+    date: pcTime(o.inserted_at),
+    closerName: nm(o.assigning_seller) || nm(o.creator) || nm(o.marketer) || 'Pancake',
+    source: 'pancake',
+  };
+}
+async function pancakeFetch(page, size) {
+  const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=' + (size || 100);
+  const r = await fetch(url);
+  const j = await r.json().catch(() => null);
+  if (!j || j.success !== true || !Array.isArray(j.data)) throw new Error('Pancake ตอบกลับไม่ถูกต้อง (HTTP ' + r.status + ')');
+  return j;
+}
+// opts.backfillDays: also import older orders as history (not sent to telesales again)
+async function pancakePull(state, opts) {
+  opts = opts || {};
+  const sync = state.sync.pancake = state.sync.pancake || {};
+  if (!PANCAKE_API_KEY) { sync.lastError = 'ยังไม่ได้ตั้งค่า PANCAKE_API_KEY'; return { added: 0 }; }
+  if (!sync.startedAt) sync.startedAt = new Date().toISOString();
+  const baseline = Date.parse(sync.startedAt);
+  const backfillFrom = opts.backfillDays ? Date.now() - opts.backfillDays * 86400000 : null;
+  let added = 0, history = 0, scanned = 0;
+  try {
+    const pages = opts.backfillDays ? 30 : 2;
+    for (let p = 1; p <= pages; p++) {
+      const j = await pancakeFetch(p, 100);
+      const orders = j.data.slice().sort((a, b) => Date.parse(pcTime(a.inserted_at)) - Date.parse(pcTime(b.inserted_at)));
+      let older = false;
+      for (const o of orders) {
+        scanned++;
+        if (SKIP.has(String(o.status))) continue;
+        const t = Date.parse(pcTime(o.inserted_at));
+        const close = pancakeToClose(o);
+        if (H.normPhone(close.phone).length < 9) continue;
+        if (t >= baseline) {
+          const r = H.apply(state, 'createClose', close, SYSTEM);
+          if (!r.duplicate) added++;
+        } else if (backfillFrom && t >= backfillFrom) {
+          const r = H.apply(state, 'createClose', close, SYSTEM);
+          if (!r.duplicate) {
+            const ap = state.approvals.find((a) => a.id === r.id);
+            if (ap && ap.status === 'pending') ap.status = 'history';   // old sale: record revenue only
+            history++;
+          }
+        } else older = true;
+      }
+      if (older || j.data.length < 100 || p >= (j.total_pages || 1)) break;
+    }
+    Object.assign(sync, { lastRun: new Date().toISOString(), lastAdded: added, lastHistory: history, lastScanned: scanned, lastError: null });
+  } catch (e) {
+    Object.assign(sync, { lastRun: new Date().toISOString(), lastError: String(e.message || e) });
+  }
+  return { added, history, scanned, error: sync.lastError };
+}
+
+// ------------------------------------------------------------------ OneCall (dtac OrkTrack)
+const OC_HOST = 'https://onecallvoicerecord.dtac.co.th';
+const OC_USER = process.env.ONECALL_USER || '';
+const OC_PASS = process.env.ONECALL_PASS || '';
+const oc = { token: process.env.ONECALL_TOKEN || null };
+function ocToken(text, headers) {
+  for (const h of ['authorization', 'x-auth-token', 'token', 'x-session-token']) { const v = headers.get(h); if (v && v.length >= 20) return v.replace(/^Bearer\s+/i, '').trim(); }
+  try { const j = JSON.parse(text); for (const k of ['token', 'sessionToken', 'authToken', 'session', 'sessionId', 'id', 'accessToken']) { if (j && typeof j[k] === 'string' && j[k].length >= 20) return j[k]; if (j && j.data && typeof j.data[k] === 'string' && j.data[k].length >= 20) return j.data[k]; } }
+  catch (_) { const t = String(text || '').trim(); if (/^[0-9a-fA-F-]{20,64}$/.test(t)) return t; }
+  return null;
+}
+async function onecallLogin(state) {
+  if (!OC_USER || !OC_PASS) return false;
+  const basic = 'Basic ' + Buffer.from(OC_USER + ':' + OC_PASS).toString('base64');
+  for (const [method, mode] of [['PUT', 'basic'], ['PUT', 'json'], ['PATCH', 'basic'], ['GET', 'basic']]) {
+    try {
+      const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+      if (mode === 'basic') headers.Authorization = basic;
+      const r = await fetch(OC_HOST + '/orktrack/rest/users/sessions', { method, headers, body: mode === 'json' ? JSON.stringify({ username: OC_USER, password: OC_PASS }) : undefined, redirect: 'manual' });
+      const tok = ocToken(await r.text().catch(() => ''), r.headers);
+      if (tok) { oc.token = tok; state.sync.onecall.token = tok; return true; }
+    } catch (_) { /* try next */ }
+  }
+  return false;
+}
+async function onecallPull(state, days) {
+  const sync = state.sync.onecall = state.sync.onecall || {};
+  if (!oc.token && sync.token) oc.token = sync.token;
+  if (!oc.token && !(await onecallLogin(state))) { sync.lastError = OC_USER ? 'เข้าสู่ระบบ OneCall ไม่สำเร็จ' : 'ยังไม่ได้ตั้งค่า ONECALL_USER / ONECALL_PASS'; return { added: 0 }; }
+  const d = new Date(Date.now() + 7 * 3600000 - ((days || 2) - 1) * 86400000).toISOString().slice(0, 10).replace(/-/g, '') + '_000000';
+  const all = [];
+  try {
+    for (let page = 1, retried = false; page <= 40; page++) {
+      const r = await fetch(OC_HOST + '/orktrack/rest/recordings?range=custom&startdate=' + d + '&page=' + page + '&pagesize=500&maxresults=-1', { headers: { Authorization: oc.token, Accept: 'application/json' } });
+      if ((r.status === 401 || r.status === 403) && !retried) { retried = true; oc.token = null; if (await onecallLogin(state)) { page--; continue; } }
+      if (!r.ok) throw new Error('OneCall HTTP ' + r.status);
+      const j = await r.json();
+      const objs = (j && j.objects) || [];
+      for (const o of objs) all.push({ id: o.id, timestamp: o.timestamp, duration: o.duration, localParty: o.localParty, remoteParty: o.remoteParty, direction: o.direction });
+      if (objs.length < 500) break;
+    }
+    const res = H.apply(state, 'ingestOnecall', { records: all }, SYSTEM);
+    sync.lastError = null;
+    return res;
+  } catch (e) { sync.lastError = String(e.message || e); return { added: 0 }; }
+}
+
+// ------------------------------------------------------------------ old system import
+const LEGACY_STATUS = { new: 'new', contacting: 'followup', interested: 'warm', followup: 'followup', awaiting_payment: 'awaiting_payment', won: 'won', lost: 'lost' };
+const LEGACY_SRC = { pancake: ['fb', 'pancake'], manual: ['fb', 'manual'], refill: ['fb', 'manual'], bigseller: ['ecom', 'lazada'], lazada: ['ecom', 'lazada'], shopee: ['ecom', 'shopee'], tiktok: ['ecom', 'tiktok'], evolution: ['ecom', 'evolution'], marketplace: ['ecom', 'lazada'] };
+function importLegacy(state, old) {
+  if (!old || !Array.isArray(old.assigned)) return { customers: 0 };
+  const sideToUser = { W: 'wan', K: 'khem' };
+  let customers = 0, orders = 0, appts = 0, calls = 0;
+  for (const a of old.assigned) {
+    if (a.archived && !(a.orders || []).length) continue;
+    const phone = H.normPhone(a.phone);
+    if (phone.length < 9 || H.byPhone(state, phone)) continue;
+    const [channel, platform] = LEGACY_SRC[String(a.source || '').toLowerCase()] || ['fb', 'manual'];
+    const c = {
+      id: H.uid('c'), name: String(a.name || '').trim(), phone, address: String(a.address || ''), channel, platform,
+      page: a.page || '', owner: sideToUser[a.sales] || null, status: LEGACY_STATUS[a.leadStatus] || 'new',
+      round: channel === 'fb' ? (['T1', 'T2', 'T3'].includes(String(a.step || '').toUpperCase()) ? String(a.step).toUpperCase() : 'T1') : '',
+      tags: a.archived ? ['เก็บถาวรในระบบเดิม'] : [], orders: [], notes: [], closerName: a.closer || '',
+      createdAt: a.receivedAt || new Date().toISOString(), assignedAt: a.receivedAt || null, updatedAt: a.updatedAt || a.receivedAt || null,
+      lastContactAt: null, nextApptAt: null, callCount: a.callCount || 0, legacyCode: a.code || '',
+    };
+    for (const o of (a.orders || [])) {
+      const t = Date.parse(o.date); if (isNaN(t)) continue;
+      c.orders.push({ id: H.uid('o'), date: new Date(t).toISOString(), items: (o.items || []).map((i) => ({ name: String(i.name || ''), qty: Number(i.qty) || 1, price: Number(i.price) || 0 })), total: Number(o.amount) || 0,
+        status: /ยกเลิก|cancel/i.test(o.status || '') ? 'cancelled' : 'paid', source: o.src === 'pancake' ? 'pancake' : 'legacy', extId: o.id ? 'legacy:' + o.id : '', note: o.status || '' });
+      orders++;
+    }
+    if (!c.orders.length && (a.product || a.orderAmount)) {
+      c.orders.push({ id: H.uid('o'), date: a.lastOrderAt || a.receivedAt || new Date().toISOString(), items: a.product ? [{ name: String(a.product).slice(0, 120), qty: 1, price: Number(a.orderAmount) || 0 }] : [], total: Number(a.orderAmount) || 0, status: 'paid', source: 'legacy' });
+      orders++;
+    }
+    c.orders.sort((x, y) => Date.parse(y.date) - Date.parse(x.date));
+    for (const h of (a.history || []).slice(-60).reverse()) {
+      if (!h || !h.at) continue;
+      c.notes.push({ id: H.uid('n'), at: h.at, by: h.by || 'ระบบเดิม', kind: h.k === 'call' ? 'call' : 'note', text: [h.k, h.v].filter(Boolean).join(' : ').slice(0, 300) });
+    }
+    if (a.note) c.notes.unshift({ id: H.uid('n'), at: a.updatedAt || a.receivedAt || new Date().toISOString(), by: 'ระบบเดิม', kind: 'note', text: String(a.note).slice(0, 500) });
+    for (const call of (a.calls || [])) { if (call && call.at) { c.lastContactAt = !c.lastContactAt || call.at > c.lastContactAt ? call.at : c.lastContactAt; calls++; } }
+    const t = Date.parse(a.nextAppt);
+    if (!isNaN(t) && c.owner) {
+      state.appointments.push({ id: H.uid('a'), customerId: c.id, owner: c.owner, at: new Date(t).toISOString(), purpose: 'นัดจากระบบเดิม', round: c.round, done: false, createdAt: new Date().toISOString(), by: 'legacy' });
+      c.nextApptAt = new Date(t).toISOString(); appts++;
+    }
+    state.customers.push(c); customers++;
+  }
+  // OneCall history (side W/K → user)
+  if (Array.isArray(old.onecall)) {
+    const seen = new Set(state.onecall.map((r) => r.id));
+    for (const r of old.onecall) {
+      const user = sideToUser[r.side]; if (!user || seen.has(String(r.id))) continue;
+      state.onecall.push({ id: String(r.id), user, phone: H.normPhone(r.phone), dur: r.dur || 0, at: r.at, dir: r.dir || '' });
+    }
+  }
+  state.sync.legacy = { importedAt: new Date().toISOString(), customers, orders, appts, calls };
+  return state.sync.legacy;
+}
+
+module.exports = { pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
