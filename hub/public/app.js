@@ -712,13 +712,13 @@
   const TH_MON_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   const longDay = (d) => { const x = new Date(d + 'T00:00:00Z'); return TH_DAYS_FULL[x.getUTCDay()] + ' ' + H.thDate(d); };
   const CRUMB = { home: ['หน้าหลัก'], overview: ['ภาพรวม', 'ภาพรวมผู้บริหาร'], today: ['งานขาย', 'คิวโทรวันนี้'], customers: ['งานขาย', 'ลูกค้า'], customer: ['งานขาย', 'ลูกค้า', 'รายละเอียดลูกค้า'],
-    calendar: ['งานขาย', 'ปฏิทินนัดหมาย'], kpi: ['งานขาย', 'บันทึก KPI'], approvals: ['งานขาย', 'อนุมัติลีด'], close: ['การจัดการ', 'ปิดการขาย'], settings: ['การจัดการ', 'ตั้งค่า'] };
+    calendar: ['งานขาย', 'ปฏิทินนัดหมาย'], kpi: ['งานขาย', 'บันทึก KPI'], approvals: ['งานขาย', 'รายชื่อใหม่'], close: ['การจัดการ', 'ปิดการขาย'], settings: ['การจัดการ', 'ตั้งค่า'] };
   const PH = { overview: ['ภาพรวมทีมขาย', 'ยอดขายทุกช่องทาง KPI ทีม Telesales และงานที่ต้องตัดสินใจ'], today: ['คิวโทรวันนี้', 'ระบบเรียงลำดับให้แล้ว โทรทีละคน กดผลแล้วไปคนถัดไป'],
-    kpi: ['บันทึก KPI', 'กรอกทีละสายหรือยอดรวมทั้งวัน ตัวเลขขึ้น Dashboard ผู้บริหารทันที'], approvals: ['อนุมัติลีด', 'รายชื่อจากแอดมินที่ปิดการขาย แจกให้ Telesales 50:50'],
+    kpi: ['บันทึก KPI', 'กรอกทีละสายหรือยอดรวมทั้งวัน ตัวเลขขึ้น Dashboard ผู้บริหารทันที'], approvals: ['อนุมัติแจกรายชื่อ', 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจกให้ Telesales 50:50'],
     close: ['บันทึกปิดการขาย', 'ปิดการขายแล้วระบบส่งรายชื่อให้ Telesales อัตโนมัติ'], settings: ['ตั้งค่า', 'เป้า KPI ทีมงาน สินค้า และการเชื่อมต่อระบบ'] };
   function pageHead(title, sub, actions) { return '<div class="ph"><div class="ph-t"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (actions ? '<div class="ph-act">' + actions + '</div>' : '') + '</div>'; }
   function crumbHtml() {
-    const c = CRUMB[S.page] || ['หน้าหลัก'];
+    const c = S.page === 'approvals' && boss() ? ['งานขาย', 'อนุมัติแจกรายชื่อ'] : CRUMB[S.page] || ['หน้าหลัก'];
     return '<nav class="bc" aria-label="ตำแหน่งหน้า">' + c.map((x, i) => (i === c.length - 1 ? '<b>' + x + '</b>' : (S.page === 'customer' && x === 'ลูกค้า' ? '<button class="link-plain" data-go="customers">' + x + '</button>' : '<span>' + x + '</span>'))).join('<i>›</i>') + '</nav>';
   }
 
@@ -1185,34 +1185,39 @@
 
   // ------------------------------------------------------------ APPROVALS
   function pageApprovals() {
-    const v = V(), T = H.today();
+    const v = V(), T = H.today(), st = S.full || v;
     const pend = (v.approvals || []).filter((a) => a.status === 'pending' && (boss() || a.proposed === S.me.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-    const done = (v.approvals || []).filter((a) => a.status !== 'pending' && a.status !== 'history' && H.dayKey(a.decidedAt || a.at) === T && (boss() || a.assigned === S.me.id));
-    const list = ui.apTab === 'pending' ? pend : done;
-    const tele = H.teles(S.full || v);
-    const pendingTab = ui.apTab === 'pending';
-    const rows = listView({
-      key: 'ap-' + ui.apTab, items: list, id: (a) => a.id, empty: emptyState(pendingTab ? 'ไม่มีรายชื่อรออนุมัติ' : 'ยังไม่มีรายการวันนี้'),
-      head: [{ h: 'ลูกค้า' }, { h: 'ยอด', cls: 'n' }, { h: 'ปิดโดย', cls: 'hide-sm' }, { h: pendingTab ? 'ส่งให้' : 'ผล' }].concat(pendingTab ? [{ h: '', cls: 'n' }] : []),
-      actions: pendingTab ? (boss() ? [{ act: 'ap-ok-sel', label: 'อนุมัติ', icon: 'check' }, { act: 'ap-no-sel', label: 'ไม่ส่ง', icon: 'x', danger: true }] : [{ act: 'ap-ok-sel', label: 'รับรายชื่อ', icon: 'check' }]) : null,
-      row: (a) => {
-        const c = H.findCustomer(S.full || v, a.customerId) || {};
-        const r = ['<td class="cust-name"><b class="link one" data-open="' + esc(c.id || '') + '">' + esc(c.name || '-') + '</b><small>' + H.fmtPhone(c.phone) + (a.returning ? ' : ลูกค้าเก่า' : '') + '</small><div class="small muted one" style="max-width:260px">' + esc((a.items || []).map((i) => i.name + ' x' + i.qty).join(', ') || '-') + '</div></td>',
-          '<td class="n"><b>' + B(a.total) + '</b></td>', '<td class="hide-sm"><div class="one">' + esc(a.closerName || '-') + '</div><div class="small muted">' + H.thTime(a.at) + ' น.</div></td>'];
-        if (pendingTab) {
-          r.push('<td>' + (boss() ? '<select class="in" style="width:auto;padding:5px 8px" data-ap-to="' + a.id + '" aria-label="ส่งให้">' + tele.map((u) => '<option value="' + u.id + '"' + (a.proposed === u.id ? ' selected' : '') + '>' + esc(u.name) + (a.proposed === u.id ? ' (คิว)' : '') + '</option>').join('') + '</select>' : esc(uname(a.proposed))) + '</td>');
-          r.push('<td class="n"><div class="row" style="gap:6px;justify-content:flex-end;flex-wrap:nowrap"><button class="btn good sm" data-act="ap-ok" data-id="' + a.id + '">' + ico('check') + (boss() ? ' อนุมัติ' : ' รับ') + '</button>' + (boss() ? '<button class="btn sm danger" data-act="ap-no" data-id="' + a.id + '">ไม่ส่ง</button>' : '') + '</div></td>');
-        } else r.push('<td>' + (a.status === 'approved' ? '<span class="pill good">' + esc(uname(a.assigned)) + (a.auto ? ' : อัตโนมัติ' : '') + '</span>' : '<span class="pill bad">ไม่ส่ง</span>') + '</td>');
-        return r;
-      },
-    });
-    const st = S.full || v;
-    return '<div class="grid g-main"><section class="card"><div class="row between" style="margin-bottom:10px"><div class="seg"><button class="' + (ui.apTab === 'pending' ? 'on' : '') + '" data-act="ap-tab" data-v="pending">รออนุมัติ <span class="faint">' + pend.length + '</span></button><button class="' + (ui.apTab === 'done' ? 'on' : '') + '" data-act="ap-tab" data-v="done">ดำเนินการวันนี้ <span class="faint">' + done.length + '</span></button></div>' +
-      (boss() && pend.length ? '<button class="btn primary sm" data-act="ap-all">' + ico('check') + ' อนุมัติทั้งหมด (' + pend.length + ')</button>' : '') + '</div>' +
-      rows + '</section>' +
-      '<div class="grid" style="align-content:start">' + card('users', 'สัดส่วนรายชื่อวันนี้', 'FB Page แบ่งเท่ากันเสมอ 50:50', splitBar(todaySplit())) +
-      (boss() ? card('gear', 'การอนุมัติ', 'เลือกว่าจะตรวจก่อนส่ง หรือให้ระบบส่งเลย', '<label class="switch"><input type="checkbox" data-act="auto-approve"' + (st.settings.autoApprove ? ' checked' : '') + '><span>ส่งรายชื่อให้ Telesales อัตโนมัติ ไม่ต้องรออนุมัติ</span></label><div class="small muted" style="margin-top:10px">ลูกค้าเก่าที่กลับมาซื้อซ้ำ ระบบส่งกลับให้เซลล์คนเดิมทันทีเสมอ</div>') :
-        card('phone', 'เมื่อรับรายชื่อแล้ว', 'ระบบสร้างนัด T1 ให้อัตโนมัติ', '<div class="small muted">รายชื่อจะไปอยู่ในแท็บ FB Page ของ "ลูกค้าของฉัน" พร้อมนัด T1 ต้อนรับและยืนยันออเดอร์ภายใน 2 ชั่วโมง</div>')) + '</div></div>';
+    const done = (v.approvals || []).filter((a) => a.status !== 'pending' && a.status !== 'history' && H.dayKey(a.decidedAt || a.at) === T && (boss() || a.assigned === S.me.id)).sort((a, b) => Date.parse(b.decidedAt || b.at) - Date.parse(a.decidedAt || a.at));
+    const pendingTab = ui.apTab !== 'done';
+    const list = pendingTab ? pend : done;
+    const tele = H.teles(st);
+    const prodName = (n) => { const p = products().find((x) => x.code === n || x.name === n); return p ? p.name : String(n).replace(/\s*\([^)]*\)$/, ''); };
+    const sumPend = pend.reduce((t, a) => t + (a.total || 0), 0), sumDone = done.filter((a) => a.status === 'approved').reduce((t, a) => t + (a.total || 0), 0);
+    const tiles = '<div class="ap-tiles">' +
+      '<div class="ap-tile warn"><span class="ap-ti">' + ico('inbox') + '</span><div><small>' + (boss() ? 'รออนุมัติ' : 'รอรับ') + '</small><b>' + N(pend.length) + ' <span>รายชื่อ</span></b><em>' + B(sumPend) + '</em></div></div>' +
+      '<div class="ap-tile good"><span class="ap-ti">' + ico('checkc') + '</span><div><small>' + (boss() ? 'ส่งแล้ววันนี้' : 'รับแล้ววันนี้') + '</small><b>' + N(done.filter((a) => a.status === 'approved').length) + ' <span>รายชื่อ</span></b><em>' + B(sumDone) + '</em></div></div>' +
+      '<div class="ap-tile split"><div class="grow"><small>สัดส่วนวันนี้ (50:50)</small>' + splitBar(todaySplit()) + '</div></div></div>';
+    const card = (a) => {
+      const c = H.findCustomer(st, a.customerId) || {};
+      const nm = c.name && c.name !== '-' ? c.name : '', ph = c.phone ? H.fmtPhone(c.phone) : '';
+      const to = a.assigned || a.proposed, tu = user(to);
+      const items = (a.items || []).map((i) => '<span class="ap-item">' + esc(prodName(i.name)) + ' <b>×' + i.qty + '</b></span>').join('') || '<span class="faint small">ไม่ระบุสินค้า</span>';
+      const stTag = a.status === 'approved' ? '<span class="pill good">' + ico('check') + ' ส่งให้ ' + esc(uname(a.assigned)) + (a.auto ? ' : อัตโนมัติ' : '') + '</span>' : a.status === 'rejected' ? '<span class="pill bad">ไม่ส่ง</span>' : '';
+      return '<article class="ap-card' + (pendingTab ? '' : ' done') + '">' +
+        '<div class="ap-who"><span class="ap-av' + (nm ? '' : ' none') + '">' + esc(nm ? nm.trim()[0] : '?') + '</span><div class="ap-id"><b class="' + (c.id ? 'link' : '') + '"' + (c.id ? ' data-open="' + esc(c.id) + '"' : '') + '>' + esc(nm || 'ลูกค้าไม่ระบุชื่อ') + '</b>' +
+          '<small>' + (ph ? ico('phone') + ' ' + ph : '<span class="faint">ไม่มีเบอร์ในออเดอร์</span>') + (a.returning ? ' <span class="pill info">ลูกค้าเก่า</span>' : '') + '</small></div></div>' +
+        '<div class="ap-items">' + items + '</div>' +
+        '<div class="ap-amt"><b>' + B(a.total) + '</b><small>ปิดโดย ' + esc(a.closerName || uname(a.closer) || '-') + ' : ' + H.thTime(a.at) + ' น.</small></div>' +
+        '<div class="ap-to">' + (pendingTab ? (boss() ? '<label class="ap-sel"><small>ส่งให้</small><select class="in" data-ap-to="' + a.id + '" aria-label="ส่งให้">' + tele.map((u) => '<option value="' + u.id + '"' + (a.proposed === u.id ? ' selected' : '') + '>' + esc(u.name) + (a.proposed === u.id ? ' (ตามคิว)' : '') + '</option>').join('') + '</select></label>' : '<span class="ap-me">' + av(tu || S.me, 'sm') + '<span><small>ส่งให้</small><b>คุณ</b></span></span>') : stTag) + '</div>' +
+        (pendingTab ? '<div class="ap-act"><button class="btn good" data-act="ap-ok" data-id="' + a.id + '">' + ico('check') + (boss() ? ' อนุมัติ' : ' รับรายชื่อ') + '</button>' + (boss() ? '<button class="btn danger-ghost" data-act="ap-no" data-id="' + a.id + '">ไม่ส่ง</button>' : '') + '</div>' : '') +
+        '</article>';
+    };
+    const tabs = '<div class="ap-bar"><div class="qtabs"><button class="qtab' + (pendingTab ? ' on' : '') + '" data-act="ap-tab" data-v="pending">' + (boss() ? 'รออนุมัติ' : 'รอรับ') + ' <span>' + pend.length + '</span></button><button class="qtab' + (!pendingTab ? ' on' : '') + '" data-act="ap-tab" data-v="done">ดำเนินการวันนี้ <span>' + done.length + '</span></button></div>' +
+      (pendingTab && pend.length > 1 ? (boss() ? '<button class="btn primary sm" data-act="ap-all">' + ico('check') + ' อนุมัติทั้งหมด (' + pend.length + ')</button>' : '<button class="btn primary sm" data-act="ap-mine-all">' + ico('check') + ' รับทั้งหมด (' + pend.length + ')</button>') : '') + '</div>';
+    const empty = '<div class="ap-empty"><span>' + ico(pendingTab ? 'inbox' : 'clock') + '</span><b>' + (pendingTab ? 'ไม่มีรายชื่อรอ' + (boss() ? 'อนุมัติ' : 'รับ') : 'ยังไม่มีรายการวันนี้') + '</b><small>' + (pendingTab ? 'เมื่อแอดมินปิดการขายบน FB Page รายชื่อจะเข้ามาที่นี่ทันที' : 'รายชื่อที่รับหรืออนุมัติแล้ววันนี้จะแสดงที่นี่') + '</small></div>';
+    const side = boss() ? '<section class="card ap-side"><h3 class="ct">' + ico('gear') + ' การอนุมัติ</h3><label class="switch"><input type="checkbox" data-act="auto-approve"' + (st.settings.autoApprove ? ' checked' : '') + '><span>ส่งรายชื่อให้ Telesales อัตโนมัติ ไม่ต้องรออนุมัติ</span></label><p class="small muted">ลูกค้าเก่าที่กลับมาซื้อซ้ำ ระบบส่งกลับให้เซลล์คนเดิมทันทีเสมอ</p></section>'
+      : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รับแล้วเกิดอะไรขึ้น</h3><ol class="ap-steps"><li><b>เข้า "ลูกค้าของฉัน"</b><span>อยู่ในแท็บ FB Page</span></li><li><b>สร้างนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>ขึ้นในคิวโทรวันนี้</b><span>กดโทรและบันทึกผลได้เลย</span></li></ol></section>';
+    return tiles + '<div class="ap-grid"><section class="card ap-main">' + tabs + (list.length ? '<div class="ap-list">' + list.map(card).join('') + '</div>' : empty) + '</section>' + side + '</div>';
   }
 
   // ------------------------------------------------------------ SETTINGS
@@ -1345,7 +1350,7 @@
     const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: pageOverview, customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, settings: pageSettings }[S.page];
     const keepScroll = $('.drawer-b') ? $('.drawer-b').scrollTop : 0;
     const body = fn();
-    document.getElementById('app').innerHTML = shell((PH[S.page] ? pageHead(PH[S.page][0], PH[S.page][1]) : '') + body);
+    document.getElementById('app').innerHTML = shell((PH[S.page] ? (S.page === 'approvals' && !boss() ? pageHead('รายชื่อใหม่', 'ลูกค้าที่แอดมินปิดการขายแล้ว ส่งมาให้คุณโทรดูแลต่อ') : pageHead(PH[S.page][0], PH[S.page][1])) : '') + body);
     if ($('.drawer-b') && keepScroll) $('.drawer-b').scrollTop = keepScroll;
     document.title = PAGES[S.page].t + ' : Evolution Hub Commerce';
     remember();
@@ -1509,6 +1514,7 @@
     'ap-tab': (el) => { ui.apTab = el.dataset.v; render(); },
     'ap-ok': (el) => { const sel = $('[data-ap-to="' + el.dataset.id + '"]'); run(() => api.act('approve', { id: el.dataset.id, to: sel ? sel.value : undefined }), (r) => 'ส่งรายชื่อให้ ' + uname(r && r.to) + ' แล้ว'); },
     'ap-no': (el) => confirmInline(el, () => run(() => api.act('reject', { id: el.dataset.id }), 'ไม่ส่งรายชื่อนี้')),
+    'ap-mine-all': () => { const ids = (V().approvals || []).filter((a) => a.status === 'pending' && a.proposed === S.me.id).map((a) => a.id); run(() => api.act('approveMany', { ids }), (r) => 'รับ ' + N(r.approved) + ' รายชื่อแล้ว'); },
     'ap-all': () => run(() => api.act('approveAll', {}), (r) => 'อนุมัติ ' + (r && r.approved) + ' รายชื่อแล้ว'),
     'sync-pancake': () => run(() => api.post('/api/sync/pancake', {}), (r) => 'ดึงจาก Pancake : ' + (r.added || 0) + ' ออเดอร์ใหม่' + (r.error ? ' (' + r.error + ')' : '')),
     'sync-onecall': () => run(() => api.post('/api/sync/onecall', { days: 2 }), (r) => 'ดึงจาก OneCall : ' + (r.added || 0) + ' สาย'),
