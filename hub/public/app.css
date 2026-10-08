@@ -879,3 +879,13 @@ a.btn { text-decoration: none; }
 .cd-ap .btn.sm { padding: 4px 8px; }
 .cd-tabs button[type=button].on { cursor: default; }
 .cd-next > .row b { display: inline-flex; align-items: center; gap: 6px; }
+
+/* compact next appointment in the call form (full editing lives in the นัดหมาย tab) */
+.cd-next.compact { gap: 10px; }
+.cd-next-sum { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.cd-next-sum .grow { flex: 1; min-width: 180px; }
+.cd-next-ico { width: 34px; height: 34px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.cd-next-ico .ico { width: 16px; height: 16px; }
+.cd-next-fields { display: grid; gap: 12px; }
+.cd-next-fields[hidden] { display: none !important; }
+b.acc { color: var(--accent); }

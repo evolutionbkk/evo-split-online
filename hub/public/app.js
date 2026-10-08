@@ -889,14 +889,14 @@
       '<div class="cd-prod"><div class="row between"><b class="small">รายละเอียดสินค้าที่ขาย / สนใจ</b><small class="muted" data-prod-hint>บันทึกเป็นคำสั่งซื้อเมื่อเลือก "ปิดการขายสำเร็จ" หรือ "รอชำระเงิน"</small></div>' +
       '<div class="field"><span>สินค้า</span>' + prodPick + '</div><div class="cd-prod-row"><div class="field pp-chosen"><span>ที่เลือก</span><div class="in ro" data-pp-label>ยังไม่ได้เลือก</div></div><label class="field"><span>จำนวน</span><input class="in" type="number" min="1" name="qty" value="1" data-cd-calc></label><label class="field"><span>ยอด</span><input class="in" type="number" min="0" name="amount" placeholder="0"></label></div></div>' +
       '<label class="field"><span>บันทึกการสนทนา</span><textarea class="in" name="note" rows="3" placeholder="เช่น ลูกค้าใช้มา 5 วัน สนใจสั่งเพิ่ม 1 กล่อง ขอให้โทรยืนยันวันอาทิตย์ช่วงเช้า"></textarea></label>' +
-      '<div class="cd-next"><div class="row between"><b>' + ico('calendar') + ' นัดหมาย</b>' + (appts.length ? '<small class="muted">มีนัดที่ยังไม่ได้โทร ' + appts.length + ' นัด</small>' : '') + '</div>' +
-      (appts.length ? '<div class="cd-appts">' + appts.map((a) => '<div class="cd-ap' + (Date.parse(a.at) < Date.now() - 3600000 && !(noTime(a) && H.dayKey(a.at) >= H.today()) ? ' late' : '') + '"><span class="cd-ap-t"><b>' + H.thDate(a.at).replace(/ \d{4}$/, '') + '</b>' + (noTime(a) ? '' : ' ' + H.thTime(a.at) + ' น.') + '</span>' + (a.round ? '<span class="rtag">' + a.round + '</span>' : '') + '<span class="one muted grow">' + esc(a.purpose || '') + '</span>' +
-        '<button type="button" class="btn sm good" data-act="appt-done" data-id="' + a.id + '" title="โทรแล้ว" aria-label="โทรแล้ว">' + ico('check') + '</button><button type="button" class="btn sm" data-act="appt-shift" data-id="' + a.id + '">+1 วัน</button><button type="button" class="x" data-act="appt-del-one" data-key="cdappt" data-id="' + a.id + '" aria-label="ลบนัด">' + ico('x') + '</button></div>').join('') + '</div><div class="small muted">นัดใหม่</div>' : '') +
-      '<div class="quick"><span class="small muted">นัดเร็ว</span>' + [[1, '+1 วัน'], [3, '+3 วัน'], [7, '+7 วัน'], [25, '+25 วัน : T3']].map(([n, l]) => '<button type="button" class="chip" data-act="cd-quick" data-v="' + n + '">' + l + '</button>').join('') + '<button type="button" class="chip" data-act="cd-quick" data-v="0">ไม่ต้องนัด</button></div>' +
+      '<div class="cd-next compact"><div class="cd-next-sum"><span class="cd-next-ico">' + ico('calendar') + '</span><div class="grow"><b>นัดถัดไป</b><div class="small muted" data-next-hint>เลือกผลการโทรแล้ว ระบบจะนัดให้อัตโนมัติตามรอบ T1 → T2 → T3</div></div>' +
+      '<button type="button" class="chip" data-act="cd-next-edit">เปลี่ยนวัน</button><button type="button" class="chip" data-act="cd-quick" data-v="0">ไม่ต้องนัด</button></div>' +
+      '<div class="cd-next-fields" data-next-fields hidden><div class="quick"><span class="small muted">นัดเร็ว</span>' + [[1, '+1 วัน'], [3, '+3 วัน'], [7, '+7 วัน'], [25, '+25 วัน : T3']].map(([n, l]) => '<button type="button" class="chip" data-act="cd-quick" data-v="' + n + '">' + l + '</button>').join('') + '</div>' +
       '<div class="cd-row2"><label class="field"><span>วันที่นัดหมาย</span><input class="in" type="date" name="nd" min="' + H.today() + '"></label><label class="field"><span>เวลา</span><input class="in" type="time" name="nt" value="10:30"></label></div>' +
-      '<label class="field"><span>วัตถุประสงค์</span><input class="in" name="np" placeholder="เช่น ยืนยันคำสั่งซื้อ 1 กล่อง"></label><div class="row between" style="gap:10px;flex-wrap:wrap"><small class="muted" data-next-hint>เลือกผลการโทรแล้วระบบเสนอวันนัดให้ตามรอบ T1 → T2 → T3</small><button type="button" class="btn sm" data-act="cd-appt-only">' + ico('calendar') + ' บันทึกเฉพาะนัด (ยังไม่ได้โทร)</button></div></div>' +
+      '<label class="field"><span>วัตถุประสงค์</span><input class="in" name="np" placeholder="เช่น ยืนยันคำสั่งซื้อ 1 กล่อง"></label></div></div>' +
       '<div class="cd-submit"><span class="small" style="color:var(--good)">' + ico('checkc') + ' บันทึกครั้งเดียว : นับ KPI และอัปเดตนัดหมายอัตโนมัติ</span><span class="grow"></span><button type="reset" class="btn">ยกเลิก</button><button class="btn primary">' + ico('check') + ' บันทึกการโทร</button></div></form>';
-    const mid = '<div class="cd-col">' + banner + (canEdit ? '<section class="card cd-work"><div class="cd-tabs"><button class="on" type="button">บันทึกการโทรและนัดหมาย</button></div>' + callTab + '</section>' : '<section class="card"><div class="empty">ลูกค้ารายนี้อยู่กับ ' + esc(uname(c.owner)) + ' ดูได้อย่างเดียว</div></section>') + '</div>';
+    const apptTab = apptForm(c) + (appts.length ? '<div class="section-t" style="margin-top:14px">นัดที่ยังไม่ได้โทร</div>' + apptList('cdappt', appts, '', true) : '');
+    const mid = '<div class="cd-col">' + banner + (canEdit ? '<section class="card cd-work"><div class="cd-tabs"><button class="' + (ui.dTab !== 'appt' ? 'on' : '') + '" data-act="dtab" data-v="call">บันทึกการโทร</button><button class="' + (ui.dTab === 'appt' ? 'on' : '') + '" data-act="dtab" data-v="appt">นัดหมาย' + (appts.length ? ' (' + appts.length + ')' : '') + '</button></div>' + (ui.dTab === 'appt' ? apptTab : callTab) + '</section>' : '<section class="card"><div class="empty">ลูกค้ารายนี้อยู่กับ ' + esc(uname(c.owner)) + ' ดูได้อย่างเดียว</div></section>') + '</div>';
     const noise = (n) => /^(status|followup|distribute|note|assign\w*|owner|round)\s*(:|$)/i.test(String(n.text || '').trim()) || !String(n.text || '').trim();
     const allNotes = (c.notes || []).filter((n) => n.kind === 'call' || n.kind === 'sale' || !noise(n));
     const notes = allNotes.slice(0, ui.cdAllNotes ? 200 : 3);
@@ -1392,7 +1392,8 @@
     'cd-edit': () => { const c = H.findCustomer(S.full || V(), ui.custId); openModal('<div class="row between" style="margin-bottom:12px"><h2 style="font-size:18px">แก้ไขข้อมูลลูกค้า</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' + editForm(c)); },
     'cd-order': () => { const c = H.findCustomer(S.full || V(), ui.custId); openModal('<div class="row between" style="margin-bottom:12px"><h2 style="font-size:18px">เพิ่มคำสั่งซื้อ</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' + orderForm(c)); },
     'cd-dial': (el) => { cdTimer0 = cdTimer0 || Date.now(); clearInterval(qTick); qTick = setInterval(() => { const d = $('#cd-dur'); if (!d || !cdTimer0) { clearInterval(qTick); return; } if (!d.dataset.touched) { const sec = Math.round((Date.now() - cdTimer0) / 1000); d.value = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); } }, 1000); try { window.location.href = el.getAttribute('href'); } catch (_) { /* no dialer */ } },
-    'cd-quick': (el) => { const f = el.closest('form'); const n = Number(el.dataset.v); $$('[data-act=cd-quick]', f).forEach((b) => b.classList.toggle('on', b === el)); f.nd.dataset.touched = '1'; if (!n && el.dataset.v === '0') { f.nd.value = ''; f.np.value = ''; return; } f.nd.value = H.addDays(H.today(), n); if (!f.np.value) f.np.value = n >= 25 ? 'T3 ชวนสั่งซ้ำ' : n >= 7 ? 'T2 ถามผลการใช้' : 'โทรติดตาม'; },
+    'cd-quick': (el) => { const f = el.closest('form'); const n = Number(el.dataset.v); $$('[data-act=cd-quick]', f).forEach((b) => b.classList.toggle('on', b === el)); f.nd.dataset.touched = '1'; if (!n && el.dataset.v === '0') { f.nd.value = ''; f.np.value = ''; $('[data-next-fields]', f).hidden = true; nextSum(f); return; } f.nd.value = H.addDays(H.today(), n); if (!f.np.value) f.np.value = n >= 25 ? 'T3 ชวนสั่งซ้ำ' : n >= 7 ? 'T2 ถามผลการใช้' : 'โทรติดตาม'; nextSum(f); },
+    'cd-next-edit': (el) => { const f = el.closest('form'); const box = $('[data-next-fields]', f); box.hidden = !box.hidden; if (!box.hidden) f.nd.focus(); },
     'cd-notes': () => { ui.cdAllNotes = !ui.cdAllNotes; render(); },
     'cal-pick': (el) => { ui.calDay = el.dataset.v; ui.calMonth = ui.calDay.slice(0, 7); ui.calPanel = 'day'; ls('calpanel').page = 1; render(); },
     'cal-late': () => { ui.calPanel = 'late'; ls('calpanel').page = 1; render(); },
@@ -1460,10 +1461,6 @@
     'appt-done-sel': (el) => { const ids = selectedOf(el.dataset.key).map((a) => a.id); run(async () => { const r = await api.act('updateApptMany', { ids, done: true }); SEL[el.dataset.key] = null; return r; }, (r) => 'ทำเครื่องหมายว่าโทรแล้ว ' + N(r.updated) + ' นัด'); },
     'appt-shift-sel': (el) => { const ids = selectedOf(el.dataset.key).map((a) => a.id); run(async () => { const r = await api.act('updateApptMany', { ids, shiftDays: 1 }); SEL[el.dataset.key] = null; return r; }, (r) => 'เลื่อนไปพรุ่งนี้ ' + N(r.updated) + ' นัด'); },
     'appt-del-sel': (el) => delAppts(el.dataset.key, selectedOf(el.dataset.key)),
-    'cd-appt-only': (el) => {
-      const f = el.closest('form'); if (!f.nd.value) { toast('เลือกวันที่นัดก่อน', true); f.nd.focus(); return; }
-      run(() => api.act('addAppt', { customerId: f.dataset.id, at: fromLocal(f.nd.value + 'T' + (f.nt.value || '10:30')), purpose: f.np.value.trim() || 'โทรติดตาม', round: f.round ? f.round.value : '' }), 'บันทึกนัดแล้ว');
-    },
     'appt-del-one': (el) => delAppts(el.dataset.key, (V().appointments || []).filter((a) => a.id === el.dataset.id)),
     // closes bulk
     'close-del-sel': () => delCloses(selectedOf('close')),
@@ -1548,6 +1545,10 @@
   }
   let cdTimer0 = null;
   function openCustomer(id, tab) { if (S.page !== 'customer') ui.custBack = S.page; ui.custId = id; ui.dTab = tab === 'appt' ? 'appt' : 'call'; ui.cdAllNotes = false; cdTimer0 = null; S.page = 'customer'; try { history.replaceState(null, '', '#customer'); } catch (_) { /* sandboxed */ } render(); window.scrollTo(0, 0); if (tab === 'appt') { const n = $('.cd-next'); if (n) { n.scrollIntoView({ block: 'center' }); const d = $('[name=nd]', n); if (d) d.focus({ preventScroll: true }); } } }
+  function nextSum(f) {
+    const hint = $('[data-next-hint]', f); if (!hint) return;
+    hint.innerHTML = f.nd.value ? '<b class="acc">' + H.thDate(f.nd.value).replace(/ \d{4}$/, '') + ' : ' + esc(f.nt.value || '10:30') + ' น.</b>' + (f.np.value ? ' : ' + esc(f.np.value) : '') : 'ไม่นัดต่อ';
+  }
   function suggestNext(f) {
     const c = H.findCustomer(S.full || V(), f.dataset.id); const r = f.result.value;
     const hint = $('[data-next-hint]', f);
@@ -1555,7 +1556,7 @@
     const pl = H.planNext(S.full || V(), c, r);
     if (!pl) { f.nd.value = ''; f.np.value = ''; if (hint) hint.textContent = 'ปิดรายชื่อนี้ ไม่ต้องนัดต่อ'; return; }
     const local = localInput(pl.at); f.nd.value = local.slice(0, 10); f.nt.value = local.slice(11, 16); f.np.value = pl.purpose;
-    if (hint) hint.textContent = 'ระบบเสนอให้ตามรอบ' + (pl.round ? ' : รอบถัดไป ' + pl.round : '') + ' แก้ไขได้';
+    nextSum(f);
   }
   function confirmInline(el, fn) {
     if (el.dataset.confirm) { fn(); return; }
@@ -1604,6 +1605,7 @@
   let qTimer = null;
   document.addEventListener('input', (e) => {
     const t = e.target;
+    if (t.form && t.form.dataset.form === 'call2' && ['nd', 'nt', 'np'].includes(t.name)) { if (t.name === 'nd') t.dataset.touched = '1'; nextSum(t.form); }
     if (t.dataset.search) {   // search as you type, 250 ms after the last key, back to page 1
       const key = t.dataset.search; const x = t.parentElement.querySelector('.s-x'); if (x) x.hidden = !t.value;
       clearTimeout(qTimer); qTimer = setTimeout(() => { if (key === 'cust') ui.q = t.value; resetList(key); refreshList(key); }, 250); return;
