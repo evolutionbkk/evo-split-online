@@ -1099,3 +1099,4 @@ b.acc { color: var(--accent); }
 .nav .nsub-i span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .nav .nsub-i.l2 { padding-left: 30px; font-size: 13px; gap: 9px; }
 .nav .nsub-i.l2 { padding: 8px 6px 8px 26px; font-size: 12.5px; gap: 8px; letter-spacing: -.1px; }
+.qtab span.acc { color: var(--accent); font-weight: 600; }

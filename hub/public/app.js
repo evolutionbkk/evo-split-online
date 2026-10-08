@@ -837,12 +837,15 @@
   function apptMap() { const m = {}; for (const a of (V().appointments || [])) if (!a.done && (!m[a.customerId] || Date.parse(a.at) < Date.parse(m[a.customerId].at))) m[a.customerId] = a; return m; }
   function custFiltersActive() { return (ui.cStatus || []).length > 0 || (ui.custTab === 'fb' && ui.round !== 'all') || (boss() && ui.owner !== 'all') || !!drRange('cust')[0]; }
   function custBase() { const v = V(); return (v.customers || []).filter((c) => c.status !== 'dnc' && c.channel === ui.custTab && (c.owner || boss()) && (!boss() || ui.owner === 'all' || (ui.owner === 'none' ? !c.owner : c.owner === ui.owner))); }
+  // "มาใหม่วันนี้": customers the system handed out today (lead distribution), not sheet imports
+  function newTodayIds() { const T = H.today(); return new Set((V().approvals || []).filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) === T).map((a) => a.customerId)); }
   const isTodayAppt = (c) => c.nextApptAt && H.dayKey(c.nextApptAt) === H.today();
   const isLateAppt = (c) => c.nextApptAt && Date.parse(c.nextApptAt) < Date.now() - 3600000;
   function custList() {
     const v = V(), T = H.today();
     let list = custBase();
-    if (ui.cView === 'today') list = list.filter(isTodayAppt);
+    if (ui.cView === 'new') { const ns = newTodayIds(); list = list.filter((c) => ns.has(c.id)); }
+    else if (ui.cView === 'today') list = list.filter(isTodayAppt);
     else if (ui.cView === 'late') list = list.filter((c) => isLateAppt(c) || H.isStale(v, c));
     const q = (ui.q || '').trim().toLowerCase(), qd = q.replace(/\D/g, '');
     if (q) list = list.filter((c) => (c.name || '').toLowerCase().includes(q) || (qd.length >= 3 && H.normPhone(c.phone).includes(qd)) || (c.address || '').toLowerCase().includes(q) ||
@@ -872,7 +875,7 @@
       '<div class="utabs"><button class="' + (ui.custTab === 'fb' ? 'on' : '') + '" data-act="ctab" data-v="fb">' + ico('msg') + ' FB Page (Pancake) <span class="cnt">' + N(scope('fb')) + '</span></button>' +
       '<button class="' + (ui.custTab === 'ecom' ? 'on' : '') + '" data-act="ctab" data-v="ecom">' + ico('store') + ' E-Commerce <span class="cnt">' + N(scope('ecom')) + '</span></button>' +
       '<span class="grow"></span><span class="small muted hide-sm">' + (ui.custTab === 'fb' ? 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page' : 'Lazada : Shopee : TikTok ผ่าน BigSeller') + '</span></div>' +
-      '<section class="card lcard"><div class="lc-top"><div class="qtabs">' + qtab('all', 'ทั้งหมด', base.length) + qtab('today', 'นัดวันนี้', nToday) + qtab('late', 'เลยกำหนด', nLate, 'bad') + '</div>' +
+      '<section class="card lcard"><div class="lc-top"><div class="qtabs">' + qtab('all', 'ทั้งหมด', base.length) + (ui.custTab === 'fb' ? qtab('new', 'มาใหม่วันนี้', (() => { const ns = newTodayIds(); return base.filter((c) => ns.has(c.id)).length; })(), 'acc') : '') + qtab('today', 'นัดวันนี้', nToday) + qtab('late', 'เลยกำหนด', nLate, 'bad') + '</div>' +
       (nextA && nextC ? '<button class="link-plain small muted lc-next" data-open="' + nextC.id + '">' + ico('clock') + ' นัดถัดไป ' + H.thTime(nextA.at) + ' : ' + esc(nextC.name) + '</button>' : '') + '</div>' +
       searchBox('cust', 'ค้นหาชื่อ เบอร์โทร คำสั่งซื้อ สินค้า หรือที่อยู่', ui.q) +
       '<div class="flt"><span class="flt-ico">' + ico('gear') + '</span>' + drBtn('cust', 'all', () => { resetList('cust'); render(); }, 'คำสั่งซื้อล่าสุด') +
@@ -1531,7 +1534,7 @@
     'demo-user': (el) => { S.me = H.userById(S.full, el.dataset.id); S.view = H.visibleState(S.full, S.me); try { localStorage.setItem('hub-demo-user', S.me.id); } catch (_) { /* ignore */ } ui.owner = 'all'; if (!allowed(S.page)) S.page = 'home'; render(); toast('กำลังดูในมุมมองของ ' + S.me.name); },
     'demo-reset': () => { S.full = window.HubDemoSeed.build(); S.view = H.visibleState(S.full, S.me); api.saveDemo(); render(); toast('สร้างข้อมูลตัวอย่างใหม่แล้ว'); },
     chart: (el) => { ui.chart = el.dataset.v; render(); },
-    ctab: (el) => { ui.custTab = el.dataset.v; ui.round = 'all'; resetList('cust'); render(); },
+    ctab: (el) => { ui.custTab = el.dataset.v; ui.round = 'all'; if (ui.custTab !== 'fb' && ui.cView === 'new') ui.cView = 'all'; resetList('cust'); render(); },
     cround: (el) => { ui.round = el.dataset.v; resetList('cust'); render(); },
     cowner: (el) => { ui.owner = el.dataset.v; resetList('cust'); render(); },
     'cal-owner': (el) => { ui.calOwner = el.dataset.v; resetList('calday'); resetList('callate'); render(); },
