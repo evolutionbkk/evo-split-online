@@ -857,3 +857,13 @@ a.btn { text-decoration: none; }
 @media (max-width: 640px) { .rg-row { grid-template-columns: minmax(0, 1fr); gap: 6px; } .rg-h { padding-top: 0; } }
 .rg-row { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px 12px 10px; }
 .rg-h { padding-top: 0; font-size: 12.5px; }
+
+/* product picker: line first, then pack size */
+.pp { display: grid; gap: 8px; }
+.pp-sizes, .pp-other { padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--bg); display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-sizes[hidden], .pp-other[hidden] { display: none !important; }
+.pp-other .in { flex: 1; min-width: 0; }
+.rg-o.sz b { font-weight: 600; color: var(--accent); margin-left: 4px; }
+.pp .rg-o input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pp .rg-o input:checked + span b { color: #fff; }
+.in.ro { background: var(--bg); color: var(--muted); display: flex; align-items: center; min-height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

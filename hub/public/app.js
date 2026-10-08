@@ -813,6 +813,18 @@
     { label: 'สนใจ / ต้องตามต่อ', icon: 'clock', tone: 'warn', ids: ['hot', 'warm', 'info', 'followup', 'later'] },
     { label: 'ไม่สำเร็จ', icon: 'x', tone: 'bad', ids: ['lost', 'no_answer'] },
   ];
+  // products grouped by line ("Yanhee Anti-Aging") with pack sizes ("1 กล่อง") as a second step
+  const SIZE_RE = /\s*(\d+\s*(กล่อง|หลอด|ขวด|กระปุก|ชิ้น|ซอง|ก้อน|ชุด|แพ็ค|แพ็ก|เซ็ต))$/;
+  function prodLines() {
+    const map = new Map();
+    for (const p of products()) { const m = p.name.match(SIZE_RE); const line = m ? p.name.slice(0, m.index).trim() : p.name; if (!map.has(line)) map.set(line, []); map.get(line).push({ ...p, size: m ? m[1] : '' }); }
+    return [...map].map(([name, items]) => ({ name, items }));
+  }
+  function pickSize(f, el) {
+    f.prod.value = el.value; f.prod.dataset.price = el.dataset.price; f.prod.dataset.label = el.dataset.label;
+    $('[data-pp-label]', f).textContent = el.dataset.label + ' (' + B(Number(el.dataset.price)) + ')';
+    if (!f.amount.dataset.touched) f.amount.value = Number(el.dataset.price) * (Number(f.qty.value) || 1);
+  }
   const noTime = (a) => H.thTime(a.at) === '00:00';
   function pageCustomer() {
     const st = S.full || V();
@@ -850,7 +862,11 @@
       '<p>' + esc(a0.purpose) + '</p><div class="row between"><small class="muted">นัดโดย ' + esc(uname(a0.by === 'system' || a0.by === 'import' ? a0.owner : a0.by)) + ' : ' + H.thDate(a0.createdAt) + '</small>' +
       '<a class="btn primary" href="tel:' + esc(H.normPhone(c.phone)) + '" data-act="cd-dial">' + ico('phone') + ' โทร ' + H.fmtPhone(c.phone) + '</a></div></section>'
       : '<section class="cd-appt none"><div class="row between"><b>' + ico('calendar') + ' ยังไม่มีนัด</b></div><p>' + esc(c.channel === 'fb' ? H.ROUNDS[round] : 'แนะนำตัว ถามผลการใช้ ชวนสั่งซ้ำ') + '</p><div class="row" style="justify-content:flex-end"><a class="btn primary" href="tel:' + esc(H.normPhone(c.phone)) + '" data-act="cd-dial">' + ico('phone') + ' โทร ' + H.fmtPhone(c.phone) + '</a></div></section>';
-    const prodOpts = '<option value="">เลือกสินค้า</option>' + products().map((p) => '<option value="' + esc(p.code) + '" data-price="' + p.price + '">' + esc(p.name) + ' (' + B(p.price) + ')</option>').join('');
+    const pLines = prodLines();
+    const prodPick = '<input type="hidden" name="prod"><div class="pp"><div class="rg-opts">' + pLines.map((l, i) => '<label class="rg-o"><input type="radio" name="pline" value="' + i + '" data-act-change="cd-pline"><span>' + esc(l.name) + '</span></label>').join('') +
+      '<label class="rg-o"><input type="radio" name="pline" value="other" data-act-change="cd-pline"><span>อื่น ๆ (ระบุเอง)</span></label></div>' +
+      pLines.map((l, i) => '<div class="pp-sizes" data-pl="' + i + '" hidden>' + l.items.map((p) => '<label class="rg-o sz"><input type="radio" name="psize" value="' + esc(p.code) + '" data-price="' + p.price + '" data-label="' + esc(p.name) + '" data-act-change="cd-psize"><span>' + esc(l.items.length > 1 || p.size ? (p.size || p.name) : p.name) + ' <b>' + B(p.price) + '</b></span></label>').join('') + '</div>').join('') +
+      '<div class="pp-other" data-pl="other" hidden><input class="in" name="prodOther" placeholder="พิมพ์ชื่อสินค้า เช่น สบู่สมุนไพร 2 ก้อน" aria-label="ชื่อสินค้า"></div></div>';
     const nowLocal = localInput(new Date().toISOString());
     const callTab = '<form class="form cd-form" data-form="call2" data-id="' + c.id + '">' +
       (c.channel === 'fb' ? '<div class="cd-goal">' + ico('alert') + '<div><b>' + round + ' : ' + esc(H.ROUNDS[round]) + '</b><small>T1 ต้อนรับ / ยืนยันออเดอร์ : T2 ถามผลการใช้ / อัปเซล : T3 ติดตามซื้อซ้ำ</small></div></div>' : '') +
@@ -860,7 +876,7 @@
       '<div class="cd-row2"><label class="field"><span>วันและเวลาที่โทร</span><input class="in" type="datetime-local" name="at" value="' + nowLocal + '" max="' + nowLocal + '"></label>' +
       '<label class="field"><span>ระยะเวลา (นาที:วินาที)</span><input class="in" name="dur" placeholder="00:00" inputmode="numeric" id="cd-dur"></label></div>' +
       '<div class="cd-prod"><div class="row between"><b class="small">รายละเอียดสินค้าที่ขาย / สนใจ</b><small class="muted" data-prod-hint>บันทึกเป็นคำสั่งซื้อเมื่อเลือก "ปิดการขายสำเร็จ" หรือ "รอชำระเงิน"</small></div>' +
-      '<div class="cd-prod-row"><label class="field"><span>สินค้า</span><select class="in" name="prod" data-act-change="cd-prod">' + prodOpts + '</select></label><label class="field"><span>จำนวน</span><input class="in" type="number" min="1" name="qty" value="1" data-cd-calc></label><label class="field"><span>ยอด</span><input class="in" type="number" min="0" name="amount" placeholder="0"></label></div></div>' +
+      '<div class="field"><span>สินค้า</span>' + prodPick + '</div><div class="cd-prod-row"><div class="field pp-chosen"><span>ที่เลือก</span><div class="in ro" data-pp-label>ยังไม่ได้เลือก</div></div><label class="field"><span>จำนวน</span><input class="in" type="number" min="1" name="qty" value="1" data-cd-calc></label><label class="field"><span>ยอด</span><input class="in" type="number" min="0" name="amount" placeholder="0"></label></div></div>' +
       '<label class="field"><span>บันทึกการสนทนา</span><textarea class="in" name="note" rows="3" placeholder="เช่น ลูกค้าใช้มา 5 วัน สนใจสั่งเพิ่ม 1 กล่อง ขอให้โทรยืนยันวันอาทิตย์ช่วงเช้า"></textarea></label>' +
       '<div class="cd-next"><b>' + ico('calendar') + ' นัดหมายถัดไป</b><div class="quick"><span class="small muted">นัดเร็ว</span>' + [[1, '+1 วัน'], [3, '+3 วัน'], [7, '+7 วัน'], [25, '+25 วัน : T3']].map(([n, l]) => '<button type="button" class="chip" data-act="cd-quick" data-v="' + n + '">' + l + '</button>').join('') + '<button type="button" class="chip" data-act="cd-quick" data-v="0">ไม่ต้องนัด</button></div>' +
       '<div class="cd-row2"><label class="field"><span>วันที่นัดหมาย</span><input class="in" type="date" name="nd" min="' + H.today() + '"></label><label class="field"><span>เวลา</span><input class="in" type="time" name="nt" value="10:30"></label></div>' +
@@ -1551,6 +1567,7 @@
     const op = e.target.closest('[data-open]');
     if (op && op.dataset.open) { e.preventDefault(); closeModal(); closePop(); openCustomer(op.dataset.open, op.dataset.tab); }
   });
+  document.addEventListener('reset', (e) => { if (e.target.matches && e.target.matches('[data-form=call2]')) setTimeout(() => { delete ui.cdDraft; render(); }, 0); });
   document.addEventListener('change', (e) => {
     const t = e.target, act = t.dataset.act || t.dataset.actChange;
     if (act === 'kpi-date') { ui.kpiDate = t.value || H.today(); resetList('kpi'); render(); }
@@ -1560,7 +1577,14 @@
       (async () => { try { const r = await api.post('/api/upload/contacts', { file: await fileB64(t.files[0]), listSheets: true }); const sel = $('#ci-sheet'); sel.innerHTML = r.sheets.map((n) => '<option' + (/เขม|หวาน|ชีท/.test(n) ? '' : '') + '>' + esc(n) + '</option>').join(''); const pref = r.sheets.find((n) => /ชีท/.test(n)); if (pref) sel.value = pref; } catch (e) { toast(e.message, true); } })();
     }
     else if (act === 'cd-result') { const f = t.closest('form'); $('[data-show=lost]', f).hidden = t.value !== 'lost'; suggestNext(f); }
-    else if (act === 'cd-prod') { const f = t.closest('form'); const o = t.selectedOptions[0]; if (!f.amount.dataset.touched) f.amount.value = o && o.dataset.price ? Number(o.dataset.price) * (Number(f.qty.value) || 1) : ''; }
+    else if (act === 'cd-pline') {
+      const f = t.closest('form'); $$('[data-pl]', f).forEach((x) => { x.hidden = x.dataset.pl !== t.value; });
+      $$('[name=psize]', f).forEach((x) => { x.checked = false; }); f.prod.value = ''; f.prod.dataset.price = ''; f.prod.dataset.label = '';
+      const box = $('[data-pl="' + t.value + '"]', f); const one = box && $$('[name=psize]', box);
+      if (one && one.length === 1) { one[0].checked = true; pickSize(f, one[0]); }
+      else { $('[data-pp-label]', f).textContent = t.value === 'other' ? 'ระบุชื่อสินค้าด้านบน' : 'เลือกขนาด / จำนวนแพ็ก'; if (t.value === 'other') { f.prodOther.focus(); if (!f.amount.dataset.touched) f.amount.value = ''; } }
+    }
+    else if (act === 'cd-psize') pickSize(t.closest('form'), t);
     else if (act === 'kpi-channel') { const f = t.closest('form'); const rf = $('[data-round-field]', f); if (rf) rf.hidden = t.value !== 'fb'; }
     if (t.name === 'round' && t.closest('form[data-form=call]')) { const h = $('[data-round-hint]', t.closest('form')); if (h) h.textContent = H.ROUNDS[t.value] || ''; }
   });
@@ -1579,7 +1603,7 @@
     if (t.dataset.totalFor || t.id === 'q-amount' || (t.name === 'amount' && t.closest('form[data-form=call2]'))) { t.dataset.touched = t.value ? '1' : ''; }
     if (t.id === 'cd-dur') t.dataset.touched = t.value ? '1' : '';
     if ((t.name === 'nd' || t.name === 'nt' || t.name === 'np') && t.closest('form[data-form=call2]')) t.form.nd.dataset.touched = '1';
-    if (t.hasAttribute && t.hasAttribute('data-cd-calc')) { const f = t.form; const o = f.prod.selectedOptions[0]; if (!f.amount.dataset.touched && o && o.dataset.price) f.amount.value = Number(o.dataset.price) * (Number(t.value) || 1); }
+    if (t.hasAttribute && t.hasAttribute('data-cd-calc')) { const f = t.form; if (f.prod && !f.amount.dataset.touched && f.prod.dataset.price) f.amount.value = Number(f.prod.dataset.price) * (Number(t.value) || 1); }
     if (t.dataset.actInput === 'kpi-phone') { const c = H.byPhone(V(), t.value); const f = t.closest('form'); if (c && f.name && !f.name.value) { f.name.value = c.name; if (c.channel === 'ecom') { f.channel.value = 'mkt'; $('[data-round-field]', f).hidden = true; } } }
     if (t.dataset.actInput === 'close-phone') {
       const hint = $('[data-close-hint]'); const ph = H.normPhone(t.value);
@@ -1601,9 +1625,13 @@
         const durTxt = f.dur.value.trim(); const parts = durTxt.split(/[:.\s]/).map(Number);
         const durationSec = durTxt ? (parts.length > 1 ? (parts[0] || 0) * 60 + (parts[1] || 0) : (parts[0] || 0) * 60) : (cdTimer0 ? Math.round((Date.now() - cdTimer0) / 1000) : 0);
         const sold = ['won', 'awaiting_payment'].includes(f.result.value);
-        const items = f.prod.value ? [{ name: f.prod.value, qty: Number(f.qty.value) || 1 }] : [];
+        const other = f.pline && f.pline.value === 'other' ? f.prodOther.value.trim() : '';
+        if (f.pline && f.pline.value === 'other' && !other) throw new Error('พิมพ์ชื่อสินค้าที่ต้องการระบุเอง');
+        const prodVal = f.prod.value || other, prodLabel = f.prod.dataset.label || other;
+        const qn = Number(f.qty.value) || 1;
+        const items = prodVal ? [{ name: prodVal, qty: qn, price: other && f.amount.value ? Number(f.amount.value) / qn : undefined }] : [];
         let note = f.note.value.trim();
-        if (!sold && f.prod.value) note = (note ? note + ' : ' : '') + 'สนใจ ' + f.prod.selectedOptions[0].textContent.replace(/ \(.*$/, '') + ' x' + (Number(f.qty.value) || 1);
+        if (!sold && prodVal) note = (note ? note + ' : ' : '') + 'สนใจ ' + prodLabel + ' x' + qn;
         const pay = { customerId: f.dataset.id, result: f.result.value, lostReason: f.lostReason.value, round: f.round ? f.round.value : '', durationSec, note, at: fromLocal(f.at.value),
           items: sold ? items : [], amount: sold ? f.amount.value : '' };
         if (f.nd.value) { pay.nextAt = fromLocal(f.nd.value + 'T' + (f.nt.value || '10:30')); pay.nextPurpose = f.np.value; }
