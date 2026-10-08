@@ -445,6 +445,7 @@
       '<div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn" data-act="close-modal">ยกเลิก</button><button class="btn danger-solid" id="confirm-ok">' + esc(o.okLabel || (o.verb || 'ลบ') + ' ' + N(o.count) + ' รายการ') + '</button></div>');
     $('#confirm-ok', modal).onclick = () => { closeModal(); o.onOk(); };
   }
+  async function fileB64(file) { const bytes = new Uint8Array(await file.arrayBuffer()); let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin); }
   function downloadCsv(name, rows) {
     const q = (x) => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';
     try {
@@ -596,7 +597,7 @@
   ui.tq = ui.tq || { bucket: 'all', user: null };
   const qSkipped = new Set();
   let qCur = null, qTimer0 = null, qTick = null;
-  const Q_BUCKETS = [{ v: 'all', l: 'ทั้งหมด' }, { v: 'appt', l: 'นัดถึงเวลา' }, { v: 'new', l: 'ใหม่ T1' }, { v: 'T2', l: 'T2' }, { v: 'T3', l: 'T3' }, { v: 'mkt', l: 'Marketplace' }];
+  const Q_BUCKETS = [{ v: 'all', l: 'ทั้งหมด' }, { v: 'appt', l: 'นัดถึงเวลา' }, { v: 'new', l: 'T1' }, { v: 'T2', l: 'T2' }, { v: 'T3', l: 'T3' }, { v: 'mkt', l: 'Marketplace' }];
   function queueFor(who) {
     const v = V(), now = Date.now(), endToday = Date.parse(H.addDays(H.today(), 1) + 'T00:00:00Z') - H.TZ;
     const out = [];
@@ -608,7 +609,7 @@
       else if (!appt && c.status === 'new') { why = 'new'; rank = 1; t = Date.parse(c.assignedAt || c.createdAt || 0); }
       else if (!appt && H.isStale(v, c)) { why = 'stale'; rank = 4; t = Date.parse(c.updatedAt || 0); }
       if (!why) continue;
-      const bucket = c.channel === 'ecom' ? 'mkt' : why === 'new' ? 'new' : (c.round === 'T2' || c.round === 'T3') ? c.round : (why === 'appt' || why === 'late') ? 'appt' : 'new';
+      const bucket = c.channel === 'ecom' ? 'mkt' : (c.round === 'T2' || c.round === 'T3') ? c.round : 'new';
       out.push({ c, why, rank, t, bucket, appt });
     }
     return out.sort((a, b) => a.rank - b.rank || a.t - b.t);
@@ -1045,6 +1046,12 @@
       conn('OneCall (บันทึกเสียงสาย)', ints.onecall, sy.onecall && sy.onecall.lastRun, 'ใช้ตรวจจำนวนสายและเวลาคุยจริงเทียบกับที่บันทึก', '<button class="btn sm" data-act="sync-onecall">ดึงตอนนี้</button>') +
       conn('BigSeller (Lazada / Shopee / TikTok)', !!(sy.bigseller && sy.bigseller.lastRun), sy.bigseller && sy.bigseller.lastRun, 'อัปโหลดไฟล์ Export หรือวางตารางด้านล่าง : สคริปต์เดิมส่งเข้าที่ /api/bigseller/ingest ได้เลย') +
       conn('ระบบเดิม (evo-split-online)', !!(sy.legacy && sy.legacy.importedAt), sy.legacy && sy.legacy.importedAt, sy.legacy && sy.legacy.importedAt ? 'ย้ายลูกค้า ' + N(sy.legacy.customers) + ' ราย ออเดอร์ ' + N(sy.legacy.orders) + ' รายการ' : 'ย้ายรายชื่อ ประวัติ และนัดจากระบบเดิมครั้งเดียว', '<button class="btn sm" data-act="import-legacy">นำเข้า</button>') + '</div>' +
+      '<div class="section-t" style="margin-top:16px">นำเข้าฐานรายชื่อลูกค้าจาก Excel</div><div class="small muted" style="margin-top:4px">ใช้ไฟล์แบบ Sales Department Master Workflow (ชีทพี่เขม / ชีทหวาน) : เบอร์ซ้ำจะรวมเข้ากับลูกค้าเดิม ไม่สร้างซ้ำ</div>' +
+      '<form class="form" data-form="contacts-import" style="margin-top:8px"><div class="f2"><label class="field"><span>ไฟล์ Excel</span><input class="in" type="file" name="file" accept=".xlsx,.xls" data-act-change="ci-file"></label>' +
+      '<label class="field"><span>ชีท</span><select class="in" name="sheet" id="ci-sheet"><option value="">เลือกไฟล์ก่อน</option></select></label></div>' +
+      '<label class="field"><span>ให้เซลล์</span><select class="in" name="owner"><option value="">ตามคอลัมน์ Telesale ในชีท</option>' + H.teles(st).map((u) => '<option value="' + u.id + '">' + esc(u.name) + '</option>').join('') + '</select></label>' +
+      '<button class="btn primary sm">' + ico('upload') + ' นำเข้าฐานรายชื่อ</button></form>' +
+      (Object.keys(sy.imports || {}).length ? '<div class="small muted" style="margin-top:8px">' + Object.values(sy.imports).slice(-3).map((x) => esc(x.label || 'นำเข้า') + ' : ใหม่ ' + N(x.added) + ' : รวมกับเดิม ' + N(x.merged) + ' : นัด ' + N(x.appts) + ' (' + H.thDate(x.at, true) + ')').join('<br>') + '</div>' : '') +
       '<div class="section-t" style="margin-top:16px">นำเข้าออเดอร์ E-Commerce</div><form class="form" data-form="ecom-import" style="margin-top:8px"><div class="f2"><label class="field"><span>แพลตฟอร์ม</span><select class="in" name="platform"><option value="">ตามไฟล์ (ค่าเริ่มต้น Lazada)</option><option value="lazada">Lazada</option><option value="shopee">Shopee</option><option value="tiktok">TikTok Shop</option><option value="evolution">Evolution</option></select></label>' +
       '<label class="field"><span>ไฟล์ Excel / CSV จาก BigSeller</span><input class="in" type="file" name="file" accept=".xlsx,.xls,.csv"></label></div>' +
       '<label class="field"><span>หรือวางตารางที่คัดลอกมา (ต้องมีหัวคอลัมน์ เบอร์ / ชื่อ / ที่อยู่ / สินค้า / ยอด)</span><textarea class="in" name="paste" rows="4" placeholder="เลขที่คำสั่งซื้อ\tชื่อผู้รับ\tเบอร์โทร\tที่อยู่\tสินค้า\tยอด"></textarea></label><button class="btn primary sm">' + ico('upload') + ' นำเข้า</button></form>');
@@ -1339,6 +1346,10 @@
     const t = e.target, act = t.dataset.act || t.dataset.actChange;
     if (act === 'kpi-date') { ui.kpiDate = t.value || H.today(); resetList('kpi'); render(); }
     else if (act === 'auto-approve') run(() => api.act('updateSettings', { autoApprove: t.checked }), t.checked ? 'ระบบจะส่งรายชื่อให้ Telesales ทันที' : 'รายชื่อจะรออนุมัติก่อนส่ง');
+    else if (act === 'ci-file' && t.files[0]) {
+      if (DEMO) { toast('โหมดตัวอย่าง: นำเข้าไฟล์ได้บนเว็บจริง', true); return; }
+      (async () => { try { const r = await api.post('/api/upload/contacts', { file: await fileB64(t.files[0]), listSheets: true }); const sel = $('#ci-sheet'); sel.innerHTML = r.sheets.map((n) => '<option' + (/เขม|หวาน|ชีท/.test(n) ? '' : '') + '>' + esc(n) + '</option>').join(''); const pref = r.sheets.find((n) => /ชีท/.test(n)); if (pref) sel.value = pref; } catch (e) { toast(e.message, true); } })();
+    }
     else if (act === 'kpi-channel') { const f = t.closest('form'); const rf = $('[data-round-field]', f); if (rf) rf.hidden = t.value !== 'fb'; }
     if (t.name === 'round' && t.closest('form[data-form=call]')) { const h = $('[data-round-hint]', t.closest('form')); if (h) h.textContent = H.ROUNDS[t.value] || ''; }
   });
@@ -1408,6 +1419,10 @@
         await api.act('updateSettings', { targets, staleDays: { fb: f.staleFb.value, ecom: f.staleEcom.value } }); toast('บันทึกเป้า KPI แล้ว');
       } else if (kind === 'ann') {
         await api.act('addAnnouncement', { title: f.title.value, body: f.body.value }); toast('ประกาศแล้ว');
+      } else if (kind === 'contacts-import') {
+        const file = f.file.files[0]; if (!file) throw new Error('เลือกไฟล์ Excel ก่อน');
+        const r = await api.post('/api/upload/contacts', { file: await fileB64(file), sheet: f.sheet.value, owner: f.owner.value });
+        toast('นำเข้า ' + N(r.received) + ' แถว : ลูกค้าใหม่ ' + N(r.added) + ' : รวมกับเดิม ' + N(r.merged) + ' : นัด ' + N(r.appts) + (r.skipped ? ' : เบอร์ไม่ครบ ' + r.skipped : ''));
       } else if (kind === 'ecom-import') {
         const file = f.file.files[0];
         let r;

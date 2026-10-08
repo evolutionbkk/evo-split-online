@@ -292,6 +292,7 @@
     updateUser: ['exec', 'lead'],
     resetDemo: ['exec', 'lead'],
     deleteCustomers: ['exec', 'lead'],
+    importContacts: ['exec', 'lead'],
     bulkUpdateCustomers: ['exec', 'lead', 'tele'],
     deleteKpiMany: ['exec', 'lead', 'tele'],
     deleteApprovals: ['exec', 'lead', 'admin'],
@@ -611,6 +612,63 @@
     return { ok: true };
   };
 
+  // ---- customer base import (the team's Google/Excel sheet, e.g. "ชีทพี่เขม")
+  // rows come from sheetToContacts(); phone is the key, so running it twice never duplicates.
+  A.importContacts = (st, p, actor) => {
+    const rows = Array.isArray(p.rows) ? p.rows : [];
+    const res = { received: rows.length, added: 0, merged: 0, orders: 0, appts: 0, skipped: 0, lost: 0 };
+    const T = today();
+    for (const r of rows) {
+      const phone = normPhone(r.phone);
+      if (phone.length !== 10) { res.skipped++; continue; }
+      const owner = r.owner && userById(st, r.owner) ? r.owner : (p.owner || null);
+      const existed = !!byPhone(st, phone);
+      const channel = r.platform && PLATFORMS[r.platform] && PLATFORMS[r.platform].channel === 'ecom' ? 'ecom' : 'fb';
+      const { c } = upsertCustomer(st, { name: r.name, phone, address: r.address, page: r.page, channel, platform: r.platform || (channel === 'fb' ? 'pancake' : 'lazada') }, actor);
+      if (!existed) { c.channel = channel; c.createdAt = r.firstBuy ? new Date(Date.parse(r.firstBuy + 'T03:00:00Z')).toISOString() : nowIso(); res.added++; } else res.merged++;
+      if (owner) { if (c.owner !== owner) c.assignedAt = nowIso(); c.owner = owner; }
+      if (channel === 'fb' && ['T1', 'T2', 'T3'].includes(r.round)) c.round = r.round;
+      if (r.lost) { c.status = 'lost'; res.lost++; }
+      else if (c.status === 'new' && r.lastCall) c.status = 'followup';
+      if (r.lastCall && isNaN(Date.parse(r.lastCall + 'T05:00:00Z'))) r.lastCall = '';
+      if (r.firstBuy && isNaN(Date.parse(r.firstBuy + 'T03:00:00Z'))) r.firstBuy = '';
+      if (r.lastCall) { const lc = new Date(Date.parse(r.lastCall + 'T05:00:00Z')).toISOString(); if (!c.lastContactAt || lc > c.lastContactAt) c.lastContactAt = lc; }
+      // order from the sheet (first purchase + product); skip if an order already exists on that day
+      if (r.firstBuy || r.product) {
+        const day = r.firstBuy || T;
+        if (!(c.orders || []).some((o) => dayKey(o.date) === day)) {
+          const items = r.product ? cleanItems([{ name: String(r.product).trim(), qty: 1 }], st.settings.products) : [];
+          for (const it of items) if (!it.price) {   // e.g. "YPT1" → price of the catalogue set that starts with YPT1
+            const base = String(it.name).split('+')[0].trim().toUpperCase();
+            const hit = st.settings.products.find((x) => String(x.code).toUpperCase().split('+')[0] === base);
+            if (hit) it.price = hit.price;
+          }
+          if (pushOrder(c, { date: new Date(Date.parse(day + 'T03:00:00Z')).toISOString(), items, total: items.reduce((x, i) => x + i.qty * i.price, 0), source: 'legacy', note: [r.payment, r.page].filter(Boolean).join(' : ') + ' (นำเข้าจาก ' + (p.label || 'ชีท') + ')' })) res.orders++;
+        }
+      }
+      if (r.note) {
+        const text = clip(r.note, 500);
+        if (!(c.notes || []).some((n) => n.text === text)) pushNote(c, { by: owner || actor.id, kind: 'note', text: text + ' (จาก ' + (p.label || 'ชีท') + ')', at: r.lastCall ? new Date(Date.parse(r.lastCall + 'T05:00:00Z')).toISOString() : undefined });
+        if (c.notes[0] && r.lastCall) c.notes[0].at = new Date(Date.parse(r.lastCall + 'T05:00:00Z')).toISOString();
+      }
+      const nextOk = r.nextCall && !isNaN(Date.parse(r.nextCall + 'T03:00:00Z'));
+      if (nextOk && r.nextCall < T && !r.lost) {   // date in the sheet already passed: keep it as a note, the queue picks the customer up as "เงียบนาน"
+        const t2 = 'นัดในชีทเดิม ' + thDate(r.nextCall) + ' (เลยมาแล้ว)';
+        if (!(c.notes || []).some((n) => n.text === t2)) pushNote(c, { by: 'import', kind: 'note', text: t2 });
+      }
+      if (!r.lost && nextOk && r.nextCall >= T && owner && !st.appointments.some((a) => a.customerId === c.id && !a.done)) {
+        st.appointments.push({ id: uid('a'), customerId: c.id, owner, at: new Date(Date.parse(r.nextCall + 'T03:00:00Z')).toISOString(), purpose: (c.round ? c.round + ' ' : '') + 'โทรตามนัดในชีท', round: c.round || '', done: false, createdAt: nowIso(), by: 'import' });
+        res.appts++;
+      }
+      setNextAppt(st, c);
+      sortOrders(c);
+    }
+    st.sync.imports = st.sync.imports || {};
+    if (p.importId) st.sync.imports[p.importId] = { at: nowIso(), ...res, label: p.label || '' };
+    log(st, actor, 'นำเข้า ' + (p.label || 'ฐานรายชื่อ') + ' : ใหม่ ' + res.added + ' : รวมกับของเดิม ' + res.merged);
+    return res;
+  };
+
   // ---- bulk actions for lists with checkboxes (validate everything first, then change)
   A.deleteCustomers = (st, p, actor) => {
     const ids = new Set(p.ids || []);
@@ -869,7 +927,54 @@
     return rows.filter((r) => r.phone || r.name);
   }
 
+  // Read a sheet laid out like "ชีทพี่เขม": header row with Thai column names. Only the customer
+  // columns are used; anything after them (daily summary blocks) is ignored.
+  function sheetToContacts(aoa, opts) {
+    opts = opts || {};
+    const hi = (aoa || []).findIndex((r) => (r || []).some((x) => /เบอร์/.test(String(x || ''))) && (r || []).some((x) => /ชื่อ/.test(String(x || ''))));
+    if (hi < 0) return [];
+    const head = aoa[hi].map((x) => String(x == null ? '' : x).trim());
+    const col = {};
+    const want = [['firstBuy', /วันที่ซื้อ/], ['page', /ช่องทางการสั่งซื้อ|ช่องทางสั่งซื้อ/], ['name', /^ชื่อลูกค้า|^ชื่อ/], ['phone', /เบอร์/], ['address', /ที่อยู่/], ['product', /สินค้า/],
+      ['tele', /telesale|เซลล์/i], ['payment', /ชำระ/], ['after', /สถานะหลังโทร/], ['status', /^สถานะ$/], ['nextCall', /โทรครั้งต่อไป/], ['note', /รายละเอียด|หมายเหตุ/], ['lastCall', /โทรครั้งล่าสุด/]];
+    let end = head.length;
+    for (let i = 0; i < head.length; i++) if (!head[i] && Object.keys(col).length >= 4) { end = i; break; } else for (const [k, re] of want) if (col[k] == null && re.test(head[i])) { col[k] = i; break; }
+    const toDay = (v) => {
+      if (v == null || v === '') return '';
+      if (v instanceof Date) return isNaN(v) ? '' : new Date(v.getTime() + 12 * 3600000).toISOString().slice(0, 10);
+      if (typeof v === 'number') return v > 20000 && v < 80000 ? new Date(Date.UTC(1899, 11, 30) + v * 86400000).toISOString().slice(0, 10) : '';
+      const s = String(v).trim();
+      let m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/.exec(s);
+      if (m) {
+        let y = Number(m[3]), d = Number(m[1]), mo = Number(m[2]);
+        if (y < 100) y += 2000; if (y > 2400) y -= 543;
+        if (mo > 12 && d <= 12) { const t = d; d = mo; mo = t; }   // typed as month/day
+        if (mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+        return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      }
+      m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); if (m) return m[1] + '-' + m[2] + '-' + m[3];
+      return '';
+    };
+    const who = (v) => { const s = String(v || '').toLowerCase(); return /khem|เขม/.test(s) ? 'khem' : /wan|หวาน/.test(s) ? 'wan' : (opts.owner || null); };
+    const out = [];
+    for (const r of aoa.slice(hi + 1)) {
+      if (!r) continue;
+      const g = (k) => (col[k] != null && col[k] < end ? r[col[k]] : null);
+      if (!g('phone') && !g('name')) continue;
+      const page = String(g('page') || '').replace(/^\s*FB\s*Page\s*-\s*/i, '').trim();
+      const ch = String(g('page') || '').toLowerCase();
+      const after = String(g('after') || '').trim(), stat = String(g('status') || '').trim();
+      const round = /^T[123]$/.test(after) ? after : /^T[123]$/.test(stat) ? stat : 'T1';
+      out.push({ name: String(g('name') || '').trim(), phone: String(g('phone') || '').trim(), address: String(g('address') || '').trim(), page,
+        platform: /lazada/.test(ch) ? 'lazada' : /shopee/.test(ch) ? 'shopee' : /tiktok/.test(ch) ? 'tiktok' : 'pancake',
+        firstBuy: toDay(g('firstBuy')), product: String(g('product') || '').trim(), owner: who(g('tele')), payment: String(g('payment') || '').trim(),
+        round, lost: /เลิกติดตาม/.test(after), nextCall: toDay(g('nextCall')), lastCall: toDay(g('lastCall')), note: String(g('note') || '').trim() });
+    }
+    return out;
+  }
+
   return {
+    sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
     emptyState, normalize, apply, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,

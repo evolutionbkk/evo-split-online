@@ -118,6 +118,21 @@ app.post('/api/import/legacy', auth, async (req, res) => {
   try { const old = await store.loadLegacy(process.env.LEGACY_DATABASE_URL); res.json(await mutate((st) => I.importLegacy(st, old))); }
   catch (e) { res.status(500).json({ error: 'อ่านฐานข้อมูลระบบเดิมไม่ได้: ' + e.message }); }
 });
+// Customer base from the team's Excel sheet (layout like "ชีทพี่เขม") → customers, orders, notes, next calls
+app.post('/api/upload/contacts', auth, async (req, res) => {
+  if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+  try {
+    const XLSX = require('xlsx');
+    const b = req.body || {};
+    const wb = XLSX.read(Buffer.from(String(b.file || ''), 'base64'), { type: 'buffer', cellDates: true });
+    if (b.listSheets) return res.json({ sheets: wb.SheetNames });
+    const name = wb.SheetNames.includes(b.sheet) ? b.sheet : wb.SheetNames[0];
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+    const rows = H.sheetToContacts(aoa, { owner: b.owner || null });
+    if (!rows.length) return res.status(400).json({ error: 'ไม่พบหัวคอลัมน์ "ชื่อลูกค้า" และ "เบอร์" ในชีท ' + name });
+    res.json(await mutate((st) => H.apply(st, 'importContacts', { rows, owner: b.owner || null, label: name, importId: 'upload:' + name + ':' + Date.now() }, req.actor)));
+  } catch (e) { res.status(400).json({ error: 'อ่านไฟล์ไม่ได้: ' + e.message }); }
+});
 // Excel / CSV export from BigSeller (base64) → marketplace leads
 app.post('/api/upload/ecom', auth, async (req, res) => {
   if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
@@ -168,6 +183,23 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
   if (!state.customers.length && process.env.LEGACY_DATABASE_URL && !state.sync.legacy.importedAt) {
     try { const r = I.importLegacy(state, await store.loadLegacy(process.env.LEGACY_DATABASE_URL)); console.log('[boot] imported old system', r); }
     catch (e) { console.warn('[boot] legacy import failed', e.message); }
+  }
+  // one-time encrypted imports shipped with the code (imports/*.enc, key in IMPORT_KEY) — the repo only holds ciphertext
+  if (process.env.IMPORT_KEY) {
+    const fs = require('fs');
+    const dir = path.join(__dirname, 'imports');
+    state.sync.imports = state.sync.imports || {};
+    for (const f of (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((x) => x.endsWith('.enc'))) {
+      if (state.sync.imports[f]) continue;
+      try {
+        const box = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        const d = crypto.createDecipheriv('aes-256-gcm', Buffer.from(process.env.IMPORT_KEY, 'base64'), Buffer.from(box.iv, 'base64'));
+        d.setAuthTag(Buffer.from(box.tag, 'base64'));
+        const pay = JSON.parse(Buffer.concat([d.update(Buffer.from(box.data, 'base64')), d.final()]).toString('utf8'));
+        const r = H.apply(state, 'importContacts', { rows: pay.rows, owner: pay.owner, label: pay.label, importId: f }, { id: 'system', role: 'system' });
+        console.log('[import]', f, JSON.stringify(r));
+      } catch (e) { console.warn('[import] failed', f, e.message); }
+    }
   }
   state = await store.save(state);
   app.listen(PORT, () => console.log('Evolution Hub Commerce on :' + PORT, '· customers', state.customers.length));
