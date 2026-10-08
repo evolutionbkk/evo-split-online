@@ -831,3 +831,10 @@ a.btn { text-decoration: none; }
   .cal-grid { grid-template-columns: minmax(0, 1fr) 420px; }
   .cd-tl { max-height: 560px; }
 }
+
+.cp-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--line); }
+.cp-pager .pages { margin: 0; gap: 4px; }
+.cp-pager .pages button[disabled] { opacity: .35; pointer-events: none; }
+.cday .cp-pager { padding: 12px 0 0; }
+.cp-pager small { white-space: nowrap; }
+.cp-pager .pages button { min-width: 30px; height: 30px; padding: 0 6px; }
