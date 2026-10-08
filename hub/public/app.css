@@ -867,3 +867,4 @@ a.btn { text-decoration: none; }
 .pp .rg-o input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
 .pp .rg-o input:checked + span b { color: #fff; }
 .in.ro { background: var(--bg); color: var(--muted); display: flex; align-items: center; min-height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person[disabled] { cursor: default; opacity: .7; }

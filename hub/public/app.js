@@ -789,7 +789,7 @@
     const empty = q ? emptyState('ไม่พบ “' + esc(q) + '”' + (active ? '<div class="small" style="margin-top:4px">กำลังกรองด้วยฟิลเตอร์อื่นอยู่ด้วย</div>' : ''), clearQ + (active ? clearF : ''))
       : active || ui.cView !== 'all' ? emptyState('ไม่พบลูกค้าตามเงื่อนไขที่เลือก', clearF) : emptyState('ยังไม่มีลูกค้าในแท็บนี้', '<button class="btn sm primary" data-act="add-customer">' + ico('plus') + ' เพิ่มลูกค้า</button>');
     const head = [{ h: 'ชื่อ / เบอร์โทร' }, { h: 'คำสั่งซื้อล่าสุด' }, { h: 'ยอดซื้อสะสม', cls: 'hide-sm' }, { h: 'สถานะ' }, { h: ui.custTab === 'fb' ? 'รอบ' : 'แพลตฟอร์ม' }, { h: 'นัดหมายถัดไป ↑', cls: 'th-acc' }].concat(boss() ? [{ h: 'ผู้ดูแล', cls: 'hide-sm' }] : []).concat([{ h: '', cls: 'n' }]);
-    const actions = [{ act: 'cust-status', label: 'เปลี่ยนสถานะ' }].concat(boss() ? [{ act: 'cust-assign', label: 'มอบหมายผู้ดูแล' }] : [], [{ act: 'cust-export', label: 'ส่งออก' }], boss() ? [{ act: 'cust-del', label: 'ลบ', danger: true }] : []);
+    const actions = [{ act: 'cust-status', label: 'เปลี่ยนสถานะ' }].concat([{ act: 'cust-assign', label: 'เปลี่ยนผู้ดูแล' }], [{ act: 'cust-export', label: 'ส่งออก' }], boss() ? [{ act: 'cust-del', label: 'ลบ', danger: true }] : []);
     return listView({
       key: 'cust', items: list, id: (c) => c.id, click: (c) => c.id, head, actions, empty, unit: 'ลูกค้า',
       row: (c) => {
@@ -825,6 +825,17 @@
     $('[data-pp-label]', f).textContent = el.dataset.label + ' (' + B(Number(el.dataset.price)) + ')';
     if (!f.amount.dataset.touched) f.amount.value = Number(el.dataset.price) * (Number(f.qty.value) || 1);
   }
+  // change owner: bosses and telesales (a telesales can hand their own customers to another telesales)
+  function assignModal(items, fromDetail) {
+    if (!items.length) return;
+    const cur = items.length === 1 ? items[0].owner : null;
+    openModal('<div class="row between" style="margin-bottom:6px"><h2 style="font-size:18px">' + (items.length === 1 ? 'เปลี่ยนผู้ดูแล : ' + esc(items[0].name) : 'เปลี่ยนผู้ดูแลลูกค้า ' + N(items.length) + ' ราย') + '</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' +
+      '<p class="small muted" style="margin:0 0 12px">นัดหมายที่ยังไม่ได้โทรจะย้ายไปให้ผู้ดูแลใหม่ด้วย' + (boss() ? '' : ' : ย้ายแล้วรายชื่อนี้จะไปอยู่ในรายการของคนที่รับ') + '</p><div class="people">' +
+      H.teles(S.full || V()).map((u) => '<button class="person' + (u.id === cur ? ' on' : '') + '" data-assign-to="' + u.id + '"' + (u.id === cur ? ' disabled' : '') + '>' + av(u, 'lg') + '<b>' + esc(u.name) + '</b><small>' + (u.id === cur ? 'ผู้ดูแลปัจจุบัน' : u.id === S.me.id ? 'ตัวเอง' : 'Telesales') + '</small></button>').join('') + '</div>');
+    $$('[data-assign-to]', modal).forEach((b) => b.onclick = () => { closeModal(); const to = b.dataset.assignTo;
+      run(async () => { const r = await api.act('bulkUpdateCustomers', { ids: items.map((c) => c.id), patch: { owner: to } }); SEL.cust = null;
+        if (fromDetail && !boss() && to !== S.me.id) go('customers'); return r; }, (r) => 'ย้ายให้ ' + uname(to) + ' แล้ว ' + N(r.updated) + ' ราย'); });
+  }
   const noTime = (a) => H.thTime(a.at) === '00:00';
   function pageCustomer() {
     const st = S.full || V();
@@ -846,7 +857,7 @@
     const head = '<div class="cd-head"><span class="cd-av">' + esc((c.name || '?').replace(/^(คุณ|นาย|นาง|น\.ส\.)\s*/, '').slice(0, 1)) + '</span><div class="cd-id"><div class="row" style="gap:10px"><h1 class="one">' + esc(c.name || 'ไม่ระบุชื่อ') + '</h1>' + statusPill(c.status) +
       '<span class="pill info">' + (c.channel === 'fb' ? 'FB Page : ' + round : esc((H.PLATFORMS[c.platform] || {}).label || 'E-Commerce')) + '</span></div>' +
       '<div class="cd-sub">' + ico('phone') + ' <span class="cd-phone">' + H.fmtPhone(c.phone) + '</span><button class="link-plain" data-act="copy" data-text="' + esc(H.normPhone(c.phone)) + '" title="คัดลอกเบอร์">' + ico('clip') + '</button><span class="faint">' + esc(code) + '</span></div></div>' +
-      (canEdit ? '<div class="ph-act"><button class="btn" data-act="cd-edit">' + ico('note') + ' แก้ไขข้อมูล</button><button class="btn" data-act="cd-order">' + ico('plus') + ' เพิ่มคำสั่งซื้อ</button></div>' : '') + '</div>';
+      (canEdit ? '<div class="ph-act"><button class="btn" data-act="cd-assign">' + ico('users') + ' เปลี่ยนผู้ดูแล</button><button class="btn" data-act="cd-edit">' + ico('note') + ' แก้ไขข้อมูล</button><button class="btn" data-act="cd-order">' + ico('plus') + ' เพิ่มคำสั่งซื้อ</button></div>' : '') + '</div>';
     const left = '<div class="cd-col"><section class="card"><h3 class="ct">ข้อมูลลูกค้า</h3><div class="cd-stats"><div><small>ยอดซื้อสะสม</small><b>' + B(H.customerTotal(c)) + '</b></div><div><small>คำสั่งซื้อ</small><b>' + (c.orders || []).length + '</b></div></div>' +
       '<div class="cd-info">' +
       '<div>' + ico('users') + '<div><small>ผู้ดูแลลูกค้า</small><span>' + (owner ? esc(owner.name) : 'ยังไม่มีผู้ดูแล') + '</span></div></div>' +
@@ -1359,8 +1370,8 @@
     'cust-io': () => go('settings'),
     'row-menu': (el) => {
       const c = H.findCustomer(S.full || V(), el.dataset.id); if (!c) return;
-      const box = openPop(el, '<div class="menu"><button data-m="open">' + ico('users') + ' เปิดรายละเอียด</button><button data-m="call">' + ico('phone') + ' บันทึกการโทร</button><button data-m="appt">' + ico('calendar') + ' นัดหมาย</button>' + (boss() ? '<button data-m="del" class="danger">' + ico('x') + ' ลบลูกค้า</button>' : '') + '</div>', 'menu-pop');
-      box.addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; closePop(); if (b.dataset.m === 'del') delCustomers([c]); else openCustomer(c.id, b.dataset.m === 'appt' ? 'appt' : 'call'); });
+      const box = openPop(el, '<div class="menu"><button data-m="open">' + ico('users') + ' เปิดรายละเอียด</button><button data-m="call">' + ico('phone') + ' บันทึกการโทร</button><button data-m="appt">' + ico('calendar') + ' นัดหมาย</button><button data-m="assign">' + ico('users') + ' เปลี่ยนผู้ดูแล</button>' + (boss() ? '<button data-m="del" class="danger">' + ico('x') + ' ลบลูกค้า</button>' : '') + '</div>', 'menu-pop');
+      box.addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (!b) return; closePop(); if (b.dataset.m === 'del') delCustomers([c]); else if (b.dataset.m === 'assign') assignModal([c]); else openCustomer(c.id, b.dataset.m === 'appt' ? 'appt' : 'call'); });
     },
     'appt-menu': (el) => {
       const a = (V().appointments || []).find((x) => x.id === el.dataset.id); if (!a) return;
@@ -1426,12 +1437,8 @@
     'ls-selall': (el) => { sel(el.dataset.key).all = true; refreshList(el.dataset.key); },
     'ls-clear': (el) => { SEL[el.dataset.key] = { ids: new Set(), all: false }; refreshList(el.dataset.key); },
     // customers bulk
-    'cust-assign': (el) => {
-      const items = selectedOf('cust');
-      openModal('<div class="row between" style="margin-bottom:10px"><h2 style="font-size:18px">ย้ายลูกค้า ' + N(items.length) + ' รายการให้</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div><div class="people">' +
-        H.teles(S.full || V()).map((u) => '<button class="person" data-assign-to="' + u.id + '">' + av(u, 'lg') + '<b>' + esc(u.name) + '</b><small>Telesales</small></button>').join('') + '</div>');
-      $$('[data-assign-to]', modal).forEach((b) => b.onclick = () => { closeModal(); run(async () => { const r = await api.act('bulkUpdateCustomers', { ids: items.map((c) => c.id), patch: { owner: b.dataset.assignTo } }); SEL.cust = null; return r; }, (r) => 'ย้ายให้ ' + uname(b.dataset.assignTo) + ' แล้ว ' + N(r.updated) + ' รายการ'); });
-    },
+    'cust-assign': () => assignModal(selectedOf('cust')),
+    'cd-assign': () => { const c = H.findCustomer(S.full || V(), ui.custId); if (c) assignModal([c], true); },
     'cust-status': () => {
       const items = selectedOf('cust');
       openModal('<div class="row between" style="margin-bottom:10px"><h2 style="font-size:18px">เปลี่ยนสถานะ ' + N(items.length) + ' รายการ</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div><div class="result-grid">' +

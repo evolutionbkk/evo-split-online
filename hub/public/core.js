@@ -338,7 +338,18 @@
     if (q.address != null) c.address = clip(q.address, 500);
     if (q.status && STATUS[q.status]) c.status = q.status;
     if (q.round != null && ['', 'T1', 'T2', 'T3'].includes(q.round)) c.round = q.round;
-    if (q.owner !== undefined && isBoss(actor)) { c.owner = q.owner || null; c.assignedAt = nowIso(); }
+    if (q.owner !== undefined && (q.owner || null) !== (c.owner || null)) {
+      const to = q.owner ? userById(st, q.owner) : null;
+      if (!isBoss(actor) && actor.role !== 'system') {
+        if (!ownsOrBoss(actor, c)) throw err('ลูกค้ารายนี้อยู่กับเซลล์คนอื่น', 403);
+        if (!to || to.role !== 'tele') throw err('ย้ายได้เฉพาะให้ Telesales', 400);
+      }
+      const from = c.owner;
+      c.owner = q.owner || null; c.assignedAt = nowIso();
+      for (const a of st.appointments || []) if (a.customerId === c.id && !a.done) a.owner = c.owner;
+      c.notes = c.notes || [];
+      c.notes.unshift({ id: uid('n'), at: nowIso(), by: actor.id, kind: 'assign', text: 'เปลี่ยนผู้ดูแล : ' + ((userById(st, from) || {}).name || 'ไม่มี') + ' → ' + ((to || {}).name || 'ไม่มี') });
+    }
     if (q.tags) c.tags = q.tags.map((t) => clip(t, 30)).slice(0, 10);
     c.updatedAt = nowIso();
     return { id: c.id };
