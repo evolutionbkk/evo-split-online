@@ -90,7 +90,7 @@
       teleRevenue: 5000,                     // ฿ / day / person
       teamRevenueMonth: 600000,              // ฿ / month whole office (tele + admin + ecom)
     },
-    autoApprove: false,         // true = FB leads go straight to the proposed telesales
+    autoApprove: true,          // FB leads always go straight to the next telesales (50:50), nobody approves by hand
     staleDays: { fb: 2, ecom: 5 },
     minTalkSec: 7,              // OneCall: longer than this = "ได้คุย"
     onecallLines: { '66948880324': 'wan', '66948880326': 'khem' },
@@ -552,9 +552,18 @@
     st.approvals.unshift(ap);
     pushNote(c, { by: closer || actor.id, kind: 'sale', amount: total, text: 'แอดมิน ' + closerName + ' ปิดการขาย ' + baht(total) + (items.length ? ' : ' + items.map((i) => i.name + ' x' + i.qty).join(', ') : '') });
     log(st, actor, closerName + ' ปิดการขาย ' + c.name + ' ' + baht(total) + ' → เสนอให้ ' + userName(st, proposed));
-    if (st.settings.autoApprove || returning) A.approve(st, { id: ap.id, auto: true }, { id: 'system', role: 'system' });
+    A.approve(st, { id: ap.id, auto: true }, { id: 'system', role: 'system' });   // always automatic
     return { id: ap.id, customerId: c.id, proposed };
   };
+  // leads still waiting from the time manual approval existed: hand them out now, in arrival order
+  function autoDistribute(st) {
+    let n = 0;
+    for (const ap of st.approvals.filter((a) => a.status === 'pending').sort((a, b) => Date.parse(a.at) - Date.parse(b.at))) {
+      try { A.approve(st, { id: ap.id, auto: true }, { id: 'system', role: 'system' }); n++; } catch (_) { /* customer gone: leave it */ }
+    }
+    st.settings.autoApprove = true;
+    return n;
+  }
   A.approve = (st, p, actor) => {
     const ap = st.approvals.find((x) => x.id === p.id); if (!ap) throw err('ไม่พบรายการ', 404);
     if (ap.status !== 'pending') throw err('รายการนี้ดำเนินการไปแล้ว');
@@ -1026,7 +1035,7 @@
     sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
-    emptyState, normalize, apply, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
+    emptyState, normalize, apply, autoDistribute, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };
 });

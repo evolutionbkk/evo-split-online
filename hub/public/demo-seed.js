@@ -41,7 +41,7 @@
       const res = stamp(at(firstDay, 10 + Math.floor(r() * 8), Math.floor(r() * 60)), () => H.apply(st, 'createClose', {
         name, phone: ph, address: addr(), page: PAGES[pg], items: [{ name: P[pick(PAGE_PRODUCT[pg])].code, qty: 1 }], closer: i % 3 ? 'laila' : 'admin2', date: at(firstDay, 11),
       }, asUser(i % 3 ? 'laila' : 'admin2')));
-      stamp(at(firstDay, 15), () => H.apply(st, 'approve', { id: res.id, to: owner }, asUser('mo')));
+      { const ap = st.approvals.find((x) => x.id === res.id); const cc = H.findCustomer(st, res.customerId); if (ap) ap.assigned = owner; if (cc) cc.owner = owner; for (const a of st.appointments) if (a.customerId === res.customerId) a.owner = owner; }
       const c = H.findCustomer(st, res.customerId);
       c.round = pick(['T2', 'T3', 'T3']); c.status = pick(['won', 'later', 'warm', 'followup']);
       // a few repeat orders
@@ -74,8 +74,6 @@
         const closer = r() < 0.55 ? 'laila' : 'admin2';
         const items = [{ name: P[pick(PAGE_PRODUCT[pg])].code, qty: 1 }];
         const res = stamp(at(day, h, Math.floor(r() * 60)), () => H.apply(st, 'createClose', { name: person(), phone: phone(), address: addr(), page: PAGES[pg], items, date: at(day, h, 5), source: r() < 0.7 ? 'pancake' : 'admin', closerName: closer === 'laila' ? 'ไลลา' : 'แอดมิน 2', closer }, sys));
-        // leave today's last few pending so the approval queue has work in it
-        if (!(d === 0 && i >= n - 3)) stamp(at(day, Math.min(h + 1, 21), 20), () => H.apply(st, 'approve', { id: res.id }, asUser('mo')));
       }
     }
 

@@ -203,6 +203,7 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
       } catch (e) { console.warn('[import] failed', f, e.message); }
     }
   }
+  { const n = H.autoDistribute(state); if (n) console.log('[boot] auto-distributed waiting leads', n); }
   state = await store.save(state);
   app.listen(PORT, () => console.log('Evolution Hub Commerce on :' + PORT, '· customers', state.customers.length));
   const loop = (fn, min) => setInterval(() => mutate(fn).catch((e) => console.warn(e.message)), min * 60000);

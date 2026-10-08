@@ -75,7 +75,7 @@
       if (DEMO) {
         let st = null;
         try { const raw = localStorage.getItem(DEMO_KEY); if (raw) { const j = JSON.parse(raw); if (j.day === H.today()) st = j.state; } } catch (_) { st = null; }
-        S.full = H.normalize(st || window.HubDemoSeed.build());
+        S.full = H.normalize(st || window.HubDemoSeed.build()); H.autoDistribute(S.full);
         let who = 'at'; try { who = localStorage.getItem('hub-demo-user') || 'at'; } catch (_) { /* ignore */ }
         S.me = H.userById(S.full, who) || H.userById(S.full, 'at');
         S.view = H.visibleState(S.full, S.me);
@@ -151,7 +151,8 @@
     const r = S.me.role;
     if (page === 'home') return true;
     if (page === 'overview' || page === 'settings') return boss();
-    if (['today', 'customers', 'customer', 'calendar', 'kpi'].includes(page)) return boss() || r === 'tele';
+    if (page === 'kpi') return r === 'tele';
+    if (['today', 'customers', 'customer', 'calendar'].includes(page)) return boss() || r === 'tele';
     if (page === 'close') return boss() || r === 'admin';
     if (page === 'approvals' || page === 'dnc') return boss() || r === 'tele';
     return false;
@@ -163,7 +164,8 @@
     $('.side') && $('.side').classList.remove('open');
     render(); window.scrollTo(0, 0);
   }
-  function pendingCount() { const v = V(); return (v.approvals || []).filter((a) => a.status === 'pending' && (boss() || a.proposed === S.me.id)).length; }
+  // new leads handed to me today that I have not called yet (distribution itself is automatic)
+  function pendingCount() { if (boss()) return 0; const v = V(), T = H.today(); return (v.approvals || []).filter((a) => a.status === 'approved' && a.assigned === S.me.id && H.dayKey(a.decidedAt || a.at) === T && ((H.findCustomer(S.full || v, a.customerId) || {}).status === 'new')).length; }
   function overdueAppts() { const now = Date.now(), T = H.today(); return (V().appointments || []).filter((a) => !a.done && (H.thTime(a.at) === '00:00' ? H.dayKey(a.at) < T : Date.parse(a.at) < now - 3600000) && (boss() || a.owner === S.me.id)); }
 
   // ------------------------------------------------------------ shell
@@ -173,7 +175,7 @@
     const nav = [
       nb('home', 'หน้าหลัก'),
       boss() ? '<div class="nav-label">ผู้บริหาร</div>' + nb('overview', 'ภาพรวมผู้บริหาร') : '',
-      (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'อนุมัติแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
+      (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'การแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
       (boss() || role === 'admin') ? '<div class="nav-label">แอดมินเซลล์</div>' + nb('close', 'ปิดการขาย') : '',
       boss() ? '<div class="nav-label">ระบบ</div>' + nb('settings', 'ตั้งค่า') : '',
     ].join('');
@@ -523,7 +525,7 @@
       tile('<i style="background:var(--c-admin)"></i>Admin (FB Page)', B(d.rev.admin), N(d.cnt.admin) + ' ออเดอร์ที่แอดมินปิด') +
       tile('<i style="background:var(--c-ecom)"></i>E-Commerce', B(d.rev.ecom), N(d.cnt.ecom) + ' ออเดอร์ Lazada / Shopee / TikTok') +
       tile('ออเดอร์ทั้งหมด', N(d.orders), 'เฉลี่ย ' + B(d.aov) + ' ต่อออเดอร์') +
-      tile('งานที่ต้องจัดการ', N(d.pending + d.overdue), 'รออนุมัติ ' + d.pending + ' : เลยนัด ' + d.overdue + ' : เงียบเกินกำหนด ' + d.stale, d.pending + d.overdue ? 'alert' : '') + '</div>';
+      tile('งานที่ต้องจัดการ', N(d.pending + d.overdue), 'เลยนัด ' + d.overdue + ' : เงียบเกินกำหนด ' + d.stale, d.pending + d.overdue ? 'alert' : '') + '</div>';
     const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : FB ' + t.fbCalls + ' สาย (T1 ' + t.t1 + ' : T2 ' + t.t2 + ' : T3 ' + t.t3 + ') : Marketplace ' + t.mktCalls + ' สาย : คุย ' + t.talkMinutes + ' นาที : ยอด ' + B(t.teleRevenue) + (from !== to ? ' : คูณตามจำนวนวันอัตโนมัติ' : '') + '</small></div>' +
       '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button></div>' + d.team.map(kpiPerson).join('') + '</section>';
     // daily chart: at least 14 days for context
@@ -716,11 +718,11 @@
   const CRUMB = { home: ['หน้าหลัก'], overview: ['ภาพรวม', 'ภาพรวมผู้บริหาร'], today: ['งานขาย', 'คิวโทรวันนี้'], customers: ['งานขาย', 'ลูกค้า'], customer: ['งานขาย', 'ลูกค้า', 'รายละเอียดลูกค้า'],
     calendar: ['งานขาย', 'ปฏิทินนัดหมาย'], kpi: ['งานขาย', 'บันทึก KPI'], approvals: ['งานขาย', 'รายชื่อใหม่'], dnc: ['งานขาย', 'ยกเลิกการติดต่อถาวร'], close: ['การจัดการ', 'ปิดการขาย'], settings: ['การจัดการ', 'ตั้งค่า'] };
   const PH = { overview: ['ภาพรวมทีมขาย', 'ยอดขายทุกช่องทาง KPI ทีม Telesales และงานที่ต้องตัดสินใจ'], today: ['คิวโทรวันนี้', 'ระบบเรียงลำดับให้แล้ว โทรทีละคน กดผลแล้วไปคนถัดไป'],
-    kpi: ['บันทึก KPI', 'กรอกทีละสายหรือยอดรวมทั้งวัน ตัวเลขขึ้น Dashboard ผู้บริหารทันที'], dnc: ['ยกเลิกการติดต่อถาวร', 'ลูกค้าที่ขอไม่ให้ติดต่ออีก ไม่อยู่ในคิวโทรและรายชื่อลูกค้า กู้คืนได้ถ้าต้องการ'], approvals: ['อนุมัติแจกรายชื่อ', 'รายชื่อจากแอดมินที่ปิดการขายบน FB Page แจกให้ Telesales 50:50'],
+    kpi: ['บันทึก KPI', 'กรอกทีละสายหรือยอดรวมทั้งวัน ตัวเลขขึ้น Dashboard ผู้บริหารทันที'], dnc: ['ยกเลิกการติดต่อถาวร', 'ลูกค้าที่ขอไม่ให้ติดต่ออีก ไม่อยู่ในคิวโทรและรายชื่อลูกค้า กู้คืนได้ถ้าต้องการ'], approvals: ['การแจกรายชื่อ', 'ระบบแจกรายชื่อจากแอดมินที่ปิดการขายบน FB Page ให้ Telesales อัตโนมัติ 50:50'],
     close: ['บันทึกปิดการขาย', 'ปิดการขายแล้วระบบส่งรายชื่อให้ Telesales อัตโนมัติ'], settings: ['ตั้งค่า', 'เป้า KPI ทีมงาน สินค้า และการเชื่อมต่อระบบ'] };
   function pageHead(title, sub, actions) { return '<div class="ph"><div class="ph-t"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (actions ? '<div class="ph-act">' + actions + '</div>' : '') + '</div>'; }
   function crumbHtml() {
-    const c = S.page === 'approvals' && boss() ? ['งานขาย', 'อนุมัติแจกรายชื่อ'] : CRUMB[S.page] || ['หน้าหลัก'];
+    const c = S.page === 'approvals' && boss() ? ['งานขาย', 'การแจกรายชื่อ'] : CRUMB[S.page] || ['หน้าหลัก'];
     return '<nav class="bc" aria-label="ตำแหน่งหน้า">' + c.map((x, i) => (i === c.length - 1 ? '<b>' + x + '</b>' : (S.page === 'customer' && x === 'ลูกค้า' ? '<button class="link-plain" data-go="customers">' + x + '</button>' : '<span>' + x + '</span>'))).join('<i>›</i>') + '</nav>';
   }
 
@@ -1219,7 +1221,7 @@
     });
     return '<div class="grid g-main">' + card('cart', 'บันทึกการปิดการขาย', 'กรอกเมื่อปิดการขายได้ ระบบจะส่งรายชื่อให้ Telesales แบบ 50:50 ทันที', form) +
       '<div class="grid" style="align-content:start">' +
-      card('send', 'รายชื่อถัดไปจะส่งให้', 'แบ่งเท่ากัน 50:50 ทุกครั้ง : ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม', '<div class="row" style="gap:14px;margin-bottom:14px">' + (next ? av(user(next), 'lg') + '<div><b style="font-size:18px">' + esc(uname(next)) + '</b><div class="small muted">' + ((S.full || v).settings.autoApprove ? 'ส่งถึงเซลล์ทันที' : 'เข้าคิวรออนุมัติก่อนส่ง') + '</div></div>' : '<span class="muted">ไม่มี Telesales ที่พร้อมรับ</span>') + '</div><div class="section-t" style="margin-bottom:8px">รายชื่อที่แจกวันนี้</div>' + splitBar(todaySplit())) +
+      card('send', 'รายชื่อถัดไปจะส่งให้', 'แบ่งเท่ากัน 50:50 ทุกครั้ง : ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม', '<div class="row" style="gap:14px;margin-bottom:14px">' + (next ? av(user(next), 'lg') + '<div><b style="font-size:18px">' + esc(uname(next)) + '</b><div class="small muted">' + 'ส่งถึงเซลล์ทันทีอัตโนมัติ' + '</div></div>' : '<span class="muted">ไม่มี Telesales ที่พร้อมรับ</span>') + '</div><div class="section-t" style="margin-bottom:8px">รายชื่อที่แจกวันนี้</div>' + splitBar(todaySplit())) +
       card('link', 'ดึงจาก Pancake อัตโนมัติ', 'ออเดอร์ที่ปิดใน Pancake POS เข้าระบบเองทุก 3 นาที ไม่ต้องกรอกซ้ำ', '<dl class="kv"><dt>ล่าสุด</dt><dd>' + (sync.lastRun ? H.thDate(sync.lastRun, true) : 'ยังไม่เคยดึง') + '</dd><dt>รอบล่าสุด</dt><dd>' + (sync.lastAdded || 0) + ' ออเดอร์ใหม่</dd>' + (sync.lastError ? '<dt>สถานะ</dt><dd style="color:var(--bad)">' + esc(sync.lastError) + '</dd>' : '') + '</dl>', '<button class="btn sm" data-act="sync-pancake">' + ico('refresh') + ' ดึงตอนนี้</button>') +
       '<section class="card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>ปิดการขายวันนี้</h2><small>' + closes.length + ' ออเดอร์ : ' + B(myRev) + '</small></div>' + (boss() ? segF('', 'close-admin', [{ v: 'all', l: 'ทั้งหมด' }].concat(admins.map((u) => ({ v: u.id, l: u.name }))), ui.closeAdmin) : '') + '</div>' + list + '</section></div></div>';
   }
@@ -1227,39 +1229,38 @@
   // ------------------------------------------------------------ APPROVALS
   function pageApprovals() {
     const v = V(), T = H.today(), st = S.full || v;
-    const pend = (v.approvals || []).filter((a) => a.status === 'pending' && (boss() || a.proposed === S.me.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-    const done = (v.approvals || []).filter((a) => a.status !== 'pending' && a.status !== 'history' && H.dayKey(a.decidedAt || a.at) === T && (boss() || a.assigned === S.me.id)).sort((a, b) => Date.parse(b.decidedAt || b.at) - Date.parse(a.decidedAt || a.at));
-    const pendingTab = ui.apTab !== 'done';
-    const list = pendingTab ? pend : done;
-    const tele = H.teles(st);
+    const range = ui.apTab === 'week' ? 7 : 1, from = H.addDays(T, -(range - 1));
+    const mine = (a) => boss() || a.assigned === S.me.id;
+    const all = (v.approvals || []).filter((a) => a.status === 'approved' && mine(a) && H.dayKey(a.decidedAt || a.at) >= from).sort((a, b) => Date.parse(b.decidedAt || b.at) - Date.parse(a.decidedAt || a.at));
+    const todayList = (v.approvals || []).filter((a) => a.status === 'approved' && mine(a) && H.dayKey(a.decidedAt || a.at) === T);
+    const cust = (a) => H.findCustomer(st, a.customerId) || {};
+    const notCalled = (a) => cust(a).status === 'new';
     const prodName = (n) => { const p = products().find((x) => x.code === n || x.name === n); return p ? p.name : String(n).replace(/\s*\([^)]*\)$/, ''); };
-    const sumPend = pend.reduce((t, a) => t + (a.total || 0), 0), sumDone = done.filter((a) => a.status === 'approved').reduce((t, a) => t + (a.total || 0), 0);
+    const sumToday = todayList.reduce((t, a) => t + (a.total || 0), 0), waiting = todayList.filter(notCalled).length;
     const tiles = '<div class="ap-tiles">' +
-      '<div class="ap-tile warn"><span class="ap-ti">' + ico('inbox') + '</span><div><small>' + (boss() ? 'รออนุมัติ' : 'รอรับ') + '</small><b>' + N(pend.length) + ' <span>รายชื่อ</span></b><em>' + B(sumPend) + '</em></div></div>' +
-      '<div class="ap-tile good"><span class="ap-ti">' + ico('checkc') + '</span><div><small>' + (boss() ? 'ส่งแล้ววันนี้' : 'รับแล้ววันนี้') + '</small><b>' + N(done.filter((a) => a.status === 'approved').length) + ' <span>รายชื่อ</span></b><em>' + B(sumDone) + '</em></div></div>' +
-      '<div class="ap-tile split"><div class="grow"><small>สัดส่วนวันนี้ (50:50)</small>' + splitBar(todaySplit()) + '</div></div></div>';
+      '<div class="ap-tile good"><span class="ap-ti">' + ico('inbox') + '</span><div><small>' + (boss() ? 'แจกแล้ววันนี้' : 'ได้รับวันนี้') + '</small><b>' + N(todayList.length) + ' <span>รายชื่อ</span></b><em>' + B(sumToday) + '</em></div></div>' +
+      '<div class="ap-tile warn"><span class="ap-ti">' + ico('phone') + '</span><div><small>ยังไม่ได้โทร</small><b>' + N(waiting) + ' <span>รายชื่อ</span></b><em>' + (waiting ? 'โทร T1 ต้อนรับภายใน 2 ชม.' : 'โทรครบแล้ว') + '</em></div></div>' +
+      '<div class="ap-tile split"><div class="grow"><small>สัดส่วนวันนี้ (แจกอัตโนมัติ 50:50)</small>' + splitBar(todaySplit()) + '</div></div></div>';
     const card = (a) => {
-      const c = H.findCustomer(st, a.customerId) || {};
+      const c = cust(a);
       const nm = c.name && c.name !== '-' ? c.name : '', ph = c.phone ? H.fmtPhone(c.phone) : '';
-      const to = a.assigned || a.proposed, tu = user(to);
+      const tu = user(a.assigned), called = !notCalled(a);
       const items = (a.items || []).map((i) => '<span class="ap-item">' + esc(prodName(i.name)) + ' <b>×' + i.qty + '</b></span>').join('') || '<span class="faint small">ไม่ระบุสินค้า</span>';
-      const stTag = a.status === 'approved' ? '<span class="pill good">' + ico('check') + ' ส่งให้ ' + esc(uname(a.assigned)) + (a.auto ? ' : อัตโนมัติ' : '') + '</span>' : a.status === 'rejected' ? '<span class="pill bad">ไม่ส่ง</span>' : '';
-      return '<article class="ap-card' + (pendingTab ? '' : ' done') + '">' +
+      return '<article class="ap-card' + (called ? ' done' : '') + '">' +
         '<div class="ap-who"><span class="ap-av' + (nm ? '' : ' none') + '">' + esc(nm ? nm.trim()[0] : '?') + '</span><div class="ap-id"><b class="' + (c.id ? 'link' : '') + '"' + (c.id ? ' data-open="' + esc(c.id) + '"' : '') + '>' + esc(nm || 'ลูกค้าไม่ระบุชื่อ') + '</b>' +
           '<small>' + (ph ? ico('phone') + ' ' + ph : '<span class="faint">ไม่มีเบอร์ในออเดอร์</span>') + (a.returning ? ' <span class="pill info">ลูกค้าเก่า</span>' : '') + '</small></div></div>' +
         '<div class="ap-items">' + items + '</div>' +
         '<div class="ap-col ap-amt"><small>ยอดออเดอร์</small><b>' + B(a.total) + '</b></div>' +
-        '<div class="ap-col"><small>ปิดโดย</small><b class="one">' + esc(a.closerName || uname(a.closer) || '-') + '</b><span class="muted small">' + H.thTime(a.at) + ' น.</span></div>' +
-        '<div class="ap-to">' + (pendingTab ? (boss() ? '<label class="ap-col ap-sel"><small>ส่งให้</small><select class="in" data-ap-to="' + a.id + '" aria-label="ส่งให้">' + tele.map((u) => '<option value="' + u.id + '"' + (a.proposed === u.id ? ' selected' : '') + '>' + esc(u.name) + (a.proposed === u.id ? ' (คิว)' : '') + '</option>').join('') + '</select></label>' : '<div class="ap-col"><small>ส่งให้</small><span class="ap-me">' + av(tu || S.me, 'sm') + '<b>' + esc((tu || S.me).name) + '</b></span></div>') : stTag) + '</div>' +
-        (pendingTab ? '<div class="ap-act"><button class="btn good" data-act="ap-ok" data-id="' + a.id + '">' + ico('check') + (boss() ? ' อนุมัติ' : ' รับรายชื่อ') + '</button>' + (boss() ? '<button class="btn danger-ghost" data-act="ap-no" data-id="' + a.id + '">ไม่ส่ง</button>' : '') + '</div>' : '') +
+        '<div class="ap-col"><small>ปิดโดย</small><b class="one">' + esc(a.closerName || uname(a.closer) || '-') + '</b><span class="muted small">' + (range > 1 ? H.thDate(a.at).replace(/ \d{4}$/, '') + ' ' : '') + H.thTime(a.at) + ' น.</span></div>' +
+        '<div class="ap-to"><div class="ap-col"><small>ส่งให้ (อัตโนมัติ)</small><span class="ap-me">' + (tu ? av(tu, 'sm') : '') + '<b>' + esc(uname(a.assigned)) + '</b></span></div></div>' +
+        '<div class="ap-act">' + (called ? '<span class="pill good ap-st">' + ico('check') + ' โทรแล้ว</span>' : (c.id && (boss() || c.owner === S.me.id) ? '<button class="btn primary" data-open="' + esc(c.id) + '" data-tab="call">' + ico('phone') + ' โทรเลย</button>' : '<span class="pill warn ap-st">ยังไม่ได้โทร</span>')) + '</div>' +
         '</article>';
     };
-    const tabs = '<div class="ap-bar"><div class="qtabs"><button class="qtab' + (pendingTab ? ' on' : '') + '" data-act="ap-tab" data-v="pending">' + (boss() ? 'รออนุมัติ' : 'รอรับ') + ' <span>' + pend.length + '</span></button><button class="qtab' + (!pendingTab ? ' on' : '') + '" data-act="ap-tab" data-v="done">ดำเนินการวันนี้ <span>' + done.length + '</span></button></div>' +
-      (pendingTab && pend.length > 1 ? (boss() ? '<button class="btn primary sm" data-act="ap-all">' + ico('check') + ' อนุมัติทั้งหมด (' + pend.length + ')</button>' : '<button class="btn primary sm" data-act="ap-mine-all">' + ico('check') + ' รับทั้งหมด (' + pend.length + ')</button>') : '') + '</div>';
-    const empty = '<div class="ap-empty"><span>' + ico(pendingTab ? 'inbox' : 'clock') + '</span><b>' + (pendingTab ? 'ไม่มีรายชื่อรอ' + (boss() ? 'อนุมัติ' : 'รับ') : 'ยังไม่มีรายการวันนี้') + '</b><small>' + (pendingTab ? 'เมื่อแอดมินปิดการขายบน FB Page รายชื่อจะเข้ามาที่นี่ทันที' : 'รายชื่อที่รับหรืออนุมัติแล้ววันนี้จะแสดงที่นี่') + '</small></div>';
-    const side = boss() ? '<section class="card ap-side"><h3 class="ct">' + ico('gear') + ' การอนุมัติ</h3><label class="switch"><input type="checkbox" data-act="auto-approve"' + (st.settings.autoApprove ? ' checked' : '') + '><span>ส่งรายชื่อให้ Telesales อัตโนมัติ ไม่ต้องรออนุมัติ</span></label><p class="small muted">ลูกค้าเก่าที่กลับมาซื้อซ้ำ ระบบส่งกลับให้เซลล์คนเดิมทันทีเสมอ</p></section>'
-      : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รับแล้วเกิดอะไรขึ้น</h3><ol class="ap-steps"><li><b>เข้า "ลูกค้าของฉัน"</b><span>อยู่ในแท็บ FB Page</span></li><li><b>สร้างนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>ขึ้นในคิวโทรวันนี้</b><span>กดโทรและบันทึกผลได้เลย</span></li></ol></section>';
-    return tiles + '<div class="ap-grid"><section class="card ap-main">' + tabs + (list.length ? '<div class="ap-list">' + list.map(card).join('') + '</div>' : empty) + '</section>' + side + '</div>';
+    const tabs = '<div class="ap-bar"><div class="qtabs"><button class="qtab' + (range === 1 ? ' on' : '') + '" data-act="ap-tab" data-v="today">วันนี้ <span>' + todayList.length + '</span></button><button class="qtab' + (range === 7 ? ' on' : '') + '" data-act="ap-tab" data-v="week">7 วันล่าสุด</button></div><span class="small muted">' + ico('refresh') + ' แจกอัตโนมัติทันทีที่แอดมินปิดการขาย</span></div>';
+    const empty = '<div class="ap-empty"><span>' + ico('inbox') + '</span><b>' + (range === 1 ? 'ยังไม่มีรายชื่อวันนี้' : 'ยังไม่มีรายชื่อใน 7 วัน') + '</b><small>เมื่อแอดมินปิดการขายบน FB Page ระบบจะแจกรายชื่อให้ Telesales ทันที 50:50</small></div>';
+    const side = boss() ? '<section class="card ap-side"><h3 class="ct">' + ico('refresh') + ' แจกอัตโนมัติ</h3><ol class="ap-steps"><li><b>แอดมินปิดการขาย</b><span>จาก Pancake หรือหน้าปิดการขาย</span></li><li><b>ระบบส่งให้ Telesales 50:50</b><span>ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม ข้ามคนที่ลาวันนี้</span></li><li><b>สร้างนัด T1 ให้อัตโนมัติ</b><span>เซลล์โทรต้อนรับภายใน 2 ชม.</span></li></ol><p class="small muted">ต้องการย้ายรายชื่อ ใช้ "เปลี่ยนผู้ดูแล" ในหน้าลูกค้า : ตั้งค่าคนลาได้ที่หน้าตั้งค่า</p></section>'
+      : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รายชื่อใหม่ทำอะไรต่อ</h3><ol class="ap-steps"><li><b>อยู่ใน "ลูกค้าของฉัน" แล้ว</b><span>แท็บ FB Page</span></li><li><b>มีนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>กด "โทรเลย"</b><span>บันทึกผลแล้วระบบนัด T2 ให้ต่อ</span></li></ol></section>';
+    return tiles + '<div class="ap-grid"><section class="card ap-main">' + tabs + (all.length ? '<div class="ap-list">' + all.map(card).join('') + '</div>' : empty) + '</section>' + side + '</div>';
   }
 
   // ------------------------------------------------------------ SETTINGS
@@ -1322,7 +1323,7 @@
     const v = V(), pend = (v.approvals || []).filter((a) => a.status === 'pending' && (boss() || a.proposed === S.me.id)), od = overdueAppts();
     const today = (v.appointments || []).filter((a) => !a.done && H.dayKey(a.at) === H.today() && Date.parse(a.at) >= Date.now() - 3600000 && (boss() || a.owner === S.me.id));
     openModal('<div class="row between" style="margin-bottom:14px"><h2 style="font-size:18px">การแจ้งเตือน</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div><div class="alerts">' +
-      (allowed('approvals') ? alertRow('bad', pend.length, 'รายชื่อใหม่รออนุมัติ', 'จากแอดมินที่ปิดการขาย', 'approvals') : '') +
+      (!boss() && allowed('approvals') ? alertRow('bad', pendingCount(), 'รายชื่อใหม่ที่ยังไม่ได้โทร', 'ระบบแจกให้อัตโนมัติจากแอดมินที่ปิดการขาย', 'approvals') : '') +
       (allowed('calendar') ? alertRow('bad', od.length, 'นัดที่เลยกำหนด', 'ยังไม่ได้โทรตามนัด', 'calendar') + alertRow('info', today.length, 'นัดที่เหลือวันนี้', 'เรียงตามเวลาในปฏิทิน', 'calendar') : '') +
       (S.me.role === 'admin' ? alertRow('info', (v.approvals || []).filter((a) => a.status === 'pending').length, 'รายชื่อที่คุณส่งยังรออนุมัติ', 'หัวหน้าทีมจะส่งให้ Telesales', 'close') : '') + '</div>');
   }
@@ -1392,7 +1393,7 @@
     const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: pageOverview, customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, dnc: pageDnc, settings: pageSettings }[S.page];
     const keepScroll = $('.drawer-b') ? $('.drawer-b').scrollTop : 0;
     const body = fn();
-    document.getElementById('app').innerHTML = shell((PH[S.page] ? (S.page === 'approvals' && !boss() ? pageHead('รายชื่อใหม่', 'ลูกค้าที่แอดมินปิดการขายแล้ว ส่งมาให้คุณโทรดูแลต่อ') : pageHead(PH[S.page][0], PH[S.page][1])) : '') + body);
+    document.getElementById('app').innerHTML = shell((PH[S.page] ? (S.page === 'approvals' && !boss() ? pageHead('รายชื่อใหม่', 'ลูกค้าที่แอดมินปิดการขายแล้ว ระบบส่งมาให้คุณโทรดูแลต่ออัตโนมัติ') : pageHead(PH[S.page][0], PH[S.page][1])) : '') + body);
     if ($('.drawer-b') && keepScroll) $('.drawer-b').scrollTop = keepScroll;
     document.title = PAGES[S.page].t + ' : Evolution Hub Commerce';
     remember();

@@ -1018,3 +1018,8 @@ b.acc { color: var(--accent); }
   .ap-card, .ap-card.done { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .ap-card .ap-to { grid-column: 1 / -1; border-left: 0; padding-left: 0; }
 }
+.ap-st { justify-content: center; white-space: nowrap; } .ap-bar .small.muted { display: inline-flex; align-items: center; gap: 6px; } .ap-bar .small.muted .ico { width: 14px; height: 14px; }
+.ap-card.done { grid-template-columns: minmax(200px, 1.3fr) minmax(160px, 1.2fr) 120px minmax(140px, .9fr) minmax(150px, .9fr) 150px; background: var(--surface); }
+.ap-act { align-items: stretch; }
+@media (max-width: 1280px) { .ap-card.done { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 520px) { .ap-card.done { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
