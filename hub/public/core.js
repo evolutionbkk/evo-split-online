@@ -608,8 +608,8 @@
       const platform = PLATFORMS[String(r.platform || '').toLowerCase()] ? String(r.platform).toLowerCase() : 'lazada';
       const existing = byPhone(st, phone);
       const { c, isNew } = upsertCustomer(st, { name: r.name, phone, address: r.address, channel: 'ecom', platform }, actor);
-      if (isNew) { c.channel = 'ecom'; c.round = ''; c.owner = nextTele(st, 'ecom'); c.assignedAt = nowIso(); added++; }
-      else if (!existing.owner) { c.owner = nextTele(st, c.channel); c.assignedAt = nowIso(); }
+      if (isNew) { c.channel = 'ecom'; c.round = ''; c.owner = nextTele(st, 'ecom'); c.assignedAt = nowIso(); c.autoAssignedAt = c.assignedAt; added++; }
+      else if (!existing.owner) { c.owner = nextTele(st, c.channel); c.assignedAt = nowIso(); c.autoAssignedAt = c.assignedAt; }
       let items = cleanItems(r.items, st.settings.products);
       if (!items.length && r.product) items = String(r.product).split(/[,\n]/).map((s) => s.trim()).filter(Boolean).map((s) => ({ name: clip(s, 120), qty: 1, price: 0 }));
       const extId = r.orderNo ? platform + ':' + String(r.orderNo).trim() : '';
