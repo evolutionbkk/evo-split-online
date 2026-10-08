@@ -174,7 +174,7 @@
   function shell(content) {
     const me = S.me, role = me.role;
     const nb = (id, label) => allowed(id) ? '<button class="' + (S.page === id || (id === 'customers' && S.page === 'customer') ? 'on' : '') + '" data-go="' + id + '">' + ico(PAGES[id].ico) + '<span>' + label + '</span>' + (id === 'approvals' && pendingCount() ? '<span class="badge">' + pendingCount() + '</span>' : '') + (id === 'calendar' && overdueAppts().length ? '<span class="badge">' + overdueAppts().length + '</span>' : '') + '</button>' : '';
-    const isExec = role === 'exec';
+    const isExec = boss();
     // executive: a short two-group tree (overview -> tele/admin, customers -> distributed/cancelled)
     const tree = () => {
       ui.navOpen = ui.navOpen || { ov: true, cu: true, all: true };
@@ -544,10 +544,13 @@
     // daily chart: at least 14 days for context
     const cFrom = H.daysBetween(from, to) < 13 ? H.addDays(to, -13) : from;
     const cd = cFrom === from ? d : H.dashboard(st, cFrom, to);
-    const chartCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>ยอดขายรายวัน</h2><small>' + H.thDate(cFrom) + ' - ' + H.thDate(to) + ' : แยกตามช่องทาง</small></div>' +
-      '<div class="seg"><button class="' + (ui.chart === 'rev' ? 'on' : '') + '" data-act="chart" data-v="rev">ยอดขาย</button><button class="' + (ui.chart === 'calls' ? 'on' : '') + '" data-act="chart" data-v="calls">จำนวนสาย</button></div></div>' +
-      '<div class="legend">' + (ui.chart === 'rev' ? '<span><i style="background:var(--c-tele)"></i>Telesales</span><span><i style="background:var(--c-admin)"></i>Admin FB Page</span><span><i style="background:var(--c-ecom)"></i>E-Commerce</span>' : '<span><i style="background:var(--c-tele)"></i>สายที่ Telesales บันทึก</span>') + '</div>' +
-      '<div class="chart-wrap">' + barChart(cd) + '</div></section>';
+    const lineVal = (x) => ui.chart === 'rev' ? x.tele + x.admin : x.calls;
+    const lineSum = cd.days.reduce((t, k) => t + lineVal(cd.series[k]), 0);
+    const cmp = ui.chart === 'cmp';
+    const chartCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>' + (cmp ? 'เทียบยอดขายตามวันในสัปดาห์' : ui.chart === 'rev' ? 'ยอดขายรายวัน' : 'จำนวนสายรายวัน') + '</h2><small>' + H.thDate(cFrom) + ' - ' + H.thDate(to) + (cmp ? ' : Telesales เทียบ Admin' : ' : ชี้บนกราฟเพื่อดูค่ารายวัน') + '</small></div>' +
+      (cmp ? '<div class="legend gb-legend"><span><i style="background:var(--c-tele)"></i>Telesales</span><span><i style="background:var(--c-admin)"></i>Admin</span></div>' : '<b class="lc-total">' + (ui.chart === 'rev' ? B(lineSum) : N(lineSum) + ' สาย') + '</b>') +
+      '<div class="seg"><button class="' + (ui.chart === 'rev' ? 'on' : '') + '" data-act="chart" data-v="rev">ยอดขาย</button><button class="' + (cmp ? 'on' : '') + '" data-act="chart" data-v="cmp">เทียบทีม</button><button class="' + (ui.chart === 'calls' ? 'on' : '') + '" data-act="chart" data-v="calls">จำนวนสาย</button></div></div>' +
+      '<div class="chart-wrap">' + (cmp ? weekdayBars(cd) : lineChart(cd)) + '</div></section>';
     const adminMax = Math.max(1, ...d.admins.map((a) => a.revenue));
     const adminCard = card('msg', 'ทีม Admin Sales', 'ยอดปิดการขาย FB Page : เรียงตามยอดเงิน', d.admins.length ? '<div class="rank">' + d.admins.map((a, i) => '<div class="rank-row"><span class="no">' + (i + 1) + '</span><span class="ellip">' + esc(a.name) + '</span><span class="bar"><i style="width:' + pct(a.revenue, adminMax) + '%"></i></span><span class="v">' + B(a.revenue) + ' <small>: ' + a.closes + ' ออเดอร์</small></span></div>').join('') + '</div>' : '<div class="empty">ยังไม่มีการปิดการขายในช่วงนี้</div>');
     const prodCard = card('bag', 'สินค้าขายดี', 'จัดอันดับตามยอดเงิน : ทุกช่องทาง', d.products.length ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>สินค้า</th><th class="n">ชิ้น</th><th class="n hide-sm">Tele / Admin / Ecom</th><th class="n">ยอดขาย</th></tr></thead><tbody>' + d.products.map((p) => '<tr><td><div class="ellip">' + esc(p.name) + '</div></td><td class="n">' + N(p.qty) + '</td><td class="n hide-sm muted">' + p.tele + ' / ' + p.admin + ' / ' + p.ecom + '</td><td class="n"><b>' + B(p.revenue) + '</b></td></tr>').join('') + '</tbody></table></div>' : '<div class="empty">ยังไม่มีข้อมูลสินค้าในช่วงนี้</div>');
@@ -627,6 +630,58 @@
       stat('ยอดขาย', r.amount, r.target.revenue, N(r.orders) + ' ออเดอร์', B) + '</div>' +
       '<div class="kpc-f"><span>ได้คุย <b>' + pctTxt(r.contactRate) + '</b></span><span>ปิดได้ <b>' + pctTxt(r.conversion) + '</b></span><span>นัดวันนี้ <b>' + r.appts.done + '/' + r.appts.due + '</b></span>' +
       (r.appts.overdue ? '<span class="bad">เลยนัด <b>' + N(r.appts.overdue) + '</b></span>' : '') + '</div></div>';
+  }
+  // grouped bars by weekday: Telesales vs Admin side by side
+  function weekdayBars(d) {
+    const DOW = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'], FULL = ['วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์', 'วันอาทิตย์'];
+    const agg = DOW.map(() => ({ tele: 0, admin: 0 }));
+    for (const k of d.days) { const w = (new Date(k + 'T00:00:00Z').getUTCDay() + 6) % 7; agg[w].tele += d.series[k].tele; agg[w].admin += d.series[k].admin; }
+    const max = Math.max(1, ...agg.map((a) => Math.max(a.tele, a.admin)));
+    const W = 1000, Hh = 250, padT = 14, padB = 34, ih = Hh - padT - padB, gw = W / 7, bw = Math.min(30, gw * 0.18);
+    const best = agg.reduce((b, a, i) => (a.tele + a.admin > b.v ? { v: a.tele + a.admin, i } : b), { v: -1, i: 0 });
+    let g = '<line class="grid-l" x1="0" x2="' + W + '" y1="' + (padT + ih) + '" y2="' + (padT + ih) + '"/>';
+    agg.forEach((a, i) => {
+      const cx = gw * i + gw / 2;
+      [['tele', 'var(--c-tele)', -1], ['admin', 'var(--c-admin)', 1]].forEach(([k, col, side]) => {
+        const h = Math.max(a[k] ? 4 : 0, a[k] / max * ih), x = cx + (side < 0 ? -bw - 4 : 4);
+        if (h) g += '<rect class="gb" x="' + x + '" y="' + (padT + ih - h) + '" width="' + bw + '" height="' + h + '" rx="' + Math.min(8, bw / 2) + '" fill="' + col + '"><title>' + FULL[i] + ' : ' + (k === 'tele' ? 'Telesales ' : 'Admin ') + B(a[k]) + '</title></rect>';
+      });
+      g += '<text class="ax' + (i === best.i && best.v > 0 ? ' best' : '') + '" x="' + cx + '" y="' + (Hh - 10) + '" text-anchor="middle">' + DOW[i] + '</text>';
+    });
+    return '<svg class="lc" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="เทียบยอดขายตามวันในสัปดาห์">' + g + '</svg>' +
+      (best.v > 0 ? '<div class="gb-note">' + ico('chart') + ' วันที่ขายได้มากที่สุด : <b>' + FULL[best.i] + '</b> (' + B(best.v) + ' : Telesales ' + B(agg[best.i].tele) + ' / Admin ' + B(agg[best.i].admin) + ')</div>' : '');
+  }
+  // smooth single line with a soft area; hover a day for its breakdown
+  function lineChart(d) {
+    const days = d.days, W = 1000, Hh = 260, padL = 48, padR = 16, padT = 16, padB = 30, iw = W - padL - padR, ih = Hh - padT - padB;
+    const rev = ui.chart === 'rev';
+    const val = (k) => { const x = d.series[k]; return rev ? x.tele + x.admin : x.calls; };
+    const vs = days.map(val), max = Math.max(1, ...vs);
+    const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
+    const X = (i) => padL + (days.length > 1 ? iw * i / (days.length - 1) : iw / 2), Y = (v) => padT + ih - v / top * ih;
+    const pts = vs.map((v, i) => [X(i), Y(v)]);
+    let path = 'M' + pts[0][0] + ',' + pts[0][1];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      const c1y = Math.min(padT + ih, p1[1] + (p2[1] - p0[1]) / 6), c2y = Math.min(padT + ih, p2[1] - (p3[1] - p1[1]) / 6);
+      path += ' C' + (p1[0] + (p2[0] - p0[0]) / 6) + ',' + c1y + ' ' + (p2[0] - (p3[0] - p1[0]) / 6) + ',' + c2y + ' ' + p2[0] + ',' + p2[1];
+    }
+    const area = path + ' L' + pts[pts.length - 1][0] + ',' + (padT + ih) + ' L' + pts[0][0] + ',' + (padT + ih) + ' Z';
+    const fmtAxis = (v) => rev ? (v >= 1000 ? (Math.round(v / 100) / 10) + 'k' : v) : v;
+    let g = '<defs><linearGradient id="lc-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2563eb" stop-opacity=".22"/><stop offset="1" stop-color="#2563eb" stop-opacity="0"/></linearGradient></defs>';
+    for (let v = 0; v <= top + 0.001; v += step) g += '<line class="grid-l" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text class="ax" x="' + (padL - 10) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + fmtAxis(v) + '</text>';
+    const every = Math.max(1, Math.ceil(days.length / 8));
+    days.forEach((k, i) => { if (i % every === 0 || i === days.length - 1) { const dt = new Date(k + 'T00:00:00Z'); g += '<text class="ax" x="' + X(i) + '" y="' + (Hh - 8) + '" text-anchor="middle">' + dt.getUTCDate() + ' ' + H.TH_MON[dt.getUTCMonth()] + '</text>'; } });
+    g += '<path d="' + area + '" fill="url(#lc-fill)"/><path d="' + path + '" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+    const colW = iw / Math.max(1, days.length - 1);
+    days.forEach((k, i) => {
+      const x = d.series[k], tipW = 168, tx = Math.min(Math.max(X(i) - tipW / 2, padL), W - padR - tipW), lines = rev ? [['Telesales', B(x.tele)], ['Admin', B(x.admin)]] : [['สาย', N(x.calls)]];
+      const tipH = 30 + lines.length * 20, ty = Math.max(2, Y(vs[i]) - tipH - 14);
+      g += '<g class="lc-pt"><rect class="hit" x="' + (X(i) - colW / 2) + '" y="' + padT + '" width="' + colW + '" height="' + ih + '"/><line class="vl" x1="' + X(i) + '" x2="' + X(i) + '" y1="' + padT + '" y2="' + (padT + ih) + '"/><circle cx="' + X(i) + '" cy="' + Y(vs[i]) + '" r="5"/>' +
+        '<g class="tip"><rect x="' + tx + '" y="' + ty + '" width="' + tipW + '" height="' + tipH + '" rx="10"/><text x="' + (tx + 12) + '" y="' + (ty + 21) + '" class="tt">' + H.thDate(k).replace(/ \d{4}$/, '') + ' : ' + (rev ? B(vs[i]) : N(vs[i]) + ' สาย') + '</text>' +
+        lines.map((l, j) => '<text x="' + (tx + 12) + '" y="' + (ty + 42 + j * 20) + '" class="tl">' + l[0] + '</text><text x="' + (tx + tipW - 12) + '" y="' + (ty + 42 + j * 20) + '" class="tl" text-anchor="end">' + l[1] + '</text>').join('') + '</g></g>';
+    });
+    return '<svg class="lc" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="กราฟเส้นรายวัน">' + g + '</svg>';
   }
   function barChart(d) {
     const days = d.days, W = Math.max(560, days.length * 46), Hh = 230, padL = 52, padB = 26, padT = 12, iw = W - padL - 10, ih = Hh - padB - padT;
@@ -771,7 +826,7 @@
     close: ['บันทึกปิดการขาย', 'ปิดการขายแล้วระบบส่งรายชื่อให้ Telesales อัตโนมัติ'], settings: ['ตั้งค่า', 'เป้า KPI ทีมงาน สินค้า และการเชื่อมต่อระบบ'] };
   function pageHead(title, sub, actions) { return '<div class="ph"><div class="ph-t"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (actions ? '<div class="ph-act">' + actions + '</div>' : '') + '</div>'; }
   function crumbHtml() {
-    const c = S.page === 'approvals' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าที่ถูกแจก'] : S.page === 'dnc' && boss() ? ['รายชื่อลูกค้า', 'ยกเลิกการติดต่อ'] : S.page === 'customers' && S.me.role === 'exec' ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าทั้งหมด'] : S.page === 'overview' ? ['ภาพรวมทั้งหมด'] : CRUMB[S.page] || ['หน้าหลัก'];
+    const c = S.page === 'approvals' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าที่ถูกแจก'] : S.page === 'dnc' && boss() ? ['รายชื่อลูกค้า', 'ยกเลิกการติดต่อ'] : S.page === 'customers' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าทั้งหมด'] : S.page === 'overview' ? ['ภาพรวมทั้งหมด'] : CRUMB[S.page] || ['หน้าหลัก'];
     return '<nav class="bc" aria-label="ตำแหน่งหน้า">' + c.map((x, i) => (i === c.length - 1 ? '<b>' + x + '</b>' : (S.page === 'customer' && x === 'ลูกค้า' ? '<button class="link-plain" data-go="customers">' + x + '</button>' : '<span>' + x + '</span>'))).join('<i>›</i>') + '</nav>';
   }
 
@@ -1302,13 +1357,13 @@
         '<div class="ap-col ap-amt"><small>ยอดออเดอร์</small><b>' + B(a.total) + '</b></div>' +
         '<div class="ap-col"><small>ปิดโดย</small><b class="one">' + esc(a.closerName || uname(a.closer) || '-') + '</b><span class="muted small">' + (range > 1 ? H.thDate(a.at).replace(/ \d{4}$/, '') + ' ' : '') + H.thTime(a.at) + ' น.</span></div>' +
         '<div class="ap-to"><div class="ap-col"><small>ส่งให้ (อัตโนมัติ)</small><span class="ap-me">' + (tu ? av(tu, 'sm') : '') + '<b>' + esc(uname(a.assigned)) + '</b></span></div></div>' +
-        '<div class="ap-act">' + (called ? '<span class="pill good ap-st">' + ico('check') + ' โทรแล้ว</span>' : (c.id && (boss() || c.owner === S.me.id) ? '<button class="btn primary" data-open="' + esc(c.id) + '" data-tab="call">' + ico('phone') + ' โทรเลย</button>' : '<span class="pill warn ap-st">ยังไม่ได้โทร</span>')) + '</div>' +
+        '<div class="ap-act">' + (called ? '<span class="pill good ap-st">' + ico('check') + ' โทรแล้ว</span>' : '<span class="pill warn ap-st">ยังไม่ได้โทร</span>') + '</div>' +
         '</article>';
     };
     const tabs = '<div class="ap-bar"><div class="qtabs"><button class="qtab' + (range === 1 ? ' on' : '') + '" data-act="ap-tab" data-v="today">วันนี้ <span>' + todayList.length + '</span></button><button class="qtab' + (range === 7 ? ' on' : '') + '" data-act="ap-tab" data-v="week">7 วันล่าสุด</button></div><span class="small muted">' + ico('refresh') + ' แจกอัตโนมัติทันทีที่แอดมินปิดการขาย</span></div>';
     const empty = '<div class="ap-empty"><span>' + ico('inbox') + '</span><b>' + (range === 1 ? 'ยังไม่มีรายชื่อวันนี้' : 'ยังไม่มีรายชื่อใน 7 วัน') + '</b><small>เมื่อแอดมินปิดการขายบน FB Page ระบบจะแจกรายชื่อให้ Telesales ทันที 50:50</small></div>';
     const side = boss() ? '<section class="card ap-side"><h3 class="ct">' + ico('refresh') + ' แจกอัตโนมัติ</h3><ol class="ap-steps"><li><b>แอดมินปิดการขาย</b><span>จาก Pancake หรือหน้าปิดการขาย</span></li><li><b>ระบบส่งให้ Telesales 50:50</b><span>ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม ข้ามคนที่ลาวันนี้</span></li><li><b>สร้างนัด T1 ให้อัตโนมัติ</b><span>เซลล์โทรต้อนรับภายใน 2 ชม.</span></li></ol><p class="small muted">ต้องการย้ายรายชื่อ ใช้ "เปลี่ยนผู้ดูแล" ในหน้าลูกค้า : ตั้งค่าคนลาได้ที่หน้าตั้งค่า</p></section>'
-      : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รายชื่อใหม่ทำอะไรต่อ</h3><ol class="ap-steps"><li><b>อยู่ใน "ลูกค้าของฉัน" แล้ว</b><span>แท็บ FB Page</span></li><li><b>มีนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>กด "โทรเลย"</b><span>บันทึกผลแล้วระบบนัด T2 ให้ต่อ</span></li></ol></section>';
+      : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รายชื่อใหม่ทำอะไรต่อ</h3><ol class="ap-steps"><li><b>อยู่ใน "ลูกค้าของฉัน" แล้ว</b><span>แท็บ FB Page</span></li><li><b>มีนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>โทรจากคิวโทรวันนี้</b><span>บันทึกผลแล้วระบบนัด T2 ให้ต่อ</span></li></ol></section>';
     return tiles + '<div class="ap-grid"><section class="card ap-main">' + tabs + (all.length ? '<div class="ap-list">' + all.map(card).join('') + '</div>' : empty) + '</section>' + side + '</div>';
   }
 
@@ -1482,7 +1537,7 @@
         else delAppts('calpanel', [a]); });
     },
     'me-menu': (el) => {
-      const box = openPop(el, '<div class="menu">' + (DEMO ? '<div class="small muted" style="padding:6px 10px">โหมดตัวอย่าง : สลับคนได้ที่แถบด้านบน</div>' : '<button data-m="out">' + ico('logout') + ' ออกจากระบบ</button>') + '</div>', 'menu-pop');
+      const box = openPop(el, '<div class="menu">' + (boss() ? '<button data-go="settings">' + ico('gear') + ' ตั้งค่าระบบ</button>' : '') + (DEMO ? '<div class="small muted" style="padding:6px 10px">โหมดตัวอย่าง : สลับคนได้ที่แถบด้านบน</div>' : '<button data-m="out">' + ico('logout') + ' ออกจากระบบ</button>') + '</div>', 'menu-pop');
       box.addEventListener('click', async (e) => { if (e.target.closest('[data-m=out]')) { await fetch('/api/logout', { method: 'POST' }); location.reload(); } });
     },
     'cd-back': () => go(ui.custBack && allowed(ui.custBack) && ui.custBack !== 'customer' ? ui.custBack : 'customers'),
@@ -1838,7 +1893,7 @@
     try { ok = await api.boot(); } catch (e) { bootError(); return; }
     if (!ok) { renderLogin(); return; }
     const hash = (location.hash || '').slice(1);
-    S.page = PAGES[hash] && allowed(hash) ? hash : (S.me.role === 'tele' ? 'today' : S.me.role === 'exec' ? 'overview' : 'home');
+    S.page = PAGES[hash] && allowed(hash) ? hash : (S.me.role === 'tele' ? 'today' : boss() ? 'overview' : 'home');
     render();
     if (!DEMO) setInterval(async () => {
       if (document.hidden || modal || ui.drawer || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return;
