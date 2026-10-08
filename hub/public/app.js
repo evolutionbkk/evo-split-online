@@ -540,7 +540,7 @@
       tile('ออเดอร์ทั้งหมด', N(d.orders), 'เฉลี่ย ' + B(d.aov) + ' ต่อออเดอร์') +
       tile('งานที่ต้องจัดการ', N(d.pending + d.overdue), 'เลยนัด ' + d.overdue + ' : เงียบเกินกำหนด ' + d.stale, d.pending + d.overdue ? 'alert' : '') + '</div>';
     const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : FB ' + t.fbCalls + ' สาย (T1 ' + t.t1 + ' : T2 ' + t.t2 + ' : T3 ' + t.t3 + ') : Marketplace ' + t.mktCalls + ' สาย : คุย ' + t.talkMinutes + ' นาที : ยอด ' + B(t.teleRevenue) + (from !== to ? ' : คูณตามจำนวนวันอัตโนมัติ' : '') + '</small></div>' +
-      (allowed('kpi') ? '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button>' : '') + '</div>' + '<div class="kpc-list">' + d.team.map(kpiPerson).join('') + '</div></section>';
+      (allowed('kpi') ? '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button>' : '') + '</div>' + kpiTable(d.team) + '</section>';
     // daily chart: at least 14 days for context
     const cFrom = H.daysBetween(from, to) < 13 ? H.addDays(to, -13) : from;
     const cd = cFrom === from ? d : H.dashboard(st, cFrom, to);
@@ -598,6 +598,23 @@
     return '<button class="alert-row ' + (n ? tone : '') + '" data-go="' + page + '"' + (filter ? ' data-filter="' + filter + '"' : '') + '><span class="n">' + N(n) + '</span><span class="t"><b>' + title + '</b><small>' + sub + '</small></span>' + ico('right') + '</button>';
   }
   const KSTAT = { done: ['good', 'ครบ KPI'], close: ['warn', 'ใกล้ครบ'], behind: ['bad', 'ยังไม่ถึงเป้า'], none: ['mute', 'ยังไม่บันทึก'] };
+  // KPI as one simple table: rows = targets, columns = each telesales + team total
+  function kpiTable(team) {
+    if (!team.length) return '<div class="empty">ยังไม่มี Telesales</div>';
+    const rows = [
+      { l: 'E-Commerce', sub: 'Lazada · Shopee · TikTok', col: '#b45309', v: (r) => r.mktCalls, t: (r) => r.target.mkt },
+      { l: 'T1 · โทรขาย', col: '#2563eb', v: (r) => r.t1, t: (r) => r.target.t1 },
+      { l: 'T2 · ตามรอบ 2', col: '#0891b2', v: (r) => r.t2, t: (r) => r.target.t2 },
+      { l: 'T3 · ตามรอบ 3', col: '#7c3aed', v: (r) => r.t3, t: (r) => r.target.t3 },
+      { l: 'เวลาคุย', sub: 'นาที', col: '#475569', v: (r) => Math.round(r.talkSec / 60), t: (r) => Math.round(r.target.talkSec / 60) },
+    ];
+    const cell = (v, t, col) => { const p = pct(v, t); return '<td><div class="kt-c"><span><b>' + N(v) + '</b><small>/' + N(t) + '</small></span><em style="color:' + col + '">' + p + '%</em></div><div class="kt-bar"><i style="width:' + p + '%;background:' + col + '"></i></div></td>'; };
+    const head = '<tr><th>รายการ</th>' + team.map((r) => { const u = user(r.user) || { name: r.name }; return '<th>' + esc(u.name) + '</th>'; }).join('') + '<th class="n">รวมทีม</th></tr>';
+    const body = rows.map((x) => '<tr><td class="kt-l"><b style="color:' + x.col + '">' + x.l + '</b>' + (x.sub ? '<small>' + x.sub + '</small>' : '') + '</td>' + team.map((r) => cell(x.v(r), x.t(r), x.col)).join('') + '<td class="n"><b>' + N(team.reduce((s, r) => s + x.v(r), 0)) + '</b></td></tr>').join('') +
+      '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขาย</b><small>จากการโทร</small></td>' + team.map((r) => '<td><div class="kt-c"><span><b style="color:var(--good)">' + B(r.amount) + '</b><small>/' + B(r.target.revenue) + '</small></span><em class="muted">' + N(r.orders) + ' ปิด</em></div>' + (r.appts.overdue ? '<small class="kt-od">เลยนัด ' + N(r.appts.overdue) + '</small>' : '') + '</td>').join('') +
+      '<td class="n"><b style="color:var(--good)">' + B(team.reduce((s, r) => s + r.amount, 0)) + '</b></td></tr>';
+    return '<div class="tbl-wrap"><table class="kt">' + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div><div class="small muted" style="margin-top:10px">เลข = จำนวนสายที่บันทึก เทียบเป้าต่อวัน : ตัวเลขมาจากการบันทึกผลการโทรของเซลล์</div>';
+  }
   function kpiPerson(r) {
     const u = user(r.user) || { id: r.user, name: r.name };
     const s = KSTAT[r.status];
