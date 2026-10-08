@@ -39,16 +39,16 @@
   ];
   const LOST_REASONS = ['ราคาแพง', 'ยังมีของเหลือ', 'ไม่เห็นผล', 'ซื้อช่องทางอื่น', 'ไม่สะดวกคุย', 'อื่น ๆ'];
   const STATUS = {
-    new: { label: 'ใหม่', tone: 'info' },
+    new: { label: 'ลูกค้าใหม่', tone: 'good' },
+    followup: { label: 'รอติดตาม', tone: 'warn' },
+    hot: { label: 'สนใจมาก', tone: 'hot' },
+    warm: { label: 'ขอคิดก่อน', tone: 'warn' },
+    info: { label: 'ขอรายละเอียด', tone: 'warn' },
+    later: { label: 'ยังไม่พร้อม', tone: 'mute' },
     won: { label: 'ปิดการขาย', tone: 'good' },
-    awaiting_payment: { label: 'รอชำระ', tone: 'good' },
-    hot: { label: 'ร้อน', tone: 'hot' },
-    warm: { label: 'อุ่น', tone: 'warm' },
-    info: { label: 'ขอข้อมูล', tone: 'warm' },
-    followup: { label: 'นัดติดตาม', tone: 'info' },
-    later: { label: 'รอบถัดไป', tone: 'mute' },
+    awaiting_payment: { label: 'รอชำระ', tone: 'info' },
+    no_answer: { label: 'ติดต่อไม่ได้', tone: 'mute' },
     lost: { label: 'ไม่สำเร็จ', tone: 'bad' },
-    no_answer: { label: 'ไม่รับสาย', tone: 'mute' },
   };
   const ROUNDS = {
     T1: 'โทรครั้งแรก ต้อนรับ ยืนยันคำสั่งซื้อและการจัดส่ง สร้างความสัมพันธ์',
@@ -376,8 +376,9 @@
     const amount = p.amount != null && p.amount !== '' ? money(p.amount) : itemsTotal(items);
     const user = actor.role === 'tele' ? actor.id : (c.owner || actor.id);
     if (!c.owner && actor.role === 'tele') { c.owner = actor.id; c.assignedAt = nowIso(); }
+    const when = p.at && !isNaN(Date.parse(p.at)) && Date.parse(p.at) <= Date.now() + 60000 ? new Date(p.at).toISOString() : nowIso();
     const k = {
-      id: uid('k'), user, date: today(), at: nowIso(), mode: 'call', channel: c.channel === 'ecom' ? 'mkt' : 'fb',
+      id: uid('k'), user, date: dayKey(when), at: when, mode: 'call', channel: c.channel === 'ecom' ? 'mkt' : 'fb',
       round: c.channel === 'ecom' ? '' : (p.round || c.round || 'T1'), phone: c.phone, name: c.name, customerId: c.id,
       durationSec, result: res.id, talked: res.talked, items, amount: res.id === 'won' || res.id === 'awaiting_payment' ? amount : 0,
       orders: (res.id === 'won' || res.id === 'awaiting_payment') && amount > 0 ? 1 : 0, note: clip(p.note, 500), lostReason: clip(p.lostReason, 60), by: actor.id,
