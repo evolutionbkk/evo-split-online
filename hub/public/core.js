@@ -86,6 +86,7 @@
   const DEFAULT_CLOSER_ALIAS = { 'Chonlakarn': 'ไลลา', 'Nur-asekeen': 'นุช', 'ชาเย็น ไม่หวาน': 'พี่โม', 'Wachira': 'แซน' };
   const DEFAULT_SETTINGS = {
     closerAlias: DEFAULT_CLOSER_ALIAS,
+    nonAdminClosers: ['Numwhan', 'สมร นอนน้อย'],   // Pancake users who are not Admin Sales: their orders are not admin closes
     targets: {
       fbCalls: 30, t1: 5, t2: 5, t3: 20,   // FB (Pancake) calls / day / person
       mktCalls: 30,                          // Marketplace calls / day / person
@@ -162,6 +163,22 @@
     const s = String(name || '').trim(), m = (st && st.settings && st.settings.closerAlias) || DEFAULT_CLOSER_ALIAS, low = s.toLowerCase();
     for (const k of Object.keys(m)) { const kl = k.toLowerCase(); if (low === kl || low.startsWith(kl + ' ') || (/^[a-z]/i.test(k) && low.startsWith(kl))) return m[k]; }
     return s;
+  }
+  function isNonAdminCloser(st, name) {
+    const low = String(name || '').trim().toLowerCase(); if (!low) return false;
+    return ((st.settings || {}).nonAdminClosers || []).some((k) => { const kl = String(k).toLowerCase(); return low === kl || low.startsWith(kl); });
+  }
+  // orders closed in Pancake by non-admin users: keep the order, but not as an admin sale (no admin revenue, not in admin reports)
+  function applyNonAdmin(st) {
+    let n = 0;
+    for (const a of st.approvals || []) {
+      if (a.nonAdmin || !isNonAdminCloser(st, a.closerName)) continue;
+      a.nonAdmin = true; n++;
+      if (a.status === 'pending') a.status = 'history';
+      const c = (st.customers || []).find((x) => x.id === a.customerId), o = c && (c.orders || []).find((x) => x.id === a.orderId);
+      if (o && o.source === 'pancake') o.source = 'pancake_other';
+    }
+    return n;
   }
   // rename closers already stored (approvals, customers, sale notes) and link them to a hub user with that name
   function applyCloserAliases(st) {
@@ -565,6 +582,7 @@
     const items = cleanItems(p.items, st.settings.products);
     if (!items.length && !money(p.total)) throw err('เลือกสินค้าหรือกรอกยอดขาย');
     if (p.extId && st.approvals.some((a) => a.extId === p.extId)) return { duplicate: true };
+    if (p.source === 'pancake' && isNonAdminCloser(st, p.closerName)) return { skipped: true, reason: 'not admin sales' };
     const aliased = p.closerName ? aliasCloser(st, p.closerName) : '';
     const closer = p.closer || (actor.role === 'admin' ? actor.id : (st.settings.pancakeAdminMap || {})[p.closerName] || ((st.users || []).find((u) => u.role === 'admin' && u.name === aliased) || {}).id || null);
     const closerName = aliased || userName(st, closer);
@@ -961,7 +979,7 @@
   function adminBoard(st, from, to) {
     const map = {};
     for (const ap of st.approvals) {
-      if (!inRange(dayKey(ap.at), from, to)) continue;
+      if (!inRange(dayKey(ap.at), from, to) || ap.nonAdmin) continue;
       const key = ap.closer || ('name:' + ap.closerName);
       const m = map[key] || (map[key] = { key, user: ap.closer, name: ap.closer ? userName(st, ap.closer) : (ap.closerName || 'ไม่ระบุ'), pancakeName: ap.closerName, closes: 0, revenue: 0 });
       m.closes++; m.revenue += ap.total || 0;
@@ -1110,7 +1128,7 @@
     sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
-    emptyState, normalize, apply, aliasCloser, applyCloserAliases, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
+    emptyState, normalize, apply, aliasCloser, applyCloserAliases, isNonAdminCloser, applyNonAdmin, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };
 });

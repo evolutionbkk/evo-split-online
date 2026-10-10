@@ -123,11 +123,11 @@ app.get('/api/report/quality', auth, async (req, res) => {
   const from = day(req.query.from), to = day(req.query.to);
   if (!I.status().pancake) {   // no Pancake key (local / demo): use the orders already in the hub
     const rows = [];
-    for (const a of state.approvals) { if (a.status === 'rejected') continue; const c = H.findCustomer(state, a.customerId) || {}, o = (c.orders || []).find((x) => x.id === a.orderId) || {}; const at = o.date || a.at, d = H.dayKey(at); if (d < from || d > to) continue;
+    for (const a of state.approvals) { if (a.status === 'rejected' || a.nonAdmin) continue; const c = H.findCustomer(state, a.customerId) || {}, o = (c.orders || []).find((x) => x.id === a.orderId) || {}; const at = o.date || a.at, d = H.dayKey(at); if (d < from || d > to) continue;
       const sc = (o.ship || {}).code; rows.push({ at, admin: a.closerName || H.userName(state, a.closer) || 'ไม่ระบุ', page: a.page || c.page || 'ไม่ระบุเพจ', kind: o.status === 'cancelled' || sc === 'cancel' ? 'cancel' : sc === 'back' ? 'back' : sc === 'done' ? 'done' : sc === 'ship' ? 'ship' : 'open', total: o.total != null ? o.total : a.total || 0 }); }
     return res.json({ rows });
   }
-  try { const rows = await I.pancakeQualityRows(from); res.json({ rows: rows.filter((r) => { const d = H.dayKey(r.at); return d >= from && d <= to; }).map((r) => Object.assign({}, r, { admin: H.aliasCloser(state, r.admin) })) }); }
+  try { const rows = await I.pancakeQualityRows(from); res.json({ rows: rows.filter((r) => { const d = H.dayKey(r.at); return d >= from && d <= to; }).filter((r) => !H.isNonAdminCloser(state, r.admin)).map((r) => Object.assign({}, r, { admin: H.aliasCloser(state, r.admin) })) }); }
   catch (e) { res.status(502).json({ error: e.message }); }
 });
 app.post('/api/action', auth, async (req, res) => {
@@ -255,6 +255,7 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
     catch (e) { console.warn('[boot] platform fix failed', e.message); }
   }
   { const cnt = {}; for (const c of state.customers) if (c.channel === 'ecom') cnt[c.platform || '-'] = (cnt[c.platform || '-'] || 0) + 1; console.log('[boot] E-Commerce customers by platform', JSON.stringify(cnt)); }
+  { const n = H.applyNonAdmin(state); if (n) console.log('[boot] non-admin Pancake orders moved out of admin sales', n); }
   { const n = H.applyCloserAliases(state); if (n) console.log('[boot] renamed Pancake closers', n); }
   { const n = H.autoDistribute(state); if (n) console.log('[boot] auto-distributed waiting leads', n); }
   { const n = H.autoLogOnecall(state, H.today()); if (n) console.log('[boot] OneCall calls logged to KPI', n); }

@@ -126,10 +126,10 @@ async function pancakePull(state, opts) {
         if (H.normPhone(close.phone).length < 9) continue;
         if (t >= baseline) {
           const r = H.apply(state, 'createClose', close, SYSTEM);
-          if (!r.duplicate) added++;
+          if (!r.duplicate && !r.skipped) added++;
         } else if (backfillFrom && t >= backfillFrom) {
           const r = H.apply(state, 'createClose', close, SYSTEM);
-          if (!r.duplicate) {
+          if (!r.duplicate && !r.skipped) {
             const ap = state.approvals.find((a) => a.id === r.id);
             if (ap && ap.status === 'pending') ap.status = 'history';   // old sale: record revenue only
             history++;

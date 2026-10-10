@@ -226,7 +226,7 @@
   const statusPill = (s) => { const x = H.STATUS[s] || H.STATUS.new; return '<span class="pill st ' + x.tone + '">' + esc(x.label) + '</span>'; };
   const roundTag = (r) => r ? '<span class="tag ' + r.toLowerCase() + '">' + r + '</span>' : '';
   const platformTag = (p) => '<span class="tag">' + esc((H.PLATFORMS[p] || {}).label || p || '-') + '</span>';
-  const srcLabel = { tele: 'Telesales', admin: 'Admin ปิดการขาย', pancake: 'Pancake (Admin)', ecom: 'E-Commerce', manual: 'บันทึกเอง', legacy: 'ระบบเดิม' };
+  const srcLabel = { tele: 'Telesales', admin: 'Admin ปิดการขาย', pancake: 'Pancake (Admin)', pancake_other: 'Pancake (ไม่ใช่แอดมิน)', ecom: 'E-Commerce', manual: 'บันทึกเอง', legacy: 'ระบบเดิม' };
   function meterCls(p) { return p >= 100 ? 'good' : p >= 60 ? 'warn' : 'bad'; }
   function lastOrderLine(c) {
     const o = (c.orders || [])[0]; if (!o) return '<span class="faint">ยังไม่มีออเดอร์</span>';
@@ -701,7 +701,7 @@
   function qualityRows(st, from, to) {
     if (DEMO) {
       const out = [];
-      for (const a of st.approvals || []) { if (a.status === 'rejected') continue; const c = H.findCustomer(st, a.customerId) || {}, o = (c.orders || []).find((x) => x.id === a.orderId) || {}; const at = o.date || a.at, d = H.dayKey(at); if (d < from || d > to) continue;
+      for (const a of st.approvals || []) { if (a.status === 'rejected' || a.nonAdmin) continue; const c = H.findCustomer(st, a.customerId) || {}, o = (c.orders || []).find((x) => x.id === a.orderId) || {}; const at = o.date || a.at, d = H.dayKey(at); if (d < from || d > to) continue;
         const sc = (o.ship || {}).code; out.push({ at, admin: a.closerName || uname(a.closer) || 'ไม่ระบุ', page: a.page || c.page || 'ไม่ระบุเพจ', kind: o.status === 'cancelled' || sc === 'cancel' ? 'cancel' : sc === 'back' ? 'back' : sc === 'done' ? 'done' : sc === 'ship' ? 'ship' : 'open', total: o.total != null ? o.total : a.total || 0 }); }
       return out;
     }
@@ -780,7 +780,7 @@
   function adminSalesRows(st, from, to) {
     const out = [];
     for (const a of st.approvals || []) {
-      if (a.status === 'rejected') continue;
+      if (a.status === 'rejected' || a.nonAdmin) continue;
       const c = H.findCustomer(st, a.customerId) || {};
       const o = (c.orders || []).find((x) => x.id === a.orderId) || {};
       const at = o.date || a.at, d = H.dayKey(at);
