@@ -14,6 +14,8 @@
 
   // ------------------------------------------------------------ icons
   const IC = {
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9"/><path d="M12 17.2h.01"/>',
+    play: '<path d="M8 5.5v13l10-6.5z"/>',
     home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
     chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14.5c2 .6 3.2 2.5 3.5 5.5"/>',
@@ -149,10 +151,11 @@
     ovtele: { t: 'ภาพรวมเทเลเซลล์', crumb: '', ico: 'phone' },
     ovadmin: { t: 'ภาพรวมแอดมิน', crumb: '', ico: 'msg' },
     settings: { t: 'ตั้งค่า', crumb: 'System : ตั้งค่าและการเชื่อมต่อ', ico: 'gear' },
+    help: { t: 'ศูนย์ช่วยเหลือ', crumb: 'ศูนย์ช่วยเหลือ : วิดีโอสอนและคู่มือ', ico: 'help' },
   };
   function allowed(page) {
     const r = S.me.role;
-    if (page === 'home') return true;
+    if (page === 'home' || page === 'help') return true;
     if (page === 'overview' || page === 'ovtele' || page === 'ovadmin') return boss() || r === 'tele';
     if (page === 'settings') return boss();
     if (page === 'kpi') return r === 'tele';
@@ -186,7 +189,8 @@
       const sub = (id, label, lvl) => '<button class="nsub-i l' + (lvl || 1) + (on([id]) ? ' on' : '') + '" data-go="' + id + '"><i class="dot"></i><span>' + label + '</span></button>';
       const sub2grp = (key, id, label, kids) => '<div class="ngrp2' + (ui.navOpen[key] ? ' open' : '') + '"><button class="nsub-i l1' + (on([id]) ? ' on' : '') + '" data-go="' + id + '" data-nav-key="' + key + '"><i class="dot"></i><span>' + label + '</span><i class="chev" data-act="nav-toggle" data-v="' + key + '" aria-label="ย่อ/ขยาย">' + ico('down') + '</i></button><div class="nsub">' + kids + '</div></div>';
       return grp('ov', 'overview', 'ภาพรวมทั้งหมด', 'chart', ['overview', 'ovtele', 'ovadmin'], sub('ovtele', 'เทเลเซลล์') + sub('ovadmin', 'แอดมิน')) +
-        grp('cu', '', 'รายชื่อลูกค้า', 'users', ['customers', 'approvals', 'dnc'], sub2grp('all', 'customers', 'รายชื่อลูกค้าทั้งหมด', sub('approvals', 'รายชื่อลูกค้าที่ถูกแจก', 2) + sub('dnc', 'รายชื่อลูกค้าที่ยกเลิกการติดต่อ', 2)));
+        grp('cu', '', 'รายชื่อลูกค้า', 'users', ['customers', 'approvals', 'dnc'], sub2grp('all', 'customers', 'รายชื่อลูกค้าทั้งหมด', sub('approvals', 'รายชื่อลูกค้าที่ถูกแจก', 2) + sub('dnc', 'รายชื่อลูกค้าที่ยกเลิกการติดต่อ', 2))) +
+        '<div class="ngrp"><button class="ngrp-h' + (S.page === 'help' ? ' on' : '') + '" data-go="help">' + ico('help') + '<span>ศูนย์ช่วยเหลือ</span></button></div>';
     };
     const nav = isExec ? tree() : [
       nb('home', 'หน้าหลัก'),
@@ -195,6 +199,7 @@
       (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'การแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
       (boss() || role === 'admin') ? '<div class="nav-label">แอดมินเซลล์</div>' + nb('close', 'ปิดการขาย') : '',
       boss() ? '<div class="nav-label">ระบบ</div>' + nb('settings', 'ตั้งค่า') : '',
+      '<div class="nav-label">ช่วยเหลือ</div>' + nb('help', 'ศูนย์ช่วยเหลือ'),
     ].join('');
     const p = PAGES[S.page];
     const bellN = pendingCount() + overdueAppts().length;
@@ -365,6 +370,7 @@
       box.style.left = left + 'px'; box.style.top = top + 'px';
     }
     $('.pop-backdrop', pop).addEventListener('click', closePop);
+    pop.addEventListener('click', (e) => { const g = e.target.closest('[data-go]'); if (g) { e.preventDefault(); closePop(); go(g.dataset.go); } });
     pop._btn = btn;
     return box;
   }
@@ -567,6 +573,7 @@
     let [from, to] = drRange('ov');
     if (!from) { from = H.today(); for (const k of (st.kpi || [])) if (k.date < from) from = k.date; for (const c of st.customers || []) { const d = H.dayKey(c.createdAt); if (d && d < from) from = d; } if (H.daysBetween(from, H.today()) > 365) from = H.addDays(H.today(), -365); to = H.today(); }
     const label = ovd.mode === 'today' ? 'วันนี้' : DR_MODES[ovd.mode];
+    TIPCTX.ov = [from, to];
     const d = dashFor(from, to); if (!d) return '<div class="card"><div class="empty">กำลังโหลดภาพรวม…</div></div>';
     const t = st.settings.targets;
     const monthPct = pct(d.monthRev, d.monthTarget);
@@ -593,7 +600,7 @@
       '<div class="seg"><button class="' + (ui.chart === 'rev' ? 'on' : '') + '" data-act="chart" data-v="rev">ยอดขาย</button><button class="' + (cmp ? 'on' : '') + '" data-act="chart" data-v="cmp">เทียบทีม</button><button class="' + (ui.chart === 'calls' ? 'on' : '') + '" data-act="chart" data-v="calls">จำนวนสาย</button></div></div>' +
       '<div class="chart-wrap">' + (cmp ? weekdayBars(cd) : lineChart(cd)) + '</div></section>';
     const adminMax = Math.max(1, ...d.admins.map((a) => a.revenue));
-    const adminCard = card('msg', 'ทีม Admin Sales', 'ยอดปิดการขาย FB Page : เรียงตามยอดเงิน', d.admins.length ? (() => { const [rows, pager, off] = pg10('adm', d.admins, 'คน'); xReg('adm', 'ยอดแอดมิน', d.admins, (a) => a.name, [['แอดมิน', (a) => a.name], ['ยอดขาย', (a) => a.revenue], ['ออเดอร์', (a) => a.closes]]); return xBar('adm', 'คน') + '<div class="rank">' + rows.map((a, i) => '<div class="rank-row"><span class="no">' + (off + i + 1) + '</span><span class="ellip">' + xCk('adm', a.name) + ' ' + esc(a.name) + '</span><span class="bar"><i style="width:' + pct(a.revenue, adminMax) + '%"></i></span><span class="v">' + B(a.revenue) + ' <small>: ' + a.closes + ' ออเดอร์</small></span></div>').join('') + '</div>' + pager; })() : '<div class="empty">ยังไม่มีการปิดการขายในช่วงนี้</div>');
+    const adminCard = card('msg', 'ทีม Admin Sales', 'ยอดปิดการขาย FB Page : เรียงตามยอดเงิน', d.admins.length ? (() => { const [rows, pager, off] = pg10('adm', d.admins, 'คน'); xReg('adm', 'ยอดแอดมิน', d.admins, (a) => a.name, [['แอดมิน', (a) => a.name], ['ยอดขาย', (a) => a.revenue], ['ออเดอร์', (a) => a.closes]]); return xBar('adm', 'คน') + '<div class="rank">' + rows.map((a, i) => '<div class="rank-row" data-tip="adm" data-tip-k="' + esc(a.name) + '"><span class="no">' + (off + i + 1) + '</span><span class="ellip">' + xCk('adm', a.name) + ' ' + esc(a.name) + '</span><span class="bar"><i style="width:' + pct(a.revenue, adminMax) + '%"></i></span><span class="v">' + B(a.revenue) + ' <small>: ' + a.closes + ' ออเดอร์</small></span></div>').join('') + '</div>' + pager; })() : '<div class="empty">ยังไม่มีการปิดการขายในช่วงนี้</div>');
     const prodCard = card('bag', 'สินค้าขายดี', 'จัดอันดับตามยอดเงิน : ทุกช่องทาง', d.products.length ? (() => { const [rows, pager] = pg10('prod', d.products, 'สินค้า'); xReg('prod', 'สินค้าขายดี', d.products, (p) => p.name, [['สินค้า', (p) => p.name], ['ชิ้น', (p) => p.qty], ['Telesales', (p) => p.tele], ['Admin', (p) => p.admin], ['E-Commerce', (p) => p.ecom], ['ยอดขาย', (p) => p.revenue]]); return xBar('prod', 'สินค้า') + '<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="ck"></th><th>สินค้า</th><th class="n">ชิ้น</th><th class="n hide-sm">Tele / Admin / Ecom</th><th class="n">ยอดขาย</th></tr></thead><tbody>' + rows.map((p) => '<tr><td class="ck">' + xCk('prod', p.name) + '</td><td><div class="ellip">' + esc(p.name) + '</div></td><td class="n">' + N(p.qty) + '</td><td class="n hide-sm muted">' + p.tele + ' / ' + p.admin + ' / ' + p.ecom + '</td><td class="n"><b>' + B(p.revenue) + '</b></td></tr>').join('') + '</tbody></table></div>' + pager; })() : '<div class="empty">ยังไม่มีข้อมูลสินค้าในช่วงนี้</div>');
     const f = d.funnel, fMax = Math.max(1, f.called, f.leads);
     const funnelCard = card('users', 'Funnel การโทร', 'รายชื่อที่ได้รับ → โทร → ได้คุย → ปิดได้', '<div class="funnel">' +
@@ -669,7 +676,7 @@
     xReg('kpi-team', 'KPI Telesales', team, (r) => r.user, [['Telesales', (r) => (user(r.user) || { name: r.name }).name], ['E-Commerce (สาย)', (r) => r.mktCalls], ['เป้า E-Commerce', (r) => r.target.mkt], ['T1', (r) => r.t1], ['เป้า T1', (r) => r.target.t1], ['T2', (r) => r.t2], ['เป้า T2', (r) => r.target.t2], ['T3', (r) => r.t3], ['เป้า T3', (r) => r.target.t3], ['เวลาคุย (นาที)', (r) => Math.round(r.talkSec / 60)], ['เป้าเวลาคุย (นาที)', (r) => Math.round(r.target.talkSec / 60)], ['ยอดขาย', (r) => r.amount], ['เป้ายอดขาย', (r) => r.target.revenue], ['ออเดอร์', (r) => r.orders], ['นัดเลยกำหนด', (r) => r.appts.overdue]]);
     const head = '<tr><th>รายการ</th>' + team.map((r) => { const u = user(r.user) || { name: r.name }; return '<th><label class="kt-pick">' + xCk('kpi-team', r.user) + ' ' + esc(u.name) + '</label></th>'; }).join('') + '<th class="n">รวมทีม</th></tr>';
     const body = rows.map((x) => '<tr><td class="kt-l"><b style="color:' + x.col + '">' + x.l + '</b>' + (x.sub ? '<small>' + x.sub + '</small>' : '') + '</td>' + team.map((r) => cell(x.v(r), x.t(r), x.col)).join('') + '<td class="n"><b>' + N(team.reduce((s, r) => s + x.v(r), 0)) + '</b></td></tr>').join('') +
-      '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขาย</b><small>จากการโทร</small></td>' + team.map((r) => '<td><div class="kt-c"><span><b style="color:var(--good)">' + B(r.amount) + '</b><small>/' + B(r.target.revenue) + '</small></span><em class="muted">' + N(r.orders) + ' ปิด</em></div>' + (r.appts.overdue ? '<small class="kt-od">เลยนัด ' + N(r.appts.overdue) + '</small>' : '') + '</td>').join('') +
+      '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขาย</b><small>จากการโทร</small></td>' + team.map((r) => '<td data-tip="tele" data-tip-k="' + esc(r.user) + '"><div class="kt-c"><span><b style="color:var(--good)">' + B(r.amount) + '</b><small>/' + B(r.target.revenue) + '</small></span><em class="muted">' + N(r.orders) + ' ปิด</em></div>' + (r.appts.overdue ? '<small class="kt-od">เลยนัด ' + N(r.appts.overdue) + '</small>' : '') + '</td>').join('') +
       '<td class="n"><b style="color:var(--good)">' + B(team.reduce((s, r) => s + r.amount, 0)) + '</b></td></tr>';
     return xBar('kpi-team', 'คน') + '<div class="tbl-wrap"><table class="kt">' + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div><div class="small muted" style="margin-top:10px">เลข = สายที่ <b>ได้คุย</b> เท่านั้น (OneCall นับว่าได้คุยเมื่อคุยเกิน 7 วินาที) เทียบเป้าต่อวัน : สายที่ไม่ได้คุยไม่นับ</div>';
   }
@@ -741,6 +748,31 @@
         rows.map((x, i) => { const rt = x.rep / x.n; return '<tr><td class="ck">' + xCk('rep', x.name) + '</td><td class="muted">' + (off + i + 1) + '</td><td><b class="one">' + esc(x.name) + '</b></td><td class="n">' + N(x.n) + '</td><td class="n"><b>' + N(x.rep) + '</b></td><td><div class="rp-r"><span class="bar"><i style="width:' + Math.round(rt / mx * 100) + '%"></i></span><b>' + (rt * 100).toFixed(1) + '%</b></div></td><td class="n hide-sm">' + B(x.rev) + '</td><td class="n hide-sm">' + N(x.tele) + ' ออเดอร์</td></tr>'; }).join('') + '</tbody></table></div>' + pager
         : '<div class="empty">ยังไม่มีข้อมูลเพจของลูกค้า</div>') + '</section>';
   }
+  // ---- hover tooltips: point at a person's total to see which orders / products / prices make it up
+  const TIPCTX = {};
+  const tipItems = (items) => (items || []).map((i) => esc(String(i.name).replace(/\s*\([^)]*\)$/, '')) + ' ×' + (i.qty || 1)).join(', ') || '<span class="faint">ไม่ระบุสินค้า</span>';
+  function tipList(title, rows, map) {
+    const ok = rows.filter((r) => r.status !== 'cancelled'), sum = ok.reduce((t, r) => t + r.total, 0);
+    if (!rows.length) return '<div class="htip-h"><b>' + esc(title) + '</b></div><div class="small muted">ไม่มีออเดอร์ในช่วงนี้</div>';
+    return '<div class="htip-h"><b>' + esc(title) + '</b><span>' + N(ok.length) + ' ออเดอร์ : ' + B(sum) + '</span></div><div class="htip-l">' +
+      rows.slice(0, 8).map((r) => { const m = map(r); return '<div class="htip-r"><span class="t">' + m.when + '</span><span class="c"><b>' + esc(m.who || 'ลูกค้า') + '</b><small>' + tipItems(r.items) + '</small></span><span class="v' + (r.status === 'cancelled' ? ' x' : '') + '">' + B(r.total) + '</span></div>'; }).join('') + '</div>' +
+      (rows.length > 8 ? '<div class="htip-f">และอีก ' + N(rows.length - 8) + ' ออเดอร์ : ดูทั้งหมดในรายการขายด้านล่าง</div>' : '');
+  }
+  const TIP = {
+    adm: (name) => { const [f, t] = TIPCTX.ov || [H.today(), H.today()]; const st = S.full || V(); if (!(st.approvals || []).length) return ''; const rows = adminSalesRows(st, f, t).filter((r) => r.closer === name); return tipList(name, rows, (r) => ({ when: (f === t ? '' : H.thDate(r.at).replace(/ \d{4}$/, '') + ' ') + H.thTime(r.at), who: r.c.name })); },
+    tele: (uid) => { const [f, t] = TIPCTX.ov || [H.today(), H.today()]; const st = S.full || V(); if (!fullView() && uid !== S.me.id) return ''; const rows = teleSalesRows(st, f, t).filter((r) => r.k.user === uid); return tipList(uname(uid), rows, (r) => ({ when: (f === t ? '' : H.thDate(r.k.date).replace(/ \d{4}$/, '') + ' ') + (r.k.at ? H.thTime(r.k.at) : ''), who: r.name })); },
+  };
+  function tipShow(el) {
+    const html = (TIP[el.dataset.tip] || (() => ''))(el.dataset.tipK); if (!html) return;
+    let tp = document.getElementById('htip'); if (!tp) { tp = document.createElement('div'); tp.id = 'htip'; tp.className = 'htip'; document.body.appendChild(tp); }
+    tp.innerHTML = html; tp.style.display = 'block';
+    const r = el.getBoundingClientRect(), w = tp.offsetWidth, h = tp.offsetHeight;
+    let x = Math.min(window.innerWidth - w - 12, Math.max(12, r.right - w)), y = r.bottom + 8; if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 8);
+    tp.style.left = x + 'px'; tp.style.top = y + 'px';
+  }
+  const tipHide = () => { const tp = document.getElementById('htip'); if (tp) tp.style.display = 'none'; };
+  document.addEventListener('mouseover', (e) => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) { if (el !== tipHide.cur) { tipHide.cur = el; tipShow(el); } } else if (tipHide.cur) { tipHide.cur = null; tipHide(); } });
+  window.addEventListener('scroll', () => { tipHide.cur = null; tipHide(); }, true);
   // ---- detailed admin sales (Pancake + manual closes): one row per order
   function adminSalesRows(st, from, to) {
     const out = [];
@@ -1302,6 +1334,45 @@
       '<dt>ขนส่ง</dt><dd>' + esc(sh.carrier || '-') + '</dd><dt>เลขพัสดุ</dt><dd>' + (sh.tracking ? '<b>' + esc(sh.tracking) + '</b> <button class="link-plain small" data-act="copy" data-v="' + esc(sh.tracking) + '">คัดลอก</button>' : '<span class="faint">ยังไม่มีเลขพัสดุ</span>') + '</dd></dl>' +
       (sh.link ? '<a class="btn sm" href="' + esc(sh.link) + '" target="_blank" rel="noopener">' + ico('right') + ' เปิดหน้าติดตามพัสดุ</a>' : '') + '</section>';
   }
+  // ------------------------------------------------------------ HELP CENTER: tutorial videos + short guides (KPI logging is intentionally not taught)
+  const HELP_VIDEOS = [
+    { id: 'telesales', role: 'tele', t: 'สอนใช้งานสำหรับเทเลเซลล์', d: 'ตั้งแต่เข้าสู่ระบบ หน้าลูกค้าของฉัน บันทึกผลการโทร นัดหมาย ปฏิทิน รายชื่อใหม่ ยกเลิกการติดต่อ สถานะพัสดุ และส่งออก Excel', len: '' },
+    { id: 'executive', role: 'boss', t: 'สอนใช้งานสำหรับผู้บริหาร', d: 'ภาพรวมทั้งหมด เทเลเซลล์ แอดมิน รายการขาย อัตรายกเลิก/ตีกลับ ลูกค้าซื้อซ้ำ รายชื่อลูกค้า ช่องทาง E-Commerce ตัวช่วย BigSeller และส่งออก Excel', len: '' },
+  ];
+  const HELP = [
+    { id: 'login', role: 'all', t: 'เข้าสู่ระบบ', s: ['กด เข้าสู่ระบบ มุมขวาบน', 'เลือกชื่อของตัวเอง', 'ใส่รหัสผ่านของตัวเอง (รหัสของใครของคนนั้น) แล้วกด เข้าสู่ระบบ', 'จะออกจากระบบ กดชื่อมุมขวาบน แล้วเลือก ออกจากระบบ'] },
+    { id: 'cust', role: 'tele', t: 'หน้าลูกค้าของฉัน', s: ['แท็บด้านบนแยก FB Page และ E-Commerce', 'แถบ ทั้งหมด / มาใหม่วันนี้ / นัดวันนี้ / เลยกำหนด ใช้กรองงาน ควรโทร มาใหม่วันนี้ และ เลยกำหนด ก่อน', 'ช่องค้นหาพิมพ์ชื่อ เบอร์ สินค้า หรือที่อยู่ได้', 'ตัวกรองด้านล่าง: สถานะ, รอบ T1/T2/T3 (FB) หรือ ช่องทาง Lazada/Shopee/TikTok (E-Commerce)', 'กดชื่อลูกค้าเพื่อเปิดหน้ารายละเอียด'] },
+    { id: 'call', role: 'tele', t: 'บันทึกผลการโทร', s: ['เปิดหน้าลูกค้า ที่การ์ด บันทึกการโทร เลือกผล 1 ใน 3: ขายได้ / ยังไม่ซื้อ / ติดต่อไม่ได้', 'ขายได้: เลือกชำระแล้วหรือรอชำระ → เลือกสินค้าและขนาดแพ็ก (ไม่มีในรายการกด อื่น ๆ) ระบบคิดยอดให้ และสร้างคำสั่งซื้อให้อัตโนมัติ', 'ยังไม่ซื้อ: เลือกคำตอบของลูกค้า ถ้าไม่ต้องการให้โทรอีกเลือก ยกเลิกถาวร แล้วเลือกเหตุผล', 'ติดต่อไม่ได้: ระบบนัดโทรซ้ำให้เอง', 'นัดถัดไประบบตั้งให้ตามรอบ กด เปลี่ยนวัน ถ้าอยากเปลี่ยน แล้วกด บันทึกการโทร'] },
+    { id: 'appt', role: 'tele', t: 'นัดหมายและปฏิทิน', s: ['นัดเอง: หน้าลูกค้า → แท็บ นัดหมาย → เลือกวันเวลา ใส่เรื่องที่นัด → บันทึกนัด', 'เมนู ปฏิทินนัดหมาย แสดงนัดทั้งเดือน กดวันที่เพื่อดูรายการด้านขวา', 'แถบด้านบนเตือนนัดที่เลยกำหนด กดเพื่อดูทั้งหมด', 'ในรายการนัดกด บันทึกการโทร หรือ เลื่อน ได้เลย'] },
+    { id: 'leads', role: 'tele', t: 'รายชื่อใหม่ที่ระบบแจก', s: ['แอดมินปิดการขายบน FB Page แล้ว ระบบแจกให้เทเลเซลล์เท่า ๆ กันอัตโนมัติ ไม่ต้องกดรับ', 'ลูกค้า E-Commerce ใหม่ก็แจกให้เท่า ๆ กันเช่นกัน', 'ดูได้ที่เมนู รายชื่อใหม่ และแท็บ มาใหม่วันนี้ ในหน้าลูกค้า', 'ทุกรายชื่อมีนัดโทรต้อนรับ T1 ให้แล้ว'] },
+    { id: 'owner', role: 'all', t: 'เปลี่ยนผู้ดูแลลูกค้า', s: ['หน้ารายชื่อ กดปุ่ม ⋯ ท้ายแถว → เปลี่ยนผู้ดูแล', 'หรือในหน้าลูกค้า กด เปลี่ยนผู้ดูแล', 'นัดที่ยังไม่ได้โทรจะย้ายไปให้คนใหม่ด้วย'] },
+    { id: 'dnc', role: 'all', t: 'ยกเลิกการติดต่อถาวร และกู้คืน', s: ['หน้ารายชื่อ กด ⋯ → ยกเลิกการติดต่อ แล้วเลือกเหตุผล', 'รายชื่อจะย้ายไปเมนู ยกเลิกการติดต่อถาวร และไม่มีนัดค้าง', 'ถ้ายกเลิกผิด เข้าเมนูนั้นแล้วกด กู้คืน'] },
+    { id: 'ship', role: 'all', t: 'สถานะพัสดุและเลขพัสดุ', s: ['หน้าลูกค้ามีการ์ด สถานะพัสดุล่าสุด: เตรียมส่ง → กำลังจัดส่ง → ส่งถึงแล้ว', 'แสดงชื่อขนส่งและเลขพัสดุ กด คัดลอก เพื่อส่งให้ลูกค้า หรือกด เปิดหน้าติดตามพัสดุ', 'ประวัติคำสั่งซื้อแสดงสถานะของทุกออเดอร์ รวมถึงตีกลับหรือยกเลิก', 'ข้อมูลมาจาก Pancake ทุก 3 นาที และจาก BigSeller สำหรับ E-Commerce'] },
+    { id: 'excel', role: 'all', t: 'ส่งออก Excel', s: ['ทุกรายการมีแถบ ส่งออก Excel ด้านบน', 'ติ๊กเลือกทีละรายการ หรือติ๊ก เลือกทั้งหมด', 'กด ส่งออก Excel: ถ้าไม่ได้เลือกอะไร จะส่งออกทั้งหมดตามตัวกรองที่ใช้อยู่'] },
+    { id: 'page10', role: 'all', t: 'การแบ่งหน้า', s: ['ทุกรายการแสดงหน้าละ 10 รายการ', 'กดเลขหน้า 1 2 3 ด้านล่างเพื่อไปหน้าถัดไป'] },
+    { id: 'teamov', role: 'tele', t: 'ภาพรวมทีม และรายการขายของฉัน', s: ['เมนู ภาพรวมทีม ดูยอดขายและผลงานของทีม', 'เลือกช่วงวันที่ได้จากปุ่มด้านบน (วันนี้ / 7 วัน / เดือนนี้ ...)', 'เลื่อนลงล่างสุดเพื่อดู รายการขายของฉัน ทีละออเดอร์'] },
+    { id: 'ov', role: 'boss', t: 'ภาพรวมทั้งหมด', s: ['ยอดรวม Telesales + Admin, เทียบเป้าเดือน', 'กราฟวงกลมสัดส่วนทีมและสินค้า, กราฟเส้นยอดรายวัน, เทียบทีมตามวันในสัปดาห์', 'การ์ด ต้องติดตาม: นัดเลยกำหนด ลูกค้าเงียบ และลูกค้า E-Commerce แยกช่องทาง', 'เลือกช่วงวันที่ได้จากปุ่มด้านบน'] },
+    { id: 'ovtele', role: 'boss', t: 'ภาพรวมเทเลเซลล์', s: ['ตาราง KPI รายคนเทียบเป้า (✓ ครบ เมื่อถึงเป้า)', 'Funnel การโทร และช่วงเวลาที่ขายดี', 'รายการขายของเทเลเซลล์ทีละออเดอร์ เลือกดูทีละคนได้'] },
+    { id: 'ovadmin', role: 'boss', t: 'ภาพรวมแอดมิน', s: ['อันดับแอดมินตามยอดปิดการขาย', 'อัตรายกเลิกและตีกลับ แยกตามแอดมินหรือเพจ (สีแดง = สูงกว่าค่าเฉลี่ยชัดเจน)', 'เพจที่ได้ลูกค้าซื้อซ้ำ: เพจไหนให้ลูกค้าคุณภาพที่สุด', 'รายการขายแอดมินแบบละเอียด ค้นหา กรองแอดมิน/เพจ ได้'] },
+    { id: 'custtree', role: 'boss', t: 'รายชื่อลูกค้า', s: ['รายชื่อลูกค้าทั้งหมด: ดูได้ทุกคน กรองผู้ดูแลได้', 'รายชื่อลูกค้าที่ถูกแจก: ใครได้รายชื่อไหน วันนี้หรือ 7 วันล่าสุด', 'รายชื่อลูกค้าที่ยกเลิกการติดต่อ: พร้อมเหตุผลและกู้คืนได้'] },
+    { id: 'bigseller', role: 'boss', t: 'ตัวช่วย BigSeller (แยก Lazada / Shopee / TikTok)', s: ['ตั้งค่า → การเชื่อมต่อระบบ → BigSeller → ติดตั้งตัวช่วย แล้วกด Install ใน Tampermonkey (ทำครั้งเดียว)', 'เปิดหน้าออเดอร์ BigSeller ไว้ จะมีป้าย Evolution Hub มุมขวาล่างบอกจำนวนที่ส่งแล้ว', 'ระบบระบุช่องทาง เลขพัสดุ และแจกลูกค้าใหม่ให้เอง'] },
+    { id: 'conn', role: 'boss', t: 'การเชื่อมต่อระบบ', s: ['ตั้งค่า → การเชื่อมต่อระบบ ดูสถานะ Pancake, OneCall, E-Commerce และ BigSeller', 'กด ดึงตอนนี้ เพื่อดึงข้อมูลทันที'] },
+  ];
+  function pageHelp() {
+    const isBoss = boss(), mine = (r) => r === 'all' || (isBoss ? r === 'boss' : r === 'tele') || (isBoss && r === 'tele');
+    const vids = HELP_VIDEOS.filter((v) => (isBoss ? true : v.role === 'tele')).sort((a, b) => (isBoss ? (a.role === 'boss' ? -1 : 1) : 0));
+    const q = (ui.helpQ || '').trim().toLowerCase();
+    const topics = HELP.filter((h) => mine(h.role) && (!q || (h.t + ' ' + h.s.join(' ')).toLowerCase().includes(q)));
+    const vcard = (v) => '<article class="hv-card"><div class="hv-media">' + (DEMO ? '<div class="hv-demo">' + ico('play') + '<small>เปิดดูวิดีโอได้ในระบบจริง</small></div>' : '<video controls preload="metadata" playsinline poster="/help/' + v.id + '.jpg" src="/help/' + v.id + '.mp4"></video>') + '</div>' +
+      '<div class="hv-b"><span class="pill ' + (v.role === 'boss' ? 'info' : 'good') + '">' + (v.role === 'boss' ? 'ผู้บริหาร' : 'เทเลเซลล์') + '</span><h3>' + v.t + '</h3><p>' + v.d + '</p></div></article>';
+    const topic = (h) => { const open = ui.helpOpen === h.id || !!q; return '<div class="hg' + (open ? ' open' : '') + '"><button class="hg-h" data-act="help-open" data-v="' + h.id + '"><span>' + esc(h.t) + '</span>' + ico('down') + '</button>' + (open ? '<ol class="hg-s">' + h.s.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>' : '') + '</div>'; };
+    const [rows, pager] = pg10('help', topics, 'หัวข้อ');
+    return '<section class="banner hv-banner"><div class="grow"><h1>ศูนย์ช่วยเหลือ</h1><p>วิดีโอสอนใช้งานและคู่มือสั้น ๆ ทุกเมนู ดูซ้ำได้ตลอด</p></div><span class="hv-ico">' + ico('help') + '</span></section>' +
+      '<div class="section-t" style="margin:18px 0 10px">วิดีโอสอนใช้งาน</div><div class="hv-grid">' + vids.map(vcard).join('') + '</div>' +
+      '<section class="card" style="margin-top:18px"><div class="card-h"><span class="card-ico">' + ico('note') + '</span><div class="ttl"><h2>คู่มือทีละขั้นตอน</h2><small>กดหัวข้อเพื่อดูวิธีทำ</small></div></div>' +
+      '<label class="search" style="margin-bottom:12px"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาวิธีใช้ เช่น นัดหมาย พัสดุ Excel" value="' + esc(ui.helpQ || '') + '" data-act-change="help-q" aria-label="ค้นหาคู่มือ"></label>' +
+      (rows.length ? '<div class="hg-list">' + rows.map(topic).join('') + '</div>' + pager : '<div class="empty">ไม่พบหัวข้อที่ค้นหา</div>') + '</section>';
+  }
   // ------------------------------------------------------------ CALENDAR (v2: banner, week strip, month grid, day panel)
   const DOW_MON = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
   const DOW_FULL_MON = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
@@ -1760,11 +1831,13 @@
   function render() {
     if (!S.me) return;
     if (!allowed(S.page)) { S.page = S.me.role === 'tele' ? 'customers' : boss() ? 'overview' : 'home'; try { history.replaceState(null, '', '#' + S.page); } catch (_) { /* sandboxed */ } }
-    const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: () => pageOverview(), ovtele: () => pageOverview('tele'), ovadmin: () => pageOverview('admin'), customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, dnc: pageDnc, settings: pageSettings }[S.page];
+    const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: () => pageOverview(), ovtele: () => pageOverview('tele'), ovadmin: () => pageOverview('admin'), customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, dnc: pageDnc, settings: pageSettings, help: pageHelp }[S.page];
     const keepScroll = $('.drawer-b') ? $('.drawer-b').scrollTop : 0;
+    const keepY = render.last === S.page + '|' + (ui.custId || '') ? window.scrollY : null; render.last = S.page + '|' + (ui.custId || '');
     const body = fn();
     document.getElementById('app').innerHTML = shell((PH[S.page] ? (S.page === 'approvals' && !boss() ? pageHead('รายชื่อใหม่', 'ลูกค้าที่แอดมินปิดการขายแล้ว ระบบส่งมาให้คุณโทรดูแลต่ออัตโนมัติ') : pageHead(PH[S.page][0], PH[S.page][1])) : '') + body);
     if ($('.drawer-b') && keepScroll) $('.drawer-b').scrollTop = keepScroll;
+    if (keepY != null && Math.abs(window.scrollY - keepY) > 2) window.scrollTo(0, keepY);   // re-render in place (ticking a box, paging) keeps the scroll position
     document.title = PAGES[S.page].t + ' : Evolution Hub Commerce';
     remember();
     liven();
@@ -1835,7 +1908,7 @@
     'cd-step': (el) => { const list = LVITEMS.cust && LVITEMS.cust.length ? LVITEMS.cust : custList(); const i = list.findIndex((x) => x.id === ui.custId) + Number(el.dataset.v); if (list[i]) openCustomer(list[i].id); },
     'cd-edit': () => { const c = H.findCustomer(S.full || V(), ui.custId); openModal('<div class="row between" style="margin-bottom:12px"><h2 style="font-size:18px">แก้ไขข้อมูลลูกค้า</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' + editForm(c)); },
     'cd-order': () => { const c = H.findCustomer(S.full || V(), ui.custId); openModal('<div class="row between" style="margin-bottom:12px"><h2 style="font-size:18px">เพิ่มคำสั่งซื้อ</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' + orderForm(c)); },
-    'cd-dial': (el) => { cdTimer0 = cdTimer0 || Date.now(); clearInterval(qTick); qTick = setInterval(() => { const d = $('#cd-dur'); if (!d || !cdTimer0) { clearInterval(qTick); return; } if (!d.dataset.touched) { const sec = Math.round((Date.now() - cdTimer0) / 1000); d.value = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); } }, 1000); try { window.location.href = el.getAttribute('href'); } catch (_) { /* no dialer */ } },
+    'cd-dial': (el) => { try { const h = el.getAttribute('href'); if (h) window.location.href = h; } catch (_) {} cdTimer0 = cdTimer0 || Date.now(); clearInterval(qTick); qTick = setInterval(() => { const d = $('#cd-dur'); if (!d || !cdTimer0) { clearInterval(qTick); return; } if (!d.dataset.touched) { const sec = Math.round((Date.now() - cdTimer0) / 1000); d.value = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); } }, 1000); try { window.location.href = el.getAttribute('href'); } catch (_) { /* no dialer */ } },
     'cd-quick': (el) => { const f = el.closest('form'); const n = Number(el.dataset.v); $$('[data-act=cd-quick]', f).forEach((b) => b.classList.toggle('on', b === el)); f.nd.dataset.touched = '1'; if (!n && el.dataset.v === '0') { f.nd.value = ''; f.np.value = ''; $('[data-next-fields]', f).hidden = true; nextSum(f); return; } f.nd.value = H.addDays(H.today(), n); if (!f.np.value) f.np.value = n >= 25 ? 'T3 ชวนสั่งซ้ำ' : n >= 7 ? 'T2 ถามผลการใช้' : 'โทรติดตาม'; nextSum(f); },
     'cd-next-edit': (el) => { const f = el.closest('form'); const box = $('[data-next-fields]', f); box.hidden = !box.hidden; if (!box.hidden) f.nd.focus(); },
     'cd-notes': () => { ui.cdAllNotes = !ui.cdAllNotes; render(); },
@@ -1846,7 +1919,7 @@
     // ---- call queue
     'tq-bucket': (el) => { ui.tq.bucket = el.dataset.v; qCur = null; render(); },
     'tq-user': (el) => { ui.tq.user = el.dataset.v; qCur = null; qSkipped.clear(); render(); },
-    'q-dial': (el) => {
+    'q-dial': (el) => { try { const h = el.getAttribute('href'); if (h) window.location.href = h; } catch (_) {}
       if (!qTimer0) qTimer0 = Date.now();
       clearInterval(qTick); qTick = setInterval(() => { const t = $('#q-timer'); if (!t || !qTimer0) { clearInterval(qTick); return; } t.textContent = H.hms((Date.now() - qTimer0) / 1000); t.classList.add('on'); }, 1000);
       try { window.location.href = el.getAttribute('href'); } catch (_) { /* dialer not available */ }
@@ -1959,6 +2032,7 @@
     'nav-toggle': (el) => { ui.navOpen = ui.navOpen || {}; ui.navOpen[el.dataset.v] = !ui.navOpen[el.dataset.v]; remember(); render(); },
     'ap-tab': (el) => { ui.apTab = el.dataset.v; ui.apPage = 1; render(); },
     'q-by': (el) => { ui.qBy = el.dataset.v; render(); },
+    'help-open': (el) => { ui.helpOpen = ui.helpOpen === el.dataset.v ? '' : el.dataset.v; render(); },
     'pg': (el) => { ui.pg = ui.pg || {}; ui.pg[el.dataset.k] = Number(el.dataset.v); render(); },
     'ap-page': (el) => { ui.apPage = Number(el.dataset.v); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
     'cd-opage': (el) => { ui.cdOPage = Number(el.dataset.v); render(); },
@@ -2080,6 +2154,7 @@
       const pb = $('.cd-prod', f); if (pb) { if (g.id === 'sold') $('[data-rs=sold]', f).after(pb); else $('[data-prod-home]', f).after(pb); pb.hidden = g.id === 'none'; pb.classList.toggle('sold', g.id === 'sold'); const ph = $('[data-prod-hint]', pb); if (ph) ph.textContent = g.id === 'sold' ? 'จำเป็น : เลือกสินค้า จำนวน และยอด' : 'ไม่บังคับ : บันทึกว่าลูกค้าสนใจอะไร'; const pt = $('b.small', pb); if (pt) pt.textContent = g.id === 'sold' ? 'สินค้าที่ขาย' : 'สินค้าที่ลูกค้าสนใจ'; }
       if (g.id === 'talk') { const h = $('[data-next-hint]', f); if (h) h.textContent = 'เลือกคำตอบของลูกค้า แล้วระบบจะนัดให้อัตโนมัติ'; }
     }
+    else if (act === 'help-q') { ui.helpQ = t.value; ui.pg = ui.pg || {}; ui.pg.help = 1; render(); }
     else if (act === 'ts-q') { ui.tsQ = t.value; ui.tsPage = 1; render(); }
     else if (act === 'ts-user') { ui.tsUser = t.value; ui.tsPage = 1; render(); }
     else if (act === 'ts-rd') { ui.tsRd = t.value; ui.tsPage = 1; render(); }

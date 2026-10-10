@@ -120,6 +120,12 @@ app.get('/api/report/quality', auth, async (req, res) => {
   if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
   const day = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? String(x) : H.today());
   const from = day(req.query.from), to = day(req.query.to);
+  if (!I.status().pancake) {   // no Pancake key (local / demo): use the orders already in the hub
+    const rows = [];
+    for (const a of state.approvals) { if (a.status === 'rejected') continue; const c = H.findCustomer(state, a.customerId) || {}, o = (c.orders || []).find((x) => x.id === a.orderId) || {}; const at = o.date || a.at, d = H.dayKey(at); if (d < from || d > to) continue;
+      const sc = (o.ship || {}).code; rows.push({ at, admin: a.closerName || H.userName(state, a.closer) || 'ไม่ระบุ', page: a.page || c.page || 'ไม่ระบุเพจ', kind: o.status === 'cancelled' || sc === 'cancel' ? 'cancel' : sc === 'back' ? 'back' : sc === 'done' ? 'done' : sc === 'ship' ? 'ship' : 'open', total: o.total != null ? o.total : a.total || 0 }); }
+    return res.json({ rows });
+  }
   try { const rows = await I.pancakeQualityRows(from); res.json({ rows: rows.filter((r) => { const d = H.dayKey(r.at); return d >= from && d <= to; }) }); }
   catch (e) { res.status(502).json({ error: e.message }); }
 });
