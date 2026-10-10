@@ -402,7 +402,7 @@
     };
     // merge with the automatic OneCall entry for this customer (same day, within 3 h) so one call is counted once
     const auto = st.kpi.find((x) => x.auto && !x.manual && x.user === k.user && x.date === k.date && x.customerId === c.id && Math.abs(Date.parse(x.at) - Date.parse(k.at)) < 3 * 3600000);
-    if (auto) { Object.assign(auto, k, { id: auto.id, at: auto.at, ocId: auto.ocId, auto: true, manual: true, durationSec: Math.max(auto.durationSec || 0, k.durationSec || 0) }); k = auto; }
+    if (auto) { const ocDur = auto.durationSec || 0; Object.assign(auto, k, { id: auto.id, at: auto.at, ocId: auto.ocId, auto: true, manual: true, durationSec: ocDur || k.durationSec || 0, talked: ocDur > (st.settings.minTalkSec || 7) }); k = auto; }
     else st.kpi.push(k);
     if (k.orders) {
       const o = pushOrder(c, { items, total: amount, status: res.id === 'won' ? 'paid' : 'awaiting_payment', source: 'tele', by: user, note: 'จากการโทร ' + (k.round || 'Marketplace') });
@@ -635,7 +635,7 @@
     const c = o.phone ? byPhone(st, o.phone) : null;
     const t = Date.parse(o.at), day = dayKey(o.at);
     const near = st.kpi.find((k) => k.user === o.user && k.date === day && !k.ocId && k.mode === 'call' && !k.auto && (c ? k.customerId === c.id : k.phone === o.phone) && Math.abs(Date.parse(k.at) - t) < 3 * 3600000);
-    if (near) { near.ocId = o.id; if (o.dur > (near.durationSec || 0)) near.durationSec = o.dur; o.kpiId = near.id; return near; }
+    if (near) { near.ocId = o.id; near.durationSec = o.dur; near.talked = o.dur > minTalk; o.kpiId = near.id; return near; }
     const talked = o.dur > minTalk;
     const k = { id: uid('k'), user: o.user, date: day, at: o.at, mode: 'call', auto: true, ocId: o.id, channel: c && c.channel === 'ecom' ? 'mkt' : 'fb',
       round: c && c.channel === 'ecom' ? '' : ((c && c.round) || 'T1'), phone: o.phone, name: c ? c.name : '', customerId: c ? c.id : null,
@@ -883,7 +883,8 @@
       const n = k.mode === 'summary' ? k.calls : 1;
       const talked = k.mode === 'summary' ? k.talkedCount : (k.talked ? 1 : 0);
       r.calls += n; r.talked += talked; r.notTalked += n - talked; r.talkSec += k.durationSec || 0;
-      if (k.channel === 'mkt') r.mktCalls += n; else { r.fbCalls += n; if (k.round === 'T2') r.t2 += n; else if (k.round === 'T3') r.t3 += n; else r.t1 += n; }
+      // KPI counts only calls where the customer was actually talked to (OneCall: longer than 7 seconds)
+      if (k.channel === 'mkt') r.mktCalls += talked; else { r.fbCalls += talked; if (k.round === 'T2') r.t2 += talked; else if (k.round === 'T3') r.t3 += talked; else r.t1 += talked; }
       r.amount += k.amount || 0; r.orders += k.orders || 0;
       if (k.result === 'won') r.won++;
       for (const it of (k.items || [])) r.items[it.name] = (r.items[it.name] || 0) + it.qty;
