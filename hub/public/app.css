@@ -1192,3 +1192,39 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 .cp-item.next { background: rgba(219, 234, 254, .7) !important; border-color: rgba(147, 180, 255, .8) !important; }
 .cal-banner { border-color: rgba(252, 165, 165, .7) !important; }
 .ap-card.done { background: var(--glass-2) !important; }
+
+/* ===== glass everywhere: light frosted sidebar like the reference ===== */
+.side { background: rgba(255, 255, 255, .5) !important; color: var(--text) !important; -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%); border-right: 1px solid rgba(255, 255, 255, .8) !important; box-shadow: 6px 0 30px rgba(31, 45, 110, .06) !important; }
+.brand b { color: #1e293b; background: linear-gradient(90deg, #2563eb, #7c3aed); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.brand b::before { background: linear-gradient(135deg, #3b82f6, #8b5cf6); box-shadow: 0 0 0 4px rgba(99, 102, 241, .18); }
+.brand small { color: var(--muted); opacity: 1; }
+.nav-label { color: var(--faint); opacity: 1; }
+.nav button, .nav .nsub-i { color: #475569 !important; }
+.nav button:hover { background: rgba(255, 255, 255, .7) !important; color: #1e293b !important; }
+.nav button.on, .nav .ngrp-h.on, .nav .nsub-i.on { background: rgba(255, 255, 255, .92) !important; color: #2257e6 !important; border-color: rgba(255, 255, 255, .95) !important; box-shadow: 0 6px 18px rgba(31, 45, 110, .1), inset 0 1px 0 #fff !important; }
+.nav button.on .ico { color: #2257e6; }
+.nav .ngrp-h.in { color: #1e293b !important; }
+.nav .chev:hover { background: rgba(148, 163, 184, .18); }
+.nav .nsub-i.on .dot { box-shadow: 0 0 0 3px rgba(37, 87, 230, .18); }
+.side-foot { background: rgba(255, 255, 255, .6) !important; border-color: rgba(255, 255, 255, .9) !important; color: var(--muted); }
+.side-foot b { color: var(--text); }
+.burger { background: var(--glass) !important; }
+/* remaining surfaces */
+.empty, .ap-empty span, .q-empty { background: transparent; }
+.toast { background: rgba(15, 23, 42, .82) !important; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, .15); border-radius: 14px; }
+.tbl th, #lv-cust th { background: rgba(255, 255, 255, .35) !important; }
+.selbar, .lc-sel { background: rgba(219, 234, 254, .6) !important; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.cm-d { background: rgba(255, 255, 255, .25); } .cm-d.out { background: rgba(255, 255, 255, .1); } .cm-h { background: rgba(255, 255, 255, .35) !important; }
+.cm, .cal-grid .cm { border-color: rgba(160, 175, 210, .25) !important; }
+.pages button { background: rgba(255, 255, 255, .55); border-radius: 10px; } .pages button.on { background: linear-gradient(180deg, #6f93ff, #3d6bf0); color: #fff; }
+.alert-row { background: rgba(255, 255, 255, .45) !important; border-color: rgba(255, 255, 255, .8) !important; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 14px; }
+.items .item-row .in, .kv { background: transparent; }
+.demo-bar { background: rgba(255, 255, 255, .55) !important; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+/* welcome banner: holographic glass */
+.banner { background: linear-gradient(120deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, .2)), linear-gradient(115deg, #a9bfff 0%, #f4c3e3 32%, #c4efe5 58%, #c6b6ff 82%, #a6d0ff 100%) !important; color: #172554 !important; border: 1px solid rgba(255, 255, 255, .8); box-shadow: var(--glass-shadow); position: relative; overflow: hidden; }
+.banner h1, .banner p { color: #172554 !important; } .banner p { opacity: .75; }
+.banner::after { content: ""; position: absolute; inset: -40% -10%; background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .5) 46%, transparent 54%); animation: sheen 7s ease-in-out infinite; pointer-events: none; }
+.datebox { background: linear-gradient(160deg, #6f93ff, #3d6bf0) !important; box-shadow: 0 6px 14px rgba(61, 107, 240, .3); }
+/* lead cards need room: stack the side card below until the screen is wide */
+@media (max-width: 1600px) { .ap-grid { grid-template-columns: minmax(0, 1fr); } }
+.banner::after { border: 0 !important; border-radius: 0 !important; width: auto !important; height: auto !important; right: auto; top: auto; }
