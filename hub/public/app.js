@@ -40,6 +40,7 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
     upload: '<path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+    download: '<path d="M12 4v11"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/>',
     logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5M5 12h11"/>',
     pin: '<path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
     bag: '<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
@@ -587,7 +588,7 @@
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.admin ? d.rev.admin / d.cnt.admin : 0), 'ยอด Admin') + tile('รายชื่อที่แจกให้ Telesales', N(dist), 'แจกอัตโนมัติ 50:50') +
         tile('แอดมินที่มียอด', N(d.admins.filter((a) => a.revenue > 0).length), 'จาก ' + N(d.admins.length) + ' คน') + '</div>';
       const splitCard = card('send', 'สัดส่วนรายชื่อวันนี้', 'แจกให้ Telesales อัตโนมัติ 50:50', splitBar(todaySplit()), '<button class="btn sm" data-go="approvals">ดูรายชื่อที่ถูกแจก</button>');
-      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + foot;
+      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? adminSales(st, from, to, label) : '') + foot;
     }
     const ct = '<div class="tiles">' + tile('ยอดขายรวม (Telesales + Admin)', B(two), 'เดือนนี้ ' + B(d.monthRev) + ' : ' + monthPct + '% ของเป้า ' + B(d.monthTarget), 'hero', monthPct) +
       tile('<i style="background:var(--c-tele)"></i>Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์ : ' + (two ? Math.round(d.rev.tele / two * 100) : 0) + '% ของยอดรวม') +
@@ -637,6 +638,45 @@
       stat('ยอดขาย', r.amount, r.target.revenue, N(r.orders) + ' ออเดอร์', B) + '</div>' +
       '<div class="kpc-f"><span>ได้คุย <b>' + pctTxt(r.contactRate) + '</b></span><span>ปิดได้ <b>' + pctTxt(r.conversion) + '</b></span><span>นัดวันนี้ <b>' + r.appts.done + '/' + r.appts.due + '</b></span>' +
       (r.appts.overdue ? '<span class="bad">เลยนัด <b>' + N(r.appts.overdue) + '</b></span>' : '') + '</div></div>';
+  }
+  // ---- detailed admin sales (Pancake + manual closes): one row per order
+  function adminSalesRows(st, from, to) {
+    const out = [];
+    for (const a of st.approvals || []) {
+      if (a.status === 'rejected') continue;
+      const c = H.findCustomer(st, a.customerId) || {};
+      const o = (c.orders || []).find((x) => x.id === a.orderId) || {};
+      const at = o.date || a.at, d = H.dayKey(at);
+      if (d < from || d > to) continue;
+      out.push({ a, c, o, at, d, items: (o.items && o.items.length ? o.items : a.items) || [], total: o.total != null ? o.total : a.total || 0,
+        status: o.status || 'paid', closer: a.closerName || uname(a.closer) || '-', page: a.page || c.page || '', ext: String(a.extId || o.extId || '').replace(/^pc:/, ''), to: a.assigned || a.proposed });
+    }
+    return out.sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
+  }
+  function adminSales(st, from, to, label) {
+    let rows = adminSalesRows(st, from, to);
+    const admins = [...new Set(rows.map((r) => r.closer))].sort(), pagesL = [...new Set(rows.map((r) => r.page).filter(Boolean))].sort();
+    if (ui.asAdmin && ui.asAdmin !== 'all') rows = rows.filter((r) => r.closer === ui.asAdmin);
+    if (ui.asPg && ui.asPg !== 'all') rows = rows.filter((r) => r.page === ui.asPg);
+    const q = (ui.asQ || '').trim().toLowerCase();
+    if (q) rows = rows.filter((r) => [r.c.name, r.c.phone, r.ext, r.closer, r.page, r.items.map((i) => i.name).join(' ')].join(' ').toLowerCase().includes(q.replace(/[-\s]/g, '')) || (r.c.phone || '').includes(q.replace(/\D/g, '') || '###'));
+    const ok = rows.filter((r) => r.status !== 'cancelled'), sum = ok.reduce((t, r) => t + r.total, 0), qty = ok.reduce((t, r) => t + r.items.reduce((u, i) => u + (i.qty || 0), 0), 0);
+    const per = 20, pages = Math.max(1, Math.ceil(rows.length / per)), page = Math.min(Math.max(1, ui.asPage || 1), pages);
+    const stt = { paid: ['good', 'ชำระแล้ว'], awaiting_payment: ['warn', 'รอชำระ'], cancelled: ['bad', 'ยกเลิก'] };
+    const tr = (r) => { const s2 = stt[r.status] || stt.paid, tu = user(r.to);
+      return '<tr><td class="nowrap"><b>' + H.thDate(r.at).replace(/ \d{4}$/, '') + '</b><small class="muted">' + H.thTime(r.at) + ' น.</small></td>' +
+        '<td><b class="link one" data-open="' + esc(r.c.id || '') + '">' + esc(r.c.name || 'ลูกค้าไม่ระบุชื่อ') + '</b><small class="muted">' + (r.c.phone ? H.fmtPhone(r.c.phone) : 'ไม่มีเบอร์') + (r.a.returning ? ' : <span class="pill info">ลูกค้าเก่า</span>' : '') + '</small></td>' +
+        '<td>' + (r.items.length ? r.items.map((i) => '<div class="as-it"><span class="one">' + esc(String(i.name).replace(/\s*\([^)]*\)$/, '')) + '</span><b>×' + (i.qty || 1) + '</b>' + (i.price ? '<small class="muted">' + B(i.price) + '</small>' : '') + '</div>').join('') : '<span class="faint">ไม่ระบุสินค้า</span>') + '</td>' +
+        '<td class="n"><b>' + B(r.total) + '</b><span class="pill ' + s2[0] + '">' + s2[1] + '</span></td>' +
+        '<td><b class="one">' + esc(r.closer) + '</b><small class="muted one">' + esc(r.page || (r.a.source === 'pancake' ? 'Pancake' : 'บันทึกในระบบ')) + '</small></td>' +
+        '<td class="hide-sm">' + (tu ? '<span class="who small"><span class="mini">' + esc(tu.initial || '') + '</span>' + esc(tu.name) + '</span>' : '<span class="faint">-</span>') + '<small class="muted">' + (r.ext ? '#' + esc(r.ext) : '') + '</small></td></tr>'; };
+    const sel = (act, val, opts, all) => '<select class="in as-sel" data-act-change="' + act + '"><option value="all">' + all + '</option>' + opts.map((o) => '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>';
+    return '<section class="card as-card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>รายการขายของแอดมิน</h2><small>' + label + ' : ออเดอร์จาก Pancake และที่บันทึกในระบบ ทีละรายการ</small></div><button class="btn sm" data-act="as-csv">' + ico('download') + ' ส่งออก CSV</button></div>' +
+      '<div class="as-sum"><div><small>ออเดอร์</small><b>' + N(ok.length) + '</b></div><div><small>ยอดขาย</small><b>' + B(sum) + '</b></div><div><small>เฉลี่ยต่อออเดอร์</small><b>' + B(ok.length ? sum / ok.length : 0) + '</b></div><div><small>จำนวนชิ้น</small><b>' + N(qty) + '</b></div><div><small>ลูกค้าเก่าซื้อซ้ำ</small><b>' + N(ok.filter((r) => r.a.returning).length) + '</b></div></div>' +
+      '<div class="as-bar"><label class="search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาชื่อ เบอร์ สินค้า หรือเลขออเดอร์" value="' + esc(ui.asQ || '') + '" data-act-change="as-q" aria-label="ค้นหา"></label>' + sel('as-admin', ui.asAdmin, admins, 'แอดมินทุกคน') + sel('as-pg', ui.asPg, pagesL, 'ทุกเพจ') + '</div>' +
+      (rows.length ? '<div class="tbl-wrap"><table class="tbl as-tbl"><thead><tr><th>วันที่ / เวลา</th><th>ลูกค้า</th><th>สินค้า × จำนวน</th><th class="n">ยอด</th><th>ปิดการขายโดย</th><th class="hide-sm">ส่งให้ Telesales</th></tr></thead><tbody>' + rows.slice((page - 1) * per, page * per).map(tr).join('') + '</tbody></table></div>' +
+        '<div class="cp-pager"><small class="muted">' + ((page - 1) * per + 1) + '–' + Math.min(page * per, rows.length) + ' จาก ' + N(rows.length) + ' ออเดอร์</small>' + (pages > 1 ? '<div class="pages"><button data-act="as-page" data-v="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') + '>‹</button><button class="on">' + page + ' / ' + pages + '</button><button data-act="as-page" data-v="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') + '>›</button></div>' : '') + '</div>'
+        : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>';
   }
   // donut: share of a whole, legend with amount + percent beside it
   const DONUT_COL = ['#2563eb', '#0d9488', '#f59e0b', '#8b5cf6', '#ec4899'];
@@ -1733,6 +1773,14 @@
     'dnc-restore': (el) => run(() => api.act('restoreCustomer', { id: el.dataset.id }), 'กู้คืนรายชื่อแล้ว : กลับไปอยู่ในรายชื่อลูกค้าสถานะรอติดตาม'),
     'dnc-page': (el) => { ui.dncPage = Number(el.dataset.v); render(); },
     'sync-evo': () => run(async () => { const r = await fetch('/api/sync/evolution', { method: 'POST', credentials: 'same-origin' }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'ดึงไม่สำเร็จ'); await api.refresh(true); return j; }, (j) => 'ดึง E-Commerce แล้ว : ลูกค้าใหม่ ' + N(j.added || 0) + ' ราย'),
+    'as-page': (el) => { ui.asPage = Number(el.dataset.v); render(); },
+    'as-csv': () => {
+      const st = S.full || V(); let [from, to] = drRange('ov'); if (!from) { from = '2000-01-01'; to = H.today(); }
+      const rows = adminSalesRows(st, from, to);
+      const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const csv = '\ufeff' + ['วันที่,เวลา,เลขออเดอร์,ลูกค้า,เบอร์,สินค้า,จำนวน,ยอด,สถานะ,ปิดโดย,เพจ,ส่งให้'].concat(rows.map((r) => [H.dayKey(r.at), H.thTime(r.at), r.ext, r.c.name, r.c.phone, r.items.map((i) => i.name).join(' | '), r.items.reduce((u, i) => u + (i.qty || 0), 0), r.total, r.status, r.closer, r.page, uname(r.to)].map(q).join(','))).join('\n');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'admin-sales-' + from + '_' + to + '.csv'; a.click();
+    },
     'ap-mine-all': () => { const ids = (V().approvals || []).filter((a) => a.status === 'pending' && a.proposed === S.me.id).map((a) => a.id); run(() => api.act('approveMany', { ids }), (r) => 'รับ ' + N(r.approved) + ' รายชื่อแล้ว'); },
     'ap-all': () => run(() => api.act('approveAll', {}), (r) => 'อนุมัติ ' + (r && r.approved) + ' รายชื่อแล้ว'),
     'sync-pancake': () => run(() => api.post('/api/sync/pancake', {}), (r) => 'ดึงจาก Pancake : ' + (r.added || 0) + ' ออเดอร์ใหม่' + (r.error ? ' (' + r.error + ')' : '')),
@@ -1827,6 +1875,9 @@
       const pb = $('.cd-prod', f); if (pb) { if (g.id === 'sold') $('[data-rs=sold]', f).after(pb); else $('[data-prod-home]', f).after(pb); pb.hidden = g.id === 'none'; pb.classList.toggle('sold', g.id === 'sold'); const ph = $('[data-prod-hint]', pb); if (ph) ph.textContent = g.id === 'sold' ? 'จำเป็น : เลือกสินค้า จำนวน และยอด' : 'ไม่บังคับ : บันทึกว่าลูกค้าสนใจอะไร'; const pt = $('b.small', pb); if (pt) pt.textContent = g.id === 'sold' ? 'สินค้าที่ขาย' : 'สินค้าที่ลูกค้าสนใจ'; }
       if (g.id === 'talk') { const h = $('[data-next-hint]', f); if (h) h.textContent = 'เลือกคำตอบของลูกค้า แล้วระบบจะนัดให้อัตโนมัติ'; }
     }
+    else if (act === 'as-q') { ui.asQ = t.value; ui.asPage = 1; render(); }
+    else if (act === 'as-admin') { ui.asAdmin = t.value; ui.asPage = 1; render(); }
+    else if (act === 'as-pg') { ui.asPg = t.value; ui.asPage = 1; render(); }
     else if (act === 'dnc-q') { ui.dncQ = t.value; ui.dncPage = 1; render(); }
     else if (act === 'cd-result') { const f = t.closest('form'); reasonField(f, t.value); suggestNext(f); if (t.value === 'dnc') nextSum(f); }
     else if (act === 'cd-pline') {

@@ -1228,3 +1228,15 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 /* lead cards need room: stack the side card below until the screen is wide */
 @media (max-width: 1600px) { .ap-grid { grid-template-columns: minmax(0, 1fr); } }
 .banner::after { border: 0 !important; border-radius: 0 !important; width: auto !important; height: auto !important; right: auto; top: auto; }
+
+/* admin sales list */
+.as-sum { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.as-sum > div { padding: 12px 14px; border-radius: 14px; background: var(--glass-2, #f6f8fc); border: 1px solid var(--glass-line, var(--line)); display: grid; }
+.as-sum small { color: var(--muted); font-size: 12px; } .as-sum b { font-size: 19px; }
+.as-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; } .as-bar .search { flex: 1 1 320px; margin: 0; } .as-sel { width: auto; min-width: 150px; }
+.as-tbl td { vertical-align: top; } .as-tbl td small { display: block; }
+.as-tbl td.n .pill { margin-top: 4px; }
+.as-it { display: flex; gap: 6px; align-items: baseline; font-size: 13px; } .as-it b { color: var(--accent); } .as-it .one { max-width: 260px; }
+.as-tbl .nowrap { white-space: nowrap; }
+@media (max-width: 760px) { .as-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.as-tbl td.n b { display: block; } .as-tbl td.n .pill { display: inline-block; }
