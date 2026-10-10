@@ -146,7 +146,7 @@
     { const CAR = ['Flash Express Thailand', 'Kerry Express', 'J&T Express']; const ST = [['done', 'ส่งถึงลูกค้าแล้ว'], ['ship', 'กำลังจัดส่ง'], ['pack', 'รอขนส่งเข้ารับ']];
       for (const c of st.customers) { const o = (c.orders || [])[0]; if (!o || o.status === 'cancelled') continue;
         const age = H.daysBetween(H.dayKey(o.date), T); if (age > 20) continue;
-        const s2 = age >= 3 ? ST[0] : age >= 1 ? ST[1] : ST[2], car = o.platform === 'shopee' ? 'Shopee Xpress' : o.platform === 'lazada' ? 'LEX TH' : o.platform === 'tiktok' ? 'J&T Express' : pick(CAR);
+        const s2 = age >= 3 ? (r() < .07 ? ['back', 'ตีกลับแล้ว'] : r() < .05 ? ['cancel', 'ยกเลิก'] : ST[0]) : age >= 1 ? ST[1] : ST[2], car = o.platform === 'shopee' ? 'Shopee Xpress' : o.platform === 'lazada' ? 'LEX TH' : o.platform === 'tiktok' ? 'J&T Express' : pick(CAR);
         o.ship = { code: s2[0], label: s2[1], carrier: car, tracking: s2[0] === 'pack' && r() < .5 ? '' : 'TH' + Math.floor(1e11 + r() * 9e11) + 'A', link: s2[0] === 'pack' ? '' : 'https://pke.gg/demo', at: at(H.addDays(T, -Math.max(0, age - 2)), 10 + Math.floor(r() * 6)) };
       } }
     // ---- 6) announcements

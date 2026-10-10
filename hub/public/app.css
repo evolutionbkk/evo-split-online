@@ -1264,3 +1264,13 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 .ship-steps span.done i, .ship-steps span.done::before, .ship-steps span.on::before { background: var(--good); }
 .ship-steps span.on i { background: var(--accent); box-shadow: 0 0 0 4px rgba(37, 99, 235, .18); }
 .ship-kv { margin: 0 0 10px; } .ship-alert { display: inline-block; margin: 10px 0; }
+
+/* cancel / return + repeat-by-page reports */
+.q-card .card-h { flex-wrap: wrap; }
+.q-c { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; } .q-c span { font-size: 12px; color: var(--muted); min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.q-c.bad b, .q-c.bad span { color: var(--bad); font-weight: 700; }
+.q-bar { height: 4px; border-radius: 4px; background: rgba(148, 163, 184, .18); margin-top: 6px; overflow: hidden; } .q-bar i { display: block; height: 100%; background: #f87171; border-radius: 4px; }
+.q-bad em { font-style: normal; font-size: 13px; color: var(--bad); font-weight: 600; margin-left: 4px; }
+.q-tbl td, .q-tbl th { vertical-align: middle; }
+.rp-r { display: flex; align-items: center; gap: 10px; min-width: 160px; } .rp-r .bar { flex: 1; height: 8px; border-radius: 6px; background: rgba(148, 163, 184, .18); overflow: hidden; } .rp-r .bar i { display: block; height: 100%; background: var(--good); border-radius: 6px; } .rp-r b { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
+.q-ok em { font-style: normal; font-size: 13px; color: var(--muted); margin-left: 4px; }

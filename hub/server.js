@@ -114,6 +114,14 @@ app.get('/api/dashboard', auth, (req, res) => {
   const dist = state.approvals.filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) >= from && H.dayKey(a.decidedAt || a.at) <= to).length;
   res.json({ d, split, dist, updatedAt: state.updatedAt });
 });
+// cancel / return rates by admin and page, straight from Pancake (executives only)
+app.get('/api/report/quality', auth, async (req, res) => {
+  if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+  const day = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? String(x) : H.today());
+  const from = day(req.query.from), to = day(req.query.to);
+  try { const rows = await I.pancakeQualityRows(from); res.json({ rows: rows.filter((r) => { const d = H.dayKey(r.at); return d >= from && d <= to; }) }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
 app.post('/api/action', auth, async (req, res) => {
   const { type, payload } = req.body || {};
   if (type === 'resetDemo') return res.status(400).json({ error: 'ใช้ได้เฉพาะโหมดตัวอย่าง' });

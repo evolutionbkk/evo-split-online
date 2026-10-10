@@ -589,7 +589,7 @@
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.admin ? d.rev.admin / d.cnt.admin : 0), 'ยอด Admin') + tile('รายชื่อที่แจกให้ Telesales', N(dist), 'แจกอัตโนมัติ 50:50') +
         tile('แอดมินที่มียอด', N(d.admins.filter((a) => a.revenue > 0).length), 'จาก ' + N(d.admins.length) + ' คน') + '</div>';
       const splitCard = card('send', 'สัดส่วนรายชื่อวันนี้', 'แจกให้ Telesales อัตโนมัติ 50:50', splitBar(todaySplit()), '<button class="btn sm" data-go="approvals">ดูรายชื่อที่ถูกแจก</button>');
-      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? adminSales(st, from, to, label) : '') + foot;
+      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? qualityCard(st, from, to, label) + repeatPageCard(st) + adminSales(st, from, to, label) : '') + foot;
     }
     const ct = '<div class="tiles">' + tile('ยอดขายรวม (Telesales + Admin)', B(two), 'เดือนนี้ ' + B(d.monthRev) + ' : ' + monthPct + '% ของเป้า ' + B(d.monthTarget), 'hero', monthPct) +
       tile('<i style="background:var(--c-tele)"></i>Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์ : ' + (two ? Math.round(d.rev.tele / two * 100) : 0) + '% ของยอดรวม') +
@@ -648,6 +648,59 @@
       stat('ยอดขาย', r.amount, r.target.revenue, N(r.orders) + ' ออเดอร์', B) + '</div>' +
       '<div class="kpc-f"><span>ได้คุย <b>' + pctTxt(r.contactRate) + '</b></span><span>ปิดได้ <b>' + pctTxt(r.conversion) + '</b></span><span>นัดวันนี้ <b>' + r.appts.done + '/' + r.appts.due + '</b></span>' +
       (r.appts.overdue ? '<span class="bad">เลยนัด <b>' + N(r.appts.overdue) + '</b></span>' : '') + '</div></div>';
+  }
+  // ---- cancel / return rates by admin and by page (Pancake is the source of truth; the demo uses hub orders)
+  const QR = {};
+  function qualityRows(st, from, to) {
+    if (DEMO) {
+      const out = [];
+      for (const a of st.approvals || []) { if (a.status === 'rejected') continue; const c = H.findCustomer(st, a.customerId) || {}, o = (c.orders || []).find((x) => x.id === a.orderId) || {}; const at = o.date || a.at, d = H.dayKey(at); if (d < from || d > to) continue;
+        const sc = (o.ship || {}).code; out.push({ at, admin: a.closerName || uname(a.closer) || 'ไม่ระบุ', page: a.page || c.page || 'ไม่ระบุเพจ', kind: o.status === 'cancelled' || sc === 'cancel' ? 'cancel' : sc === 'back' ? 'back' : sc === 'done' ? 'done' : sc === 'ship' ? 'ship' : 'open', total: o.total != null ? o.total : a.total || 0 }); }
+      return out;
+    }
+    const k = from + '|' + to, hit = QR[k];
+    if (hit && (hit.rows || hit.error) && hit.at > Date.now() - 5 * 60000) return hit;
+    if (!hit || !hit.loading) { QR[k] = { loading: true, at: 0 }; fetch('/api/report/quality?from=' + from + '&to=' + to, { credentials: 'same-origin' }).then((r) => r.json().then((j) => (r.ok ? { rows: j.rows } : { error: j.error || 'โหลดไม่สำเร็จ' }))).catch((e) => ({ error: e.message })).then((x) => { QR[k] = Object.assign(x, { at: Date.now() }); if (S.page === 'ovadmin') render(); }); }
+    return hit && (hit.rows || hit.error) ? hit : null;
+  }
+  function qualityCard(st, from, to, label) {
+    const r = qualityRows(st, from, to), rows = Array.isArray(r) ? r : r && r.rows;
+    const headH = '<div class="card-h"><span class="card-ico">' + ico('alert') + '</span><div class="ttl"><h2>อัตรายกเลิกและตีกลับ</h2><small>' + label + ' : ออเดอร์จาก Pancake แยกตามแอดมินและเพจ</small></div>' +
+      '<div class="seg"><button class="' + (ui.qBy !== 'page' ? 'on' : '') + '" data-act="q-by" data-v="admin">แยกตามแอดมิน</button><button class="' + (ui.qBy === 'page' ? 'on' : '') + '" data-act="q-by" data-v="page">แยกตามเพจ</button></div></div>';
+    if (!rows) return '<section class="card q-card">' + headH + '<div class="empty">' + (r && r.error ? 'ดึงข้อมูลจาก Pancake ไม่ได้ : ' + esc(r.error) : 'กำลังดึงข้อมูลจาก Pancake…') + '</div></section>';
+    const agg = (list) => { const a = { n: list.length, cancel: 0, back: 0, done: 0, ship: 0, lost: 0 }; for (const x of list) { if (x.kind in a) a[x.kind]++; if (x.kind === 'cancel' || x.kind === 'back') a.lost += x.total || 0; } a.sent = a.done + a.back + a.ship; a.cr = a.n ? a.cancel / a.n : 0; a.rr = a.sent ? a.back / a.sent : 0; return a; };
+    const all = agg(rows), key = ui.qBy === 'page' ? 'page' : 'admin', groups = {};
+    for (const x of rows) (groups[x[key]] = groups[x[key]] || []).push(x);
+    const list = Object.entries(groups).map(([name, l]) => Object.assign({ name }, agg(l))).sort((a, b) => b.n - a.n);
+    const P = (v) => (v * 100).toFixed(1) + '%';
+    const warn = (v, base, n) => n >= 3 && v > 0 && v >= Math.max(base * 1.5, 0.05);
+    const [pageRows, pager] = pg10('q-' + key, list, key === 'page' ? 'เพจ' : 'คน');
+    const cell = (cnt, rate, base, n) => '<td class="n"><div class="q-c' + (warn(rate, base, n) ? ' bad' : '') + '"><b>' + N(cnt) + '</b><span>' + P(rate) + '</span></div><div class="q-bar"><i style="width:' + Math.min(100, rate * 100 * 4) + '%"></i></div></td>';
+    return '<section class="card q-card">' + headH +
+      '<div class="as-sum"><div><small>ออเดอร์ทั้งหมด</small><b>' + N(all.n) + '</b></div><div><small>ยกเลิก</small><b class="' + (all.cancel ? 'q-bad' : 'q-ok') + '">' + N(all.cancel) + ' <em>' + P(all.cr) + '</em></b></div><div><small>ตีกลับ</small><b class="' + (all.back ? 'q-bad' : 'q-ok') + '">' + N(all.back) + ' <em>' + P(all.rr) + '</em></b></div><div><small>ส่งสำเร็จ</small><b>' + N(all.done) + '</b></div><div><small>มูลค่าที่เสียไป</small><b>' + B(all.lost) + '</b></div></div>' +
+      (list.length ? '<div class="tbl-wrap"><table class="tbl q-tbl"><thead><tr><th>' + (key === 'page' ? 'เพจ' : 'แอดมิน') + '</th><th class="n">ออเดอร์</th><th class="n">ยกเลิก</th><th class="n">ตีกลับ</th><th class="n hide-sm">ส่งสำเร็จ</th><th class="n hide-sm">มูลค่าที่เสียไป</th></tr></thead><tbody>' +
+        pageRows.map((g) => '<tr><td><b class="one">' + esc(g.name) + '</b></td><td class="n"><b>' + N(g.n) + '</b></td>' + cell(g.cancel, g.cr, all.cr, g.n) + cell(g.back, g.rr, all.rr, g.sent) + '<td class="n hide-sm">' + N(g.done) + '</td><td class="n hide-sm">' + (g.lost ? B(g.lost) : '<span class="faint">-</span>') + '</td></tr>').join('') + '</tbody></table></div>' + pager : '<div class="empty">ไม่มีออเดอร์ในช่วงนี้</div>') +
+      '<div class="small muted" style="margin-top:10px">ยกเลิก = ออเดอร์ที่ถูกยกเลิก ÷ ออเดอร์ทั้งหมด : ตีกลับ = พัสดุตีกลับ ÷ พัสดุที่ส่งออกไปแล้ว : <b style="color:var(--bad)">สีแดง</b> = สูงกว่าค่าเฉลี่ยทั้งทีมชัดเจน</div></section>';
+  }
+  // which FB page brings customers who come back and buy again (any channel, including telesales re-sales)
+  function repeatPageCard(st) {
+    const g = {};
+    for (const c of st.customers || []) {
+      if (c.channel !== 'fb' || !c.page) continue;
+      const os = (c.orders || []).filter((o) => o.status !== 'cancelled').sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+      if (!os.length) continue;
+      const x = g[c.page] = g[c.page] || { name: c.page, n: 0, rep: 0, rev: 0, tele: 0 };
+      x.n++; if (os.length >= 2) { x.rep++; for (const o of os.slice(1)) { x.rev += o.total || 0; if (o.source === 'tele') x.tele++; } }
+    }
+    const list = Object.values(g).filter((x) => x.n >= 1).sort((a, b) => b.rep - a.rep || b.n - a.n);
+    const best = list.filter((x) => x.n >= 10).sort((a, b) => b.rep / b.n - a.rep / a.n)[0];
+    const [rows, pager, off] = pg10('rep-page', list, 'เพจ');
+    const mx = Math.max(0.0001, ...list.map((x) => x.rep / x.n));
+    return '<section class="card"><div class="card-h"><span class="card-ico">' + ico('users') + '</span><div class="ttl"><h2>เพจที่ได้ลูกค้าซื้อซ้ำ</h2><small>ลูกค้าที่มาจากเพจนั้นแล้วกลับมาซื้ออีก (ทุกช่องทาง รวมที่เทเลเซลล์ขายต่อ) : นับตั้งแต่มีข้อมูล</small></div>' +
+      (best ? '<span class="pill good">อัตราซื้อซ้ำสูงสุด : ' + esc(best.name.length > 28 ? best.name.slice(0, 28) + '…' : best.name) + ' ' + Math.round(best.rep / best.n * 100) + '%</span>' : '') + '</div>' +
+      (list.length ? '<div class="tbl-wrap"><table class="tbl q-tbl"><thead><tr><th>#</th><th>เพจ</th><th class="n">ลูกค้า</th><th class="n">ซื้อซ้ำ</th><th>อัตราซื้อซ้ำ</th><th class="n hide-sm">ยอดจากการซื้อซ้ำ</th><th class="n hide-sm">ปิดซ้ำโดยเทเลเซลล์</th></tr></thead><tbody>' +
+        rows.map((x, i) => { const rt = x.rep / x.n; return '<tr><td class="muted">' + (off + i + 1) + '</td><td><b class="one">' + esc(x.name) + '</b></td><td class="n">' + N(x.n) + '</td><td class="n"><b>' + N(x.rep) + '</b></td><td><div class="rp-r"><span class="bar"><i style="width:' + Math.round(rt / mx * 100) + '%"></i></span><b>' + (rt * 100).toFixed(1) + '%</b></div></td><td class="n hide-sm">' + B(x.rev) + '</td><td class="n hide-sm">' + N(x.tele) + ' ออเดอร์</td></tr>'; }).join('') + '</tbody></table></div>' + pager
+        : '<div class="empty">ยังไม่มีข้อมูลเพจของลูกค้า</div>') + '</section>';
   }
   // ---- detailed admin sales (Pancake + manual closes): one row per order
   function adminSalesRows(st, from, to) {
@@ -1850,6 +1903,7 @@
     'kpi-del': (el) => delKpi((V().kpi || []).filter((k) => k.id === el.dataset.id)),
     'nav-toggle': (el) => { ui.navOpen = ui.navOpen || {}; ui.navOpen[el.dataset.v] = !ui.navOpen[el.dataset.v]; remember(); render(); },
     'ap-tab': (el) => { ui.apTab = el.dataset.v; ui.apPage = 1; render(); },
+    'q-by': (el) => { ui.qBy = el.dataset.v; render(); },
     'pg': (el) => { ui.pg = ui.pg || {}; ui.pg[el.dataset.k] = Number(el.dataset.v); render(); },
     'ap-page': (el) => { ui.apPage = Number(el.dataset.v); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
     'cd-opage': (el) => { ui.cdOPage = Number(el.dataset.v); render(); },

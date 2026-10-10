@@ -61,6 +61,27 @@ function applyShipping(state, raws) {
   }
   return n;
 }
+// Pancake orders as simple rows for the cancel / return report (cached 10 min; reads back until the requested start day)
+const QCACHE = { at: 0, oldest: '', rows: [] };
+const PC_KIND = { 6: 'cancel', 4: 'back', 5: 'back', 15: 'back', 3: 'done', 16: 'done', 2: 'ship' };
+async function pancakeQualityRows(fromDay) {
+  if (!PANCAKE_API_KEY) throw new Error('ยังไม่ได้ตั้งค่า PANCAKE_API_KEY');
+  if (QCACHE.at > Date.now() - 10 * 60000 && QCACHE.oldest && QCACHE.oldest <= fromDay) return QCACHE.rows;
+  const rows = []; let oldest = '9999';
+  for (let p = 1; p <= 60; p++) {
+    const j = await pancakeFetch(p, 100);
+    for (const o of j.data) {
+      if (String(o.status) === '7') continue;                       // deleted in Pancake
+      const at = pcTime(o.inserted_at), d = H.dayKey(at); if (d < oldest) oldest = d;
+      const nm = (x) => (x && typeof x === 'object' ? String(x.name || '').trim() : '');
+      rows.push({ at, admin: nm(o.assigning_seller) || nm(o.creator) || 'ไม่ระบุ', page: (o.page && o.page.name) || o.order_sources_name || 'ไม่ระบุเพจ', kind: PC_KIND[o.status] || 'open',
+        total: (Number(o.total_price_after_sub_discount || o.total_price) || 0) / 100, reason: o.returned_reason_name || '' });
+    }
+    if (oldest < fromDay || j.data.length < 100 || p >= (j.total_pages || 1)) { if (j.data.length < 100 || p >= (j.total_pages || 1)) oldest = '0000'; break; }
+  }
+  Object.assign(QCACHE, { at: Date.now(), oldest, rows });
+  return rows;
+}
 async function pancakeShipSync(state, pages) {
   if (!PANCAKE_API_KEY) return { updated: 0 };
   const raws = [];
@@ -274,4 +295,4 @@ async function evoPull(state, getLegacy) {
   return res;
 }
 
-module.exports = { pancakeShipSync, detectPlatform, fixPlatforms, evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
+module.exports = { pancakeQualityRows, pancakeShipSync, detectPlatform, fixPlatforms, evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
