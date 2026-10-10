@@ -151,7 +151,7 @@
     ovtele: { t: 'ภาพรวมเทเลเซลล์', crumb: '', ico: 'phone' },
     ovadmin: { t: 'ภาพรวมแอดมิน', crumb: '', ico: 'msg' },
     settings: { t: 'ตั้งค่า', crumb: 'System : ตั้งค่าและการเชื่อมต่อ', ico: 'gear' },
-    help: { t: 'ศูนย์ช่วยเหลือ', crumb: 'ศูนย์ช่วยเหลือ : วิดีโอสอนและคู่มือ', ico: 'help' },
+    help: { t: 'คู่มือการใช้งาน', crumb: 'ช่วยเหลือ : คู่มือการใช้งาน', ico: 'help' },
   };
   function allowed(page) {
     const r = S.me.role;
@@ -181,6 +181,9 @@
     const me = S.me, role = me.role;
     const nb = (id, label) => allowed(id) ? '<button class="' + (S.page === id || (id === 'customers' && S.page === 'customer') ? 'on' : '') + '" data-go="' + id + '">' + ico(PAGES[id].ico) + '<span>' + label + '</span>' + (id === 'approvals' && pendingCount() ? '<span class="badge">' + pendingCount() + '</span>' : '') + (id === 'calendar' && overdueAppts().length ? '<span class="badge">' + overdueAppts().length + '</span>' : '') + '</button>' : '';
     const isExec = boss();
+    const helpGrp = () => { ui.navOpen = ui.navOpen || {}; if (ui.navOpen.hp == null) ui.navOpen.hp = true;
+      return '<div class="ngrp' + (ui.navOpen.hp ? ' open' : '') + '"><button class="ngrp-h' + (S.page === 'help' ? ' in' : '') + '" data-act="nav-toggle" data-v="hp" data-nav-key="hp">' + ico('help') + '<span>ช่วยเหลือ</span><i class="chev" data-act="nav-toggle" data-v="hp" aria-label="ย่อ/ขยาย">' + ico('down') + '</i></button>' +
+        '<div class="nsub"><button class="nsub-i l1' + (S.page === 'help' ? ' on' : '') + '" data-go="help"><i class="dot"></i><span>คู่มือการใช้งาน</span></button></div></div>'; };
     // executive: a short two-group tree (overview -> tele/admin, customers -> distributed/cancelled)
     const tree = () => {
       ui.navOpen = ui.navOpen || { ov: true, cu: true, all: true };
@@ -190,7 +193,7 @@
       const sub2grp = (key, id, label, kids) => '<div class="ngrp2' + (ui.navOpen[key] ? ' open' : '') + '"><button class="nsub-i l1' + (on([id]) ? ' on' : '') + '" data-go="' + id + '" data-nav-key="' + key + '"><i class="dot"></i><span>' + label + '</span><i class="chev" data-act="nav-toggle" data-v="' + key + '" aria-label="ย่อ/ขยาย">' + ico('down') + '</i></button><div class="nsub">' + kids + '</div></div>';
       return grp('ov', 'overview', 'ภาพรวมทั้งหมด', 'chart', ['overview', 'ovtele', 'ovadmin'], sub('ovtele', 'เทเลเซลล์') + sub('ovadmin', 'แอดมิน')) +
         grp('cu', '', 'รายชื่อลูกค้า', 'users', ['customers', 'approvals', 'dnc'], sub2grp('all', 'customers', 'รายชื่อลูกค้าทั้งหมด', sub('approvals', 'รายชื่อลูกค้าที่ถูกแจก', 2) + sub('dnc', 'รายชื่อลูกค้าที่ยกเลิกการติดต่อ', 2))) +
-        '<div class="ngrp"><button class="ngrp-h' + (S.page === 'help' ? ' on' : '') + '" data-go="help">' + ico('help') + '<span>ศูนย์ช่วยเหลือ</span></button></div>';
+        helpGrp();
     };
     const nav = isExec ? tree() : [
       nb('home', 'หน้าหลัก'),
@@ -199,7 +202,7 @@
       (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'การแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
       (boss() || role === 'admin') ? '<div class="nav-label">แอดมินเซลล์</div>' + nb('close', 'ปิดการขาย') : '',
       boss() ? '<div class="nav-label">ระบบ</div>' + nb('settings', 'ตั้งค่า') : '',
-      '<div class="nav-label">ช่วยเหลือ</div>' + nb('help', 'ศูนย์ช่วยเหลือ'),
+      '<div class="nav-sep"></div>' + helpGrp(),
     ].join('');
     const p = PAGES[S.page];
     const bellN = pendingCount() + overdueAppts().length;
@@ -1067,7 +1070,7 @@
     close: ['บันทึกปิดการขาย', 'ปิดการขายแล้วระบบส่งรายชื่อให้ Telesales อัตโนมัติ'], settings: ['ตั้งค่า', 'เป้า KPI ทีมงาน สินค้า และการเชื่อมต่อระบบ'] };
   function pageHead(title, sub, actions) { return '<div class="ph"><div class="ph-t"><h1>' + title + '</h1>' + (sub ? '<p>' + sub + '</p>' : '') + '</div>' + (actions ? '<div class="ph-act">' + actions + '</div>' : '') + '</div>'; }
   function crumbHtml() {
-    const c = S.page === 'approvals' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าที่ถูกแจก'] : S.page === 'dnc' && boss() ? ['รายชื่อลูกค้า', 'ยกเลิกการติดต่อ'] : S.page === 'customers' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าทั้งหมด'] : S.page === 'overview' ? ['ภาพรวมทั้งหมด'] : CRUMB[S.page] || ['หน้าหลัก'];
+    const c = S.page === 'help' ? ['ช่วยเหลือ', 'คู่มือการใช้งาน'] : S.page === 'approvals' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าที่ถูกแจก'] : S.page === 'dnc' && boss() ? ['รายชื่อลูกค้า', 'ยกเลิกการติดต่อ'] : S.page === 'customers' && boss() ? ['รายชื่อลูกค้า', 'รายชื่อลูกค้าทั้งหมด'] : S.page === 'overview' ? ['ภาพรวมทั้งหมด'] : CRUMB[S.page] || ['หน้าหลัก'];
     return '<nav class="bc" aria-label="ตำแหน่งหน้า">' + c.map((x, i) => (i === c.length - 1 ? '<b>' + x + '</b>' : (S.page === 'customer' && x === 'ลูกค้า' ? '<button class="link-plain" data-go="customers">' + x + '</button>' : '<span>' + x + '</span>'))).join('<i>›</i>') + '</nav>';
   }
 
@@ -1367,7 +1370,7 @@
       '<div class="hv-b"><span class="pill ' + (v.role === 'boss' ? 'info' : 'good') + '">' + (v.role === 'boss' ? 'ผู้บริหาร' : 'เทเลเซลล์') + '</span><h3>' + v.t + '</h3><p>' + v.d + '</p></div></article>';
     const topic = (h) => { const open = ui.helpOpen === h.id || !!q; return '<div class="hg' + (open ? ' open' : '') + '"><button class="hg-h" data-act="help-open" data-v="' + h.id + '"><span>' + esc(h.t) + '</span>' + ico('down') + '</button>' + (open ? '<ol class="hg-s">' + h.s.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>' : '') + '</div>'; };
     const [rows, pager] = pg10('help', topics, 'หัวข้อ');
-    return '<section class="banner hv-banner"><div class="grow"><h1>ศูนย์ช่วยเหลือ</h1><p>วิดีโอสอนใช้งานและคู่มือสั้น ๆ ทุกเมนู ดูซ้ำได้ตลอด</p></div><span class="hv-ico">' + ico('help') + '</span></section>' +
+    return '<section class="banner hv-banner"><div class="grow"><h1>คู่มือการใช้งาน</h1><p>วิดีโอสอนใช้งานและคู่มือทีละขั้นตอนทุกเมนู ดูซ้ำได้ตลอด</p></div><span class="hv-ico">' + ico('help') + '</span></section>' +
       '<div class="section-t" style="margin:18px 0 10px">วิดีโอสอนใช้งาน</div><div class="hv-grid">' + vids.map(vcard).join('') + '</div>' +
       '<section class="card" style="margin-top:18px"><div class="card-h"><span class="card-ico">' + ico('note') + '</span><div class="ttl"><h2>คู่มือทีละขั้นตอน</h2><small>กดหัวข้อเพื่อดูวิธีทำ</small></div></div>' +
       '<label class="search" style="margin-bottom:12px"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาวิธีใช้ เช่น นัดหมาย พัสดุ Excel" value="' + esc(ui.helpQ || '') + '" data-act-change="help-q" aria-label="ค้นหาคู่มือ"></label>' +
