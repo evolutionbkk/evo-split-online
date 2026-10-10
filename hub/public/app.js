@@ -155,7 +155,8 @@
     if (page === 'overview' || page === 'ovtele' || page === 'ovadmin') return boss() || r === 'tele';
     if (page === 'settings') return boss();
     if (page === 'kpi') return r === 'tele';
-    if (['today', 'customers', 'customer', 'calendar'].includes(page)) return boss() || r === 'tele';
+    if (page === 'today') return false;   // call queue removed: telesales work from the customer list
+    if (['customers', 'customer', 'calendar'].includes(page)) return boss() || r === 'tele';
     if (page === 'close') return boss() || r === 'admin';
     if (page === 'approvals' || page === 'dnc') return boss() || r === 'tele';
     return false;
@@ -190,7 +191,7 @@
       nb('home', 'หน้าหลัก'),
       role === 'tele' ? nb('overview', 'ภาพรวมทีม') : '',
       boss() ? '<div class="nav-label">ผู้บริหาร</div>' + nb('overview', 'ภาพรวมผู้บริหาร') : '',
-      (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('today', 'คิวโทรวันนี้') + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'การแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
+      (boss() || role === 'tele') ? '<div class="nav-label">เทเลเซลล์</div>' + nb('customers', boss() ? 'ลูกค้า' : 'ลูกค้าของฉัน') + nb('calendar', 'ปฏิทินนัดหมาย') + nb('kpi', 'บันทึก KPI') + nb('approvals', boss() ? 'การแจกรายชื่อ' : 'รายชื่อใหม่') + nb('dnc', 'ยกเลิกการติดต่อถาวร') : '',
       (boss() || role === 'admin') ? '<div class="nav-label">แอดมินเซลล์</div>' + nb('close', 'ปิดการขาย') : '',
       boss() ? '<div class="nav-label">ระบบ</div>' + nb('settings', 'ตั้งค่า') : '',
     ].join('');
@@ -499,7 +500,7 @@
     const tk = dash ? dash.teamSum : null;
     const depts = [
       { id: 'overview', ico: 'brief', th: 'ผู้บริหาร', en: 'Executive', who: team.filter((u) => H.isBoss(u)), desc: 'ภาพรวมยอดขายทุกช่องทาง KPI ทีม Telesales และงานที่ต้องตัดสินใจ', stats: dash ? [[B(dash.total), 'ยอดขายวันนี้'], [N(dash.pending), 'รออนุมัติ']] : null },
-      { id: 'today', ico: 'headset', th: 'Telesales', en: 'Telesales', who: team.filter((u) => u.role === 'tele'), desc: 'รายชื่อ E-Commerce และ FB Page, Ticket ลูกค้า, ปฏิทินนัด และบันทึก KPI', stats: myK ? [[myK.fbCalls + myK.mktCalls + '/' + (myK.target.fb + myK.target.mkt), 'สายวันนี้'], [B(myK.amount), 'ยอดขาย']] : tk ? [[N(tk.calls), 'สายวันนี้ทั้งทีม'], [B(tk.amount), 'ยอดขาย Telesales']] : null },
+      { id: 'customers', ico: 'headset', th: 'Telesales', en: 'Telesales', who: team.filter((u) => u.role === 'tele'), desc: 'รายชื่อ E-Commerce และ FB Page, Ticket ลูกค้า, ปฏิทินนัด และบันทึก KPI', stats: myK ? [[myK.fbCalls + myK.mktCalls + '/' + (myK.target.fb + myK.target.mkt), 'สายวันนี้'], [B(myK.amount), 'ยอดขาย']] : tk ? [[N(tk.calls), 'สายวันนี้ทั้งทีม'], [B(tk.amount), 'ยอดขาย Telesales']] : null },
       { id: 'close', ico: 'msg', th: 'Admin Sales', en: 'Admin Sales', who: team.filter((u) => u.role === 'admin'), desc: 'บันทึกการปิดการขายจาก FB Page ระบบแจกรายชื่อให้ Telesales 50:50 อัตโนมัติ', stats: v.adminBoard ? [[N((v.adminBoard.find((x) => x.user === me.id) || {}).closes || 0), 'ปิดได้วันนี้'], [B((v.adminBoard.find((x) => x.user === me.id) || {}).revenue || 0), 'ยอดวันนี้']] : dash ? [[N(dash.cnt.admin), 'ออเดอร์วันนี้'], [B(dash.rev.admin), 'ยอดแอดมิน']] : null },
     ];
     return '<section class="banner"><div class="grow"><h1>ยินดีต้อนรับสู่ Evolution Hub Commerce</h1><p>' + esc(me.name) + ' : ' + H.thDate(T) + ' : เลือกฝ่ายงานด้านล่างเพื่อเริ่มทำงาน</p></div><div class="stack">' + team.map((u) => av(u)).join('') + '</div></section>' +
@@ -1404,7 +1405,7 @@
     const tabs = '<div class="ap-bar"><div class="qtabs"><button class="qtab' + (range === 1 ? ' on' : '') + '" data-act="ap-tab" data-v="today">วันนี้ <span>' + todayList.length + '</span></button><button class="qtab' + (range === 7 ? ' on' : '') + '" data-act="ap-tab" data-v="week">7 วันล่าสุด</button></div><span class="small muted">' + ico('refresh') + ' แจกอัตโนมัติทันทีที่แอดมินปิดการขาย</span></div>';
     const empty = '<div class="ap-empty"><span>' + ico('inbox') + '</span><b>' + (range === 1 ? 'ยังไม่มีรายชื่อวันนี้' : 'ยังไม่มีรายชื่อใน 7 วัน') + '</b><small>เมื่อแอดมินปิดการขายบน FB Page ระบบจะแจกรายชื่อให้ Telesales ทันที 50:50</small></div>';
     const side = boss() ? '<section class="card ap-side"><h3 class="ct">' + ico('refresh') + ' แจกอัตโนมัติ</h3><ol class="ap-steps"><li><b>แอดมินปิดการขาย</b><span>จาก Pancake หรือหน้าปิดการขาย</span></li><li><b>ระบบส่งให้ Telesales 50:50</b><span>ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม ข้ามคนที่ลาวันนี้</span></li><li><b>สร้างนัด T1 ให้อัตโนมัติ</b><span>เซลล์โทรต้อนรับภายใน 2 ชม.</span></li></ol><p class="small muted">ต้องการย้ายรายชื่อ ใช้ "เปลี่ยนผู้ดูแล" ในหน้าลูกค้า : ตั้งค่าคนลาได้ที่หน้าตั้งค่า</p></section>'
-      : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รายชื่อใหม่ทำอะไรต่อ</h3><ol class="ap-steps"><li><b>อยู่ใน "ลูกค้าของฉัน" แล้ว</b><span>แท็บ FB Page</span></li><li><b>มีนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>โทรจากคิวโทรวันนี้</b><span>บันทึกผลแล้วระบบนัด T2 ให้ต่อ</span></li></ol></section>';
+      : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รายชื่อใหม่ทำอะไรต่อ</h3><ol class="ap-steps"><li><b>อยู่ใน "ลูกค้าของฉัน" แล้ว</b><span>แท็บ FB Page</span></li><li><b>มีนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>โทรจาก "ลูกค้าของฉัน → มาใหม่วันนี้"</b><span>บันทึกผลแล้วระบบนัด T2 ให้ต่อ</span></li></ol></section>';
     return tiles + '<div class="ap-grid"><section class="card ap-main">' + tabs + (all.length ? '<div class="ap-list">' + all.map(card).join('') + '</div>' : empty) + '</section>' + side + '</div>';
   }
 
@@ -1534,7 +1535,7 @@
   // ------------------------------------------------------------ render
   function render() {
     if (!S.me) return;
-    if (!allowed(S.page)) S.page = 'home';
+    if (!allowed(S.page)) { S.page = S.me.role === 'tele' ? 'customers' : boss() ? 'overview' : 'home'; try { history.replaceState(null, '', '#' + S.page); } catch (_) { /* sandboxed */ } }
     const fn = { customer: pageCustomer, today: pageToday, home: pageHome, overview: () => pageOverview(), ovtele: () => pageOverview('tele'), ovadmin: () => pageOverview('admin'), customers: pageCustomers, calendar: pageCalendar, kpi: pageKpi, close: pageClose, approvals: pageApprovals, dnc: pageDnc, settings: pageSettings }[S.page];
     const keepScroll = $('.drawer-b') ? $('.drawer-b').scrollTop : 0;
     const body = fn();
@@ -1960,7 +1961,8 @@
     try { ok = await api.boot(); } catch (e) { bootError(); return; }
     if (!ok) { renderLogin(); return; }
     const hash = (location.hash || '').slice(1);
-    S.page = PAGES[hash] && allowed(hash) ? hash : (S.me.role === 'tele' ? 'today' : boss() ? 'overview' : 'home');
+    S.page = PAGES[hash] && allowed(hash) ? hash : (S.me.role === 'tele' ? 'customers' : boss() ? 'overview' : 'home');
+    if (hash !== S.page) { try { history.replaceState(null, '', '#' + S.page); } catch (_) { /* sandboxed */ } }
     render();
     if (!DEMO) setInterval(async () => {
       if (document.hidden || modal || ui.drawer || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) return;
