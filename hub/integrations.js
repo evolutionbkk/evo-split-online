@@ -66,6 +66,8 @@ async function pancakeShipSync(state, pages) {
   const raws = [];
   for (let p = 1; p <= (pages || 10); p++) { const j = await pancakeFetch(p, 100); raws.push(...j.data); if (j.data.length < 100 || p >= (j.total_pages || 1)) break; }
   const updated = applyShipping(state, raws);
+  { const keys = []; for (const c of state.customers) for (const o of c.orders || []) if (o.extId && o.extId.startsWith('pc:')) keys.push(o.extId);
+    console.log('[ship] hub pancake orders', keys.length, 'sample', keys.slice(-3).join(','), '| pancake ids', raws.slice(0, 3).map((r) => r.id + '/' + r.system_id).join(',')); }
   state.sync.pancake = { ...(state.sync.pancake || {}), shipRun: new Date().toISOString(), shipUpdated: updated };
   return { updated, scanned: raws.length };
 }
