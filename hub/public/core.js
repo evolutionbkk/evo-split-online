@@ -82,7 +82,10 @@
     { code: 'YF1+6B1', name: 'Yanhee Fozinnia 1 กล่อง', price: 990 },
     { code: 'YF2+YFP1', name: 'Yanhee Fozinnia 2 กล่อง', price: 1800 },
   ];
+  // Pancake account names → the names the team uses (matched by exact name or by first name)
+  const DEFAULT_CLOSER_ALIAS = { 'Chonlakarn': 'ไลลา', 'Nur-asekeen': 'นุช', 'ชาเย็น ไม่หวาน': 'พี่โม', 'Wachira': 'แซน' };
   const DEFAULT_SETTINGS = {
+    closerAlias: DEFAULT_CLOSER_ALIAS,
     targets: {
       fbCalls: 30, t1: 5, t2: 5, t3: 20,   // FB (Pancake) calls / day / person
       mktCalls: 30,                          // Marketplace calls / day / person
@@ -150,10 +153,31 @@
     const base = emptyState();
     st = st && typeof st === 'object' ? st : base;
     for (const k of Object.keys(base)) if (st[k] == null) st[k] = base[k];
-    st.settings = { ...base.settings, ...st.settings, targets: { ...base.settings.targets, ...(st.settings || {}).targets } };
+    st.settings = { ...base.settings, ...st.settings, targets: { ...base.settings.targets, ...(st.settings || {}).targets }, closerAlias: { ...DEFAULT_CLOSER_ALIAS, ...((st.settings || {}).closerAlias || {}) } };
     if (!Array.isArray(st.settings.products) || !st.settings.products.length) st.settings.products = DEFAULT_PRODUCTS;
     for (const u of base.users) if (!st.users.find((x) => x.id === u.id)) st.users.push({ ...u });
     return st;
+  }
+  function aliasCloser(st, name) {
+    const s = String(name || '').trim(), m = (st && st.settings && st.settings.closerAlias) || DEFAULT_CLOSER_ALIAS, low = s.toLowerCase();
+    for (const k of Object.keys(m)) { const kl = k.toLowerCase(); if (low === kl || low.startsWith(kl + ' ') || (/^[a-z]/i.test(k) && low.startsWith(kl))) return m[k]; }
+    return s;
+  }
+  // rename closers already stored (approvals, customers, sale notes) and link them to a hub user with that name
+  function applyCloserAliases(st) {
+    let n = 0;
+    const adminByName = (nm) => (st.users || []).find((u) => u.role === 'admin' && u.name === nm);
+    for (const a of st.approvals || []) {
+      const old = a.closerName, nw = aliasCloser(st, old);
+      if (old && nw !== old) {
+        a.closerName = nw; n++;
+        const c = (st.customers || []).find((x) => x.id === a.customerId);
+        if (c) for (const t of c.notes || []) if (t.kind === 'sale' && t.text && t.text.includes(old)) t.text = t.text.split(old).join(nw);
+      }
+      if (!a.closer && a.closerName) { const u = adminByName(a.closerName); if (u) a.closer = u.id; }
+    }
+    for (const c of st.customers || []) { const nw = aliasCloser(st, c.closerName); if (c.closerName && nw !== c.closerName) { c.closerName = nw; n++; } }
+    return n;
   }
   const userById = (st, id) => st.users.find((u) => u.id === id) || null;
   const userName = (st, id) => (userById(st, id) || {}).name || (id ? String(id) : '-');
@@ -541,8 +565,9 @@
     const items = cleanItems(p.items, st.settings.products);
     if (!items.length && !money(p.total)) throw err('เลือกสินค้าหรือกรอกยอดขาย');
     if (p.extId && st.approvals.some((a) => a.extId === p.extId)) return { duplicate: true };
-    const closer = p.closer || (actor.role === 'admin' ? actor.id : (st.settings.pancakeAdminMap || {})[p.closerName] || null);
-    const closerName = p.closerName || userName(st, closer);
+    const aliased = p.closerName ? aliasCloser(st, p.closerName) : '';
+    const closer = p.closer || (actor.role === 'admin' ? actor.id : (st.settings.pancakeAdminMap || {})[p.closerName] || ((st.users || []).find((u) => u.role === 'admin' && u.name === aliased) || {}).id || null);
+    const closerName = aliased || userName(st, closer);
     const { c, isNew } = upsertCustomer(st, { name: p.name, phone, address: p.address, page: p.page, channel: 'fb', platform: p.source === 'pancake' ? 'pancake' : 'manual', closer, closerName }, actor);
     const total = money(p.total) || itemsTotal(items);
     const order = pushOrder(c, { date: p.date ? new Date(p.date).toISOString() : nowIso(), items, total, status: p.status || 'paid', source: p.source === 'pancake' ? 'pancake' : 'admin', by: closer || '', extId: p.extId || '', note: p.note });
@@ -1085,7 +1110,7 @@
     sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
-    emptyState, normalize, apply, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
+    emptyState, normalize, apply, aliasCloser, applyCloserAliases, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };
 });
