@@ -265,7 +265,8 @@
   ui.dr = ui.dr || {};
   ui.cStatus = ui.cStatus || [];
   const SEL = {}, LVITEMS = {}, LVID = {}, LVB = {};
-  const ls = (key) => ui.lists[key] || (ui.lists[key] = { page: 1, per: 20 });
+  if (!ui.per10) { for (const k in (ui.lists || {})) ui.lists[k].per = 10; ui.per10 = 1; }
+  const ls = (key) => ui.lists[key] || (ui.lists[key] = { page: 1, per: 10 });
   const sel = (key) => SEL[key] || (SEL[key] = { ids: new Set(), all: false });
   function resetList(key) { ls(key).page = 1; SEL[key] = { ids: new Set(), all: false }; }
   function refreshList(key) { const el = document.getElementById('lv-' + key); if (el && LVB[key]) { el.innerHTML = LVB[key](); remember(); } else render(); }
@@ -285,7 +286,7 @@
     LVITEMS[cfg.key] = cfg.items; LVID[cfg.key] = cfg.id;
     const st = ls(cfg.key), s = sel(cfg.key), n = cfg.items.length;
     if (!n) return cfg.empty;
-    if (!PER_OPTS.includes(st.per)) st.per = 20;
+    if (!PER_OPTS.includes(st.per)) st.per = 10;
     const pages = Math.max(1, Math.ceil(n / st.per)); if (st.page > pages) st.page = pages; if (st.page < 1) st.page = 1;
     const from = (st.page - 1) * st.per, slice = cfg.items.slice(from, from + st.per);
     const selectable = !!(cfg.actions && cfg.actions.length);
@@ -556,8 +557,8 @@
       '<div class="seg"><button class="' + (ui.chart === 'rev' ? 'on' : '') + '" data-act="chart" data-v="rev">ยอดขาย</button><button class="' + (cmp ? 'on' : '') + '" data-act="chart" data-v="cmp">เทียบทีม</button><button class="' + (ui.chart === 'calls' ? 'on' : '') + '" data-act="chart" data-v="calls">จำนวนสาย</button></div></div>' +
       '<div class="chart-wrap">' + (cmp ? weekdayBars(cd) : lineChart(cd)) + '</div></section>';
     const adminMax = Math.max(1, ...d.admins.map((a) => a.revenue));
-    const adminCard = card('msg', 'ทีม Admin Sales', 'ยอดปิดการขาย FB Page : เรียงตามยอดเงิน', d.admins.length ? '<div class="rank">' + d.admins.map((a, i) => '<div class="rank-row"><span class="no">' + (i + 1) + '</span><span class="ellip">' + esc(a.name) + '</span><span class="bar"><i style="width:' + pct(a.revenue, adminMax) + '%"></i></span><span class="v">' + B(a.revenue) + ' <small>: ' + a.closes + ' ออเดอร์</small></span></div>').join('') + '</div>' : '<div class="empty">ยังไม่มีการปิดการขายในช่วงนี้</div>');
-    const prodCard = card('bag', 'สินค้าขายดี', 'จัดอันดับตามยอดเงิน : ทุกช่องทาง', d.products.length ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>สินค้า</th><th class="n">ชิ้น</th><th class="n hide-sm">Tele / Admin / Ecom</th><th class="n">ยอดขาย</th></tr></thead><tbody>' + d.products.map((p) => '<tr><td><div class="ellip">' + esc(p.name) + '</div></td><td class="n">' + N(p.qty) + '</td><td class="n hide-sm muted">' + p.tele + ' / ' + p.admin + ' / ' + p.ecom + '</td><td class="n"><b>' + B(p.revenue) + '</b></td></tr>').join('') + '</tbody></table></div>' : '<div class="empty">ยังไม่มีข้อมูลสินค้าในช่วงนี้</div>');
+    const adminCard = card('msg', 'ทีม Admin Sales', 'ยอดปิดการขาย FB Page : เรียงตามยอดเงิน', d.admins.length ? (() => { const [rows, pager, off] = pg10('adm', d.admins, 'คน'); return '<div class="rank">' + rows.map((a, i) => '<div class="rank-row"><span class="no">' + (off + i + 1) + '</span><span class="ellip">' + esc(a.name) + '</span><span class="bar"><i style="width:' + pct(a.revenue, adminMax) + '%"></i></span><span class="v">' + B(a.revenue) + ' <small>: ' + a.closes + ' ออเดอร์</small></span></div>').join('') + '</div>' + pager; })() : '<div class="empty">ยังไม่มีการปิดการขายในช่วงนี้</div>');
+    const prodCard = card('bag', 'สินค้าขายดี', 'จัดอันดับตามยอดเงิน : ทุกช่องทาง', d.products.length ? (() => { const [rows, pager] = pg10('prod', d.products, 'สินค้า'); return '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>สินค้า</th><th class="n">ชิ้น</th><th class="n hide-sm">Tele / Admin / Ecom</th><th class="n">ยอดขาย</th></tr></thead><tbody>' + rows.map((p) => '<tr><td><div class="ellip">' + esc(p.name) + '</div></td><td class="n">' + N(p.qty) + '</td><td class="n hide-sm muted">' + p.tele + ' / ' + p.admin + ' / ' + p.ecom + '</td><td class="n"><b>' + B(p.revenue) + '</b></td></tr>').join('') + '</tbody></table></div>' + pager; })() : '<div class="empty">ยังไม่มีข้อมูลสินค้าในช่วงนี้</div>');
     const f = d.funnel, fMax = Math.max(1, f.called, f.leads);
     const funnelCard = card('users', 'Funnel การโทร', 'รายชื่อที่ได้รับ → โทร → ได้คุย → ปิดได้', '<div class="funnel">' +
       [['รายชื่อเข้าใหม่', f.leads], ['โทรแล้ว', f.called], ['ได้คุย', f.talked], ['ปิดการขาย', f.won]].map(([l, v]) => '<div class="funnel-row"><span>' + l + '</span><span class="bar"><i style="width:' + Math.max(2, pct(v, fMax)) + '%"></i></span><span class="v">' + N(v) + '</span></div>').join('') +
@@ -687,8 +688,13 @@
         pagerHtml('as-page', page, pages, rows.length, per)
         : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>';
   }
-  function pagerHtml(act, page, pages, total, per) {
-    return '<div class="cp-pager"><small class="muted">' + ((page - 1) * per + 1) + '–' + Math.min(page * per, total) + ' จาก ' + N(total) + ' ออเดอร์</small>' + (pages > 1 ? '<div class="pages"><button data-act="' + act + '" data-v="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') + ' aria-label="ก่อนหน้า">‹</button>' + Array.from({ length: pages }, (_, i) => i + 1).filter((n) => pages <= 7 || n === 1 || n === pages || Math.abs(n - page) <= 1).map((n, i, a) => (i && n - a[i - 1] > 1 ? '<span class="faint">…</span>' : '') + '<button class="' + (n === page ? 'on' : '') + '" data-act="' + act + '" data-v="' + n + '">' + n + '</button>').join('') + '<button data-act="' + act + '" data-v="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') + ' aria-label="ถัดไป">›</button></div>' : '') + '</div>';
+  // generic 10-per-page slice for any ranked list: returns [rows on this page, pager html, offset]
+  function pg10(key, arr, unit) {
+    const pages = Math.max(1, Math.ceil(arr.length / 10)), p = Math.min(Math.max(1, (ui.pg || {})[key] || 1), pages);
+    return [arr.slice((p - 1) * 10, p * 10), arr.length > 10 ? pagerHtml('pg', p, pages, arr.length, 10, unit).replace(/data-act="pg"/g, 'data-act="pg" data-k="' + key + '"') : '', (p - 1) * 10];
+  }
+  function pagerHtml(act, page, pages, total, per, unit) {
+    return '<div class="cp-pager"><small class="muted">' + ((page - 1) * per + 1) + '–' + Math.min(page * per, total) + ' จาก ' + N(total) + ' ' + (unit || 'ออเดอร์') + '</small>' + (pages > 1 ? '<div class="pages"><button data-act="' + act + '" data-v="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') + ' aria-label="ก่อนหน้า">‹</button>' + Array.from({ length: pages }, (_, i) => i + 1).filter((n) => pages <= 7 || n === 1 || n === pages || Math.abs(n - page) <= 1).map((n, i, a) => (i && n - a[i - 1] > 1 ? '<span class="faint">…</span>' : '') + '<button class="' + (n === page ? 'on' : '') + '" data-act="' + act + '" data-v="' + n + '">' + n + '</button>').join('') + '<button data-act="' + act + '" data-v="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') + ' aria-label="ถัดไป">›</button></div>' : '') + '</div>';
   }
   // ---- detailed telesales sales (from logged calls): one row per sale
   function teleSalesRows(st, from, to) {
@@ -1096,7 +1102,7 @@
       '<div class="dnc-meta"><small>ยกเลิกโดย</small><b>' + esc(uname(d.by) || '-') + '</b><small>' + (d.at ? H.thDate(d.at, true) : '') + '</small></div>' +
       (boss() ? '<div class="dnc-meta"><small>ผู้ดูแล</small><b>' + esc(uname(c.owner) || '-') + '</b></div>' : '') +
       '<div class="ap-act"><button class="btn sm" data-open="' + esc(c.id) + '">ดูประวัติ</button><button class="btn sm" data-act="dnc-restore" data-id="' + esc(c.id) + '">' + ico('refresh') + ' กู้คืน</button></div></article>'; };
-    const per = 20, page = Math.max(1, Math.min(ui.dncPage || 1, Math.ceil(list.length / per) || 1)), pages = Math.ceil(list.length / per);
+    const per = 10, page = Math.max(1, Math.min(ui.dncPage || 1, Math.ceil(list.length / per) || 1)), pages = Math.ceil(list.length / per);
     return '<section class="card dnc-main"><div class="ap-bar"><div class="dnc-sum"><span class="ap-ti dnc">' + ico('ban') + '</span><div><b>' + N(total) + ' รายชื่อ</b><small>ไม่อยู่ในคิวโทร ปฏิทิน และรายชื่อลูกค้า</small></div></div>' +
       '<label class="search dnc-search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาชื่อหรือเบอร์" value="' + esc(ui.dncQ || '') + '" data-act-change="dnc-q" aria-label="ค้นหา"></label></div>' +
       (list.length ? '<div class="ap-list">' + list.slice((page - 1) * per, page * per).map(row).join('') + '</div>' + (pages > 1 ? '<div class="cp-pager"><small class="muted">' + ((page - 1) * per + 1) + '–' + Math.min(page * per, list.length) + ' จาก ' + list.length + '</small><div class="pages">' + Array.from({ length: pages }, (_, i) => '<button class="' + (page === i + 1 ? 'on' : '') + '" data-act="dnc-page" data-v="' + (i + 1) + '">' + (i + 1) + '</button>').join('') + '</div></div>' : '')
@@ -1168,13 +1174,17 @@
     const mid = '<div class="cd-col">' + dncBox + (c.status === 'dnc' ? '' : banner) + (canEdit ? '<section class="card cd-work"><div class="cd-tabs"><button class="' + (ui.dTab !== 'appt' ? 'on' : '') + '" data-act="dtab" data-v="call">บันทึกการโทร</button><button class="' + (ui.dTab === 'appt' ? 'on' : '') + '" data-act="dtab" data-v="appt">นัดหมาย' + (appts.length ? ' (' + appts.length + ')' : '') + '</button></div>' + (ui.dTab === 'appt' ? apptTab : callTab) + '</section>' : '<section class="card"><div class="empty">ลูกค้ารายนี้อยู่กับ ' + esc(uname(c.owner)) + ' ดูได้อย่างเดียว</div></section>') + '</div>';
     const noise = (n) => /^(status|followup|distribute|note|assign\w*|owner|round)\s*(:|$)/i.test(String(n.text || '').trim()) || !String(n.text || '').trim();
     const allNotes = (c.notes || []).filter((n) => n.kind === 'call' || n.kind === 'sale' || !noise(n));
-    const notes = allNotes.slice(0, ui.cdAllNotes ? 200 : 3);
+    if (ui.cdFor !== c.id) { ui.cdFor = c.id; ui.cdOPage = 1; ui.cdNPage = 1; }
+    const cdOPg = Math.min(Math.max(1, ui.cdOPage || 1), Math.max(1, Math.ceil((c.orders || []).length / 10)));
+    const nPages = Math.max(1, Math.ceil(allNotes.length / 10)), cdNPg = Math.min(Math.max(1, ui.cdNPage || 1), nPages);
+    const notes = ui.cdAllNotes ? allNotes.slice((cdNPg - 1) * 10, cdNPg * 10) : allNotes.slice(0, 3);
     const right = '<div class="cd-col"><section class="card"><div class="row between"><h3 class="ct">ประวัติการติดต่อ</h3>' + (allNotes.length > 3 ? '<button class="link-plain small" data-act="cd-notes">' + (ui.cdAllNotes ? 'ย่อ' : 'ดูทั้งหมด (' + allNotes.length + ')') + '</button>' : '') + '</div>' +
-      (notes.length ? '<div class="cd-tl">' + notes.map((n) => { const r = n.result ? resultOf(n.result) : null; return '<div class="cd-tli"><span class="b">' + ico(n.kind === 'call' ? 'phone' : n.kind === 'sale' ? 'bag' : n.kind === 'appt' ? 'calendar' : 'note') + '</span><div><small class="muted">' + H.thDate(n.at, true) + '</small><div class="row" style="gap:6px"><b>' + esc(r ? r.label : n.kind === 'sale' ? 'ปิดการขาย' : n.kind === 'appt' ? 'นัดหมาย' : n.kind === 'assign' ? 'มอบหมาย' : 'บันทึก') + '</b>' + (n.round ? '<span class="rtag">' + n.round + '</span>' : '') + '</div>' + (n.text && !noise(n) ? '<p>' + esc(n.text) + '</p>' : '') + '<small class="faint">' + esc(uname(n.by)) + (n.durationSec ? ' : ' + H.hms(n.durationSec).replace(/^00:/, '') + ' นาที' : '') + '</small></div></div>'; }).join('') + '</div>' : '<div class="empty">ยังไม่มีประวัติ</div>') +
+      (notes.length ? '<div class="cd-tl">' + notes.map((n) => { const r = n.result ? resultOf(n.result) : null; return '<div class="cd-tli"><span class="b">' + ico(n.kind === 'call' ? 'phone' : n.kind === 'sale' ? 'bag' : n.kind === 'appt' ? 'calendar' : 'note') + '</span><div><small class="muted">' + H.thDate(n.at, true) + '</small><div class="row" style="gap:6px"><b>' + esc(r ? r.label : n.kind === 'sale' ? 'ปิดการขาย' : n.kind === 'appt' ? 'นัดหมาย' : n.kind === 'assign' ? 'มอบหมาย' : 'บันทึก') + '</b>' + (n.round ? '<span class="rtag">' + n.round + '</span>' : '') + '</div>' + (n.text && !noise(n) ? '<p>' + esc(n.text) + '</p>' : '') + '<small class="faint">' + esc(uname(n.by)) + (n.durationSec ? ' : ' + H.hms(n.durationSec).replace(/^00:/, '') + ' นาที' : '') + '</small></div></div>'; }).join('') + '</div>' + (ui.cdAllNotes && allNotes.length > 10 ? pagerHtml('cd-npage', cdNPg, nPages, allNotes.length, 10, 'รายการ') : '') : '<div class="empty">ยังไม่มีประวัติ</div>') +
       (canEdit ? '<form class="row" data-form="note" style="flex-wrap:nowrap;margin-top:10px"><input class="in" name="text" placeholder="เพิ่มโน้ตสั้น ๆ" aria-label="โน้ต"><button class="btn sm">บันทึก</button></form>' : '') + '</section>' +
       shipCard(c) + '<section class="card"><div class="row between"><h3 class="ct">ประวัติคำสั่งซื้อ</h3><span class="small" style="color:var(--accent)">' + (c.orders || []).length + ' รายการ</span></div>' +
-      ((c.orders || []).length ? '<div class="cd-orders">' + c.orders.slice(0, 20).map((o) => '<div class="cd-ord"><div class="row between"><span class="cd-oid">' + esc(o.extId ? o.extId.replace(/^pc:/, 'PC-').replace(/^legacy:/, '').slice(0, 18) : 'EH-' + String(o.id).slice(-6).toUpperCase()) + '</span><small class="muted">' + H.thDate(o.date) + '</small></div>' +
+      ((c.orders || []).length ? '<div class="cd-orders">' + c.orders.slice((cdOPg - 1) * 10, cdOPg * 10).map((o) => '<div class="cd-ord"><div class="row between"><span class="cd-oid">' + esc(o.extId ? o.extId.replace(/^pc:/, 'PC-').replace(/^legacy:/, '').slice(0, 18) : 'EH-' + String(o.id).slice(-6).toUpperCase()) + '</span><small class="muted">' + H.thDate(o.date) + '</small></div>' +
         '<div class="row between"><span class="one">' + esc((o.items || []).map((i) => i.name.replace(/ \([^)]*\)$/, '') + ' × ' + i.qty).join(', ') || 'คำสั่งซื้อ') + '</span><b>' + B(o.total) + '</b></div><small style="color:var(--good)">' + (o.status === 'cancelled' ? 'ยกเลิก' : o.status === 'awaiting_payment' ? 'รอชำระ' : 'สำเร็จ') + ' : ' + esc(srcLabel[o.source] || o.source) + (o.platform && o.platform !== 'evolution' ? ' : ' + esc((H.PLATFORMS[o.platform] || {}).label || o.platform) : '') + '</small>' + (o.ship ? shipLine(o.ship) : '') + '</div>').join('') + '</div>' +
+        (c.orders.length > 10 ? pagerHtml('cd-opage', cdOPg, Math.ceil(c.orders.length / 10), c.orders.length, 10, 'คำสั่งซื้อ') : '') +
         '<div class="row between cd-sum"><span class="muted">ยอดซื้อรวม</span><b>' + B(H.customerTotal(c)) + '</b></div>' : '<div class="empty">ยังไม่มีคำสั่งซื้อ</div>') + '</section></div>';
     return top + head + '<div class="cd-grid">' + left + mid + right + '</div>';
   }
@@ -1517,7 +1527,7 @@
     const empty = '<div class="ap-empty"><span>' + ico('inbox') + '</span><b>' + (range === 1 ? 'ยังไม่มีรายชื่อวันนี้' : 'ยังไม่มีรายชื่อใน 7 วัน') + '</b><small>เมื่อแอดมินปิดการขายบน FB Page ระบบจะแจกรายชื่อให้ Telesales ทันที 50:50</small></div>';
     const side = boss() ? '<section class="card ap-side"><h3 class="ct">' + ico('refresh') + ' แจกอัตโนมัติ</h3><ol class="ap-steps"><li><b>แอดมินปิดการขาย</b><span>จาก Pancake หรือหน้าปิดการขาย</span></li><li><b>ระบบส่งให้ Telesales 50:50</b><span>ลูกค้าเก่าส่งกลับให้เซลล์คนเดิม ข้ามคนที่ลาวันนี้</span></li><li><b>สร้างนัด T1 ให้อัตโนมัติ</b><span>เซลล์โทรต้อนรับภายใน 2 ชม.</span></li></ol><p class="small muted">ต้องการย้ายรายชื่อ ใช้ "เปลี่ยนผู้ดูแล" ในหน้าลูกค้า : ตั้งค่าคนลาได้ที่หน้าตั้งค่า</p></section>'
       : '<section class="card ap-side"><h3 class="ct">' + ico('phone') + ' รายชื่อใหม่ทำอะไรต่อ</h3><ol class="ap-steps"><li><b>อยู่ใน "ลูกค้าของฉัน" แล้ว</b><span>แท็บ FB Page</span></li><li><b>มีนัด T1 ให้อัตโนมัติ</b><span>โทรต้อนรับ ยืนยันออเดอร์ภายใน 2 ชม.</span></li><li><b>โทรจาก "ลูกค้าของฉัน → มาใหม่วันนี้"</b><span>บันทึกผลแล้วระบบนัด T2 ให้ต่อ</span></li></ol></section>';
-    return tiles + '<div class="ap-grid"><section class="card ap-main">' + tabs + (all.length ? '<div class="ap-list">' + all.map(card).join('') + '</div>' : empty) + '</section>' + side + '</div>';
+    return tiles + '<div class="ap-grid"><section class="card ap-main">' + tabs + (all.length ? (() => { const per = 10, pages = Math.ceil(all.length / per), pg = Math.min(Math.max(1, ui.apPage || 1), pages); return '<div class="ap-list">' + all.slice((pg - 1) * per, pg * per).map(card).join('') + '</div>' + pagerHtml('ap-page', pg, pages, all.length, per, 'รายชื่อ'); })() : empty) + '</section>' + side + '</div>';
   }
 
   // ------------------------------------------------------------ SETTINGS
@@ -1839,7 +1849,11 @@
     'kpi-mode': (el) => { ui.kpiMode = el.dataset.v; render(); },
     'kpi-del': (el) => delKpi((V().kpi || []).filter((k) => k.id === el.dataset.id)),
     'nav-toggle': (el) => { ui.navOpen = ui.navOpen || {}; ui.navOpen[el.dataset.v] = !ui.navOpen[el.dataset.v]; remember(); render(); },
-    'ap-tab': (el) => { ui.apTab = el.dataset.v; render(); },
+    'ap-tab': (el) => { ui.apTab = el.dataset.v; ui.apPage = 1; render(); },
+    'pg': (el) => { ui.pg = ui.pg || {}; ui.pg[el.dataset.k] = Number(el.dataset.v); render(); },
+    'ap-page': (el) => { ui.apPage = Number(el.dataset.v); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+    'cd-opage': (el) => { ui.cdOPage = Number(el.dataset.v); render(); },
+    'cd-npage': (el) => { ui.cdNPage = Number(el.dataset.v); render(); },
     'ap-ok': (el) => { const sel = $('[data-ap-to="' + el.dataset.id + '"]'); run(() => api.act('approve', { id: el.dataset.id, to: sel ? sel.value : undefined }), (r) => 'ส่งรายชื่อให้ ' + uname(r && r.to) + ' แล้ว'); },
     'ap-no': (el) => confirmInline(el, () => run(() => api.act('reject', { id: el.dataset.id }), 'ไม่ส่งรายชื่อนี้')),
     'dnc-restore': (el) => run(() => api.act('restoreCustomer', { id: el.dataset.id }), 'กู้คืนรายชื่อแล้ว : กลับไปอยู่ในรายชื่อลูกค้าสถานะรอติดตาม'),
