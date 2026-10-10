@@ -1743,6 +1743,22 @@
 
   // ------------------------------------------------------------ modals
   let modal = null;
+  // ---- dialing from a computer: open the phone app (Phone Link etc.) and show a QR the work phone can scan to call
+  let QRP = null;
+  const loadQr = () => window.qrcode ? Promise.resolve(window.qrcode) : QRP || (QRP = new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = DEMO ? 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js' : '/vendor/qrcode.js'; sc.onload = () => ok(window.qrcode); sc.onerror = () => { QRP = null; no(new Error('qr')); }; document.head.appendChild(sc); }));
+  function dialHelp(el) {
+    const tel = String(el.getAttribute('href') || '').replace(/^tel:/, ''); if (!tel) return;
+    const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    try { window.location.href = 'tel:' + tel; } catch (_) { /* no phone app */ }
+    if (mobile) return;
+    openModal('<div class="row between" style="margin-bottom:6px"><h2 style="font-size:18px;display:flex;align-items:center;gap:8px">' + ico('phone') + ' โทรหา ' + esc(H.fmtPhone(tel)) + '</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' +
+      '<div class="dial-g"><div class="dial-qr" id="dial-qr"><span class="small muted">กำลังสร้าง QR…</span></div><div class="dial-t">' +
+      '<b>วิธีที่ 1 : สแกนด้วยมือถือที่ใช้โทรงาน</b><p>เปิดกล้องมือถือ ส่องที่ QR แล้วกดโทร สายจะออกจากซิมงาน OneCall บันทึกและนับ KPI ตามปกติ</p>' +
+      '<b>วิธีที่ 2 : โทรจากคอมผ่าน Phone Link</b><p>ถ้าจับคู่มือถือกับคอมไว้ ระบบเปิด Phone Link ให้แล้ว กด โทร ในหน้าต่างนั้นได้เลย</p>' +
+      '<div class="row" style="gap:8px;margin-top:6px"><button class="btn sm" data-act="copy" data-v="' + esc(tel) + '">' + ico('clip') + ' คัดลอกเบอร์</button><a class="btn sm" href="tel:' + esc(tel) + '">' + ico('phone') + ' เปิดโปรแกรมโทรอีกครั้ง</a></div></div></div>' +
+      '<div class="small muted" style="margin-top:12px">ระบบเริ่มจับเวลาสายแล้ว : กลับมาบันทึกผลการโทรได้เลยหลังวางสาย</div>');
+    loadQr().then((qr) => { const q = qr(0, 'M'); q.addData('tel:' + tel); q.make(); const box = document.getElementById('dial-qr'); if (box) box.innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); }).catch(() => { const box = document.getElementById('dial-qr'); if (box) box.innerHTML = '<b style="font-size:22px">' + esc(H.fmtPhone(tel)) + '</b>'; });
+  }
   function openModal(html) { closeModal(); modal = document.createElement('div'); modal.innerHTML = '<div class="scrim modal-scrim" data-act="close-modal"></div><div class="modal" role="dialog">' + html + '</div>'; document.body.appendChild(modal); const f = $('input,select,textarea', modal); f && f.focus(); }
   function closeModal() { if (modal) { modal.remove(); modal = null; } }
   function addCustomerModal() {
@@ -1911,7 +1927,7 @@
     'cd-step': (el) => { const list = LVITEMS.cust && LVITEMS.cust.length ? LVITEMS.cust : custList(); const i = list.findIndex((x) => x.id === ui.custId) + Number(el.dataset.v); if (list[i]) openCustomer(list[i].id); },
     'cd-edit': () => { const c = H.findCustomer(S.full || V(), ui.custId); openModal('<div class="row between" style="margin-bottom:12px"><h2 style="font-size:18px">แก้ไขข้อมูลลูกค้า</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' + editForm(c)); },
     'cd-order': () => { const c = H.findCustomer(S.full || V(), ui.custId); openModal('<div class="row between" style="margin-bottom:12px"><h2 style="font-size:18px">เพิ่มคำสั่งซื้อ</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' + orderForm(c)); },
-    'cd-dial': (el) => { try { const h = el.getAttribute('href'); if (h) window.location.href = h; } catch (_) {} cdTimer0 = cdTimer0 || Date.now(); clearInterval(qTick); qTick = setInterval(() => { const d = $('#cd-dur'); if (!d || !cdTimer0) { clearInterval(qTick); return; } if (!d.dataset.touched) { const sec = Math.round((Date.now() - cdTimer0) / 1000); d.value = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); } }, 1000); try { window.location.href = el.getAttribute('href'); } catch (_) { /* no dialer */ } },
+    'cd-dial': (el) => { dialHelp(el); cdTimer0 = cdTimer0 || Date.now(); clearInterval(qTick); qTick = setInterval(() => { const d = $('#cd-dur'); if (!d || !cdTimer0) { clearInterval(qTick); return; } if (!d.dataset.touched) { const sec = Math.round((Date.now() - cdTimer0) / 1000); d.value = String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); } }, 1000); try { window.location.href = el.getAttribute('href'); } catch (_) { /* no dialer */ } },
     'cd-quick': (el) => { const f = el.closest('form'); const n = Number(el.dataset.v); $$('[data-act=cd-quick]', f).forEach((b) => b.classList.toggle('on', b === el)); f.nd.dataset.touched = '1'; if (!n && el.dataset.v === '0') { f.nd.value = ''; f.np.value = ''; $('[data-next-fields]', f).hidden = true; nextSum(f); return; } f.nd.value = H.addDays(H.today(), n); if (!f.np.value) f.np.value = n >= 25 ? 'T3 ชวนสั่งซ้ำ' : n >= 7 ? 'T2 ถามผลการใช้' : 'โทรติดตาม'; nextSum(f); },
     'cd-next-edit': (el) => { const f = el.closest('form'); const box = $('[data-next-fields]', f); box.hidden = !box.hidden; if (!box.hidden) f.nd.focus(); },
     'cd-notes': () => { ui.cdAllNotes = !ui.cdAllNotes; render(); },
@@ -1922,7 +1938,7 @@
     // ---- call queue
     'tq-bucket': (el) => { ui.tq.bucket = el.dataset.v; qCur = null; render(); },
     'tq-user': (el) => { ui.tq.user = el.dataset.v; qCur = null; qSkipped.clear(); render(); },
-    'q-dial': (el) => { try { const h = el.getAttribute('href'); if (h) window.location.href = h; } catch (_) {}
+    'q-dial': (el) => { dialHelp(el);
       if (!qTimer0) qTimer0 = Date.now();
       clearInterval(qTick); qTick = setInterval(() => { const t = $('#q-timer'); if (!t || !qTimer0) { clearInterval(qTick); return; } t.textContent = H.hms((Date.now() - qTimer0) / 1000); t.classList.add('on'); }, 1000);
       try { window.location.href = el.getAttribute('href'); } catch (_) { /* dialer not available */ }
