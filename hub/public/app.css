@@ -1274,3 +1274,14 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 .q-tbl td, .q-tbl th { vertical-align: middle; }
 .rp-r { display: flex; align-items: center; gap: 10px; min-width: 160px; } .rp-r .bar { flex: 1; height: 8px; border-radius: 6px; background: rgba(148, 163, 184, .18); overflow: hidden; } .rp-r .bar i { display: block; height: 100%; background: var(--good); border-radius: 6px; } .rp-r b { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
 .q-ok em { font-style: normal; font-size: 13px; color: var(--muted); margin-left: 4px; }
+
+/* Excel export bar + row checkboxes */
+.xbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 4px 0 12px; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, .45); border: 1px solid rgba(160, 175, 210, .25); }
+.xbar .xall { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.xbar .xcnt { font-size: 12px; font-weight: 700; color: var(--accent); background: rgba(37, 99, 235, .1); padding: 3px 10px; border-radius: 999px; }
+.xbar input[type=checkbox], .xck { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; flex: none; }
+.tbl th.ck, .tbl td.ck { width: 34px; padding-right: 0; }
+.ap-who .xck { margin-right: 4px; }
+.kt-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.rank-row .ellip .xck { vertical-align: -3px; margin-right: 4px; }
+.cp-nm { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
