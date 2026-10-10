@@ -580,7 +580,7 @@
       const tt = '<div class="tiles">' + tile('<i style="background:var(--c-tele)"></i>ยอดขาย Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์จากการโทร', 'hero') +
         tile('จำนวนสาย', N(d.teamSum.calls), 'ได้คุย ' + N(d.teamSum.talked) + ' สาย') + tile('อัตราติดต่อได้', pctTxt(d.contactRate), 'จากสายทั้งหมด') + tile('อัตราปิดการขาย', pctTxt(d.conversion), 'จากสายที่ได้คุย') +
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.tele ? d.rev.tele / d.cnt.tele : 0), 'ยอด Telesales') + tile('นัดที่เลยกำหนด', N(d.overdue), 'เงียบเกินกำหนด ' + d.stale, d.overdue ? 'alert' : '') + '</div>';
-      return head + tt + teamCard + '<div class="grid g3">' + funnelCard + heatCard + card('alert', 'ต้องติดตาม', 'งานค้างของทีม Telesales', alerts) + '</div>' + foot;
+      return head + tt + teamCard + '<div class="grid g3">' + funnelCard + heatCard + card('alert', 'ต้องติดตาม', 'งานค้างของทีม Telesales', alerts) + '</div>' + teleSales(st, from, to, label) + foot;
     }
     if (mode === 'admin') {
       const dist = fullView() ? (st.approvals || []).filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) >= from && H.dayKey(a.decidedAt || a.at) <= to).length : (DASH[from + '|' + to] || {}).dist || 0;
@@ -600,7 +600,7 @@
     const donutCard = '<div class="grid g2">' +
       card('chart', 'สัดส่วนยอดขายตามทีม', label + ' : Telesales เทียบ Admin', donut([{ l: 'Telesales', v: d.rev.tele, c: 'var(--c-tele)' }, { l: 'Admin (FB Page)', v: d.rev.admin, c: 'var(--c-admin)' }], B(two), 'ยอดรวม')) +
       card('bag', 'สัดส่วนยอดขายตามสินค้า', label + ' : 5 อันดับแรก ทุกช่องทาง', donut(prods.map((x, i) => ({ l: x.name.replace(/ \([^)]*\)$/, ''), v: x.revenue, c: DONUT_COL[i] })).concat(prodRest ? [{ l: 'อื่น ๆ', v: prodRest, c: '#cbd5e1' }] : []), N(d.products.length), 'รายการสินค้า')) + '</div>';
-    return head + ct + goCards + donutCard + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + foot;
+    return head + ct + goCards + donutCard + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + (fullView() ? '' : teleSales(st, from, to, label)) + foot;
   }
   function tile(lbl, val, sub, cls, meter) {
     return '<div class="tile ' + (cls || '') + '"><span class="lbl">' + lbl + '</span><span class="val">' + val + '</span><span class="sub">' + sub + '</span>' + (meter != null ? '<div class="meter"><i style="width:' + Math.min(100, meter) + '%"></i></div>' : '') + '</div>';
@@ -675,7 +675,48 @@
       '<div class="as-sum"><div><small>ออเดอร์</small><b>' + N(ok.length) + '</b></div><div><small>ยอดขาย</small><b>' + B(sum) + '</b></div><div><small>เฉลี่ยต่อออเดอร์</small><b>' + B(ok.length ? sum / ok.length : 0) + '</b></div><div><small>จำนวนชิ้น</small><b>' + N(qty) + '</b></div><div><small>ลูกค้าเก่าซื้อซ้ำ</small><b>' + N(ok.filter((r) => r.a.returning).length) + '</b></div></div>' +
       '<div class="as-bar"><label class="search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาชื่อ เบอร์ สินค้า หรือเลขออเดอร์" value="' + esc(ui.asQ || '') + '" data-act-change="as-q" aria-label="ค้นหา"></label>' + sel('as-admin', ui.asAdmin, admins, 'แอดมินทุกคน') + sel('as-pg', ui.asPg, pagesL, 'ทุกเพจ') + '</div>' +
       (rows.length ? '<div class="tbl-wrap"><table class="tbl as-tbl"><thead><tr><th>วันที่ / เวลา</th><th>ลูกค้า</th><th>สินค้า × จำนวน</th><th class="n">ยอด</th><th>ปิดการขายโดย</th><th class="hide-sm">ส่งให้ Telesales</th></tr></thead><tbody>' + rows.slice((page - 1) * per, page * per).map(tr).join('') + '</tbody></table></div>' +
-        '<div class="cp-pager"><small class="muted">' + ((page - 1) * per + 1) + '–' + Math.min(page * per, rows.length) + ' จาก ' + N(rows.length) + ' ออเดอร์</small>' + (pages > 1 ? '<div class="pages"><button data-act="as-page" data-v="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') + ' aria-label="ก่อนหน้า">‹</button>' + Array.from({ length: pages }, (_, i) => i + 1).filter((n) => pages <= 7 || n === 1 || n === pages || Math.abs(n - page) <= 1).map((n, i, a) => (i && n - a[i - 1] > 1 ? '<span class="faint">…</span>' : '') + '<button class="' + (n === page ? 'on' : '') + '" data-act="as-page" data-v="' + n + '">' + n + '</button>').join('') + '<button data-act="as-page" data-v="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') + ' aria-label="ถัดไป">›</button></div>' : '') + '</div>'
+        pagerHtml('as-page', page, pages, rows.length, per)
+        : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>';
+  }
+  function pagerHtml(act, page, pages, total, per) {
+    return '<div class="cp-pager"><small class="muted">' + ((page - 1) * per + 1) + '–' + Math.min(page * per, total) + ' จาก ' + N(total) + ' ออเดอร์</small>' + (pages > 1 ? '<div class="pages"><button data-act="' + act + '" data-v="' + (page - 1) + '"' + (page === 1 ? ' disabled' : '') + ' aria-label="ก่อนหน้า">‹</button>' + Array.from({ length: pages }, (_, i) => i + 1).filter((n) => pages <= 7 || n === 1 || n === pages || Math.abs(n - page) <= 1).map((n, i, a) => (i && n - a[i - 1] > 1 ? '<span class="faint">…</span>' : '') + '<button class="' + (n === page ? 'on' : '') + '" data-act="' + act + '" data-v="' + n + '">' + n + '</button>').join('') + '<button data-act="' + act + '" data-v="' + (page + 1) + '"' + (page === pages ? ' disabled' : '') + ' aria-label="ถัดไป">›</button></div>' : '') + '</div>';
+  }
+  // ---- detailed telesales sales (from logged calls): one row per sale
+  function teleSalesRows(st, from, to) {
+    const out = [];
+    for (const k of st.kpi || []) {
+      if (!(k.orders > 0 || k.amount > 0) || k.date < from || k.date > to) continue;
+      const c = (k.customerId && H.findCustomer(st, k.customerId)) || {};
+      const o = (k.orderId && (c.orders || []).find((x) => x.id === k.orderId)) || {};
+      out.push({ k, c, at: k.at || k.date, name: c.name || k.name || '', phone: c.phone || k.phone || '', items: (o.items && o.items.length ? o.items : k.items) || [], total: k.amount || o.total || 0,
+        status: o.status || (k.result === 'awaiting_payment' ? 'awaiting_payment' : 'paid'), seller: uname(k.user) || '-', round: k.channel === 'mkt' ? 'E-Commerce' : (k.round || 'T1') });
+    }
+    return out.sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
+  }
+  function teleSales(st, from, to, label) {
+    const all = fullView();
+    let rows = teleSalesRows(st, from, to);
+    const sellers = [...new Set(rows.map((r) => r.seller))].sort(), rounds = ['T1', 'T2', 'T3', 'E-Commerce'].filter((x) => rows.some((r) => r.round === x));
+    if (all && ui.tsUser && ui.tsUser !== 'all') rows = rows.filter((r) => r.seller === ui.tsUser);
+    if (ui.tsRd && ui.tsRd !== 'all') rows = rows.filter((r) => r.round === ui.tsRd);
+    const q = (ui.tsQ || '').trim().toLowerCase();
+    if (q) rows = rows.filter((r) => [r.name, r.phone, r.seller, r.round, r.items.map((i) => i.name).join(' ')].join(' ').toLowerCase().includes(q.replace(/[-\s]/g, '')) || (r.phone || '').includes(q.replace(/\D/g, '') || '###'));
+    const ok = rows.filter((r) => r.status !== 'cancelled'), sum = ok.reduce((t, r) => t + r.total, 0), qty = ok.reduce((t, r) => t + r.items.reduce((u, i) => u + (i.qty || 0), 0), 0);
+    const per = 10, pages = Math.max(1, Math.ceil(rows.length / per)), page = Math.min(Math.max(1, ui.tsPage || 1), pages);
+    const stt = { paid: ['good', 'ชำระแล้ว'], awaiting_payment: ['warn', 'รอชำระ'], cancelled: ['bad', 'ยกเลิก'] };
+    const tr = (r) => { const s2 = stt[r.status] || stt.paid, u = user(r.k.user);
+      return '<tr><td class="nowrap"><b>' + H.thDate(r.at).replace(/ \d{4}$/, '') + '</b><small class="muted">' + (r.k.at ? H.thTime(r.k.at) + ' น.' : '') + '</small></td>' +
+        '<td><b class="link one"' + (r.c.id ? ' data-open="' + esc(r.c.id) + '"' : '') + '>' + esc(r.name || 'ลูกค้าไม่ระบุชื่อ') + '</b><small class="muted">' + (r.phone ? H.fmtPhone(r.phone) : 'ไม่มีเบอร์') + '</small></td>' +
+        '<td>' + (r.items.length ? r.items.map((i) => '<div class="as-it"><span class="one">' + esc(String(i.name).replace(/\s*\([^)]*\)$/, '')) + '</span><b>×' + (i.qty || 1) + '</b>' + (i.price ? '<small class="muted">' + B(i.price) + '</small>' : '') + '</div>').join('') : '<span class="faint">ไม่ระบุสินค้า</span>') + '</td>' +
+        '<td class="n"><b>' + B(r.total) + '</b><span class="pill ' + s2[0] + '">' + s2[1] + '</span></td>' +
+        '<td>' + (u ? '<span class="who small"><span class="mini">' + esc(u.initial || '') + '</span>' + esc(u.name) + '</span>' : '<b class="one">' + esc(r.seller) + '</b>') + '<small class="muted one">รอบ ' + esc(r.round) + '</small></td>' +
+        '<td class="hide-sm"><b class="small">' + (r.k.durationSec ? Math.floor(r.k.durationSec / 60) + ':' + String(r.k.durationSec % 60).padStart(2, '0') + ' นาที' : '-') + '</b><small class="muted">' + (r.k.ocId || r.k.auto ? 'OneCall' : 'บันทึกเอง') + '</small></td></tr>'; };
+    const sel = (act, val, opts, allL) => '<select class="in as-sel" data-act-change="' + act + '"><option value="all">' + allL + '</option>' + opts.map((o) => '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>';
+    return '<section class="card as-card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>' + (all ? 'รายการขายของเทเลเซลล์' : 'รายการขายของฉัน') + '</h2><small>' + label + ' : ทุกออเดอร์ที่ปิดจากการโทร ทีละรายการ</small></div><button class="btn sm" data-act="ts-csv">' + ico('download') + ' ส่งออก CSV</button></div>' +
+      '<div class="as-sum"><div><small>ออเดอร์</small><b>' + N(ok.length) + '</b></div><div><small>ยอดขาย</small><b>' + B(sum) + '</b></div><div><small>เฉลี่ยต่อออเดอร์</small><b>' + B(ok.length ? sum / ok.length : 0) + '</b></div><div><small>จำนวนชิ้น</small><b>' + N(qty) + '</b></div><div><small>รอชำระ</small><b>' + N(ok.filter((r) => r.status === 'awaiting_payment').length) + '</b></div></div>' +
+      '<div class="as-bar"><label class="search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาชื่อ เบอร์ หรือสินค้า" value="' + esc(ui.tsQ || '') + '" data-act-change="ts-q" aria-label="ค้นหา"></label>' + (all ? sel('ts-user', ui.tsUser, sellers, 'เทเลเซลล์ทุกคน') : '') + sel('ts-rd', ui.tsRd, rounds, 'ทุกรอบ') + '</div>' +
+      (rows.length ? '<div class="tbl-wrap"><table class="tbl as-tbl"><thead><tr><th>วันที่ / เวลา</th><th>ลูกค้า</th><th>สินค้า × จำนวน</th><th class="n">ยอด</th><th>ปิดการขายโดย</th><th class="hide-sm">เวลาคุย</th></tr></thead><tbody>' + rows.slice((page - 1) * per, page * per).map(tr).join('') + '</tbody></table></div>' +
+        pagerHtml('ts-page', page, pages, rows.length, per)
         : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>';
   }
   // donut: share of a whole, legend with amount + percent beside it
@@ -1774,6 +1815,14 @@
     'dnc-page': (el) => { ui.dncPage = Number(el.dataset.v); render(); },
     'sync-evo': () => run(async () => { const r = await fetch('/api/sync/evolution', { method: 'POST', credentials: 'same-origin' }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'ดึงไม่สำเร็จ'); await api.refresh(true); return j; }, (j) => 'ดึง E-Commerce แล้ว : ลูกค้าใหม่ ' + N(j.added || 0) + ' ราย'),
     'as-page': (el) => { ui.asPage = Number(el.dataset.v); render(); },
+    'ts-page': (el) => { ui.tsPage = Number(el.dataset.v); render(); },
+    'ts-csv': () => {
+      const st = S.full || V(); let [from, to] = drRange('ov'); if (!from) { from = '2000-01-01'; to = H.today(); }
+      const rows = teleSalesRows(st, from, to);
+      const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const csv = '\ufeff' + ['วันที่,เวลา,ลูกค้า,เบอร์,สินค้า,จำนวน,ยอด,สถานะ,ปิดโดย,รอบ,เวลาคุย(วินาที)'].concat(rows.map((r) => [r.k.date, r.k.at ? H.thTime(r.k.at) : '', r.name, r.phone, r.items.map((i) => i.name).join(' | '), r.items.reduce((u, i) => u + (i.qty || 0), 0), r.total, r.status, r.seller, r.round, r.k.durationSec || 0].map(q).join(','))).join('\n');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = 'tele-sales-' + from + '_' + to + '.csv'; a.click();
+    },
     'as-csv': () => {
       const st = S.full || V(); let [from, to] = drRange('ov'); if (!from) { from = '2000-01-01'; to = H.today(); }
       const rows = adminSalesRows(st, from, to);
@@ -1875,6 +1924,9 @@
       const pb = $('.cd-prod', f); if (pb) { if (g.id === 'sold') $('[data-rs=sold]', f).after(pb); else $('[data-prod-home]', f).after(pb); pb.hidden = g.id === 'none'; pb.classList.toggle('sold', g.id === 'sold'); const ph = $('[data-prod-hint]', pb); if (ph) ph.textContent = g.id === 'sold' ? 'จำเป็น : เลือกสินค้า จำนวน และยอด' : 'ไม่บังคับ : บันทึกว่าลูกค้าสนใจอะไร'; const pt = $('b.small', pb); if (pt) pt.textContent = g.id === 'sold' ? 'สินค้าที่ขาย' : 'สินค้าที่ลูกค้าสนใจ'; }
       if (g.id === 'talk') { const h = $('[data-next-hint]', f); if (h) h.textContent = 'เลือกคำตอบของลูกค้า แล้วระบบจะนัดให้อัตโนมัติ'; }
     }
+    else if (act === 'ts-q') { ui.tsQ = t.value; ui.tsPage = 1; render(); }
+    else if (act === 'ts-user') { ui.tsUser = t.value; ui.tsPage = 1; render(); }
+    else if (act === 'ts-rd') { ui.tsRd = t.value; ui.tsPage = 1; render(); }
     else if (act === 'as-q') { ui.asQ = t.value; ui.asPage = 1; render(); }
     else if (act === 'as-admin') { ui.asAdmin = t.value; ui.asPage = 1; render(); }
     else if (act === 'as-pg') { ui.asPg = t.value; ui.asPage = 1; render(); }
