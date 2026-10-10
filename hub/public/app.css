@@ -1241,3 +1241,10 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 @media (max-width: 760px) { .as-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .as-tbl td.n b { display: block; } .as-tbl td.n .pill { display: inline-block; }
 .as-card .cp-pager { padding: 12px 4px 0; border-top: 0; } .as-card .pages button[disabled] { opacity: .35; pointer-events: none; }
+/* alert rows: give the number its own column so 3-4 digit counts never crowd the text */
+.alerts { gap: 10px; }
+.alert-row { display: grid !important; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 14px; padding: 14px 16px !important; align-items: center; }
+.alert-row .n { min-width: 0; width: 76px; font-size: 24px; font-weight: 700; line-height: 1; text-align: center; padding-right: 14px; border-right: 1px solid rgba(160, 175, 210, .3); font-variant-numeric: tabular-nums; }
+.alert-row .t b { font-size: 14px; margin-bottom: 2px; } .alert-row .t small { display: block; line-height: 1.45; }
+.alert-row > .ico { width: 16px; height: 16px; color: var(--faint); }
+.alert-row { grid-template-columns: 96px minmax(0, 1fr) auto; } .alert-row .n { width: 96px; font-size: 22px; }
