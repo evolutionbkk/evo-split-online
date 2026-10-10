@@ -168,7 +168,7 @@ app.post('/api/upload/ecom', auth, async (req, res) => {
 async function ingestEcom(req, res) {
   if (!keyOk(req) && !(actorOf(req) && H.isBoss(actorOf(req)))) return res.status(401).json({ error: 'bad key' });
   const rows = (req.body && req.body.rows) || [];
-  res.json(await mutate((st) => H.apply(st, 'ingestEcom', { rows }, { id: 'system', role: 'system' })));
+  res.json(await mutate((st) => H.apply(st, 'ingestEcom', { rows, src: req.body && req.body.src }, { id: 'system', role: 'system' })));
 }
 async function ingestOnecall(req, res) {
   if (!keyOk(req)) return res.status(401).json({ error: 'bad key' });
@@ -176,6 +176,20 @@ async function ingestOnecall(req, res) {
   res.json(await mutate((st) => H.apply(st, 'ingestOnecall', { records }, { id: 'system', role: 'system' })));
 }
 app.post('/api/ingest/bigseller', ingestEcom);
+// BigSeller helper userscript: served with the ingest key only to a signed-in executive (or a signed link they opened)
+app.get('/api/bigseller/script-link', auth, (req, res) => {
+  if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+  const exp = Date.now() + 15 * 60000, t = exp + '.' + sign('bs:' + exp);
+  res.json({ url: '/bigseller.user.js?t=' + encodeURIComponent(t) });
+});
+app.get('/bigseller.user.js', (req, res) => {
+  const a = actorOf(req), [exp, sg] = String(req.query.t || '').split('.');
+  const ok = (a && H.isBoss(a)) || (exp && sg && Number(exp) > Date.now() && safeEq(sign('bs:' + exp), sg));
+  if (!ok || !INGEST_KEY) return res.status(403).type('text').send('เปิดลิงก์นี้จากหน้า ตั้งค่า ของ Evolution Hub (ต้องเข้าสู่ระบบเป็นผู้บริหาร)');
+  const host = (req.headers['x-forwarded-proto'] || req.protocol) + '://' + req.get('host');
+  const src = require('fs').readFileSync(path.join(__dirname, 'bigseller.user.tpl.js'), 'utf8').split('__HUB__').join(host).split('__HOST__').join(req.get('host')).split('__KEY__').join(INGEST_KEY);
+  res.set('Cache-Control', 'no-store'); res.type('application/javascript').send(src);
+});
 app.post('/api/bigseller/ingest', ingestEcom);
 app.post('/api/ingest/onecall', ingestOnecall);
 app.post('/api/onecall/ingest', ingestOnecall);
@@ -220,12 +234,18 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
       } catch (e) { console.warn('[import] failed', f, e.message); }
     }
   }
+  if (process.env.LEGACY_DATABASE_URL && !(state.sync.platfix)) {
+    try { const n = I.fixPlatforms(state, await store.loadLegacy(process.env.LEGACY_DATABASE_URL)); state.sync.platfix = new Date().toISOString(); console.log('[boot] fixed E-Commerce platforms', n); }
+    catch (e) { console.warn('[boot] platform fix failed', e.message); }
+  }
+  { const cnt = {}; for (const c of state.customers) if (c.channel === 'ecom') cnt[c.platform || '-'] = (cnt[c.platform || '-'] || 0) + 1; console.log('[boot] E-Commerce customers by platform', JSON.stringify(cnt)); }
   { const n = H.autoDistribute(state); if (n) console.log('[boot] auto-distributed waiting leads', n); }
   { const n = H.autoLogOnecall(state, H.today()); if (n) console.log('[boot] OneCall calls logged to KPI', n); }
   state = await store.save(state);
   app.listen(PORT, () => console.log('Evolution Hub Commerce on :' + PORT, '· customers', state.customers.length));
   const loop = (fn, min) => setInterval(() => mutate(fn).catch((e) => console.warn(e.message)), min * 60000);
-  if (I.status().pancake) { loop((st) => I.pancakePull(st), PANCAKE_EVERY_MIN); setTimeout(() => mutate((st) => I.pancakePull(st)).catch(() => {}), 5000); }
+  if (I.status().pancake) { setTimeout(() => mutate((st) => I.pancakeShipSync(st, 15)).then((r) => console.log('[boot] Pancake shipping status', JSON.stringify(r))).catch((e) => console.warn('[ship]', e.message)), 20000);
+    loop((st) => I.pancakePull(st), PANCAKE_EVERY_MIN); setTimeout(() => mutate((st) => I.pancakePull(st)).catch(() => {}), 5000); }
   if (I.status().onecall) { loop((st) => I.onecallPull(st, 2), ONECALL_EVERY_MIN); setTimeout(() => mutate((st) => I.onecallPull(st, 2)).catch(() => {}), 8000); }
   if (process.env.LEGACY_DATABASE_URL || process.env.EVO_TOKEN) {
     const evo = (st) => I.evoPull(st, () => store.loadLegacy(process.env.LEGACY_DATABASE_URL)).then((r) => { const sy = st.sync.bigseller || {}; if (r.added) console.log('[evo] new E-Commerce customers', r.added); else if (sy.lastError && sy.lastError !== evoLastErr) console.warn('[evo]', sy.lastError); evoLastErr = sy.lastError; return r; });

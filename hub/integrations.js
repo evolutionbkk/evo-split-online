@@ -41,6 +41,34 @@ function pancakeToClose(o) {
     source: 'pancake',
   };
 }
+// Pancake order status → shipping state shown to telesales
+const PC_SHIP = { 0: ['new', 'ออเดอร์ใหม่'], 17: ['new', 'รอยืนยัน'], 11: ['wait', 'รอสินค้าเข้า'], 12: ['pack', 'รอพิมพ์ใบปะหน้า'], 13: ['pack', 'พิมพ์ใบปะหน้าแล้ว'], 20: ['new', 'สั่งซื้อแล้ว'], 1: ['new', 'ยืนยันแล้ว'], 8: ['pack', 'กำลังแพ็ค'], 9: ['pack', 'รอขนส่งเข้ารับ'], 2: ['ship', 'กำลังจัดส่ง'], 3: ['done', 'ส่งถึงลูกค้าแล้ว'], 16: ['done', 'ส่งถึงแล้ว : เก็บเงินแล้ว'], 4: ['back', 'กำลังตีกลับ'], 15: ['back', 'คืนบางส่วน'], 5: ['back', 'ตีกลับแล้ว'], 6: ['cancel', 'ยกเลิก'], 7: ['cancel', 'ลบแล้ว'] };
+function pcShip(o) {
+  const st = PC_SHIP[o.status] || ['new', String(o.status_name || o.status || '')];
+  const pt = o.partner || {};
+  const hist = (o.status_history || []).filter((h) => h.status === o.status).pop();
+  return { code: st[0], label: st[1], tracking: String(pt.extend_code || '').trim(), carrier: String(pt.partner_name || '').trim(), link: o.tracking_link || '', sentAt: o.time_send_partner ? pcTime(o.time_send_partner) : '', at: hist && hist.updated_at ? pcTime(hist.updated_at) : pcTime(o.updated_at || o.inserted_at) };
+}
+// copy shipping state onto the matching hub orders (orders created from Pancake carry extId pc:<id>)
+function applyShipping(state, raws) {
+  const idx = new Map();
+  for (const c of state.customers) for (const o of c.orders || []) if (o.extId && o.extId.startsWith('pc:')) idx.set(o.extId, o);
+  let n = 0;
+  for (const r of raws) {
+    const o = idx.get('pc:' + (r.id || r.system_id)); if (!o) continue;
+    const sh = pcShip(r), old = o.ship || {};
+    if (old.code !== sh.code || old.tracking !== sh.tracking || old.label !== sh.label) { o.ship = sh; n++; }
+  }
+  return n;
+}
+async function pancakeShipSync(state, pages) {
+  if (!PANCAKE_API_KEY) return { updated: 0 };
+  const raws = [];
+  for (let p = 1; p <= (pages || 10); p++) { const j = await pancakeFetch(p, 100); raws.push(...j.data); if (j.data.length < 100 || p >= (j.total_pages || 1)) break; }
+  const updated = applyShipping(state, raws);
+  state.sync.pancake = { ...(state.sync.pancake || {}), shipRun: new Date().toISOString(), shipUpdated: updated };
+  return { updated, scanned: raws.length };
+}
 async function pancakeFetch(page, size) {
   const url = PANCAKE_HOST + '/shops/' + PANCAKE_SHOP_ID + '/orders?api_key=' + encodeURIComponent(PANCAKE_API_KEY) + '&page_number=' + page + '&page_size=' + (size || 100);
   const r = await fetch(url);
@@ -56,11 +84,15 @@ async function pancakePull(state, opts) {
   if (!sync.startedAt) sync.startedAt = new Date().toISOString();
   const baseline = Date.parse(sync.startedAt);
   const backfillFrom = opts.backfillDays ? Date.now() - opts.backfillDays * 86400000 : null;
-  let added = 0, history = 0, scanned = 0;
+  let added = 0, history = 0, scanned = 0, shipped = 0;
+  const raws = [];
   try {
-    const pages = opts.backfillDays ? 30 : 2;
+    const pages = opts.backfillDays ? 30 : 3;
+    let stopNew = false;
     for (let p = 1; p <= pages; p++) {
       const j = await pancakeFetch(p, 100);
+      raws.push(...j.data);
+      if (stopNew) { if (j.data.length < 100 || p >= (j.total_pages || 1)) break; continue; }
       const orders = j.data.slice().sort((a, b) => Date.parse(pcTime(a.inserted_at)) - Date.parse(pcTime(b.inserted_at)));
       let older = false;
       for (const o of orders) {
@@ -81,9 +113,11 @@ async function pancakePull(state, opts) {
           }
         } else older = true;
       }
-      if (older || j.data.length < 100 || p >= (j.total_pages || 1)) break;
+      if (j.data.length < 100 || p >= (j.total_pages || 1)) break;
+      if (older) stopNew = true;   // keep reading a few pages only to refresh shipping status
     }
-    Object.assign(sync, { lastRun: new Date().toISOString(), lastAdded: added, lastHistory: history, lastScanned: scanned, lastError: null });
+    shipped = applyShipping(state, raws);
+    Object.assign(sync, { lastRun: new Date().toISOString(), lastAdded: added, lastHistory: history, lastScanned: scanned, lastShip: shipped, lastError: null });
   } catch (e) {
     Object.assign(sync, { lastRun: new Date().toISOString(), lastError: String(e.message || e) });
   }
@@ -139,7 +173,23 @@ async function onecallPull(state, days) {
 
 // ------------------------------------------------------------------ old system import
 const LEGACY_STATUS = { new: 'new', contacting: 'followup', interested: 'warm', followup: 'followup', awaiting_payment: 'awaiting_payment', won: 'won', lost: 'lost' };
-const LEGACY_SRC = { pancake: ['fb', 'pancake'], manual: ['fb', 'manual'], refill: ['fb', 'manual'], bigseller: ['ecom', 'lazada'], lazada: ['ecom', 'lazada'], shopee: ['ecom', 'shopee'], tiktok: ['ecom', 'tiktok'], evolution: ['ecom', 'evolution'], marketplace: ['ecom', 'lazada'] };
+const LEGACY_SRC = { pancake: ['fb', 'pancake'], manual: ['fb', 'manual'], refill: ['fb', 'manual'], bigseller: ['ecom', 'evolution'], lazada: ['ecom', 'lazada'], shopee: ['ecom', 'shopee'], tiktok: ['ecom', 'tiktok'], evolution: ['ecom', 'evolution'], marketplace: ['ecom', 'evolution'] };
+// which marketplace a record belongs to: explicit fields first, then any single mention in the record; unknown → 'evolution'
+function detectPlatform(a) {
+  const hit = (t) => { t = String(t || '').toLowerCase(); const f = [['shopee', /shopee|ช้อปปี้/], ['tiktok', /tiktok|tik tok|ติ๊กต็อก/], ['lazada', /lazada|ลาซาด้า/]].filter(([, re]) => re.test(t)).map(([k]) => k); return f.length === 1 ? f[0] : ''; };
+  return hit([a.platform, a.shop, a.store, a.marketplace, a.channel, a.shopName, a.storeName].filter(Boolean).join(' ')) || hit(JSON.stringify(a)) || 'evolution';
+}
+// one-time fix: old-system BigSeller/marketplace customers were all tagged Lazada
+function fixPlatforms(state, old) {
+  let fixed = 0;
+  for (const a of (old && old.assigned) || []) {
+    if (!['bigseller', 'marketplace'].includes(String(a.source || '').toLowerCase())) continue;
+    const c = H.byPhone(state, H.normPhone(a.phone));
+    if (!c || c.channel !== 'ecom' || c.platform !== 'lazada') continue;
+    const p = detectPlatform(a); if (p !== c.platform) { c.platform = p; fixed++; }
+  }
+  return fixed;
+}
 function importLegacy(state, old) {
   if (!old || !Array.isArray(old.assigned)) return { customers: 0 };
   const sideToUser = { W: 'wan', K: 'khem' };
@@ -148,7 +198,8 @@ function importLegacy(state, old) {
     if (a.archived && !(a.orders || []).length) continue;
     const phone = H.normPhone(a.phone);
     if (phone.length < 9 || H.byPhone(state, phone)) continue;
-    const [channel, platform] = LEGACY_SRC[String(a.source || '').toLowerCase()] || ['fb', 'manual'];
+    let [channel, platform] = LEGACY_SRC[String(a.source || '').toLowerCase()] || ['fb', 'manual'];
+    if (platform === 'evolution') platform = detectPlatform(a);
     const c = {
       id: H.uid('c'), name: String(a.name || '').trim(), phone, address: String(a.address || ''), channel, platform,
       page: a.page || '', owner: sideToUser[a.sales] || null, status: LEGACY_STATUS[a.leadStatus] || 'new',
@@ -221,4 +272,4 @@ async function evoPull(state, getLegacy) {
   return res;
 }
 
-module.exports = { evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
+module.exports = { pancakeShipSync, detectPlatform, fixPlatforms, evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };

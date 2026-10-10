@@ -142,6 +142,13 @@
       c.nextApptAt = open.length ? open[0].at : null;
       if (!['won', 'lost'].includes(c.status) && r() < 0.7) c.lastContactAt = at(H.addDays(T, -Math.floor(r() * 2)), 9 + Math.floor(r() * 3));
     }
+    // ---- 5b) shipping status on recent orders (Pancake / BigSeller give this in the real system)
+    { const CAR = ['Flash Express Thailand', 'Kerry Express', 'J&T Express']; const ST = [['done', 'ส่งถึงลูกค้าแล้ว'], ['ship', 'กำลังจัดส่ง'], ['pack', 'รอขนส่งเข้ารับ']];
+      for (const c of st.customers) { const o = (c.orders || [])[0]; if (!o || o.status === 'cancelled') continue;
+        const age = H.daysBetween(H.dayKey(o.date), T); if (age > 20) continue;
+        const s2 = age >= 3 ? ST[0] : age >= 1 ? ST[1] : ST[2], car = o.platform === 'shopee' ? 'Shopee Xpress' : o.platform === 'lazada' ? 'LEX TH' : o.platform === 'tiktok' ? 'J&T Express' : pick(CAR);
+        o.ship = { code: s2[0], label: s2[1], carrier: car, tracking: s2[0] === 'pack' && r() < .5 ? '' : 'TH' + Math.floor(1e11 + r() * 9e11) + 'A', link: s2[0] === 'pack' ? '' : 'https://pke.gg/demo', at: at(H.addDays(T, -Math.max(0, age - 2)), 10 + Math.floor(r() * 6)) };
+      } }
     // ---- 6) announcements
     st.announcements = [
       { id: 'an1', title: 'โปรเดือน ต.ค. : ซื้อ Anti-Aging 2 กล่อง แถม Serum 1 ขวด', body: 'ใช้ได้ทั้ง FB และ Telesales ถึง 31 ต.ค. 2569', at: at(H.addDays(T, -3), 9), by: 'at' },
@@ -152,6 +159,7 @@
       pancake: { lastRun: at(T, 11, 2), lastAdded: 2, lastError: null, mode: 'demo' },
       bigseller: { lastRun: at(T, 9, 40), lastAdded: 4, lastOrders: 5 },
       onecall: { lastRun: at(T, 11, 0), lastAdded: 23 },
+      bstab: { lastRun: at(T, 11, 5), totalRows: 214, totalAdded: 9, totalTagged: 37 },
       legacy: {},
     };
     st.activity = st.activity.slice(0, 60);

@@ -572,7 +572,7 @@
     const lr = Object.entries(d.lostReasons).sort((a, b) => b[1] - a[1]);
     const pf = Object.entries(d.platform).sort((a, b) => b[1] - a[1]), pfMax = Math.max(1, ...pf.map((x) => x[1]));
     const sideCard = card('alert', 'ต้องติดตาม', 'กดเพื่อไปยังรายการ', alerts +
-      '<div class="section-t" style="margin-top:16px">E-Commerce แยกแพลตฟอร์ม</div>' + (pf.length ? '<div class="rank" style="margin-top:8px">' + pf.map(([k, v], i) => '<div class="rank-row"><span class="no">' + (i + 1) + '</span><span>' + esc(k) + '</span><span class="bar"><i style="width:' + pct(v, pfMax) + '%;background:var(--c-ecom)"></i></span><span class="v">' + B(v) + '</span></div>').join('') + '</div>' : '<div class="small faint" style="margin-top:6px">ไม่มีออเดอร์ในช่วงนี้</div>') +
+      platCustHtml(st, from, to) + '<div class="section-t" style="margin-top:16px">ยอดขาย E-Commerce แยกแพลตฟอร์ม</div>' + (pf.length ? '<div class="rank" style="margin-top:8px">' + pf.map(([k, v], i) => '<div class="rank-row"><span class="no">' + (i + 1) + '</span><span>' + esc(k) + '</span><span class="bar"><i style="width:' + pct(v, pfMax) + '%;background:var(--c-ecom)"></i></span><span class="v">' + B(v) + '</span></div>').join('') + '</div>' : '<div class="small faint" style="margin-top:6px">ไม่มีออเดอร์ในช่วงนี้</div>') +
       '<div class="section-t" style="margin-top:16px">เหตุผลที่ลูกค้าปฏิเสธ</div>' + (lr.length ? '<div class="chips" style="margin-top:8px">' + lr.map(([k, v]) => '<span class="pill mute">' + esc(k) + ' ' + v + '</span>').join('') + '</div>' : '<div class="small faint" style="margin-top:6px">ไม่มีรายการ</div>'));
     const foot = '<div class="small faint">ข้อมูลล่าสุด ' + H.thDate(new Date().toISOString(), true) + '</div>';
     const two = d.rev.tele + d.rev.admin, twoN = d.cnt.tele + d.cnt.admin;
@@ -601,6 +601,15 @@
       card('chart', 'สัดส่วนยอดขายตามทีม', label + ' : Telesales เทียบ Admin', donut([{ l: 'Telesales', v: d.rev.tele, c: 'var(--c-tele)' }, { l: 'Admin (FB Page)', v: d.rev.admin, c: 'var(--c-admin)' }], B(two), 'ยอดรวม')) +
       card('bag', 'สัดส่วนยอดขายตามสินค้า', label + ' : 5 อันดับแรก ทุกช่องทาง', donut(prods.map((x, i) => ({ l: x.name.replace(/ \([^)]*\)$/, ''), v: x.revenue, c: DONUT_COL[i] })).concat(prodRest ? [{ l: 'อื่น ๆ', v: prodRest, c: '#cbd5e1' }] : []), N(d.products.length), 'รายการสินค้า')) + '</div>';
     return head + ct + goCards + donutCard + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + (fullView() ? '' : teleSales(st, from, to, label)) + foot;
+  }
+  // E-Commerce customers by marketplace: who brings the most customers (all time + new in range)
+  const PLAT_COL = { shopee: '#ee4d2d', lazada: '#1a2dbd', tiktok: '#111827', evolution: '#94a3b8' };
+  function platCustHtml(st, from, to) {
+    const all = {}, nw = {};
+    for (const c of st.customers || []) { if (c.channel !== 'ecom') continue; const k = c.platform || 'evolution'; all[k] = (all[k] || 0) + 1; const d = H.dayKey(c.createdAt); if (d >= from && d <= to) nw[k] = (nw[k] || 0) + 1; }
+    const rows = PLAT_ORDER.filter((k) => all[k]).sort((x, y) => (x === 'evolution') - (y === 'evolution') || all[y] - all[x]), mx = Math.max(1, ...rows.map((k) => all[k]));
+    if (!rows.length) return '';
+    return '<div class="section-t" style="margin-top:16px">ลูกค้า E-Commerce แยกช่องทาง</div><div class="rank" style="margin-top:8px">' + rows.map((k, i) => '<div class="rank-row"><span class="no">' + (k === 'evolution' ? '-' : i + 1) + '</span><span>' + esc(H.PLATFORMS[k].label) + '</span><span class="bar"><i style="width:' + pct(all[k], mx) + '%;background:' + PLAT_COL[k] + '"></i></span><span class="v">' + N(all[k]) + ' ราย' + (nw[k] ? ' <small>: ใหม่ ' + N(nw[k]) + '</small>' : '') + '</span></div>').join('') + '</div>';
   }
   function tile(lbl, val, sub, cls, meter) {
     return '<div class="tile ' + (cls || '') + '"><span class="lbl">' + lbl + '</span><span class="val">' + val + '</span><span class="sub">' + sub + '</span>' + (meter != null ? '<div class="meter"><i style="width:' + Math.min(100, meter) + '%"></i></div>' : '') + '</div>';
@@ -931,6 +940,8 @@
   }
 
   // ------------------------------------------------------------ CUSTOMERS (v2)
+  const PLAT_ORDER = ['shopee', 'lazada', 'tiktok', 'evolution'];
+  const platOpts = (list) => { const n = {}; for (const c of list) { const k = c.platform || 'evolution'; n[k] = (n[k] || 0) + 1; } return [{ v: 'all', l: 'ทุกช่องทาง' }].concat(PLAT_ORDER.map((k) => ({ v: k, l: (H.PLATFORMS[k] || {}).label + ' (' + N(n[k] || 0) + ')' }))); };
   const ROUND_OPTS = [{ v: 'all', l: 'T1 / T2 / T3' }, { v: 'T1', l: 'T1' }, { v: 'T2', l: 'T2' }, { v: 'T3', l: 'T3' }];
   function apptMap() { const m = {}; for (const a of (V().appointments || [])) if (!a.done && (!m[a.customerId] || Date.parse(a.at) < Date.parse(m[a.customerId].at))) m[a.customerId] = a; return m; }
   function custFiltersActive() { return (ui.cStatus || []).length > 0 || (ui.custTab === 'fb' && ui.round !== 'all') || (boss() && ui.owner !== 'all') || !!drRange('cust')[0]; }
@@ -958,6 +969,7 @@
     const sts = ui.cStatus || [];
     if (sts.length) list = list.filter((c) => sts.some((s) => (s === 'due' ? due(c) : c.status === s)));
     if (ui.custTab === 'fb' && ui.round !== 'all') list = list.filter((c) => c.round === ui.round);
+    if (ui.custTab === 'ecom' && ui.plat && ui.plat !== 'all') list = list.filter((c) => (c.platform || 'evolution') === ui.plat);
     const key = (c) => (c.nextApptAt ? Date.parse(c.nextApptAt) : 9e15);
     return list.sort((a, b) => key(a) - key(b) || (Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0)));
   }
@@ -982,6 +994,7 @@
       searchBox('cust', 'ค้นหาชื่อ เบอร์โทร คำสั่งซื้อ สินค้า หรือที่อยู่', ui.q) +
       '<div class="flt"><span class="flt-ico">' + ico('gear') + '</span>' + drBtn('cust', 'all', () => { resetList('cust'); render(); }, 'คำสั่งซื้อล่าสุด') +
       ddBtn('cstatus', { label: 'สถานะ', multi: true, options: C_STATUS_OPTS, value: ui.cStatus, onPick: (vals) => { ui.cStatus = vals; resetList('cust'); render(); } }) +
+      (ui.custTab === 'ecom' ? ddBtn('cplat', { label: 'ช่องทาง', options: platOpts(base), value: ui.plat || 'all', onPick: (x) => { ui.plat = x; resetList('cust'); render(); } }) : '') +
       (ui.custTab === 'fb' ? ddBtn('cround', { label: 'รอบ', options: ROUND_OPTS, value: ui.round, onPick: (x) => { ui.round = x; resetList('cust'); render(); } }) : '') +
       (boss() ? ddBtn('cowner', { label: 'ผู้ดูแล', options: ownerOpts, value: ui.owner, onPick: (x) => { ui.owner = x; resetList('cust'); render(); } }) : '') +
       '<span class="grow"></span><span class="small muted hide-sm">' + (boss() ? 'มุมมองผู้จัดการ' : 'มุมมองเซลล์') + '</span></div>' +
@@ -1159,13 +1172,30 @@
     const right = '<div class="cd-col"><section class="card"><div class="row between"><h3 class="ct">ประวัติการติดต่อ</h3>' + (allNotes.length > 3 ? '<button class="link-plain small" data-act="cd-notes">' + (ui.cdAllNotes ? 'ย่อ' : 'ดูทั้งหมด (' + allNotes.length + ')') + '</button>' : '') + '</div>' +
       (notes.length ? '<div class="cd-tl">' + notes.map((n) => { const r = n.result ? resultOf(n.result) : null; return '<div class="cd-tli"><span class="b">' + ico(n.kind === 'call' ? 'phone' : n.kind === 'sale' ? 'bag' : n.kind === 'appt' ? 'calendar' : 'note') + '</span><div><small class="muted">' + H.thDate(n.at, true) + '</small><div class="row" style="gap:6px"><b>' + esc(r ? r.label : n.kind === 'sale' ? 'ปิดการขาย' : n.kind === 'appt' ? 'นัดหมาย' : n.kind === 'assign' ? 'มอบหมาย' : 'บันทึก') + '</b>' + (n.round ? '<span class="rtag">' + n.round + '</span>' : '') + '</div>' + (n.text && !noise(n) ? '<p>' + esc(n.text) + '</p>' : '') + '<small class="faint">' + esc(uname(n.by)) + (n.durationSec ? ' : ' + H.hms(n.durationSec).replace(/^00:/, '') + ' นาที' : '') + '</small></div></div>'; }).join('') + '</div>' : '<div class="empty">ยังไม่มีประวัติ</div>') +
       (canEdit ? '<form class="row" data-form="note" style="flex-wrap:nowrap;margin-top:10px"><input class="in" name="text" placeholder="เพิ่มโน้ตสั้น ๆ" aria-label="โน้ต"><button class="btn sm">บันทึก</button></form>' : '') + '</section>' +
-      '<section class="card"><div class="row between"><h3 class="ct">ประวัติคำสั่งซื้อ</h3><span class="small" style="color:var(--accent)">' + (c.orders || []).length + ' รายการ</span></div>' +
+      shipCard(c) + '<section class="card"><div class="row between"><h3 class="ct">ประวัติคำสั่งซื้อ</h3><span class="small" style="color:var(--accent)">' + (c.orders || []).length + ' รายการ</span></div>' +
       ((c.orders || []).length ? '<div class="cd-orders">' + c.orders.slice(0, 20).map((o) => '<div class="cd-ord"><div class="row between"><span class="cd-oid">' + esc(o.extId ? o.extId.replace(/^pc:/, 'PC-').replace(/^legacy:/, '').slice(0, 18) : 'EH-' + String(o.id).slice(-6).toUpperCase()) + '</span><small class="muted">' + H.thDate(o.date) + '</small></div>' +
-        '<div class="row between"><span class="one">' + esc((o.items || []).map((i) => i.name.replace(/ \([^)]*\)$/, '') + ' × ' + i.qty).join(', ') || 'คำสั่งซื้อ') + '</span><b>' + B(o.total) + '</b></div><small style="color:var(--good)">' + (o.status === 'cancelled' ? 'ยกเลิก' : o.status === 'awaiting_payment' ? 'รอชำระ' : 'สำเร็จ') + ' : ' + esc(srcLabel[o.source] || o.source) + '</small></div>').join('') + '</div>' +
+        '<div class="row between"><span class="one">' + esc((o.items || []).map((i) => i.name.replace(/ \([^)]*\)$/, '') + ' × ' + i.qty).join(', ') || 'คำสั่งซื้อ') + '</span><b>' + B(o.total) + '</b></div><small style="color:var(--good)">' + (o.status === 'cancelled' ? 'ยกเลิก' : o.status === 'awaiting_payment' ? 'รอชำระ' : 'สำเร็จ') + ' : ' + esc(srcLabel[o.source] || o.source) + (o.platform && o.platform !== 'evolution' ? ' : ' + esc((H.PLATFORMS[o.platform] || {}).label || o.platform) : '') + '</small>' + (o.ship ? shipLine(o.ship) : '') + '</div>').join('') + '</div>' +
         '<div class="row between cd-sum"><span class="muted">ยอดซื้อรวม</span><b>' + B(H.customerTotal(c)) + '</b></div>' : '<div class="empty">ยังไม่มีคำสั่งซื้อ</div>') + '</section></div>';
     return top + head + '<div class="cd-grid">' + left + mid + right + '</div>';
   }
 
+  const SHIP_TONE = { new: 'mute', wait: 'warn', pack: 'mute', ship: 'info', done: 'good', back: 'bad', cancel: 'mute' };
+  function shipLine(sh) {
+    return '<div class="ship-l"><span class="pill ' + (SHIP_TONE[sh.code] || 'info') + '">' + ico('send') + ' ' + esc(sh.label) + '</span>' +
+      (sh.tracking ? '<span class="ship-tn"><small class="muted">' + esc(sh.carrier || 'เลขพัสดุ') + '</small><b>' + esc(sh.tracking) + '</b><button class="link-plain small" data-act="copy" data-v="' + esc(sh.tracking) + '">คัดลอก</button></span>' : '') +
+      (sh.link ? '<a class="link-plain small" href="' + esc(sh.link) + '" target="_blank" rel="noopener">ติดตามพัสดุ ›</a>' : '') + '</div>';
+  }
+  // latest shipment on top of the customer page so telesales can answer "where is my parcel?" at a glance
+  function shipCard(c) {
+    const o = (c.orders || []).find((x) => x.ship && x.status !== 'cancelled'); if (!o) return '';
+    const sh = o.ship, steps = [['pack', 'เตรียมส่ง'], ['ship', 'กำลังจัดส่ง'], ['done', 'ส่งถึงแล้ว']];
+    const at = { new: 0, wait: 0, pack: 0, ship: 1, done: 2 }[sh.code];
+    return '<section class="card ship-card"><div class="row between"><h3 class="ct">' + ico('send') + ' สถานะพัสดุล่าสุด</h3><small class="muted">ออเดอร์ ' + H.thDate(o.date) + '</small></div>' +
+      (at != null ? '<div class="ship-steps">' + steps.map((x, i) => '<span class="' + (i < at ? 'done' : i === at ? 'on' : '') + '"><i></i>' + x[1] + '</span>').join('') + '</div>' : '<div class="ship-alert pill ' + SHIP_TONE[sh.code] + '">' + esc(sh.label) + '</div>') +
+      '<dl class="kv ship-kv"><dt>สถานะ</dt><dd><b>' + esc(sh.label) + '</b>' + (sh.at ? ' <small class="muted">อัปเดต ' + H.thDate(sh.at, true) + '</small>' : '') + '</dd>' +
+      '<dt>ขนส่ง</dt><dd>' + esc(sh.carrier || '-') + '</dd><dt>เลขพัสดุ</dt><dd>' + (sh.tracking ? '<b>' + esc(sh.tracking) + '</b> <button class="link-plain small" data-act="copy" data-v="' + esc(sh.tracking) + '">คัดลอก</button>' : '<span class="faint">ยังไม่มีเลขพัสดุ</span>') + '</dd></dl>' +
+      (sh.link ? '<a class="btn sm" href="' + esc(sh.link) + '" target="_blank" rel="noopener">' + ico('right') + ' เปิดหน้าติดตามพัสดุ</a>' : '') + '</section>';
+  }
   // ------------------------------------------------------------ CALENDAR (v2: banner, week strip, month grid, day panel)
   const DOW_MON = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
   const DOW_FULL_MON = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
@@ -1508,6 +1538,7 @@
       conn('Pancake POS (FB Page)', ints.pancake, sy.pancake && sy.pancake.lastRun, 'ออเดอร์ที่แอดมินปิดเข้าคิวแจก 50:50 ทุก 3 นาที' + (sy.pancake && sy.pancake.lastError ? ' : <span style="color:var(--bad)">' + esc(sy.pancake.lastError) + '</span>' : ''), '<button class="btn sm" data-act="sync-pancake">ดึงตอนนี้</button>') +
       conn('OneCall (บันทึกเสียงสาย)', ints.onecall, sy.onecall && sy.onecall.lastRun, 'ทุกสายที่โทรออกนับเข้า KPI ให้อัตโนมัติทุก 5 นาที' + (sy.onecall && sy.onecall.lastError ? ' : <span style="color:var(--bad)">' + esc(sy.onecall.lastError) + '</span>' : ''), '<button class="btn sm" data-act="sync-onecall">ดึงตอนนี้</button>') +
       conn('E-Commerce (Evolution / BigSeller)', !!(sy.bigseller && sy.bigseller.lastRun && !sy.bigseller.lastError), sy.bigseller && sy.bigseller.lastRun, 'ลูกค้าใหม่เข้าเองทุก 5 นาที แจก Telesales เท่ากัน' + (sy.bigseller && sy.bigseller.lastError ? ' : <span style="color:var(--bad)">' + esc(sy.bigseller.lastError) + '</span>' : sy.bigseller && sy.bigseller.lastAdded != null ? ' : รอบล่าสุดได้ลูกค้าใหม่ ' + N(sy.bigseller.lastAdded) + ' ราย' : ''), '<button class="btn sm" data-act="sync-evo">ดึงตอนนี้</button>') +
+      conn('BigSeller : แยกช่องทาง Lazada / Shopee / TikTok', !!(sy.bstab && sy.bstab.lastRun), sy.bstab && sy.bstab.lastRun, 'ส่งข้อมูลจากแท็บ BigSeller ที่ล็อกอินไว้ : ช่องทาง เลขพัสดุ สถานะจัดส่ง และลูกค้าใหม่' + (sy.bstab ? ' : รวม ' + N(sy.bstab.totalRows || 0) + ' รายการ : ลูกค้าใหม่ ' + N(sy.bstab.totalAdded || 0) + ' : ระบุช่องทาง ' + N(sy.bstab.totalTagged || 0) : ''), '<button class="btn sm" data-act="bs-install">ติดตั้งตัวช่วย</button>') +
       conn('ระบบเดิม (evo-split-online)', !!(sy.legacy && sy.legacy.importedAt), sy.legacy && sy.legacy.importedAt, sy.legacy && sy.legacy.importedAt ? 'ย้ายลูกค้า ' + N(sy.legacy.customers) + ' ราย ออเดอร์ ' + N(sy.legacy.orders) + ' รายการ' : 'ย้ายรายชื่อ ประวัติ และนัดจากระบบเดิมครั้งเดียว', '<button class="btn sm" data-act="import-legacy">นำเข้า</button>') + '</div>' +
       '<div class="section-t" style="margin-top:16px">นำเข้าฐานรายชื่อลูกค้าจาก Excel</div><div class="small muted" style="margin-top:4px">ใช้ไฟล์แบบ Sales Department Master Workflow (ชีทพี่เขม / ชีทหวาน) : เบอร์ซ้ำจะรวมเข้ากับลูกค้าเดิม ไม่สร้างซ้ำ</div>' +
       '<form class="form" data-form="contacts-import" style="margin-top:8px"><div class="f2"><label class="field"><span>ไฟล์ Excel</span><input class="in" type="file" name="file" accept=".xlsx,.xls" data-act-change="ci-file"></label>' +
@@ -1814,6 +1845,8 @@
     'dnc-restore': (el) => run(() => api.act('restoreCustomer', { id: el.dataset.id }), 'กู้คืนรายชื่อแล้ว : กลับไปอยู่ในรายชื่อลูกค้าสถานะรอติดตาม'),
     'dnc-page': (el) => { ui.dncPage = Number(el.dataset.v); render(); },
     'sync-evo': () => run(async () => { const r = await fetch('/api/sync/evolution', { method: 'POST', credentials: 'same-origin' }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'ดึงไม่สำเร็จ'); await api.refresh(true); return j; }, (j) => 'ดึง E-Commerce แล้ว : ลูกค้าใหม่ ' + N(j.added || 0) + ' ราย'),
+    'copy': (el) => { try { navigator.clipboard.writeText(el.dataset.v); toast('คัดลอก ' + el.dataset.v + ' แล้ว'); } catch (_) {} },
+    'bs-install': () => run(async () => { const r = await fetch('/api/bigseller/script-link', { credentials: 'same-origin' }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'ไม่สำเร็จ'); window.open(j.url, '_blank'); return j; }, 'เปิดหน้าติดตั้งแล้ว : กด Install ใน Tampermonkey'),
     'as-page': (el) => { ui.asPage = Number(el.dataset.v); render(); },
     'ts-page': (el) => { ui.tsPage = Number(el.dataset.v); render(); },
     'ts-csv': () => {

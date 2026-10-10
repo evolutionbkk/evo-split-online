@@ -62,7 +62,7 @@
     lazada: { label: 'Lazada', channel: 'ecom' },
     shopee: { label: 'Shopee', channel: 'ecom' },
     tiktok: { label: 'TikTok Shop', channel: 'ecom' },
-    evolution: { label: 'E-Commerce', channel: 'ecom' },
+    evolution: { label: 'ไม่ระบุแพลตฟอร์ม', channel: 'ecom' },
     pancake: { label: 'FB Page (Pancake)', channel: 'fb' },
     manual: { label: 'เพิ่มเอง', channel: 'fb' },
   };
@@ -600,18 +600,29 @@
 
   // Marketplace orders (Lazada / Shopee / TikTok via BigSeller export, or Evolution).
   // rows: [{orderNo, platform, name, phone, address, items:[{name,qty,price}] | product, total, date}]
+  // shipping info sent by the BigSeller helper (free-text status from the marketplace)
+  function shipFromText(r) {
+    const t = String(r.shipStatus || '').toLowerCase();
+    const code = /cancel|ยกเลิก/.test(t) ? 'cancel' : /return|ตีกลับ|คืน/.test(t) ? 'back' : /deliver|complete|received|สำเร็จ|ถึงแล้ว|ได้รับ/.test(t) ? 'done' : /ship|transit|จัดส่ง|ขนส่ง/.test(t) ? 'ship' : r.tracking ? 'ship' : 'pack';
+    const label = { cancel: 'ยกเลิก', back: 'ตีกลับ', done: 'ส่งถึงลูกค้าแล้ว', ship: 'กำลังจัดส่ง', pack: 'กำลังเตรียมส่ง' }[code];
+    return { code, label, raw: clip(r.shipStatus, 60), tracking: clip(r.tracking, 40), carrier: clip(r.carrier, 60), link: '', at: nowIso() };
+  }
   A.ingestEcom = (st, p, actor) => {
     const rows = Array.isArray(p.rows) ? p.rows : [];
-    let added = 0, orders = 0, masked = 0, invalid = 0, dup = 0;
+    let added = 0, orders = 0, masked = 0, invalid = 0, dup = 0, tagged = 0;
     for (const r of rows) {
       const raw = String((r && (r.phone || r.mobile)) || '');
       if (raw.includes('*')) { masked++; continue; }
       const phone = normPhone(raw);
       if (phone.length !== 10) { invalid++; continue; }
-      const platform = PLATFORMS[String(r.platform || '').toLowerCase()] ? String(r.platform).toLowerCase() : 'lazada';
+      const pt = [r.platform, r.shop, r.store, r.channel, r.shopName, r.storeName].filter(Boolean).join(' ').toLowerCase();
+      const platform = PLATFORMS[pt] ? pt : /shopee|ช้อปปี้/.test(pt) ? 'shopee' : /tiktok|tik tok/.test(pt) ? 'tiktok' : /lazada|ลาซาด้า/.test(pt) ? 'lazada' : 'evolution';
       const existing = byPhone(st, phone);
+      // BigSeller knows the real marketplace: correct customers tagged with a guess
+      if (existing && existing.channel === 'ecom' && platform !== 'evolution' && existing.platform !== platform && !existing.platformSure) { existing.platform = platform; tagged++; }
+      if (existing && platform !== 'evolution') existing.platformSure = true;
       const { c, isNew } = upsertCustomer(st, { name: r.name, phone, address: r.address, channel: 'ecom', platform }, actor);
-      if (isNew) { c.channel = 'ecom'; c.round = ''; c.owner = nextTele(st, 'ecom'); c.assignedAt = nowIso(); c.autoAssignedAt = c.assignedAt; added++; }
+      if (isNew) { c.channel = 'ecom'; c.round = ''; if (platform !== 'evolution') c.platformSure = true; c.owner = nextTele(st, 'ecom'); c.assignedAt = nowIso(); c.autoAssignedAt = c.assignedAt; added++; }
       else if (!existing.owner) { c.owner = nextTele(st, c.channel); c.assignedAt = nowIso(); c.autoAssignedAt = c.assignedAt; }
       if (r.code && !c.legacyCode) c.legacyCode = clip(r.code, 30);
       if (!r.orderNo && !r.total && !(r.items || []).length && !r.product) continue;
@@ -620,10 +631,13 @@
       const extId = r.orderNo ? platform + ':' + String(r.orderNo).trim() : '';
       const o = pushOrder(c, { date: r.date && !isNaN(Date.parse(r.date)) ? new Date(r.date).toISOString() : nowIso(), items, total: money(r.total), source: 'ecom', platform, extId });
       if (o) orders++; else dup++;
+      const tgt = o || (extId && (c.orders || []).find((x) => x.extId === extId));
+      if (tgt && (r.tracking || r.shipStatus)) tgt.ship = shipFromText(r);
     }
-    st.sync.bigseller = { ...(st.sync.bigseller || {}), lastRun: nowIso(), lastAdded: added, lastOrders: orders, lastMasked: masked };
-    log(st, actor, 'นำเข้า E-Commerce ' + rows.length + ' แถว : ลูกค้าใหม่ ' + added + ' : ออเดอร์ ' + orders);
-    return { received: rows.length, added, orders, masked, invalid, dup };
+    const sk = p.src === 'bstab' ? 'bstab' : 'bigseller', prev = st.sync[sk] || {};
+    st.sync[sk] = { ...prev, lastRun: nowIso(), lastAdded: added, lastOrders: orders, lastMasked: masked, lastTagged: tagged, totalRows: (prev.totalRows || 0) + rows.length, totalAdded: (prev.totalAdded || 0) + added, totalTagged: (prev.totalTagged || 0) + tagged };
+    if (rows.length) log(st, actor, 'นำเข้า E-Commerce ' + rows.length + ' แถว : ลูกค้าใหม่ ' + added + ' : ออเดอร์ ' + orders + (tagged ? ' : ระบุแพลตฟอร์ม ' + tagged : ''));
+    return { received: rows.length, added, orders, masked, invalid, dup, tagged };
   };
 
   // Every OneCall call becomes a KPI call automatically (telesales do not log calls by hand).
