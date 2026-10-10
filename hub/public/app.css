@@ -1240,3 +1240,4 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 .as-tbl .nowrap { white-space: nowrap; }
 @media (max-width: 760px) { .as-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .as-tbl td.n b { display: block; } .as-tbl td.n .pill { display: inline-block; }
+.as-card .cp-pager { padding: 12px 4px 0; border-top: 0; } .as-card .pages button[disabled] { opacity: .35; pointer-events: none; }
