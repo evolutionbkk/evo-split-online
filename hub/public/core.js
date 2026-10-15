@@ -88,7 +88,7 @@
     closerAlias: DEFAULT_CLOSER_ALIAS,
     nonAdminClosers: ['Numwhan', 'สมร นอนน้อย'],   // Pancake users who are not Admin Sales: their orders are not admin closes
     targets: {
-      fbCalls: 30, t1: 5, t2: 5, t3: 20,   // FB (Pancake) calls / day / person
+      fbCalls: 30, t1: 10, t2: 10, t3: 10, // FB (Pancake) calls / day / person — T1/T2/T3 are separate KPIs, 10 each
       mktCalls: 30,                          // Marketplace calls / day / person
       talkMinutes: 90,                       // talk time / day / person
       teleRevenue: 5000,                     // (legacy) ฿ / day / person — derived from teleRevenueMonth below
@@ -160,6 +160,7 @@
     for (const k of Object.keys(base)) if (st[k] == null) st[k] = base[k];
     st.settings = { ...base.settings, ...st.settings, targets: { ...base.settings.targets, ...(st.settings || {}).targets }, closerAlias: { ...DEFAULT_CLOSER_ALIAS, ...((st.settings || {}).closerAlias || {}) } };
     if (!Array.isArray(st.settings.products) || !st.settings.products.length) st.settings.products = DEFAULT_PRODUCTS;
+    if ((st.settings.targetsV || 0) < 2) { Object.assign(st.settings.targets, { t1: 10, t2: 10, t3: 10, fbCalls: 30, mktCalls: 30 }); st.settings.targetsV = 2; }   // owner: T1/T2/T3 = 10 each, E-Commerce 30
     for (const u of base.users) if (!st.users.find((x) => x.id === u.id)) st.users.push({ ...u });
     return st;
   }
