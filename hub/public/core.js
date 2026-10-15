@@ -91,7 +91,11 @@
       fbCalls: 30, t1: 5, t2: 5, t3: 20,   // FB (Pancake) calls / day / person
       mktCalls: 30,                          // Marketplace calls / day / person
       talkMinutes: 90,                       // talk time / day / person
-      teleRevenue: 5000,                     // ฿ / day / person
+      teleRevenue: 5000,                     // (legacy) ฿ / day / person — derived from teleRevenueMonth below
+      teleRevenueMonth: 100000,              // ฿ / month / telesales
+      adminRepliesDay: 50,                   // customers answered / day / admin
+      adminRevenueMonth: { 'ไลลา': 300000 }, // ฿ / month for named admins
+      adminRevenueDefault: 200000,           // ฿ / month for every other admin
       teamRevenueMonth: 600000,              // ฿ / month whole office (tele + admin + ecom)
     },
     autoApprove: true,          // FB leads always go straight to the next telesales (50:50), nobody approves by hand
@@ -144,7 +148,7 @@
     return {
       version: 1,
       users: DEFAULT_USERS.map((u) => ({ ...u })),
-      customers: [], appointments: [], kpi: [], approvals: [], announcements: [], onecall: [], activity: [],
+      customers: [], appointments: [], kpi: [], approvals: [], announcements: [], onecall: [], activity: [], adminReplies: [],
       settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
       sync: { pancake: {}, bigseller: {}, onecall: {}, legacy: {} },
       createdAt: nowIso(),
@@ -318,6 +322,7 @@
     updateCustomer: ['exec', 'lead', 'tele'],
     addOrder: ['exec', 'lead', 'tele'],
     logCall: ['exec', 'lead', 'tele'],
+    logReplies: ['exec', 'lead', 'admin', 'system'],
     addNote: ['exec', 'lead', 'tele', 'admin'],
     addAppt: ['exec', 'lead', 'tele'],
     restoreCustomer: ['exec', 'lead', 'tele'],
@@ -958,7 +963,7 @@
       if (inRange(d, from, to)) { r.appts.due++; if (a.done) r.appts.done++; }
       if (!a.done && Date.parse(a.at) < nowT - 3600000) r.appts.overdue++;
     }
-    r.target = { fb: t.fbCalls * workDays, mkt: t.mktCalls * workDays, t1: t.t1 * workDays, t2: t.t2 * workDays, t3: t.t3 * workDays, talkSec: t.talkMinutes * 60 * workDays, revenue: t.teleRevenue * workDays };
+    r.target = { fb: t.fbCalls * workDays, mkt: t.mktCalls * workDays, t1: t.t1 * workDays, t2: t.t2 * workDays, t3: t.t3 * workDays, talkSec: t.talkMinutes * 60 * workDays, revenue: Math.round((t.teleRevenueMonth ? t.teleRevenueMonth / 26 : t.teleRevenue) * workDays), revenueMonth: t.teleRevenueMonth || t.teleRevenue * 26 };
     r.checks = [
       { key: 'fb', label: 'โทร FB (Pancake)', value: r.fbCalls, target: r.target.fb, ok: r.fbCalls >= r.target.fb },
       { key: 'mkt', label: 'โทร Marketplace', value: r.mktCalls, target: r.target.mkt, ok: r.mktCalls >= r.target.mkt },
@@ -976,6 +981,46 @@
     return r;
   }
 
+  // ---- Admin KPI: sales per admin per day, products, replies vs target, month-to-date vs monthly target
+  const adminTarget = (st, name) => { const t = st.settings.targets; return (t.adminRevenueMonth || {})[name] || t.adminRevenueDefault || 0; };
+  function adminKpi(st, from, to) {
+    const T = today(), mFrom = T.slice(0, 8) + '01', days = []; for (let d = from; d <= to; d = addDays(d, 1)) { days.push(d); if (days.length > 400) break; }
+    const t = st.settings.targets, map = {};
+    const get = (name) => map[name] || (map[name] = { name, revenue: 0, orders: 0, month: 0, monthOrders: 0, replies: 0, daily: {}, dailyReplies: {}, products: {}, target: adminTarget(st, name) });
+    for (const a of st.approvals || []) {
+      if (a.status === 'rejected' || a.nonAdmin) continue;
+      const c = findCustomer(st, a.customerId) || {}, o = (c.orders || []).find((x) => x.id === a.orderId) || {};
+      if (o.status === 'cancelled') continue;
+      const d = dayKey(o.date || a.at), total = o.total != null ? o.total : a.total || 0, name = a.closerName || userName(st, a.closer);
+      if (!name || name === '-') continue;
+      if (inRange(d, mFrom, T)) { const m = get(name); m.month += total; m.monthOrders++; }
+      if (!inRange(d, from, to)) continue;
+      const m = get(name); m.revenue += total; m.orders++; m.daily[d] = (m.daily[d] || 0) + total;
+      for (const it of ((o.items && o.items.length ? o.items : a.items) || [])) { const p = m.products[it.name] || (m.products[it.name] = { qty: 0, revenue: 0 }); p.qty += it.qty || 1; p.revenue += (it.price || 0) * (it.qty || 1); }
+    }
+    for (const r of st.adminReplies || []) { if (!inRange(r.date, from, to)) continue; const m = get(r.admin); m.replies += r.count || 0; m.dailyReplies[r.date] = (m.dailyReplies[r.date] || 0) + (r.count || 0); }
+    for (const u of st.users) if (u.role === 'admin' && !u.off && map[u.name] == null && u.id !== 'admin2') get(u.name);
+    const list = Object.values(map).sort((a, b) => b.month - a.month || b.revenue - a.revenue);
+    const workDays = days.length;
+    for (const m of list) { m.repliesTarget = (t.adminRepliesDay || 0) * workDays; }
+    const n = list.length || 1, sum = (f) => list.reduce((x, m) => x + f(m), 0);
+    return { days, list, repliesDay: t.adminRepliesDay || 0,
+      team: { revenue: sum((m) => m.revenue), orders: sum((m) => m.orders), month: sum((m) => m.month), target: sum((m) => m.target), replies: sum((m) => m.replies), repliesTarget: sum((m) => m.repliesTarget) },
+      avg: { revenue: sum((m) => m.revenue) / n, orders: sum((m) => m.orders) / n, month: sum((m) => m.month) / n, replies: sum((m) => m.replies) / n } };
+  }
+  A.logReplies = (st, p, actor) => {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) ? p.date : today();
+    st.adminReplies = st.adminReplies || [];
+    let n = 0;
+    for (const r of p.rows || []) {
+      const admin = clip(r.admin, 60), count = Math.max(0, Math.round(Number(r.count) || 0)); if (!admin || r.count === '' || r.count == null) continue;
+      const ex = st.adminReplies.find((x) => x.date === date && x.admin === admin);
+      if (ex) { ex.count = count; ex.by = actor.id; ex.at = nowIso(); } else st.adminReplies.push({ id: uid('rp'), date, admin, count, by: actor.id, at: nowIso() });
+      n++;
+    }
+    log(st, actor, 'บันทึกจำนวนการตอบแอดมิน ' + date + ' : ' + n + ' คน');
+    return { saved: n };
+  };
   function adminBoard(st, from, to) {
     const map = {};
     for (const ap of st.approvals) {
@@ -1035,7 +1080,7 @@
     const lostReasons = {}; for (const k of st.kpi) if (k.result === 'lost' && inRange(k.date, from, to)) lostReasons[k.lostReason || 'ไม่ระบุ'] = (lostReasons[k.lostReason || 'ไม่ระบุ'] || 0) + 1;
     return {
       from, to, days, series, rev, cnt, total, orders, aov: orders ? total / orders : 0,
-      monthRev, monthTarget: st.settings.targets.teamRevenueMonth,
+      monthRev, monthTarget: (() => { const ak = adminKpi(st, monthFrom, today()); const tt = teles(st).length * (st.settings.targets.teleRevenueMonth || 0) + ak.list.filter((m) => m.month > 0).reduce((x, m) => x + m.target, 0); return tt || st.settings.targets.teamRevenueMonth; })(),
       team, teamSum: sum, contactRate: sum.calls ? sum.talked / sum.calls : 0, conversion: sum.talked ? sum.orders / sum.talked : 0,
       admins: adminBoard(st, from, to),
       products: Object.values(prod).sort((a, b) => b.revenue - a.revenue || b.qty - a.qty).slice(0, 10),
@@ -1128,7 +1173,7 @@
     sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
-    emptyState, normalize, apply, aliasCloser, applyCloserAliases, isNonAdminCloser, applyNonAdmin, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
+    emptyState, normalize, apply, adminKpi, aliasCloser, applyCloserAliases, isNonAdminCloser, applyNonAdmin, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };
 });

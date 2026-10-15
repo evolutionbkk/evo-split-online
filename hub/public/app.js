@@ -591,7 +591,7 @@
       tile('ออเดอร์ทั้งหมด', N(d.orders), 'เฉลี่ย ' + B(d.aov) + ' ต่อออเดอร์') +
       tile('งานที่ต้องจัดการ', N(d.pending + d.overdue), 'เลยนัด ' + d.overdue + ' : เงียบเกินกำหนด ' + d.stale, d.pending + d.overdue ? 'alert' : '') + '</div>';
     const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : FB ' + t.fbCalls + ' สาย (T1 ' + t.t1 + ' : T2 ' + t.t2 + ' : T3 ' + t.t3 + ') : Marketplace ' + t.mktCalls + ' สาย : คุย ' + t.talkMinutes + ' นาที : ยอด ' + B(t.teleRevenue) + (from !== to ? ' : คูณตามจำนวนวันอัตโนมัติ' : '') + '</small></div>' +
-      (allowed('kpi') ? '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button>' : '') + '</div>' + kpiTable(d.team) + '</section>';
+      (allowed('kpi') ? '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button>' : '') + '</div>' + kpiTable(d.team, (() => { const mF = H.today().slice(0, 8) + '01'; const dm = from === mF && to === H.today() ? d : dashFor(mF, H.today()); return dm ? Object.fromEntries(dm.team.map((r) => [r.user, r.amount])) : null; })()) + '</section>';
     // daily chart: at least 14 days for context
     const cFrom = H.daysBetween(from, to) < 13 ? H.addDays(to, -13) : from;
     const cd = cFrom === from ? d : (dashFor(cFrom, to) || d);
@@ -635,7 +635,7 @@
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.admin ? d.rev.admin / d.cnt.admin : 0), 'ยอด Admin') + tile('รายชื่อที่แจกให้ Telesales', N(dist), 'แจกอัตโนมัติ 50:50') +
         tile('แอดมินที่มียอด', N(d.admins.filter((a) => a.revenue > 0).length), 'จาก ' + N(d.admins.length) + ' คน') + '</div>';
       const splitCard = card('send', 'สัดส่วนรายชื่อวันนี้', 'แจกให้ Telesales อัตโนมัติ 50:50', splitBar(todaySplit()), '<button class="btn sm" data-go="approvals">ดูรายชื่อที่ถูกแจก</button>');
-      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? qualityCard(st, from, to, label) + repeatPageCard(st) + adminSales(st, from, to, label) : '') + foot;
+      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? adminKpiCards(st, from, to, label) + qualityCard(st, from, to, label) + repeatPageCard(st) + adminSales(st, from, to, label) : '') + foot;
     }
     const ct = '<div class="tiles">' + tile('ยอดขายรวม (Telesales + Admin)', B(two), 'เดือนนี้ ' + B(d.monthRev) + ' : ' + monthPct + '% ของเป้า ' + B(d.monthTarget), 'hero', monthPct) +
       tile('<i style="background:var(--c-tele)"></i>Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์ : ' + (two ? Math.round(d.rev.tele / two * 100) : 0) + '% ของยอดรวม') +
@@ -666,13 +666,15 @@
   }
   const KSTAT = { done: ['good', 'ครบ KPI'], close: ['warn', 'ใกล้ครบ'], behind: ['bad', 'ยังไม่ถึงเป้า'], none: ['mute', 'ยังไม่บันทึก'] };
   // KPI as one simple table: rows = targets, columns = each telesales + team total
-  function kpiTable(team) {
+  function kpiTable(team, monthMap) {
     if (!team.length) return '<div class="empty">ยังไม่มี Telesales</div>';
     const rows = [
       { l: 'E-Commerce', sub: 'Lazada · Shopee · TikTok', col: '#b45309', v: (r) => r.mktCalls, t: (r) => r.target.mkt },
       { l: 'T1 · โทรขาย', col: '#2563eb', v: (r) => r.t1, t: (r) => r.target.t1 },
       { l: 'T2 · ตามรอบ 2', col: '#0891b2', v: (r) => r.t2, t: (r) => r.target.t2 },
       { l: 'T3 · ตามรอบ 3', col: '#7c3aed', v: (r) => r.t3, t: (r) => r.target.t3 },
+      { l: 'รวม T1–T3', sub: 'FB Page', col: '#1d4ed8', v: (r) => r.fbCalls, t: (r) => r.target.fb },
+      { l: 'รวมการโทรทั้งหมด', sub: 'T1–T3 + E-Commerce', col: '#0f172a', v: (r) => r.fbCalls + r.mktCalls, t: (r) => r.target.fb + r.target.mkt },
       { l: 'เวลาคุย', sub: 'นาที', col: '#475569', v: (r) => Math.round(r.talkSec / 60), t: (r) => Math.round(r.target.talkSec / 60) },
     ];
     const cell = (v, t, col) => { const p = pct(v, t), ok = t > 0 && v >= t, c2 = ok ? 'var(--good)' : col; return '<td' + (ok ? ' class="kt-ok"' : '') + '><div class="kt-c"><span><b>' + N(v) + '</b><small>/' + N(t) + '</small></span><em style="color:' + c2 + '">' + (ok ? '✓ ครบ' : p + '%') + '</em></div><div class="kt-bar"><i style="width:' + p + '%;background:' + c2 + '"></i></div></td>'; };
@@ -680,7 +682,8 @@
     const head = '<tr><th>รายการ</th>' + team.map((r) => { const u = user(r.user) || { name: r.name }; return '<th><label class="kt-pick">' + xCk('kpi-team', r.user) + ' ' + esc(u.name) + '</label></th>'; }).join('') + '<th class="n">รวมทีม</th></tr>';
     const body = rows.map((x) => '<tr><td class="kt-l"><b style="color:' + x.col + '">' + x.l + '</b>' + (x.sub ? '<small>' + x.sub + '</small>' : '') + '</td>' + team.map((r) => cell(x.v(r), x.t(r), x.col)).join('') + '<td class="n"><b>' + N(team.reduce((s, r) => s + x.v(r), 0)) + '</b></td></tr>').join('') +
       '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขาย</b><small>จากการโทร</small></td>' + team.map((r) => '<td data-tip="tele" data-tip-k="' + esc(r.user) + '"><div class="kt-c"><span><b style="color:var(--good)">' + B(r.amount) + '</b><small>/' + B(r.target.revenue) + '</small></span><em class="muted">' + N(r.orders) + ' ปิด</em></div>' + (r.appts.overdue ? '<small class="kt-od">เลยนัด ' + N(r.appts.overdue) + '</small>' : '') + '</td>').join('') +
-      '<td class="n"><b style="color:var(--good)">' + B(team.reduce((s, r) => s + r.amount, 0)) + '</b></td></tr>';
+      '<td class="n"><b style="color:var(--good)">' + B(team.reduce((s, r) => s + r.amount, 0)) + '</b></td></tr>' +
+      (monthMap ? '<tr><td class="kt-l"><b style="color:#16a34a">ยอดขายเดือนนี้</b><small>เป้า ' + B(team[0].target.revenueMonth || 0) + ' / คน</small></td>' + team.map((r) => cell(monthMap[r.user] || 0, r.target.revenueMonth || 0, '#16a34a').replace(/<b>([\d,]+)<\/b><small>\/([\d,]+)<\/small>/, (m0, a, b2) => '<b>฿' + a + '</b><small>/฿' + b2 + '</small>')).join('') + '<td class="n"><b>' + B(team.reduce((x, r) => x + (monthMap[r.user] || 0), 0)) + '</b></td></tr>' : '');
     return xBar('kpi-team', 'คน') + '<div class="tbl-wrap"><table class="kt">' + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div><div class="small muted" style="margin-top:10px">เลข = สายที่ <b>ได้คุย</b> เท่านั้น (OneCall นับว่าได้คุยเมื่อคุยเกิน 7 วินาที) เทียบเป้าต่อวัน : สายที่ไม่ได้คุยไม่นับ</div>';
   }
   function kpiPerson(r) {
@@ -695,6 +698,40 @@
       stat('ยอดขาย', r.amount, r.target.revenue, N(r.orders) + ' ออเดอร์', B) + '</div>' +
       '<div class="kpc-f"><span>ได้คุย <b>' + pctTxt(r.contactRate) + '</b></span><span>ปิดได้ <b>' + pctTxt(r.conversion) + '</b></span><span>นัดวันนี้ <b>' + r.appts.done + '/' + r.appts.due + '</b></span>' +
       (r.appts.overdue ? '<span class="bad">เลยนัด <b>' + N(r.appts.overdue) + '</b></span>' : '') + '</div></div>';
+  }
+  // ---- Admin KPI: one table like the telesales one + daily sales per person + products per person
+  function adminKpiCards(st, from, to, label) {
+    const k = H.adminKpi(st, from, to), L = k.list;
+    if (!L.length) return '';
+    const P = (v, t) => (t ? Math.min(100, Math.round(v / t * 100)) : 0);
+    const cell = (v, t, fmt, col) => { const p = P(v, t), ok = t > 0 && v >= t, c2 = ok ? 'var(--good)' : col; return '<td' + (ok ? ' class="kt-ok"' : '') + '><div class="kt-c"><span><b>' + fmt(v) + '</b><small>/' + fmt(t) + '</small></span><em style="color:' + c2 + '">' + (ok ? '✓ ครบ' : p + '%') + '</em></div><div class="kt-bar"><i style="width:' + p + '%;background:' + c2 + '"></i></div></td>'; };
+    const nd = k.days.length || 1;
+    xReg('adm-kpi', 'KPI แอดมิน', L, (m) => m.name, [['แอดมิน', (m) => m.name], ['ยอดเดือนนี้', (m) => m.month], ['เป้าเดือน', (m) => m.target], ['% เป้า', (m) => P(m.month, m.target)], ['ยอดช่วงที่เลือก', (m) => m.revenue], ['ออเดอร์', (m) => m.orders], ['จำนวนการตอบ', (m) => m.replies], ['เป้าการตอบ', (m) => m.repliesTarget], ['เฉลี่ยการตอบ/วัน', (m) => +(m.replies / nd).toFixed(1)]]);
+    const head = '<tr><th>รายการ</th>' + L.map((m) => '<th><label class="kt-pick">' + xCk('adm-kpi', m.name) + ' ' + esc(m.name) + '</label></th>').join('') + '<th class="n">รวมทีม</th><th class="n">เฉลี่ย/คน</th></tr>';
+    const kpiTbl = '<div class="tbl-wrap"><table class="kt"><thead>' + head + '</thead><tbody>' +
+      '<tr><td class="kt-l"><b style="color:var(--good)">ยอดขายเดือนนี้</b><small>เทียบเป้ารายเดือน</small></td>' + L.map((m) => cell(m.month, m.target, B, '#16a34a')).join('') + '<td class="n"><b>' + B(k.team.month) + '</b><small class="muted" style="display:block">/' + B(k.team.target) + '</small></td><td class="n">' + B(k.avg.month) + '</td></tr>' +
+      '<tr><td class="kt-l"><b style="color:#2563eb">ยอดขาย</b><small>' + esc(label) + '</small></td>' + L.map((m) => '<td data-tip="adm" data-tip-k="' + esc(m.name) + '"><div class="kt-c"><span><b>' + B(m.revenue) + '</b></span><em class="muted">' + N(m.orders) + ' ออเดอร์</em></div></td>').join('') + '<td class="n"><b>' + B(k.team.revenue) + '</b><small class="muted" style="display:block">' + N(k.team.orders) + ' ออเดอร์</small></td><td class="n">' + B(k.avg.revenue) + '</td></tr>' +
+      '<tr><td class="kt-l"><b style="color:#7c3aed">จำนวนการตอบ</b><small>เป้า ' + k.repliesDay + ' คน/วัน/คน</small></td>' + L.map((m) => cell(m.replies, m.repliesTarget, N, '#7c3aed')).join('') + '<td class="n"><b>' + N(k.team.replies) + '</b><small class="muted" style="display:block">/' + N(k.team.repliesTarget) + '</small></td><td class="n">' + N(Math.round(k.avg.replies)) + '</td></tr>' +
+      '<tr><td class="kt-l"><b style="color:#475569">เฉลี่ยการตอบ</b><small>ต่อวัน</small></td>' + L.map((m) => '<td><div class="kt-c"><span><b>' + (m.replies / nd).toFixed(1) + '</b><small>/' + k.repliesDay + '</small></span></div></td>').join('') + '<td class="n"><b>' + (k.team.replies / nd).toFixed(1) + '</b></td><td class="n">' + (k.avg.replies / nd).toFixed(1) + '</td></tr>' +
+      '</tbody></table></div><div class="small muted" style="margin-top:10px">เป้ายอดขายต่อเดือน : ' + L.map((m) => esc(m.name) + ' ' + B(m.target)).join(' : ') + ' : ชี้เมาส์ที่ยอดขายเพื่อดูออเดอร์</div>';
+    const card1 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('msg') + '</span><div class="ttl"><h2>KPI แอดมิน : ' + esc(label) + '</h2><small>ยอดขาย จำนวนการตอบ และเฉลี่ย รายคน และรวมทั้งทีม</small></div><button class="btn sm" data-act="replies-open">' + ico('note') + ' บันทึกจำนวนการตอบ</button></div>' + xBar('adm-kpi', 'คน') + kpiTbl + '</section>';
+    // daily sales per person
+    const days = k.days.slice().reverse().filter((d) => L.some((m) => m.daily[d] || m.dailyReplies[d]));
+    const [drows, dpager] = pg10('adm-daily', days, 'วัน');
+    xReg('adm-daily', 'ยอดขายรายวัน แยกตามคน', days, (d) => d, [['วันที่', (d) => H.thDate(d)]].concat(L.map((m) => [m.name, (d) => m.daily[d] || 0]), L.map((m) => [m.name + ' (ตอบ)', (d) => m.dailyReplies[d] || 0]), [['รวม', (d) => L.reduce((x, m) => x + (m.daily[d] || 0), 0)]]));
+    const dmax = Math.max(1, ...days.map((d) => Math.max(...L.map((m) => m.daily[d] || 0))));
+    const card2 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>ยอดขายรายวัน แยกตามคน</h2><small>' + esc(label) + ' : ตัวเล็กใต้ยอด = จำนวนการตอบของวันนั้น</small></div></div>' +
+      (days.length ? xBar('adm-daily', 'วัน') + '<div class="tbl-wrap"><table class="tbl ad-tbl"><thead><tr><th class="ck"></th><th>วันที่</th>' + L.map((m) => '<th class="n">' + esc(m.name) + '</th>').join('') + '<th class="n">รวม</th></tr></thead><tbody>' +
+        drows.map((d) => { const tot = L.reduce((x, m) => x + (m.daily[d] || 0), 0); return '<tr><td class="ck">' + xCk('adm-daily', d) + '</td><td class="nowrap"><b>' + H.thDate(d).replace(/ \d{4}$/, '') + '</b></td>' + L.map((m) => { const v = m.daily[d] || 0, r = m.dailyReplies[d]; return '<td class="n"><div class="ad-c" style="--w:' + Math.round(v / dmax * 100) + '%"><b>' + (v ? B(v) : '<span class="faint">-</span>') + '</b>' + (r != null ? '<small>' + N(r) + ' ตอบ</small>' : '') + '</div></td>'; }).join('') + '<td class="n"><b>' + B(tot) + '</b></td></tr>'; }).join('') + '</tbody></table></div>' + dpager : '<div class="empty">ไม่มียอดขายในช่วงนี้</div>') + '</section>';
+    // products per person
+    const pmap = {}; for (const m of L) for (const [name, v] of Object.entries(m.products)) { const p = pmap[name] || (pmap[name] = { name, qty: 0, revenue: 0, by: {} }); p.qty += v.qty; p.revenue += v.revenue; p.by[m.name] = v; }
+    const plist = Object.values(pmap).sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+    const [prows, ppager] = pg10('adm-prod', plist, 'สินค้า');
+    xReg('adm-prod', 'สินค้าที่แอดมินขาย', plist, (p) => p.name, [['สินค้า', (p) => p.name]].concat(L.map((m) => [m.name + ' (ชิ้น)', (p) => (p.by[m.name] || {}).qty || 0]), [['รวมชิ้น', (p) => p.qty], ['ยอดขาย', (p) => p.revenue]]));
+    const card3 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>สินค้าที่แอดมินขาย</h2><small>' + esc(label) + ' : จำนวนชิ้นของแต่ละคน</small></div></div>' +
+      (plist.length ? xBar('adm-prod', 'สินค้า') + '<div class="tbl-wrap"><table class="tbl ad-tbl"><thead><tr><th class="ck"></th><th>สินค้า</th>' + L.map((m) => '<th class="n">' + esc(m.name) + '</th>').join('') + '<th class="n">รวม</th></tr></thead><tbody>' +
+        prows.map((p) => '<tr><td class="ck">' + xCk('adm-prod', p.name) + '</td><td><b class="one">' + esc(String(p.name).replace(/\s*\([^)]*\)$/, '')) + '</b></td>' + L.map((m) => { const v = p.by[m.name]; return '<td class="n">' + (v ? '<b>' + N(v.qty) + '</b>' + (v.revenue ? '<small class="muted" style="display:block">' + B(v.revenue) + '</small>' : '') : '<span class="faint">-</span>') + '</td>'; }).join('') + '<td class="n"><b>' + N(p.qty) + '</b>' + (p.revenue ? '<small class="muted" style="display:block">' + B(p.revenue) + '</small>' : '') + '</td></tr>').join('') + '</tbody></table></div>' + ppager : '<div class="empty">ไม่มีข้อมูลสินค้าในช่วงนี้</div>') + '</section>';
+    return card1 + '<div class="grid g2">' + card2 + card3 + '</div>';
   }
   // ---- cancel / return rates by admin and by page (Pancake is the source of truth; the demo uses hub orders)
   const QR = {};
@@ -2050,6 +2087,14 @@
     'kpi-del': (el) => delKpi((V().kpi || []).filter((k) => k.id === el.dataset.id)),
     'nav-toggle': (el) => { ui.navOpen = ui.navOpen || {}; ui.navOpen[el.dataset.v] = !ui.navOpen[el.dataset.v]; remember(); render(); },
     'ap-tab': (el) => { ui.apTab = el.dataset.v; ui.apPage = 1; render(); },
+    'replies-open': () => {
+      const st = S.full || V(), names = H.adminKpi(st, H.addDays(H.today(), -30), H.today()).list.map((m) => m.name), d0 = ui.repDate || H.today();
+      const cur = (n) => ((st.adminReplies || []).find((r) => r.date === d0 && r.admin === n) || {}).count;
+      openModal('<div class="row between" style="margin-bottom:12px"><h2 style="font-size:18px">บันทึกจำนวนการตอบของแอดมิน</h2><button class="icon-btn" data-act="close-modal" aria-label="ปิด">' + ico('x') + '</button></div>' +
+        '<form data-form="replies"><label class="field"><span>วันที่</span><input class="in" type="date" name="date" value="' + d0 + '" max="' + H.today() + '"></label>' +
+        '<div class="rp-grid">' + names.map((n) => '<label class="field"><span>' + esc(n) + '</span><input class="in" type="number" min="0" name="c:' + esc(n) + '" value="' + (cur(n) != null ? cur(n) : '') + '" placeholder="จำนวนลูกค้าที่ตอบ"></label>').join('') + '</div>' +
+        '<div class="small muted" style="margin:6px 0 12px">เป้า ' + ((st.settings.targets || {}).adminRepliesDay || 50) + ' คนต่อวันต่อคน : บันทึกซ้ำวันเดิมจะแทนที่ค่าเดิม</div><button class="btn primary">' + ico('check') + ' บันทึก</button></form>');
+    },
     'q-by': (el) => { ui.qBy = el.dataset.v; render(); },
     'help-open': (el) => { ui.helpOpen = ui.helpOpen === el.dataset.v ? '' : el.dataset.v; render(); },
     'pg': (el) => { ui.pg = ui.pg || {}; ui.pg[el.dataset.k] = Number(el.dataset.v); render(); },
@@ -2226,6 +2271,11 @@
     e.preventDefault();
     const btn = $('button:not([type=button])', f); if (btn) btn.disabled = true;
     try {
+      if (kind === 'replies') {
+        const rows = [...f.querySelectorAll('input[name^="c:"]')].filter((i) => i.value !== '').map((i) => ({ admin: i.name.slice(2), count: Number(i.value) }));
+        ui.repDate = f.date.value;
+        const r = await api.act('logReplies', { date: f.date.value, rows }); closeModal(); toast('บันทึกจำนวนการตอบแล้ว ' + N(r.saved || rows.length) + ' คน'); render(); return;
+      }
       if (kind === 'call2') {
         if (!f.result.value) throw new Error('เลือกผลการโทรก่อนบันทึก');
         const durTxt = f.dur.value.trim(); const parts = durTxt.split(/[:.\s]/).map(Number);
