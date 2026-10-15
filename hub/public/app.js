@@ -590,7 +590,7 @@
       tile('<i style="background:var(--c-ecom)"></i>E-Commerce', B(d.rev.ecom), N(d.cnt.ecom) + ' ออเดอร์ Lazada / Shopee / TikTok') +
       tile('ออเดอร์ทั้งหมด', N(d.orders), 'เฉลี่ย ' + B(d.aov) + ' ต่อออเดอร์') +
       tile('งานที่ต้องจัดการ', N(d.pending + d.overdue), 'เลยนัด ' + d.overdue + ' : เงียบเกินกำหนด ' + d.stale, d.pending + d.overdue ? 'alert' : '') + '</div>';
-    const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : FB ' + t.fbCalls + ' สาย (T1 ' + t.t1 + ' : T2 ' + t.t2 + ' : T3 ' + t.t3 + ') : Marketplace ' + t.mktCalls + ' สาย : คุย ' + t.talkMinutes + ' นาที : ยอด ' + B(t.teleRevenue) + (from !== to ? ' : คูณตามจำนวนวันอัตโนมัติ' : '') + '</small></div>' +
+    const teamCard = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('headset') + '</span><div class="ttl"><h2>KPI Telesales : ' + label + '</h2><small>เป้าต่อคนต่อวัน : T1 ' + t.t1 + ' : T2 ' + t.t2 + ' : T3 ' + t.t3 + ' : E-Commerce ' + t.mktCalls + ' สาย' + (from !== to ? ' (คูณตามจำนวนวัน)' : '') + ' : ยอดขาย ' + B(t.teleRevenueMonth || 100000) + ' ต่อเดือน</small></div>' +
       (allowed('kpi') ? '<button class="btn sm" data-go="kpi">' + ico('clip') + ' ดูรายการที่บันทึก</button>' : '') + '</div>' + kpiTable(d.team, (() => { const mF = H.today().slice(0, 8) + '01'; const dm = from === mF && to === H.today() ? d : dashFor(mF, H.today()); return dm ? Object.fromEntries(dm.team.map((r) => [r.user, r.amount])) : null; })()) + '</section>';
     // daily chart: at least 14 days for context
     const cFrom = H.daysBetween(from, to) < 13 ? H.addDays(to, -13) : from;
@@ -668,24 +668,24 @@
   // KPI as one simple table: rows = targets, columns = each telesales + team total
   function kpiTable(team, monthMap) {
     if (!team.length) return '<div class="empty">ยังไม่มี Telesales</div>';
+    // each KPI on its own row (not summed together); only sales is a monthly total of ฿100,000 per person
     const rows = [
+      { l: 'T1', sub: 'โทรขาย / ต้อนรับ', col: '#2563eb', v: (r) => r.t1, t: (r) => r.target.t1 },
+      { l: 'T2', sub: 'ตามรอบ 2', col: '#0891b2', v: (r) => r.t2, t: (r) => r.target.t2 },
+      { l: 'T3', sub: 'ตามรอบ 3', col: '#7c3aed', v: (r) => r.t3, t: (r) => r.target.t3 },
       { l: 'E-Commerce', sub: 'Lazada · Shopee · TikTok', col: '#b45309', v: (r) => r.mktCalls, t: (r) => r.target.mkt },
-      { l: 'T1 · โทรขาย', col: '#2563eb', v: (r) => r.t1, t: (r) => r.target.t1 },
-      { l: 'T2 · ตามรอบ 2', col: '#0891b2', v: (r) => r.t2, t: (r) => r.target.t2 },
-      { l: 'T3 · ตามรอบ 3', col: '#7c3aed', v: (r) => r.t3, t: (r) => r.target.t3 },
-      { l: 'รวม T1–T3', sub: 'FB Page', col: '#1d4ed8', v: (r) => r.fbCalls, t: (r) => r.target.fb },
-      { l: 'รวมการโทรทั้งหมด', sub: 'T1–T3 + E-Commerce', col: '#0f172a', v: (r) => r.fbCalls + r.mktCalls, t: (r) => r.target.fb + r.target.mkt },
-      { l: 'เวลาคุย', sub: 'นาที', col: '#475569', v: (r) => Math.round(r.talkSec / 60), t: (r) => Math.round(r.target.talkSec / 60) },
     ];
-    const cell = (v, t, col) => { const p = pct(v, t), ok = t > 0 && v >= t, c2 = ok ? 'var(--good)' : col; return '<td' + (ok ? ' class="kt-ok"' : '') + '><div class="kt-c"><span><b>' + N(v) + '</b><small>/' + N(t) + '</small></span><em style="color:' + c2 + '">' + (ok ? '✓ ครบ' : p + '%') + '</em></div><div class="kt-bar"><i style="width:' + p + '%;background:' + c2 + '"></i></div></td>'; };
-    xReg('kpi-team', 'KPI Telesales', team, (r) => r.user, [['Telesales', (r) => (user(r.user) || { name: r.name }).name], ['E-Commerce (สาย)', (r) => r.mktCalls], ['เป้า E-Commerce', (r) => r.target.mkt], ['T1', (r) => r.t1], ['เป้า T1', (r) => r.target.t1], ['T2', (r) => r.t2], ['เป้า T2', (r) => r.target.t2], ['T3', (r) => r.t3], ['เป้า T3', (r) => r.target.t3], ['เวลาคุย (นาที)', (r) => Math.round(r.talkSec / 60)], ['เป้าเวลาคุย (นาที)', (r) => Math.round(r.target.talkSec / 60)], ['ยอดขาย', (r) => r.amount], ['เป้ายอดขาย', (r) => r.target.revenue], ['ออเดอร์', (r) => r.orders], ['นัดเลยกำหนด', (r) => r.appts.overdue]]);
-    const head = '<tr><th>รายการ</th>' + team.map((r) => { const u = user(r.user) || { name: r.name }; return '<th><label class="kt-pick">' + xCk('kpi-team', r.user) + ' ' + esc(u.name) + '</label></th>'; }).join('') + '<th class="n">รวมทีม</th></tr>';
-    const body = rows.map((x) => '<tr><td class="kt-l"><b style="color:' + x.col + '">' + x.l + '</b>' + (x.sub ? '<small>' + x.sub + '</small>' : '') + '</td>' + team.map((r) => cell(x.v(r), x.t(r), x.col)).join('') + '<td class="n"><b>' + N(team.reduce((s, r) => s + x.v(r), 0)) + '</b></td></tr>').join('') +
-      '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขาย</b><small>จากการโทร</small></td>' + team.map((r) => '<td data-tip="tele" data-tip-k="' + esc(r.user) + '"><div class="kt-c"><span><b style="color:var(--good)">' + B(r.amount) + '</b><small>/' + B(r.target.revenue) + '</small></span><em class="muted">' + N(r.orders) + ' ปิด</em></div>' + (r.appts.overdue ? '<small class="kt-od">เลยนัด ' + N(r.appts.overdue) + '</small>' : '') + '</td>').join('') +
-      '<td class="n"><b style="color:var(--good)">' + B(team.reduce((s, r) => s + r.amount, 0)) + '</b></td></tr>' +
-      (monthMap ? '<tr><td class="kt-l"><b style="color:#16a34a">ยอดขายเดือนนี้</b><small>เป้า ' + B(team[0].target.revenueMonth || 0) + ' / คน</small></td>' + team.map((r) => cell(monthMap[r.user] || 0, r.target.revenueMonth || 0, '#16a34a').replace(/<b>([\d,]+)<\/b><small>\/([\d,]+)<\/small>/, (m0, a, b2) => '<b>฿' + a + '</b><small>/฿' + b2 + '</small>')).join('') + '<td class="n"><b>' + B(team.reduce((x, r) => x + (monthMap[r.user] || 0), 0)) + '</b></td></tr>' : '');
-    return xBar('kpi-team', 'คน') + '<div class="tbl-wrap"><table class="kt">' + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div><div class="small muted" style="margin-top:10px">เลข = สายที่ <b>ได้คุย</b> เท่านั้น (OneCall นับว่าได้คุยเมื่อคุยเกิน 7 วินาที) เทียบเป้าต่อวัน : สายที่ไม่ได้คุยไม่นับ</div>';
+    const cell = (v, t, col, fmt) => { fmt = fmt || N; const p = pct(v, t), ok = t > 0 && v >= t, c2 = ok ? 'var(--good)' : col; return '<td' + (ok ? ' class="kt-ok"' : '') + '><div class="kt-c"><span><b>' + fmt(v) + '</b><small>/' + fmt(t) + '</small></span><em style="color:' + c2 + '">' + (ok ? '✓ ครบ' : p + '%') + '</em></div><div class="kt-bar"><i style="width:' + p + '%;background:' + c2 + '"></i></div></td>'; };
+    const month = (r) => (monthMap ? monthMap[r.user] || 0 : r.amount), mT = (r) => r.target.revenueMonth || 0;
+    xReg('kpi-team', 'KPI Telesales', team, (r) => r.user, [['Telesales', (r) => (user(r.user) || { name: r.name }).name], ['T1', (r) => r.t1], ['เป้า T1', (r) => r.target.t1], ['T2', (r) => r.t2], ['เป้า T2', (r) => r.target.t2], ['T3', (r) => r.t3], ['เป้า T3', (r) => r.target.t3], ['E-Commerce', (r) => r.mktCalls], ['เป้า E-Commerce', (r) => r.target.mkt], ['ยอดขายเดือนนี้', month], ['เป้ายอดขายเดือน', mT], ['ยอดขายช่วงที่เลือก', (r) => r.amount], ['ปิดการขาย', (r) => r.orders], ['นัดเลยกำหนด', (r) => r.appts.overdue]]);
+    const head = '<tr><th>KPI ต่อวัน</th>' + team.map((r) => { const u = user(r.user) || { name: r.name }; return '<th><label class="kt-pick">' + xCk('kpi-team', r.user) + ' ' + esc(u.name) + '</label>' + (r.appts.overdue ? '<small class="kt-od">เลยนัด ' + N(r.appts.overdue) + '</small>' : '') + '</th>'; }).join('') + '<th class="n">รวมทีม</th></tr>';
+    const body = rows.map((x) => '<tr><td class="kt-l"><b style="color:' + x.col + '">' + x.l + '</b><small>' + x.sub + '</small></td>' + team.map((r) => cell(x.v(r), x.t(r), x.col)).join('') + '<td class="n"><b>' + N(team.reduce((s2, r) => s2 + x.v(r), 0)) + '</b></td></tr>').join('') +
+      '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขายเดือนนี้</b><small>เป้า ' + B(mT(team[0])) + ' / คน / เดือน</small></td>' +
+      team.map((r) => cell(month(r), mT(r), '#16a34a', B).replace('</div><div class="kt-bar">', '</div><div class="kt-bar">').replace(/<\/td>$/, '<small class="kt-sub" data-tip="tele" data-tip-k="' + esc(r.user) + '">ช่วงที่เลือก ' + B(r.amount) + ' : ' + N(r.orders) + ' ปิด</small></td>')).join('') +
+      '<td class="n"><b style="color:var(--good)">' + B(team.reduce((x, r) => x + month(r), 0)) + '</b><small class="muted" style="display:block">/' + B(team.reduce((x, r) => x + mT(r), 0)) + '</small></td></tr>';
+    return xBar('kpi-team', 'คน') + '<div class="tbl-wrap"><table class="kt">' + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div><div class="small muted" style="margin-top:10px">T1 T2 T3 และ E-Commerce เป็น KPI แยกกันต่อวัน (นับเฉพาะสายที่ <b>ได้คุย</b> : OneCall เกิน 7 วินาที) : ยอดขายนับรวมทั้งเดือน เป้า ' + B(mT(team[0])) + ' ต่อคน</div>';
   }
+
   function kpiPerson(r) {
     const u = user(r.user) || { id: r.user, name: r.name };
     const s = KSTAT[r.status];
