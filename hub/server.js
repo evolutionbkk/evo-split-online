@@ -255,6 +255,17 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
     catch (e) { console.warn('[boot] platform fix failed', e.message); }
   }
   { const cnt = {}; for (const c of state.customers) if (c.channel === 'ecom') cnt[c.platform || '-'] = (cnt[c.platform || '-'] || 0) + 1; console.log('[boot] E-Commerce customers by platform', JSON.stringify(cnt)); }
+  // one-time undo of the reverted workflow automation (17 Oct): remove its appointments, notes, tags and flags
+  if (!state.sync.wfUndo) {
+    let n = 0;
+    state.appointments = state.appointments.filter((x) => { const hit = x.by === 'system' && (/^ส่งไม่สำเร็จ \/ ตีกลับ/.test(x.purpose || '') || /\(วันที่ 3-5\)$/.test(x.purpose || '')); if (hit) n++; return !hit; });
+    for (const c of state.customers) {
+      if (c.tags && c.tags.includes('FAILED-1ST')) c.tags = c.tags.filter((t) => t !== 'FAILED-1ST');
+      if (c.notes) c.notes = c.notes.filter((t) => !(t.by === 'system' && /^พัสดุส่งถึงลูกค้าแล้ว/.test(t.text || '')));
+      for (const o of c.orders || []) if (o.wf) delete o.wf;
+    }
+    state.sync.wfUndo = new Date().toISOString(); console.log('[boot] workflow automation undone, appointments removed', n);
+  }
   { const n = H.applyNonAdmin(state); if (n) console.log('[boot] non-admin Pancake orders moved out of admin sales', n); }
   { const n = H.applyCloserAliases(state); if (n) console.log('[boot] renamed Pancake closers', n); }
   { const n = H.autoDistribute(state); if (n) console.log('[boot] auto-distributed waiting leads', n); }
