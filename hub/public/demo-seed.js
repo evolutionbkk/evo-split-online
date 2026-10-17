@@ -162,7 +162,6 @@
       bstab: { lastRun: at(T, 11, 5), totalRows: 214, totalAdded: 9, totalTagged: 37 },
       legacy: {},
     };
-    H.applyWorkflow(st);
     st.activity = st.activity.slice(0, 60);
     return st;
   }

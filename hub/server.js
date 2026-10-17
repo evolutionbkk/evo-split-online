@@ -255,7 +255,6 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
     catch (e) { console.warn('[boot] platform fix failed', e.message); }
   }
   { const cnt = {}; for (const c of state.customers) if (c.channel === 'ecom') cnt[c.platform || '-'] = (cnt[c.platform || '-'] || 0) + 1; console.log('[boot] E-Commerce customers by platform', JSON.stringify(cnt)); }
-  { const n = H.applyWorkflow(state); if (n) console.log('[boot] workflow shipping events handled', n); }
   { const n = H.applyNonAdmin(state); if (n) console.log('[boot] non-admin Pancake orders moved out of admin sales', n); }
   { const n = H.applyCloserAliases(state); if (n) console.log('[boot] renamed Pancake closers', n); }
   { const n = H.autoDistribute(state); if (n) console.log('[boot] auto-distributed waiting leads', n); }
