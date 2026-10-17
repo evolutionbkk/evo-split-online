@@ -245,7 +245,7 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
         const d = crypto.createDecipheriv('aes-256-gcm', Buffer.from(process.env.IMPORT_KEY, 'base64'), Buffer.from(box.iv, 'base64'));
         d.setAuthTag(Buffer.from(box.tag, 'base64'));
         const pay = JSON.parse(Buffer.concat([d.update(Buffer.from(box.data, 'base64')), d.final()]).toString('utf8'));
-        const r = H.apply(state, 'importContacts', { rows: pay.rows, owner: pay.owner, label: pay.label, importId: f, keepOwner: !!pay.keepOwner }, { id: 'system', role: 'system' });
+        const r = H.apply(state, 'importContacts', { rows: pay.rows, owner: pay.owner, label: pay.label, importId: f, keepOwner: !!pay.keepOwner, update: !!pay.update }, { id: 'system', role: 'system' });
         console.log('[import]', f, JSON.stringify(r));
       } catch (e) { console.warn('[import] failed', f, e.message); }
     }

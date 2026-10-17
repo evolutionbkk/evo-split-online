@@ -808,6 +808,13 @@
         if (c.notes[0] && r.lastCall) c.notes[0].at = new Date(Date.parse(r.lastCall + 'T05:00:00Z')).toISOString();
       }
       const nextOk = r.nextCall && !isNaN(Date.parse(r.nextCall + 'T03:00:00Z'));
+      // update run (newer copy of the same sheet): move / close the appointment that came from the sheet
+      if (p.update && existed) {
+        const sheetAppt = st.appointments.find((a) => a.customerId === c.id && !a.done && /โทรตามนัดในชีท$/.test(a.purpose || ''));
+        if (sheetAppt && r.lost) { sheetAppt.done = true; sheetAppt.doneAt = nowIso(); sheetAppt.outcome = 'lost'; res.closed = (res.closed || 0) + 1; }
+        else if (sheetAppt && nextOk && r.nextCall >= T && dayKey(sheetAppt.at) !== r.nextCall) { sheetAppt.at = new Date(Date.parse(r.nextCall + 'T03:00:00Z')).toISOString(); res.moved = (res.moved || 0) + 1; }
+        if (!r.lost && c.status === 'lost' && nextOk && r.nextCall >= T) { c.status = 'followup'; res.reopened = (res.reopened || 0) + 1; }
+      }
       if (nextOk && r.nextCall < T && !r.lost) {   // date in the sheet already passed: keep it as a note, the queue picks the customer up as "เงียบนาน"
         const t2 = 'นัดในชีทเดิม ' + thDate(r.nextCall) + ' (เลยมาแล้ว)';
         if (!(c.notes || []).some((n) => n.text === t2)) pushNote(c, { by: 'import', kind: 'note', text: t2 });
