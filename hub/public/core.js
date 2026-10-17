@@ -1022,13 +1022,16 @@
     log(st, actor, 'บันทึกจำนวนการตอบแอดมิน ' + date + ' : ' + n + ' คน');
     return { saved: n };
   };
+  // admin ranking: same rules as the detailed sales list and the admin KPI — order date, order total, skip rejected / non-admin / cancelled
   function adminBoard(st, from, to) {
     const map = {};
     for (const ap of st.approvals) {
-      if (!inRange(dayKey(ap.at), from, to) || ap.nonAdmin) continue;
-      const key = ap.closer || ('name:' + ap.closerName);
-      const m = map[key] || (map[key] = { key, user: ap.closer, name: ap.closer ? userName(st, ap.closer) : (ap.closerName || 'ไม่ระบุ'), pancakeName: ap.closerName, closes: 0, revenue: 0 });
-      m.closes++; m.revenue += ap.total || 0;
+      if (ap.status === 'rejected' || ap.nonAdmin) continue;
+      const c = findCustomer(st, ap.customerId) || {}, o = (c.orders || []).find((x) => x.id === ap.orderId) || {};
+      if (o.status === 'cancelled' || !inRange(dayKey(o.date || ap.at), from, to)) continue;
+      const name = ap.closerName || userName(st, ap.closer);
+      const m = map[name] || (map[name] = { key: name, user: ap.closer, name, pancakeName: ap.closerName, closes: 0, revenue: 0 });
+      m.closes++; m.revenue += o.total != null ? o.total : ap.total || 0;
     }
     return Object.values(map).sort((a, b) => b.revenue - a.revenue);
   }
