@@ -724,21 +724,6 @@
       '<tr class="ak-avg"><td></td><td>เฉลี่ยต่อคน</td><td>' + B(k.avg.month) + '</td><td class="n">' + B(k.avg.revenue) + '</td><td>' + N(Math.round(k.avg.replies)) + '</td><td class="n">' + (k.avg.replies / nd).toFixed(1) + '</td></tr>' +
       '</tfoot></table></div>';
     const card1 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('msg') + '</span><div class="ttl"><h2>KPI แอดมิน : ' + esc(label) + '</h2><small>ยอดขาย จำนวนการตอบ และเฉลี่ย รายคน และรวมทั้งทีม</small></div><button class="btn sm" data-act="replies-open">' + ico('note') + ' บันทึกจำนวนการตอบ</button></div>' + xBar('adm-kpi', 'คน') + kpiTbl + '</section>';
-    // daily sales per person: one row per day — total, a stacked bar coloured by admin, and each admin's amount as a chip
-    const COLS = ['#2563eb', '#0d9488', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#16a34a', '#ef4444'];
-    const colOf = {}; L.forEach((m, i) => { colOf[m.name] = COLS[i % COLS.length]; });
-    const days = k.days.slice().reverse().filter((d) => L.some((m) => m.daily[d] || m.dailyReplies[d]));
-    const [drows, dpager] = pg10('adm-daily', days, 'วัน');
-    const dmax = Math.max(1, ...days.map((d) => L.reduce((x, m) => x + (m.daily[d] || 0), 0)));
-    const legend = '<div class="dy-legend">' + L.filter((m) => days.some((d) => m.daily[d])).map((m) => '<span><i style="background:' + colOf[m.name] + '"></i>' + esc(m.name) + '</span>').join('') + '</div>';
-    const dayRow = (d) => {
-      const parts = L.map((m) => ({ m, v: m.daily[d] || 0, r: m.dailyReplies[d] })).filter((x) => x.v > 0 || x.r != null).sort((a, b) => b.v - a.v), tot = parts.reduce((x, p) => x + p.v, 0);
-      return '<div class="dy-row"><div class="dy-h"><b>' + H.thDate(d).replace(/ \d{4}$/, '') + '</b><span class="dy-tot">' + B(tot) + '</span></div>' +
-        '<div class="dy-bar" style="width:' + Math.max(4, Math.round(tot / dmax * 100)) + '%">' + parts.filter((p) => p.v > 0).map((p) => '<i title="' + esc(p.m.name) + ' ' + B(p.v) + '" style="flex:' + p.v + ';background:' + colOf[p.m.name] + '"></i>').join('') + '</div>' +
-        '<div class="dy-chips">' + parts.map((p) => '<span class="dy-chip"><i style="background:' + colOf[p.m.name] + '"></i>' + esc(p.m.name) + ' <b>' + (p.v ? B(p.v) : '-') + '</b>' + (p.r != null ? '<small>' + N(p.r) + ' ตอบ</small>' : '') + '</span>').join('') + '</div></div>';
-    };
-    const card2 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>ยอดขายรายวัน แยกตามคน</h2><small>' + esc(label) + ' : ล่าสุดอยู่บนสุด</small></div></div>' +
-      (days.length ? legend + '<div class="dy-list">' + drows.map(dayRow).join('') + '</div>' + dpager : '<div class="empty">ไม่มียอดขายในช่วงนี้</div>') + '</section>';
     // products: one row per product — pieces, revenue, and who sold it as small chips (no sparse person-by-column grid)
     const clean = (n) => String(n || '').replace(/^[^0-9A-Za-zก-๙]+/, '').replace(/\s*\([^)]*\)$/, '').trim() || 'ไม่ระบุสินค้า';
     const pmap = {}; for (const m of L) for (const [name, v] of Object.entries(m.products)) { const nm = clean(name), p = pmap[nm] || (pmap[nm] = { name: nm, qty: 0, revenue: 0, by: {} }); p.qty += v.qty; p.revenue += v.revenue; const b = p.by[m.name] || (p.by[m.name] = { qty: 0, revenue: 0 }); b.qty += v.qty; b.revenue += v.revenue; }
@@ -750,7 +735,7 @@
         '<div class="ak-bar"><i style="width:' + Math.round(p.revenue / pmax * 100) + '%;background:#0d9488"></i></div>' +
         '<div class="pd-by">' + Object.entries(p.by).sort((a, b) => b[1].qty - a[1].qty).map(([who, v]) => '<span class="pd-chip">' + esc(who) + ' <b>' + N(v.qty) + '</b></span>').join('') + '</div></div></div>').join('') + '</div>' + ppager
         : '<div class="empty">ไม่มีข้อมูลสินค้าในช่วงนี้</div>') + '</section>';
-    return noXl(card1 + '<div class="grid g2">' + card2 + card3 + '</div>');
+    return noXl(card1 + card3);   // daily-sales-per-person card removed at the owner's request
   }
   // ---- cancel / return rates by admin and by page (Pancake is the source of truth; the demo uses hub orders)
   const QR = {};
