@@ -1358,3 +1358,4 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 .dy-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .dy-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, .7); border: 1px solid rgba(160, 175, 210, .3); color: var(--muted); }
 .dy-chip b { color: var(--text); font-variant-numeric: tabular-nums; } .dy-chip small { color: #7c3aed; font-size: 11px; }
+.pg-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text); text-decoration: none; max-width: 100%; } .pg-link svg { width: 14px; height: 14px; color: var(--accent); flex: none; opacity: .7; } .pg-link:hover b { color: var(--accent); text-decoration: underline; } .pg-link:hover svg { opacity: 1; }

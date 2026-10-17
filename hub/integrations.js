@@ -51,6 +51,9 @@ function pcShip(o) {
 }
 // copy shipping state onto the matching hub orders (orders created from Pancake carry extId pc:<id>)
 function applyShipping(state, raws) {
+  // remember each FB page's id so the hub can link page names to the real page
+  const ids = state.sync.pageIds = state.sync.pageIds || {};
+  for (const r of raws) { const pg = r.page || {}; if (pg.id && pg.name && ids[pg.name] !== String(pg.id)) ids[pg.name] = String(pg.id); }
   const idx = new Map();
   for (const c of state.customers) for (const o of c.orders || []) if (o.extId && o.extId.startsWith('pc:')) idx.set(o.extId, o);
   let n = 0;
