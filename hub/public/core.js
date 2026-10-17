@@ -105,6 +105,8 @@
     pancakeAdminMap: {},        // Pancake staff name → admin user id
     products: DEFAULT_PRODUCTS,
     rr: { fb: 0, ecom: 0 },
+    // KPI Tracker targets from the Sales Department Master Workflow
+    wfTargets: { T1: { contact: 0.7, close: 0.25 }, T2: { contact: 0.6, close: 0.15 }, T3: { contact: 0.5, close: 0.15 }, failed24h: 0.95, firstCall2h: 1, delivered: 0.9, rts: 0.1 },
   };
 
   // ---------------------------------------------------------------- helpers
@@ -299,7 +301,10 @@
   // Next call after a result, so telesales never has to work out dates or rounds.
   // FB: talked at T1 -> T2 in 7 days, T2 -> T3 in 25 days, T3 -> T3 again in 30 days.
   // Marketplace: talked -> repeat-order call in 25 days. No answer -> retry in 2 hours, then next morning.
-  const ROUND_NEXT = { T1: ['T2', 7, 'T2 ถามผลการใช้ เสนออัปเซล'], T2: ['T3', 25, 'T3 เช็กของใกล้หมด ชวนสั่งซ้ำ'], T3: ['T3', 30, 'T3 ชวนสั่งซ้ำรอบถัดไป'] };
+  // Sales Department Master Workflow: T2 = day 3-5 after delivery, T3 = day 15 and day 30 after delivery
+  const ROUND_NEXT = { T1: ['T2', 4, 'T2 ได้รับสินค้าแล้ว ถามผลการใช้ + เสนอสินค้าเสริม'], T2: ['T3', 11, 'T3 วันที่ 15 ถามผลใช้สินค้า'], T3: ['T3', 25, 'T3 ชวนสั่งซ้ำรอบถัดไป'] };
+  const deliveredAt = (c) => { let best = ''; for (const o of c.orders || []) if (o.ship && o.ship.code === 'done' && o.status !== 'cancelled') { const t = o.ship.at || o.date; if (t > best) best = t; } return best; };
+  const dayAt = (iso, days, hhmm) => { const d = addDays(dayKey(iso), days); return new Date(Date.parse(d + 'T' + (hhmm || '10:30') + ':00Z') - TZ).toISOString(); };
   function atDayTime(daysAhead, hhmm) { const d = addDays(today(), daysAhead); return new Date(Date.parse(d + 'T' + (hhmm || '10:00') + ':00Z') - TZ).toISOString(); }
   function planNext(st, c, result) {
     if (result === 'lost' || result === 'dnc') return null;
@@ -313,7 +318,14 @@
     if (result === 'info') return { at: atDayTime(1, '11:00'), round: c.round, purpose: 'ส่งรายละเอียดแล้ว โทรถามต่อ' };
     if (result === 'later') return { at: atDayTime(14, '11:00'), round: c.round, purpose: 'ลูกค้ายังไม่พร้อม โทรอีกครั้ง' };
     if (c.channel === 'ecom') return { at: atDayTime(25, '10:30'), round: '', purpose: 'ชวนสั่งซ้ำ (Marketplace)' };
-    const nx = ROUND_NEXT[c.round || 'T1'] || ROUND_NEXT.T1;
+    const nx = ROUND_NEXT[c.round || 'T1'] || ROUND_NEXT.T1, dv = deliveredAt(c), soon = Date.now() + 3600000;
+    // anchor T2/T3 on the delivery date when Pancake says the parcel arrived
+    if (dv) {
+      const r = c.round || 'T1';
+      if (r === 'T1' && Date.parse(dayAt(dv, 4)) > soon) return { at: dayAt(dv, 4), round: 'T2', purpose: 'T2 ได้รับสินค้าแล้ว ถามผลการใช้ + เสนอสินค้าเสริม (วันที่ 3-5)' };
+      if (r === 'T2' && Date.parse(dayAt(dv, 15)) > soon) return { at: dayAt(dv, 15), round: 'T3', purpose: 'T3 วันที่ 15 ถามผลใช้สินค้า' };
+      if (r === 'T3' && Date.parse(dayAt(dv, 30)) > soon) return { at: dayAt(dv, 30), round: 'T3', purpose: 'T3 วันที่ 30 ดึงกลับมาซื้อรอบใหม่' };
+    }
     return { at: atDayTime(nx[1], '10:30'), round: nx[0], purpose: nx[2] };
   }
 
@@ -503,6 +515,52 @@
     log(st, actor, 'กู้คืนรายชื่อ ' + (c.name || fmtPhone(c.phone)));
     return { id: c.id };
   };
+  // Workflow automation driven by shipping status (Pancake): delivered → T2 day 3-5; failed / returning → telesales call within 24 h
+  function applyWorkflow(st) {
+    const SYS = { id: 'system', role: 'system' }; let n = 0;
+    for (const c of st.customers || []) {
+      if (!c.owner || c.status === 'dnc') continue;
+      for (const o of c.orders || []) {
+        const sh = o.ship; if (!sh || o.status === 'cancelled') continue;
+        o.wf = o.wf || {};
+        if (sh.code === 'done' && !o.wf.delivered) {
+          o.wf.delivered = sh.at || nowIso();
+          if (Date.now() - Date.parse(o.wf.delivered) > 20 * 86400000) continue;   // old history: nothing to schedule
+          const t2 = dayAt(o.wf.delivered, 4), open = st.appointments.filter((a) => a.customerId === c.id && !a.done);
+          const t2a = open.find((a) => a.round === 'T2');
+          if (t2a) { if (Date.parse(t2) > Date.now()) { t2a.at = t2; t2a.purpose = 'T2 ได้รับสินค้าแล้ว ถามผลการใช้ + เสนอสินค้าเสริม (วันที่ 3-5)'; setNextAppt(st, c); } }
+          else if (!open.some((a) => a.round === 'T3') && (c.round || 'T1') === 'T1' && Date.parse(t2) > Date.now()) A.addAppt(st, { customerId: c.id, at: t2, round: 'T2', purpose: 'T2 ได้รับสินค้าแล้ว ถามผลการใช้ + เสนอสินค้าเสริม (วันที่ 3-5)', owner: c.owner }, SYS);
+          pushNote(c, { by: 'system', kind: 'note', text: 'พัสดุส่งถึงลูกค้าแล้ว' + (sh.tracking ? ' (' + sh.tracking + ')' : '') + ' : เริ่มนับ T2 วันที่ 3-5 / T3 วันที่ 15 และ 30' });
+          n++;
+        }
+        if (sh.code === 'back' && !o.wf.failed) {
+          o.wf.failed = nowIso();
+          if (Date.now() - Date.parse(sh.at || nowIso()) > 14 * 86400000) continue;
+          A.addAppt(st, { customerId: c.id, at: nowIso(), round: c.round || '', purpose: 'ส่งไม่สำเร็จ / ตีกลับ : โทรหาลูกค้าภายใน 24 ชม. (นัดส่งใหม่ หรือเก็บค่าส่ง)', owner: c.owner }, SYS);
+          c.tags = [...new Set([...(c.tags || []), 'FAILED-1ST'])];
+          n++;
+        }
+      }
+    }
+    return n;
+  }
+  // workflow KPI (KPI Tracker sheet): contact and close rates by round, failed-delivery calls within 24 h, T1 first call within 2 h
+  function workflowKpi(st, from, to, userId) {
+    const r = {}; for (const k of ['T1', 'T2', 'T3', 'mkt']) r[k] = { calls: 0, talked: 0, won: 0 };
+    for (const k of st.kpi) {
+      if (!inRange(k.date, from, to) || (userId && k.user !== userId) || k.mode === 'summary') continue;
+      const key = k.channel === 'mkt' ? 'mkt' : (k.round || 'T1'); const x = r[key] || r.T1;
+      x.calls++; if (k.talked) x.talked++; if (k.orders > 0 || k.result === 'won' || k.result === 'awaiting_payment') x.won++;
+    }
+    let failed = 0, failedOk = 0, assigned = 0, firstOk = 0;
+    for (const c of st.customers) {
+      if (userId && c.owner !== userId) continue;
+      for (const o of c.orders || []) if (o.wf && o.wf.failed && inRange(dayKey(o.wf.failed), from, to)) { failed++; const t0 = Date.parse(o.wf.failed); if (st.kpi.some((k) => k.customerId === c.id && Date.parse(k.at) >= t0 && Date.parse(k.at) - t0 <= 86400000)) failedOk++; }
+      if (c.channel === 'fb' && c.autoAssignedAt && inRange(dayKey(c.autoAssignedAt), from, to)) { assigned++; const t0 = Date.parse(c.autoAssignedAt); if (st.kpi.some((k) => k.customerId === c.id && Date.parse(k.at) >= t0 && Date.parse(k.at) - t0 <= 2 * 3600000)) firstOk++; }
+    }
+    const T = (st.settings.wfTargets || {});
+    return { rounds: r, failed, failedOk, assigned, firstOk, targets: T };
+  }
   A.addAppt = (st, p, actor) => {
     const c = findCustomer(st, p.customerId); if (!c) throw err('เลือกลูกค้าที่จะนัด');
     if (c.status === 'dnc') throw err('ลูกค้ารายนี้ยกเลิกการติดต่อถาวรแล้ว กู้คืนก่อนจึงนัดได้');
@@ -1174,7 +1232,7 @@
     sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
     uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
-    emptyState, normalize, apply, adminKpi, aliasCloser, applyCloserAliases, isNonAdminCloser, applyNonAdmin, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
+    emptyState, normalize, apply, adminKpi, applyWorkflow, workflowKpi, deliveredAt, aliasCloser, applyCloserAliases, isNonAdminCloser, applyNonAdmin, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };
 });

@@ -1337,3 +1337,11 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 .ak-s { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .ak-tbl tfoot td { border-top: 2px solid rgba(160, 175, 210, .35); background: rgba(255, 255, 255, .35); }
 .ak-tbl tfoot .ak-avg td { border-top: 1px solid rgba(160, 175, 210, .2); color: var(--muted); font-size: 13px; padding-top: 10px; padding-bottom: 10px; }
+
+/* workflow KPI */
+.wk-tbl td, .wk-tbl th { vertical-align: middle; padding-top: 12px; padding-bottom: 12px; }
+.wk-m { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; } .wk-m b { font-size: 15px; } .wk-m b.ok { color: var(--good); } .wk-m b.bad { color: #b45309; } .wk-m small { color: var(--muted); font-size: 12px; }
+.wk-sla { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; } .wk-sla > div { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .45); border: 1px solid rgba(160, 175, 210, .25); } .wk-sla > div > small:first-child { display: block; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+@media (max-width: 700px) { .wk-sla { grid-template-columns: 1fr; } }
+.ctag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; vertical-align: 2px; letter-spacing: .03em; }
+.ctag.new { background: rgba(37, 99, 235, .1); color: #2563eb; } .ctag.old { background: rgba(13, 148, 136, .12); color: #0f766e; } .ctag.vip { background: rgba(245, 158, 11, .16); color: #b45309; }

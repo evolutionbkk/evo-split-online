@@ -87,6 +87,7 @@ async function pancakeShipSync(state, pages) {
   const raws = [];
   for (let p = 1; p <= (pages || 10); p++) { const j = await pancakeFetch(p, 100); raws.push(...j.data); if (j.data.length < 100 || p >= (j.total_pages || 1)) break; }
   const updated = applyShipping(state, raws);
+  const wf = H.applyWorkflow(state); if (wf) console.log('[workflow] shipping events handled', wf);
   { const keys = []; for (const c of state.customers) for (const o of c.orders || []) if (o.extId && o.extId.startsWith('pc:')) keys.push(o.extId);
     console.log('[ship] hub pancake orders', keys.length, 'sample', keys.slice(-3).join(','), '| pancake ids', raws.slice(0, 3).map((r) => r.id + '/' + r.system_id).join(',')); }
   state.sync.pancake = { ...(state.sync.pancake || {}), shipRun: new Date().toISOString(), shipUpdated: updated };
@@ -140,6 +141,7 @@ async function pancakePull(state, opts) {
       if (older) stopNew = true;   // keep reading a few pages only to refresh shipping status
     }
     shipped = applyShipping(state, raws);
+    if (shipped) H.applyWorkflow(state);
     Object.assign(sync, { lastRun: new Date().toISOString(), lastAdded: added, lastHistory: history, lastScanned: scanned, lastShip: shipped, lastError: null });
   } catch (e) {
     Object.assign(sync, { lastRun: new Date().toISOString(), lastError: String(e.message || e) });

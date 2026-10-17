@@ -615,6 +615,8 @@
     const alerts = '<div class="alerts">' +
       alertRow('bad', d.overdue, 'นัดโทรที่เลยกำหนด', 'ลูกค้าที่นัดไว้แต่ยังไม่ได้โทร', 'calendar') +
       alertRow('warn', d.stale, 'ลูกค้าเงียบเกินกำหนด', 'FB เกิน ' + st.settings.staleDays.fb + ' วัน : Marketplace เกิน ' + st.settings.staleDays.ecom + ' วัน ไม่มีความเคลื่อนไหว', 'customers', 'due') +
+      alertRow('bad', wfFailedOpen(st).length, 'ส่งไม่สำเร็จ รอโทร', 'ตีกลับ / ส่งไม่ได้ : โทรภายใน 24 ชม.', 'calendar') +
+      (fullView() ? alertRow('warn', stuckParcels(st).length, 'พัสดุค้างเกิน 3 วัน', 'ติดตามกับขนส่ง / แจ้งหัวหน้าแอดมิน', 'ovadmin') : '') +
       alertRow('info', d.todayAppts - d.todayApptsDone, 'นัดที่เหลือของวันนี้', 'ทำแล้ว ' + d.todayApptsDone + ' จาก ' + d.todayAppts + ' นัด', 'calendar') + '</div>';
     const lr = Object.entries(d.lostReasons).sort((a, b) => b[1] - a[1]);
     const pf = Object.entries(d.platform).sort((a, b) => b[1] - a[1]), pfMax = Math.max(1, ...pf.map((x) => x[1]));
@@ -627,7 +629,7 @@
       const tt = '<div class="tiles">' + tile('<i style="background:var(--c-tele)"></i>ยอดขาย Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์จากการโทร', 'hero') +
         tile('จำนวนสาย', N(d.teamSum.calls), 'ได้คุย ' + N(d.teamSum.talked) + ' สาย') + tile('อัตราติดต่อได้', pctTxt(d.contactRate), 'จากสายทั้งหมด') + tile('อัตราปิดการขาย', pctTxt(d.conversion), 'จากสายที่ได้คุย') +
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.tele ? d.rev.tele / d.cnt.tele : 0), 'ยอด Telesales') + tile('นัดที่เลยกำหนด', N(d.overdue), 'เงียบเกินกำหนด ' + d.stale, d.overdue ? 'alert' : '') + '</div>';
-      return head + tt + teamCard + '<div class="grid g3">' + funnelCard + heatCard + card('alert', 'ต้องติดตาม', 'งานค้างของทีม Telesales', alerts) + '</div>' + teleSales(st, from, to, label) + foot;
+      return head + tt + teamCard + workflowCard(st, from, to, label) + '<div class="grid g3">' + funnelCard + heatCard + card('alert', 'ต้องติดตาม', 'งานค้างของทีม Telesales', alerts) + '</div>' + teleSales(st, from, to, label) + foot;
     }
     if (mode === 'admin') {
       const dist = fullView() ? (st.approvals || []).filter((a) => a.status === 'approved' && H.dayKey(a.decidedAt || a.at) >= from && H.dayKey(a.decidedAt || a.at) <= to).length : (DASH[from + '|' + to] || {}).dist || 0;
@@ -635,7 +637,7 @@
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.admin ? d.rev.admin / d.cnt.admin : 0), 'ยอด Admin') + tile('รายชื่อที่แจกให้ Telesales', N(dist), 'แจกอัตโนมัติ 50:50') +
         tile('แอดมินที่มียอด', N(d.admins.filter((a) => a.revenue > 0).length), 'จาก ' + N(d.admins.length) + ' คน') + '</div>';
       const splitCard = card('send', 'สัดส่วนรายชื่อวันนี้', 'แจกให้ Telesales อัตโนมัติ 50:50', splitBar(todaySplit()), '<button class="btn sm" data-go="approvals">ดูรายชื่อที่ถูกแจก</button>');
-      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? adminKpiCards(st, from, to, label) + qualityCard(st, from, to, label) + repeatPageCard(st) + adminSales(st, from, to, label) : '') + foot;
+      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? adminKpiCards(st, from, to, label) + stuckCard(st) + qualityCard(st, from, to, label) + repeatPageCard(st) + adminSales(st, from, to, label) : '') + foot;
     }
     const ct = '<div class="tiles">' + tile('ยอดขายรวม (Telesales + Admin)', B(two), 'เดือนนี้ ' + B(d.monthRev) + ' : ' + monthPct + '% ของเป้า ' + B(d.monthTarget), 'hero', monthPct) +
       tile('<i style="background:var(--c-tele)"></i>Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์ : ' + (two ? Math.round(d.rev.tele / two * 100) : 0) + '% ของยอดรวม') +
@@ -647,7 +649,7 @@
     const donutCard = '<div class="grid g2">' +
       card('chart', 'สัดส่วนยอดขายตามทีม', label + ' : Telesales เทียบ Admin', donut([{ l: 'Telesales', v: d.rev.tele, c: 'var(--c-tele)' }, { l: 'Admin (FB Page)', v: d.rev.admin, c: 'var(--c-admin)' }], B(two), 'ยอดรวม')) +
       card('bag', 'สัดส่วนยอดขายตามสินค้า', label + ' : 5 อันดับแรก ทุกช่องทาง', donut(prods.map((x, i) => ({ l: x.name.replace(/ \([^)]*\)$/, ''), v: x.revenue, c: DONUT_COL[i] })).concat(prodRest ? [{ l: 'อื่น ๆ', v: prodRest, c: '#cbd5e1' }] : []), N(d.products.length), 'รายการสินค้า')) + '</div>';
-    return head + ct + goCards + donutCard + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + (fullView() ? '' : teleSales(st, from, to, label)) + foot;
+    return head + ct + goCards + donutCard + '<div class="grid g-main">' + chartCard + sideCard + '</div>' + prodCard + (fullView() ? '' : workflowCard(st, from, to, label) + teleSales(st, from, to, label)) + foot;
   }
   // E-Commerce customers by marketplace: who brings the most customers (all time + new in range)
   const PLAT_COL = { shopee: '#ee4d2d', lazada: '#1a2dbd', tiktok: '#111827', evolution: '#94a3b8' };
@@ -698,6 +700,35 @@
       stat('ยอดขาย', r.amount, r.target.revenue, N(r.orders) + ' ออเดอร์', B) + '</div>' +
       '<div class="kpc-f"><span>ได้คุย <b>' + pctTxt(r.contactRate) + '</b></span><span>ปิดได้ <b>' + pctTxt(r.conversion) + '</b></span><span>นัดวันนี้ <b>' + r.appts.done + '/' + r.appts.due + '</b></span>' +
       (r.appts.overdue ? '<span class="bad">เลยนัด <b>' + N(r.appts.overdue) + '</b></span>' : '') + '</div></div>';
+  }
+  // ---- Sales Department Master Workflow helpers (shipping-driven)
+  // workflow customer tags: NEW (first purchase) / OLD (bought before) / VIP (more than 3 purchases)
+  const custTag = (c) => { const n = (c.orders || []).filter((o) => o.status !== 'cancelled').length; return n > 3 ? ' <span class="ctag vip">VIP</span>' : n >= 2 ? ' <span class="ctag old">OLD</span>' : n === 1 ? ' <span class="ctag new">NEW</span>' : ''; };
+  const wfFailedOpen = (st) => (st.appointments || []).filter((a) => !a.done && /^ส่งไม่สำเร็จ/.test(a.purpose || '') && (fullView() || a.owner === S.me.id));
+  function stuckParcels(st) {
+    const out = [], lim = Date.now() - 3 * 86400000;
+    for (const c of st.customers || []) for (const o of c.orders || []) { const sh = o.ship; if (sh && sh.code === 'ship' && o.status !== 'cancelled' && sh.at && Date.parse(sh.at) < lim) out.push({ c, o, sh, days: Math.floor((Date.now() - Date.parse(sh.at)) / 86400000) }); }
+    return out.sort((a, b) => b.days - a.days);
+  }
+  function stuckCard(st) {
+    const list = stuckParcels(st); if (!list.length) return '';
+    const [rows, pager] = pg10('stuck', list, 'พัสดุ');
+    xReg('stuck', 'พัสดุค้างเกิน 3 วัน', list, (x) => x.o.id, [['ลูกค้า', (x) => x.c.name], ['เบอร์', (x) => H.fmtPhone(x.c.phone || '')], ['ขนส่ง', (x) => x.sh.carrier], ['เลขพัสดุ', (x) => x.sh.tracking], ['สถานะ', (x) => x.sh.label], ['ค้าง (วัน)', (x) => x.days], ['ผู้ดูแล', (x) => uname(x.c.owner)]]);
+    return '<section class="card"><div class="card-h"><span class="card-ico">' + ico('send') + '</span><div class="ttl"><h2>พัสดุค้างเกิน 3 วัน</h2><small>ตามเวิร์กโฟลว์ : ค้างที่จุดเดิมเกิน 3 วัน → โทรถามขนส่ง และแจ้งหัวหน้าแอดมิน</small></div></div>' + xBar('stuck', 'พัสดุ') +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="ck"></th><th>ลูกค้า</th><th>ขนส่ง / เลขพัสดุ</th><th>สถานะ</th><th class="n">ค้าง</th><th class="hide-sm">ผู้ดูแล</th></tr></thead><tbody>' +
+      rows.map((x) => '<tr><td class="ck">' + xCk('stuck', x.o.id) + '</td><td><b class="link one" data-open="' + esc(x.c.id) + '">' + esc(x.c.name || '-') + '</b><small class="muted">' + H.fmtPhone(x.c.phone || '') + '</small></td><td><b class="small">' + esc(x.sh.carrier || '-') + '</b><small class="muted">' + esc(x.sh.tracking || '') + (x.sh.tracking ? ' <button class="link-plain small" data-act="copy" data-v="' + esc(x.sh.tracking) + '">คัดลอก</button>' : '') + '</small></td><td><span class="pill info">' + esc(x.sh.label) + '</span></td><td class="n"><b style="color:var(--bad)">' + x.days + ' วัน</b></td><td class="hide-sm">' + esc(uname(x.c.owner)) + '</td></tr>').join('') + '</tbody></table></div>' + pager + '</section>';
+  }
+  // KPI Tracker (workflow sheet): contact / close rate per round vs target, failed-delivery calls in 24 h, first T1 call in 2 h
+  function workflowCard(st, from, to, label) {
+    const w = H.workflowKpi(st, from, to, fullView() ? null : S.me.id), T = w.targets || {};
+    const pc = (a, b) => (b ? a / b : 0), P = (v) => Math.round(v * 100) + '%';
+    const meter = (v, t, inverse) => { const ok = inverse ? v <= t : v >= t; return '<div class="wk-m"><b class="' + (ok ? 'ok' : 'bad') + '">' + P(v) + '</b><small>เป้า ' + P(t) + '</small></div><div class="ak-bar"><i style="width:' + Math.min(100, Math.round(v * 100)) + '%;background:' + (ok ? 'var(--good)' : '#f59e0b') + '"></i></div>'; };
+    const names = { T1: ['T1', 'โทรยืนยัน / อัปเซล', 'อัปเซลสำเร็จ'], T2: ['T2', 'Follow up วันที่ 3-5', 'อัปเซลสำเร็จ'], T3: ['T3', 'ติดตามวันที่ 15 / 30', 'ซื้อซ้ำสำเร็จ'] };
+    const rows = ['T1', 'T2', 'T3'].map((k) => { const x = w.rounds[k], t = T[k] || {}; return '<tr><td class="kt-l"><b>' + names[k][0] + '</b><small>' + names[k][1] + '</small></td><td class="n">' + N(x.calls) + '</td><td>' + meter(pc(x.talked, x.calls), t.contact || 0) + '</td><td>' + meter(pc(x.won, x.talked), t.close || 0) + '<small class="ak-s">' + names[k][2] + ' ' + N(x.won) + ' จาก ' + N(x.talked) + ' สายที่คุย</small></td></tr>'; }).join('');
+    const sla = '<div class="wk-sla"><div><small>โทรเคสส่งไม่สำเร็จภายใน 24 ชม.</small>' + (w.failed ? meter(pc(w.failedOk, w.failed), T.failed24h || 0.95) + '<small class="ak-s">' + N(w.failedOk) + ' จาก ' + N(w.failed) + ' เคส</small>' : '<span class="faint small">ยังไม่มีเคสในช่วงนี้</span>') + '</div>' +
+      '<div><small>T1 โทรครั้งแรกภายใน 2 ชม. หลังได้รายชื่อ</small>' + (w.assigned ? meter(pc(w.firstOk, w.assigned), T.firstCall2h || 1) + '<small class="ak-s">' + N(w.firstOk) + ' จาก ' + N(w.assigned) + ' รายชื่อ</small>' : '<span class="faint small">ยังไม่มีรายชื่อใหม่ในช่วงนี้</span>') + '</div></div>';
+    return '<section class="card"><div class="card-h"><span class="card-ico">' + ico('clip') + '</span><div class="ttl"><h2>KPI ตามเวิร์กโฟลว์ : ' + esc(label) + '</h2><small>' + (fullView() ? 'ทั้งทีม' : 'ของฉัน') + ' : โทรติด = สายที่ได้คุย ÷ สายที่โทร : ปิดได้ = สายที่ขายได้ ÷ สายที่ได้คุย</small></div></div>' +
+      '<div class="tbl-wrap"><table class="tbl wk-tbl"><thead><tr><th>รอบ</th><th class="n">โทร</th><th>% โทรติด</th><th>% ปิดการขาย</th></tr></thead><tbody>' + rows + '</tbody></table></div>' + sla + '</section>';
   }
   // ---- Admin KPI: one table like the telesales one + daily sales per person + products per person
   function adminKpiCards(st, from, to, label) {
@@ -767,7 +798,7 @@
     xReg('q-' + key, 'ยกเลิกและตีกลับ แยกตาม' + (key === 'page' ? 'เพจ' : 'แอดมิน'), list, (g) => g.name, [[key === 'page' ? 'เพจ' : 'แอดมิน', (g) => g.name], ['ออเดอร์', (g) => g.n], ['ยกเลิก', (g) => g.cancel], ['% ยกเลิก', (g) => +(g.cr * 100).toFixed(1)], ['ตีกลับ', (g) => g.back], ['% ตีกลับ', (g) => +(g.rr * 100).toFixed(1)], ['ส่งสำเร็จ', (g) => g.done], ['มูลค่าที่เสียไป', (g) => g.lost]]);
     const cell = (cnt, rate, base, n) => '<td class="n"><div class="q-c' + (warn(rate, base, n) ? ' bad' : '') + '"><b>' + N(cnt) + '</b><span>' + P(rate) + '</span></div><div class="q-bar"><i style="width:' + Math.min(100, rate * 100 * 4) + '%"></i></div></td>';
     return '<section class="card q-card">' + headH +
-      '<div class="as-sum"><div><small>ออเดอร์ทั้งหมด</small><b>' + N(all.n) + '</b></div><div><small>ยกเลิก</small><b class="' + (all.cancel ? 'q-bad' : 'q-ok') + '">' + N(all.cancel) + ' <em>' + P(all.cr) + '</em></b></div><div><small>ตีกลับ</small><b class="' + (all.back ? 'q-bad' : 'q-ok') + '">' + N(all.back) + ' <em>' + P(all.rr) + '</em></b></div><div><small>ส่งสำเร็จ</small><b>' + N(all.done) + '</b></div><div><small>มูลค่าที่เสียไป</small><b>' + B(all.lost) + '</b></div></div>' +
+      '<div class="as-sum"><div><small>ออเดอร์ทั้งหมด</small><b>' + N(all.n) + '</b></div><div><small>ยกเลิก</small><b class="' + (all.cancel ? 'q-bad' : 'q-ok') + '">' + N(all.cancel) + ' <em>' + P(all.cr) + '</em></b></div><div><small>ตีกลับ</small><b class="' + (all.back ? 'q-bad' : 'q-ok') + '">' + N(all.back) + ' <em>' + P(all.rr) + '</em></b></div><div><small>ส่งสำเร็จ (เป้า ≥90%)</small><b class="' + (all.sent && all.done / all.sent < 0.9 ? 'q-bad' : 'q-ok') + '">' + N(all.done) + ' <em>' + (all.sent ? Math.round(all.done / all.sent * 100) + '%' : '-') + '</em></b></div><div><small>มูลค่าที่เสียไป</small><b>' + B(all.lost) + '</b></div></div>' +
       (list.length ? xBar('q-' + key, key === 'page' ? 'เพจ' : 'คน') + '<div class="tbl-wrap"><table class="tbl q-tbl"><thead><tr><th class="ck"></th><th>' + (key === 'page' ? 'เพจ' : 'แอดมิน') + '</th><th class="n">ออเดอร์</th><th class="n">ยกเลิก</th><th class="n">ตีกลับ</th><th class="n hide-sm">ส่งสำเร็จ</th><th class="n hide-sm">มูลค่าที่เสียไป</th></tr></thead><tbody>' +
         pageRows.map((g) => '<tr><td class="ck">' + xCk('q-' + key, g.name) + '</td><td><b class="one">' + esc(g.name) + '</b></td><td class="n"><b>' + N(g.n) + '</b></td>' + cell(g.cancel, g.cr, all.cr, g.n) + cell(g.back, g.rr, all.rr, g.sent) + '<td class="n hide-sm">' + N(g.done) + '</td><td class="n hide-sm">' + (g.lost ? B(g.lost) : '<span class="faint">-</span>') + '</td></tr>').join('') + '</tbody></table></div>' + pager : '<div class="empty">ไม่มีออเดอร์ในช่วงนี้</div>') +
       '<div class="small muted" style="margin-top:10px">ยกเลิก = ออเดอร์ที่ถูกยกเลิก ÷ ออเดอร์ทั้งหมด : ตีกลับ = พัสดุตีกลับ ÷ พัสดุที่ส่งออกไปแล้ว : <b style="color:var(--bad)">สีแดง</b> = สูงกว่าค่าเฉลี่ยทั้งทีมชัดเจน</div></section>';
@@ -1202,7 +1233,7 @@
         const o = (c.orders || [])[0];
         const it = o ? (o.items || []).map((i) => i.name.replace(/ \([^)]*\)$/, '') + ' × ' + i.qty).join(', ') : '';
         const u = c.owner ? user(c.owner) : null;
-        return ['<td class="cust-name"><b class="one">' + esc(c.name || 'ไม่ระบุชื่อ') + '</b><small>' + H.fmtPhone(c.phone) + '</small></td>',
+        return ['<td class="cust-name"><b class="one">' + esc(c.name || 'ไม่ระบุชื่อ') + custTag(c) + '</b><small>' + H.fmtPhone(c.phone) + '</small></td>',
           '<td class="c2">' + (o ? '<span class="one">' + esc(it || 'คำสั่งซื้อ') + '</span><small>' + H.thDate(o.date) + ' : ' + B(o.total) + '</small>' : '<span class="faint">ยังไม่มี</span>') + '</td>',
           '<td class="c2 hide-sm"><b>' + B(H.customerTotal(c)) + '</b><small>' + (c.orders || []).length + ' คำสั่งซื้อ</small></td>',
           '<td>' + statusPill(c.status) + '</td>', '<td>' + (c.channel === 'fb' ? '<span class="rtag">' + (c.round || 'T1') + '</span>' : platformTag(c.platform)) + '</td>',
