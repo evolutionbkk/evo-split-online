@@ -724,14 +724,21 @@
       '<tr class="ak-avg"><td></td><td>เฉลี่ยต่อคน</td><td>' + B(k.avg.month) + '</td><td class="n">' + B(k.avg.revenue) + '</td><td>' + N(Math.round(k.avg.replies)) + '</td><td class="n">' + (k.avg.replies / nd).toFixed(1) + '</td></tr>' +
       '</tfoot></table></div>';
     const card1 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('msg') + '</span><div class="ttl"><h2>KPI แอดมิน : ' + esc(label) + '</h2><small>ยอดขาย จำนวนการตอบ และเฉลี่ย รายคน และรวมทั้งทีม</small></div><button class="btn sm" data-act="replies-open">' + ico('note') + ' บันทึกจำนวนการตอบ</button></div>' + xBar('adm-kpi', 'คน') + kpiTbl + '</section>';
-    // daily sales per person
+    // daily sales per person: one row per day — total, a stacked bar coloured by admin, and each admin's amount as a chip
+    const COLS = ['#2563eb', '#0d9488', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#16a34a', '#ef4444'];
+    const colOf = {}; L.forEach((m, i) => { colOf[m.name] = COLS[i % COLS.length]; });
     const days = k.days.slice().reverse().filter((d) => L.some((m) => m.daily[d] || m.dailyReplies[d]));
     const [drows, dpager] = pg10('adm-daily', days, 'วัน');
-    xReg('adm-daily', 'ยอดขายรายวัน แยกตามคน', days, (d) => d, [['วันที่', (d) => H.thDate(d)]].concat(L.map((m) => [m.name, (d) => m.daily[d] || 0]), L.map((m) => [m.name + ' (ตอบ)', (d) => m.dailyReplies[d] || 0]), [['รวม', (d) => L.reduce((x, m) => x + (m.daily[d] || 0), 0)]]));
-    const dmax = Math.max(1, ...days.map((d) => Math.max(...L.map((m) => m.daily[d] || 0))));
-    const card2 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>ยอดขายรายวัน แยกตามคน</h2><small>' + esc(label) + ' : ตัวเล็กใต้ยอด = จำนวนการตอบของวันนั้น</small></div></div>' +
-      (days.length ? xBar('adm-daily', 'วัน') + '<div class="tbl-wrap"><table class="tbl ad-tbl"><thead><tr><th class="ck"></th><th>วันที่</th>' + L.map((m) => '<th class="n">' + esc(m.name) + '</th>').join('') + '<th class="n">รวม</th></tr></thead><tbody>' +
-        drows.map((d) => { const tot = L.reduce((x, m) => x + (m.daily[d] || 0), 0); return '<tr><td class="ck">' + xCk('adm-daily', d) + '</td><td class="nowrap"><b>' + H.thDate(d).replace(/ \d{4}$/, '') + '</b></td>' + L.map((m) => { const v = m.daily[d] || 0, r = m.dailyReplies[d]; return '<td class="n"><div class="ad-c" style="--w:' + Math.round(v / dmax * 100) + '%"><b>' + (v ? B(v) : '<span class="faint">-</span>') + '</b>' + (r != null ? '<small>' + N(r) + ' ตอบ</small>' : '') + '</div></td>'; }).join('') + '<td class="n"><b>' + B(tot) + '</b></td></tr>'; }).join('') + '</tbody></table></div>' + dpager : '<div class="empty">ไม่มียอดขายในช่วงนี้</div>') + '</section>';
+    const dmax = Math.max(1, ...days.map((d) => L.reduce((x, m) => x + (m.daily[d] || 0), 0)));
+    const legend = '<div class="dy-legend">' + L.filter((m) => days.some((d) => m.daily[d])).map((m) => '<span><i style="background:' + colOf[m.name] + '"></i>' + esc(m.name) + '</span>').join('') + '</div>';
+    const dayRow = (d) => {
+      const parts = L.map((m) => ({ m, v: m.daily[d] || 0, r: m.dailyReplies[d] })).filter((x) => x.v > 0 || x.r != null).sort((a, b) => b.v - a.v), tot = parts.reduce((x, p) => x + p.v, 0);
+      return '<div class="dy-row"><div class="dy-h"><b>' + H.thDate(d).replace(/ \d{4}$/, '') + '</b><span class="dy-tot">' + B(tot) + '</span></div>' +
+        '<div class="dy-bar" style="width:' + Math.max(4, Math.round(tot / dmax * 100)) + '%">' + parts.filter((p) => p.v > 0).map((p) => '<i title="' + esc(p.m.name) + ' ' + B(p.v) + '" style="flex:' + p.v + ';background:' + colOf[p.m.name] + '"></i>').join('') + '</div>' +
+        '<div class="dy-chips">' + parts.map((p) => '<span class="dy-chip"><i style="background:' + colOf[p.m.name] + '"></i>' + esc(p.m.name) + ' <b>' + (p.v ? B(p.v) : '-') + '</b>' + (p.r != null ? '<small>' + N(p.r) + ' ตอบ</small>' : '') + '</span>').join('') + '</div></div>';
+    };
+    const card2 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>ยอดขายรายวัน แยกตามคน</h2><small>' + esc(label) + ' : ล่าสุดอยู่บนสุด</small></div></div>' +
+      (days.length ? legend + '<div class="dy-list">' + drows.map(dayRow).join('') + '</div>' + dpager : '<div class="empty">ไม่มียอดขายในช่วงนี้</div>') + '</section>';
     // products: one row per product — pieces, revenue, and who sold it as small chips (no sparse person-by-column grid)
     const clean = (n) => String(n || '').replace(/^[^0-9A-Za-zก-๙]+/, '').replace(/\s*\([^)]*\)$/, '').trim() || 'ไม่ระบุสินค้า';
     const pmap = {}; for (const m of L) for (const [name, v] of Object.entries(m.products)) { const nm = clean(name), p = pmap[nm] || (pmap[nm] = { name: nm, qty: 0, revenue: 0, by: {} }); p.qty += v.qty; p.revenue += v.revenue; const b = p.by[m.name] || (p.by[m.name] = { qty: 0, revenue: 0 }); b.qty += v.qty; b.revenue += v.revenue; }
