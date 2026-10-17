@@ -509,14 +509,18 @@
   const XL = {}, XSEL = {};
   const xsel = (k) => XSEL[k] || (XSEL[k] = new Set());
   function xReg(key, name, items, id, cols) { XL[key] = { name, items, id, cols }; const ids = new Set(items.map((x) => String(id(x)))); for (const v of [...xsel(key)]) if (!ids.has(v)) xsel(key).delete(v); }
+  // dashboard summary cards (rankings, KPI tables, charts) have no tick boxes / export — only record lists do
+  const NO_XL = /^(adm|adm-kpi|adm-daily|adm-prod|prod|kpi-team|q-admin|q-page|rep|stuck|as|ts)$/;   // everything on the dashboards (ภาพรวม) pages
+  const noXl = (html) => html.replace(/<th class="ck"><\/th>/g, '').replace(/<td class="ck"><\/td>/g, '').replace(/<td><\/td>(?=<td><b>รวมทีม)/g, '').replace(/<td><\/td>(?=<td>เฉลี่ยต่อคน)/g, '');
   function xBar(key, unit) {
+    if (NO_XL.test(key)) return '';
     const d = XL[key]; if (!d) return '';
     const n = d.items.length, k = xsel(key).size, all = n > 0 && k === n;
     return '<div class="xbar"><label class="xall"><input type="checkbox" data-act="ls-xall" data-k="' + key + '"' + (all ? ' checked' : '') + (n ? '' : ' disabled') + '> เลือกทั้งหมด ' + N(n) + ' ' + (unit || 'รายการ') + '</label>' +
       (k ? '<span class="xcnt">เลือกแล้ว ' + N(k) + '</span><button class="link-plain small" data-act="x-clear" data-k="' + key + '">ล้างที่เลือก</button>' : '<span class="small faint hide-sm">ติ๊กเลือกทีละรายการได้</span>') +
       '<span class="grow"></span><button class="btn sm" data-act="x-export" data-k="' + key + '"' + (n ? '' : ' disabled') + '>' + ico('download') + ' ส่งออก Excel ' + (k ? '(' + N(k) + ' ที่เลือก)' : '(ทั้งหมด)') + '</button></div>';
   }
-  const xCk = (key, id) => '<input type="checkbox" class="xck" data-act="ls-xck" data-k="' + key + '" data-id="' + esc(String(id)) + '"' + (xsel(key).has(String(id)) ? ' checked' : '') + ' aria-label="เลือกรายการนี้">';
+  const xCk = (key, id) => NO_XL.test(key) ? '' : '<input type="checkbox" class="xck" data-act="ls-xck" data-k="' + key + '" data-id="' + esc(String(id)) + '"' + (xsel(key).has(String(id)) ? ' checked' : '') + ' aria-label="เลือกรายการนี้">';
   function xRun(d, chosen) { const rows = chosen.map((it) => d.cols.map(([, f]) => { const v = f(it); return v == null ? '' : v; })); exportXlsx(d.name, d.cols.map(([h]) => h), rows); }
   function downloadCsv(name, rows) {
     const q = (x) => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"';
@@ -603,8 +607,8 @@
       '<div class="seg"><button class="' + (ui.chart === 'rev' ? 'on' : '') + '" data-act="chart" data-v="rev">ยอดขาย</button><button class="' + (cmp ? 'on' : '') + '" data-act="chart" data-v="cmp">เทียบทีม</button><button class="' + (ui.chart === 'calls' ? 'on' : '') + '" data-act="chart" data-v="calls">จำนวนสาย</button></div></div>' +
       '<div class="chart-wrap">' + (cmp ? weekdayBars(cd) : lineChart(cd)) + '</div></section>';
     const adminMax = Math.max(1, ...d.admins.map((a) => a.revenue));
-    const adminCard = card('msg', 'ทีม Admin Sales', 'ยอดปิดการขาย FB Page : เรียงตามยอดเงิน', d.admins.length ? (() => { const [rows, pager, off] = pg10('adm', d.admins, 'คน'); xReg('adm', 'ยอดแอดมิน', d.admins, (a) => a.name, [['แอดมิน', (a) => a.name], ['ยอดขาย', (a) => a.revenue], ['ออเดอร์', (a) => a.closes]]); return xBar('adm', 'คน') + '<div class="rank">' + rows.map((a, i) => '<div class="rank-row" data-tip="adm" data-tip-k="' + esc(a.name) + '"><span class="no">' + (off + i + 1) + '</span><span class="ellip">' + xCk('adm', a.name) + ' ' + esc(a.name) + '</span><span class="bar"><i style="width:' + pct(a.revenue, adminMax) + '%"></i></span><span class="v">' + B(a.revenue) + ' <small>: ' + a.closes + ' ออเดอร์</small></span></div>').join('') + '</div>' + pager; })() : '<div class="empty">ยังไม่มีการปิดการขายในช่วงนี้</div>');
-    const prodCard = card('bag', 'สินค้าขายดี', 'จัดอันดับตามยอดเงิน : ทุกช่องทาง', d.products.length ? (() => { const [rows, pager] = pg10('prod', d.products, 'สินค้า'); xReg('prod', 'สินค้าขายดี', d.products, (p) => p.name, [['สินค้า', (p) => p.name], ['ชิ้น', (p) => p.qty], ['Telesales', (p) => p.tele], ['Admin', (p) => p.admin], ['E-Commerce', (p) => p.ecom], ['ยอดขาย', (p) => p.revenue]]); return xBar('prod', 'สินค้า') + '<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="ck"></th><th>สินค้า</th><th class="n">ชิ้น</th><th class="n hide-sm">Tele / Admin / Ecom</th><th class="n">ยอดขาย</th></tr></thead><tbody>' + rows.map((p) => '<tr><td class="ck">' + xCk('prod', p.name) + '</td><td><div class="ellip">' + esc(p.name) + '</div></td><td class="n">' + N(p.qty) + '</td><td class="n hide-sm muted">' + p.tele + ' / ' + p.admin + ' / ' + p.ecom + '</td><td class="n"><b>' + B(p.revenue) + '</b></td></tr>').join('') + '</tbody></table></div>' + pager; })() : '<div class="empty">ยังไม่มีข้อมูลสินค้าในช่วงนี้</div>');
+    const adminCard = noXl(card('msg', 'ทีม Admin Sales', 'ยอดปิดการขาย FB Page : เรียงตามยอดเงิน', d.admins.length ? (() => { const [rows, pager, off] = pg10('adm', d.admins, 'คน'); xReg('adm', 'ยอดแอดมิน', d.admins, (a) => a.name, [['แอดมิน', (a) => a.name], ['ยอดขาย', (a) => a.revenue], ['ออเดอร์', (a) => a.closes]]); return xBar('adm', 'คน') + '<div class="rank">' + rows.map((a, i) => '<div class="rank-row" data-tip="adm" data-tip-k="' + esc(a.name) + '"><span class="no">' + (off + i + 1) + '</span><span class="ellip">' + xCk('adm', a.name) + ' ' + esc(a.name) + '</span><span class="bar"><i style="width:' + pct(a.revenue, adminMax) + '%"></i></span><span class="v">' + B(a.revenue) + ' <small>: ' + a.closes + ' ออเดอร์</small></span></div>').join('') + '</div>' + pager; })() : '<div class="empty">ยังไม่มีการปิดการขายในช่วงนี้</div>'));
+    const prodCard = noXl(card('bag', 'สินค้าขายดี', 'จัดอันดับตามยอดเงิน : ทุกช่องทาง', d.products.length ? (() => { const [rows, pager] = pg10('prod', d.products, 'สินค้า'); xReg('prod', 'สินค้าขายดี', d.products, (p) => p.name, [['สินค้า', (p) => p.name], ['ชิ้น', (p) => p.qty], ['Telesales', (p) => p.tele], ['Admin', (p) => p.admin], ['E-Commerce', (p) => p.ecom], ['ยอดขาย', (p) => p.revenue]]); return xBar('prod', 'สินค้า') + '<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="ck"></th><th>สินค้า</th><th class="n">ชิ้น</th><th class="n hide-sm">Tele / Admin / Ecom</th><th class="n">ยอดขาย</th></tr></thead><tbody>' + rows.map((p) => '<tr><td class="ck">' + xCk('prod', p.name) + '</td><td><div class="ellip">' + esc(p.name) + '</div></td><td class="n">' + N(p.qty) + '</td><td class="n hide-sm muted">' + p.tele + ' / ' + p.admin + ' / ' + p.ecom + '</td><td class="n"><b>' + B(p.revenue) + '</b></td></tr>').join('') + '</tbody></table></div>' + pager; })() : '<div class="empty">ยังไม่มีข้อมูลสินค้าในช่วงนี้</div>'));
     const f = d.funnel, fMax = Math.max(1, f.called, f.leads);
     const funnelCard = card('users', 'Funnel การโทร', 'รายชื่อที่ได้รับ → โทร → ได้คุย → ปิดได้', '<div class="funnel">' +
       [['รายชื่อเข้าใหม่', f.leads], ['โทรแล้ว', f.called], ['ได้คุย', f.talked], ['ปิดการขาย', f.won]].map(([l, v]) => '<div class="funnel-row"><span>' + l + '</span><span class="bar"><i style="width:' + Math.max(2, pct(v, fMax)) + '%"></i></span><span class="v">' + N(v) + '</span></div>').join('') +
@@ -683,7 +687,7 @@
       '<tr class="kt-sum"><td class="kt-l"><b style="color:var(--good)">ยอดขายเดือนนี้</b><small>เป้า ' + B(mT(team[0])) + ' / คน / เดือน</small></td>' +
       team.map((r) => cell(month(r), mT(r), '#16a34a', B).replace('</div><div class="kt-bar">', '</div><div class="kt-bar">').replace(/<\/td>$/, '<small class="kt-sub" data-tip="tele" data-tip-k="' + esc(r.user) + '">ช่วงที่เลือก ' + B(r.amount) + ' : ' + N(r.orders) + ' ปิด</small></td>')).join('') +
       '<td class="n"><b style="color:var(--good)">' + B(team.reduce((x, r) => x + month(r), 0)) + '</b><small class="muted" style="display:block">/' + B(team.reduce((x, r) => x + mT(r), 0)) + '</small></td></tr>';
-    return xBar('kpi-team', 'คน') + '<div class="tbl-wrap"><table class="kt">' + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div><div class="small muted" style="margin-top:10px">T1 T2 T3 และ E-Commerce เป็น KPI แยกกันต่อวัน (นับเฉพาะสายที่ <b>ได้คุย</b> : OneCall เกิน 7 วินาที) : ยอดขายนับรวมทั้งเดือน เป้า ' + B(mT(team[0])) + ' ต่อคน</div>';
+    return noXl(xBar('kpi-team', 'คน') + '<div class="tbl-wrap"><table class="kt">' + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div><div class="small muted" style="margin-top:10px">T1 T2 T3 และ E-Commerce เป็น KPI แยกกันต่อวัน (นับเฉพาะสายที่ <b>ได้คุย</b> : OneCall เกิน 7 วินาที) : ยอดขายนับรวมทั้งเดือน เป้า ' + B(mT(team[0])) + ' ต่อคน</div>');
   }
 
   function kpiPerson(r) {
@@ -728,15 +732,18 @@
     const card2 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('chart') + '</span><div class="ttl"><h2>ยอดขายรายวัน แยกตามคน</h2><small>' + esc(label) + ' : ตัวเล็กใต้ยอด = จำนวนการตอบของวันนั้น</small></div></div>' +
       (days.length ? xBar('adm-daily', 'วัน') + '<div class="tbl-wrap"><table class="tbl ad-tbl"><thead><tr><th class="ck"></th><th>วันที่</th>' + L.map((m) => '<th class="n">' + esc(m.name) + '</th>').join('') + '<th class="n">รวม</th></tr></thead><tbody>' +
         drows.map((d) => { const tot = L.reduce((x, m) => x + (m.daily[d] || 0), 0); return '<tr><td class="ck">' + xCk('adm-daily', d) + '</td><td class="nowrap"><b>' + H.thDate(d).replace(/ \d{4}$/, '') + '</b></td>' + L.map((m) => { const v = m.daily[d] || 0, r = m.dailyReplies[d]; return '<td class="n"><div class="ad-c" style="--w:' + Math.round(v / dmax * 100) + '%"><b>' + (v ? B(v) : '<span class="faint">-</span>') + '</b>' + (r != null ? '<small>' + N(r) + ' ตอบ</small>' : '') + '</div></td>'; }).join('') + '<td class="n"><b>' + B(tot) + '</b></td></tr>'; }).join('') + '</tbody></table></div>' + dpager : '<div class="empty">ไม่มียอดขายในช่วงนี้</div>') + '</section>';
-    // products per person
-    const pmap = {}; for (const m of L) for (const [name, v] of Object.entries(m.products)) { const p = pmap[name] || (pmap[name] = { name, qty: 0, revenue: 0, by: {} }); p.qty += v.qty; p.revenue += v.revenue; p.by[m.name] = v; }
-    const plist = Object.values(pmap).sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
-    const [prows, ppager] = pg10('adm-prod', plist, 'สินค้า');
-    xReg('adm-prod', 'สินค้าที่แอดมินขาย', plist, (p) => p.name, [['สินค้า', (p) => p.name]].concat(L.map((m) => [m.name + ' (ชิ้น)', (p) => (p.by[m.name] || {}).qty || 0]), [['รวมชิ้น', (p) => p.qty], ['ยอดขาย', (p) => p.revenue]]));
-    const card3 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>สินค้าที่แอดมินขาย</h2><small>' + esc(label) + ' : จำนวนชิ้นของแต่ละคน</small></div></div>' +
-      (plist.length ? xBar('adm-prod', 'สินค้า') + '<div class="tbl-wrap"><table class="tbl ad-tbl"><thead><tr><th class="ck"></th><th>สินค้า</th>' + L.map((m) => '<th class="n">' + esc(m.name) + '</th>').join('') + '<th class="n">รวม</th></tr></thead><tbody>' +
-        prows.map((p) => '<tr><td class="ck">' + xCk('adm-prod', p.name) + '</td><td><b class="one">' + esc(String(p.name).replace(/\s*\([^)]*\)$/, '')) + '</b></td>' + L.map((m) => { const v = p.by[m.name]; return '<td class="n">' + (v ? '<b>' + N(v.qty) + '</b>' + (v.revenue ? '<small class="muted" style="display:block">' + B(v.revenue) + '</small>' : '') : '<span class="faint">-</span>') + '</td>'; }).join('') + '<td class="n"><b>' + N(p.qty) + '</b>' + (p.revenue ? '<small class="muted" style="display:block">' + B(p.revenue) + '</small>' : '') + '</td></tr>').join('') + '</tbody></table></div>' + ppager : '<div class="empty">ไม่มีข้อมูลสินค้าในช่วงนี้</div>') + '</section>';
-    return card1 + '<div class="grid g2">' + card2 + card3 + '</div>';
+    // products: one row per product — pieces, revenue, and who sold it as small chips (no sparse person-by-column grid)
+    const clean = (n) => String(n || '').replace(/^[^0-9A-Za-zก-๙]+/, '').replace(/\s*\([^)]*\)$/, '').trim() || 'ไม่ระบุสินค้า';
+    const pmap = {}; for (const m of L) for (const [name, v] of Object.entries(m.products)) { const nm = clean(name), p = pmap[nm] || (pmap[nm] = { name: nm, qty: 0, revenue: 0, by: {} }); p.qty += v.qty; p.revenue += v.revenue; const b = p.by[m.name] || (p.by[m.name] = { qty: 0, revenue: 0 }); b.qty += v.qty; b.revenue += v.revenue; }
+    const plist = Object.values(pmap).sort((a, b) => b.revenue - a.revenue || b.qty - a.qty);
+    const [prows, ppager, poff] = pg10('adm-prod', plist, 'สินค้า');
+    const pmax = Math.max(1, ...plist.map((p) => p.revenue));
+    const card3 = '<section class="card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>สินค้าที่แอดมินขาย</h2><small>' + esc(label) + ' : เรียงตามยอดขาย</small></div></div>' +
+      (plist.length ? '<div class="pd-list">' + prows.map((p, i) => '<div class="pd-row"><span class="pd-no">' + (poff + i + 1) + '</span><div class="pd-main"><div class="pd-top"><b class="one">' + esc(p.name) + '</b><span class="pd-v"><b>' + B(p.revenue) + '</b><small>' + N(p.qty) + ' ชิ้น</small></span></div>' +
+        '<div class="ak-bar"><i style="width:' + Math.round(p.revenue / pmax * 100) + '%;background:#0d9488"></i></div>' +
+        '<div class="pd-by">' + Object.entries(p.by).sort((a, b) => b[1].qty - a[1].qty).map(([who, v]) => '<span class="pd-chip">' + esc(who) + ' <b>' + N(v.qty) + '</b></span>').join('') + '</div></div></div>').join('') + '</div>' + ppager
+        : '<div class="empty">ไม่มีข้อมูลสินค้าในช่วงนี้</div>') + '</section>';
+    return noXl(card1 + '<div class="grid g2">' + card2 + card3 + '</div>');
   }
   // ---- cancel / return rates by admin and by page (Pancake is the source of truth; the demo uses hub orders)
   const QR = {};
@@ -766,11 +773,11 @@
     const [pageRows, pager] = pg10('q-' + key, list, key === 'page' ? 'เพจ' : 'คน');
     xReg('q-' + key, 'ยกเลิกและตีกลับ แยกตาม' + (key === 'page' ? 'เพจ' : 'แอดมิน'), list, (g) => g.name, [[key === 'page' ? 'เพจ' : 'แอดมิน', (g) => g.name], ['ออเดอร์', (g) => g.n], ['ยกเลิก', (g) => g.cancel], ['% ยกเลิก', (g) => +(g.cr * 100).toFixed(1)], ['ตีกลับ', (g) => g.back], ['% ตีกลับ', (g) => +(g.rr * 100).toFixed(1)], ['ส่งสำเร็จ', (g) => g.done], ['มูลค่าที่เสียไป', (g) => g.lost]]);
     const cell = (cnt, rate, base, n) => '<td class="n"><div class="q-c' + (warn(rate, base, n) ? ' bad' : '') + '"><b>' + N(cnt) + '</b><span>' + P(rate) + '</span></div><div class="q-bar"><i style="width:' + Math.min(100, rate * 100 * 4) + '%"></i></div></td>';
-    return '<section class="card q-card">' + headH +
+    return noXl('<section class="card q-card">' + headH +
       '<div class="as-sum"><div><small>ออเดอร์ทั้งหมด</small><b>' + N(all.n) + '</b></div><div><small>ยกเลิก</small><b class="' + (all.cancel ? 'q-bad' : 'q-ok') + '">' + N(all.cancel) + ' <em>' + P(all.cr) + '</em></b></div><div><small>ตีกลับ</small><b class="' + (all.back ? 'q-bad' : 'q-ok') + '">' + N(all.back) + ' <em>' + P(all.rr) + '</em></b></div><div><small>ส่งสำเร็จ</small><b>' + N(all.done) + '</b></div><div><small>มูลค่าที่เสียไป</small><b>' + B(all.lost) + '</b></div></div>' +
       (list.length ? xBar('q-' + key, key === 'page' ? 'เพจ' : 'คน') + '<div class="tbl-wrap"><table class="tbl q-tbl"><thead><tr><th class="ck"></th><th>' + (key === 'page' ? 'เพจ' : 'แอดมิน') + '</th><th class="n">ออเดอร์</th><th class="n">ยกเลิก</th><th class="n">ตีกลับ</th><th class="n hide-sm">ส่งสำเร็จ</th><th class="n hide-sm">มูลค่าที่เสียไป</th></tr></thead><tbody>' +
         pageRows.map((g) => '<tr><td class="ck">' + xCk('q-' + key, g.name) + '</td><td><b class="one">' + esc(g.name) + '</b></td><td class="n"><b>' + N(g.n) + '</b></td>' + cell(g.cancel, g.cr, all.cr, g.n) + cell(g.back, g.rr, all.rr, g.sent) + '<td class="n hide-sm">' + N(g.done) + '</td><td class="n hide-sm">' + (g.lost ? B(g.lost) : '<span class="faint">-</span>') + '</td></tr>').join('') + '</tbody></table></div>' + pager : '<div class="empty">ไม่มีออเดอร์ในช่วงนี้</div>') +
-      '<div class="small muted" style="margin-top:10px">ยกเลิก = ออเดอร์ที่ถูกยกเลิก ÷ ออเดอร์ทั้งหมด : ตีกลับ = พัสดุตีกลับ ÷ พัสดุที่ส่งออกไปแล้ว : <b style="color:var(--bad)">สีแดง</b> = สูงกว่าค่าเฉลี่ยทั้งทีมชัดเจน</div></section>';
+      '<div class="small muted" style="margin-top:10px">ยกเลิก = ออเดอร์ที่ถูกยกเลิก ÷ ออเดอร์ทั้งหมด : ตีกลับ = พัสดุตีกลับ ÷ พัสดุที่ส่งออกไปแล้ว : <b style="color:var(--bad)">สีแดง</b> = สูงกว่าค่าเฉลี่ยทั้งทีมชัดเจน</div></section>');
   }
   // which FB page brings customers who come back and buy again (any channel, including telesales re-sales)
   function repeatPageCard(st) {
@@ -787,11 +794,11 @@
     const [rows, pager, off] = pg10('rep-page', list, 'เพจ');
     xReg('rep', 'ลูกค้าซื้อซ้ำ แยกตามเพจ', list, (x) => x.name, [['เพจ', (x) => x.name], ['ลูกค้า', (x) => x.n], ['ซื้อซ้ำ', (x) => x.rep], ['% ซื้อซ้ำ', (x) => +(x.rep / x.n * 100).toFixed(1)], ['ยอดจากการซื้อซ้ำ', (x) => x.rev], ['ปิดซ้ำโดยเทเลเซลล์ (ออเดอร์)', (x) => x.tele]]);
     const mx = Math.max(0.0001, ...list.map((x) => x.rep / x.n));
-    return '<section class="card"><div class="card-h"><span class="card-ico">' + ico('users') + '</span><div class="ttl"><h2>เพจที่ได้ลูกค้าซื้อซ้ำ</h2><small>ลูกค้าที่มาจากเพจนั้นแล้วกลับมาซื้ออีก (ทุกช่องทาง รวมที่เทเลเซลล์ขายต่อ) : นับตั้งแต่มีข้อมูล</small></div>' +
+    return noXl('<section class="card"><div class="card-h"><span class="card-ico">' + ico('users') + '</span><div class="ttl"><h2>เพจที่ได้ลูกค้าซื้อซ้ำ</h2><small>ลูกค้าที่มาจากเพจนั้นแล้วกลับมาซื้ออีก (ทุกช่องทาง รวมที่เทเลเซลล์ขายต่อ) : นับตั้งแต่มีข้อมูล</small></div>' +
       (best ? '<span class="pill good">อัตราซื้อซ้ำสูงสุด : ' + esc(best.name.length > 28 ? best.name.slice(0, 28) + '…' : best.name) + ' ' + Math.round(best.rep / best.n * 100) + '%</span>' : '') + '</div>' +
       (list.length ? xBar('rep', 'เพจ') + '<div class="tbl-wrap"><table class="tbl q-tbl"><thead><tr><th class="ck"></th><th>#</th><th>เพจ</th><th class="n">ลูกค้า</th><th class="n">ซื้อซ้ำ</th><th>อัตราซื้อซ้ำ</th><th class="n hide-sm">ยอดจากการซื้อซ้ำ</th><th class="n hide-sm">ปิดซ้ำโดยเทเลเซลล์</th></tr></thead><tbody>' +
         rows.map((x, i) => { const rt = x.rep / x.n; return '<tr><td class="ck">' + xCk('rep', x.name) + '</td><td class="muted">' + (off + i + 1) + '</td><td><b class="one">' + esc(x.name) + '</b></td><td class="n">' + N(x.n) + '</td><td class="n"><b>' + N(x.rep) + '</b></td><td><div class="rp-r"><span class="bar"><i style="width:' + Math.round(rt / mx * 100) + '%"></i></span><b>' + (rt * 100).toFixed(1) + '%</b></div></td><td class="n hide-sm">' + B(x.rev) + '</td><td class="n hide-sm">' + N(x.tele) + ' ออเดอร์</td></tr>'; }).join('') + '</tbody></table></div>' + pager
-        : '<div class="empty">ยังไม่มีข้อมูลเพจของลูกค้า</div>') + '</section>';
+        : '<div class="empty">ยังไม่มีข้อมูลเพจของลูกค้า</div>') + '</section>');
   }
   // ---- hover tooltips: point at a person's total to see which orders / products / prices make it up
   const TIPCTX = {};
@@ -851,12 +858,12 @@
         '<td><b class="one">' + esc(r.closer) + '</b><small class="muted one">' + esc(r.page || (r.a.source === 'pancake' ? 'Pancake' : 'บันทึกในระบบ')) + '</small></td>' +
         '<td class="hide-sm">' + (tu ? '<span class="who small"><span class="mini">' + esc(tu.initial || '') + '</span>' + esc(tu.name) + '</span>' : '<span class="faint">-</span>') + '<small class="muted">' + (r.ext ? '#' + esc(r.ext) : '') + '</small></td></tr>'; };
     const sel = (act, val, opts, all) => '<select class="in as-sel" data-act-change="' + act + '"><option value="all">' + all + '</option>' + opts.map((o) => '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>';
-    return '<section class="card as-card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>รายการขายของแอดมิน</h2><small>' + label + ' : ออเดอร์จาก Pancake และที่บันทึกในระบบ ทีละรายการ</small></div></div>' +
+    return noXl('<section class="card as-card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>รายการขายของแอดมิน</h2><small>' + label + ' : ออเดอร์จาก Pancake และที่บันทึกในระบบ ทีละรายการ</small></div></div>' +
       '<div class="as-sum"><div><small>ออเดอร์</small><b>' + N(ok.length) + '</b></div><div><small>ยอดขาย</small><b>' + B(sum) + '</b></div><div><small>เฉลี่ยต่อออเดอร์</small><b>' + B(ok.length ? sum / ok.length : 0) + '</b></div><div><small>จำนวนชิ้น</small><b>' + N(qty) + '</b></div><div><small>ลูกค้าเก่าซื้อซ้ำ</small><b>' + N(ok.filter((r) => r.a.returning).length) + '</b></div></div>' +
       '<div class="as-bar"><label class="search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาชื่อ เบอร์ สินค้า หรือเลขออเดอร์" value="' + esc(ui.asQ || '') + '" data-act-change="as-q" aria-label="ค้นหา"></label>' + sel('as-admin', ui.asAdmin, admins, 'แอดมินทุกคน') + sel('as-pg', ui.asPg, pagesL, 'ทุกเพจ') + '</div>' +
       (rows.length ? xBar('as', 'ออเดอร์') + '<div class="tbl-wrap"><table class="tbl as-tbl"><thead><tr><th class="ck"></th><th>วันที่ / เวลา</th><th>ลูกค้า</th><th>สินค้า × จำนวน</th><th class="n">ยอด</th><th>ปิดการขายโดย</th><th class="hide-sm">ส่งให้ Telesales</th></tr></thead><tbody>' + rows.slice((page - 1) * per, page * per).map(tr).join('') + '</tbody></table></div>' +
         pagerHtml('as-page', page, pages, rows.length, per)
-        : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>';
+        : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>');
   }
   // generic 10-per-page slice for any ranked list: returns [rows on this page, pager html, offset]
   function pg10(key, arr, unit) {
@@ -898,12 +905,12 @@
         '<td>' + (u ? '<span class="who small"><span class="mini">' + esc(u.initial || '') + '</span>' + esc(u.name) + '</span>' : '<b class="one">' + esc(r.seller) + '</b>') + '<small class="muted one">รอบ ' + esc(r.round) + '</small></td>' +
         '<td class="hide-sm"><b class="small">' + (r.k.durationSec ? Math.floor(r.k.durationSec / 60) + ':' + String(r.k.durationSec % 60).padStart(2, '0') + ' นาที' : '-') + '</b><small class="muted">' + (r.k.ocId || r.k.auto ? 'OneCall' : 'บันทึกเอง') + '</small></td></tr>'; };
     const sel = (act, val, opts, allL) => '<select class="in as-sel" data-act-change="' + act + '"><option value="all">' + allL + '</option>' + opts.map((o) => '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>';
-    return '<section class="card as-card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>' + (all ? 'รายการขายของเทเลเซลล์' : 'รายการขายของฉัน') + '</h2><small>' + label + ' : ทุกออเดอร์ที่ปิดจากการโทร ทีละรายการ</small></div></div>' +
+    return noXl('<section class="card as-card"><div class="card-h"><span class="card-ico">' + ico('bag') + '</span><div class="ttl"><h2>' + (all ? 'รายการขายของเทเลเซลล์' : 'รายการขายของฉัน') + '</h2><small>' + label + ' : ทุกออเดอร์ที่ปิดจากการโทร ทีละรายการ</small></div></div>' +
       '<div class="as-sum"><div><small>ออเดอร์</small><b>' + N(ok.length) + '</b></div><div><small>ยอดขาย</small><b>' + B(sum) + '</b></div><div><small>เฉลี่ยต่อออเดอร์</small><b>' + B(ok.length ? sum / ok.length : 0) + '</b></div><div><small>จำนวนชิ้น</small><b>' + N(qty) + '</b></div><div><small>รอชำระ</small><b>' + N(ok.filter((r) => r.status === 'awaiting_payment').length) + '</b></div></div>' +
       '<div class="as-bar"><label class="search"><span class="s-ico">' + ico('search') + '</span><input class="in" placeholder="ค้นหาชื่อ เบอร์ หรือสินค้า" value="' + esc(ui.tsQ || '') + '" data-act-change="ts-q" aria-label="ค้นหา"></label>' + (all ? sel('ts-user', ui.tsUser, sellers, 'เทเลเซลล์ทุกคน') : '') + sel('ts-rd', ui.tsRd, rounds, 'ทุกรอบ') + '</div>' +
       (rows.length ? xBar('ts', 'ออเดอร์') + '<div class="tbl-wrap"><table class="tbl as-tbl"><thead><tr><th class="ck"></th><th>วันที่ / เวลา</th><th>ลูกค้า</th><th>สินค้า × จำนวน</th><th class="n">ยอด</th><th>ปิดการขายโดย</th><th class="hide-sm">เวลาคุย</th></tr></thead><tbody>' + rows.slice((page - 1) * per, page * per).map(tr).join('') + '</tbody></table></div>' +
         pagerHtml('ts-page', page, pages, rows.length, per)
-        : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>';
+        : '<div class="empty">ไม่มีรายการขายในช่วงนี้</div>') + '</section>');
   }
   // donut: share of a whole, legend with amount + percent beside it
   const DONUT_COL = ['#2563eb', '#0d9488', '#f59e0b', '#8b5cf6', '#ec4899'];

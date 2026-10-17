@@ -1337,3 +1337,13 @@ body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-e
 .ak-s { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .ak-tbl tfoot td { border-top: 2px solid rgba(160, 175, 210, .35); background: rgba(255, 255, 255, .35); }
 .ak-tbl tfoot .ak-avg td { border-top: 1px solid rgba(160, 175, 210, .2); color: var(--muted); font-size: 13px; padding-top: 10px; padding-bottom: 10px; }
+
+/* products sold by admins: one readable row per product */
+.pd-list { display: grid; gap: 4px; }
+.pd-row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 12px 4px; border-bottom: 1px solid rgba(160, 175, 210, .2); }
+.pd-row:last-child { border-bottom: 0; }
+.pd-no { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--accent); background: rgba(37, 99, 235, .08); }
+.pd-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; } .pd-top > b { font-size: 14px; min-width: 0; }
+.pd-v { display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; } .pd-v b { font-variant-numeric: tabular-nums; } .pd-v small { color: var(--muted); font-size: 12px; }
+.pd-by { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pd-chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: rgba(255, 255, 255, .7); border: 1px solid rgba(160, 175, 210, .35); color: var(--muted); } .pd-chip b { color: var(--text); margin-left: 2px; }
