@@ -350,7 +350,7 @@ async function chatPull(state, opts) {
           const upd = tsOf(cv.updated_at) || prev.updatedAt || '';
           chats[id] = Object.assign(prev, { id, pageId, type: cv.type || prev.type || '', custId: String(cust.id || prev.custId || ''), name: clean(cust.name || prev.name || ''),
             phone: ((cv.recent_phone_numbers || [])[0] || {}).phone_number || prev.phone || '', insertedAt: tsOf(cv.inserted_at) || prev.insertedAt || '', updatedAt: upd,
-            lastBy: clean(lsb.admin_name) || (lsb.email ? lsb.email : '') || prev.lastBy || '', lastById: lsb.admin_id || prev.lastById || '', lastFromPage: lsb.admin_id ? true : (lsb.id ? String(lsb.id) === String(pageId) : prev.lastFromPage),
+            lastBy: clean(lsb.admin_name) || prev.lastBy || '', lastFromPage: lsb.id ? String(lsb.id) === String(pageId) : prev.lastFromPage,
             assignee: clean(((cv.current_assign_users || [])[0] || {}).name) || prev.assignee || '', tags: cv.tags || prev.tags || [], snippet: cut(plain(cv.snippet || prev.snippet || ''), 200), seen: cv.seen });
           convs++;
           // messages only for conversations that changed since we last read them
@@ -368,6 +368,7 @@ async function chatPull(state, opts) {
               let firstResp = null; for (let i = 0; i < rows.length; i++) if (!rows[i].page) { const nx = rows.slice(i + 1).find((m) => m.page); if (nx) { firstResp = Math.round((Date.parse(nx.at) - Date.parse(rows[i].at)) / 1000); } break; }
               if (firstResp != null) c.firstRespSec = firstResp;
               c.waiting = rows.length > 0 && !rows[rows.length - 1].page;
+              { const lp = [...rows].reverse().find((m) => m.page && m.by); if (lp) c.lastBy = lp.by; }
               msgs++;
             } catch (e) { errors.push(pageId + ' msg ' + e.message); }
           }
@@ -377,8 +378,8 @@ async function chatPull(state, opts) {
     } catch (e) { errors.push(pageId + ' ' + e.message); }
   }
   // keep 45 days
-  const cut = new Date(Date.now() - 45 * 86400000).toISOString();
-  for (const [k, v] of Object.entries(chats)) if ((v.updatedAt || v.insertedAt || '') < cut) delete chats[k];
+  const keepFrom = new Date(Date.now() - 45 * 86400000).toISOString();
+  for (const [k, v] of Object.entries(chats)) if ((v.updatedAt || v.insertedAt || '') < keepFrom) delete chats[k];
   // answered customers per admin per day → admin KPI "จำนวนการตอบ" (automatic rows, manual rows stay as they are)
   const map = {};
   for (const c of Object.values(chats)) { const who = H.aliasCloser(state, c.lastBy || c.assignee || ''); if (!who) continue; for (const d of Object.keys(c.replyDays || {})) { const k = d + '|' + who; map[k] = (map[k] || 0) + 1; } }
