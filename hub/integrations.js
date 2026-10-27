@@ -302,7 +302,21 @@ async function evoPull(state, getLegacy) {
 
 // ------------------------------------------------------------------ Pancake chat (Public API, page access tokens)
 // PANCAKE_PAGE_TOKENS = "pageId=token,pageId=token"
-const PAGE_TOKENS = String(process.env.PANCAKE_PAGE_TOKENS || '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean).map((x) => { const i = x.indexOf('='); return i > 0 ? [x.slice(0, i).trim(), x.slice(i + 1).trim()] : null; }).filter(Boolean);
+// accepted: "pageId=token", "pageId:token", or just the token (page id read from the token itself or found by trying the known pages)
+const jwtPage = (t) => { try { const p = JSON.parse(Buffer.from(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')); return String(p.page_id || p.pageId || p.fb_id || (p.page && p.page.id) || ''); } catch (_) { return ''; } };
+const RAW_TOKENS = String(process.env.PANCAKE_PAGE_TOKENS || '').split(/[,;\n\s]+/).map((x) => x.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+const PAGE_TOKENS = [], LOOSE_TOKENS = [];
+for (const x of RAW_TOKENS) { const m = x.match(/^(\d{6,})\s*[=:|]\s*(.+)$/); if (m) PAGE_TOKENS.push([m[1], m[2]]); else { const pid = jwtPage(x); if (pid) PAGE_TOKENS.push([pid, x]); else LOOSE_TOKENS.push(x); } }
+console.log('[chat] page tokens: ' + RAW_TOKENS.length + ' entries, ' + PAGE_TOKENS.length + ' with page id, ' + LOOSE_TOKENS.length + ' to match' + (PAGE_TOKENS.length ? ' · pages ' + PAGE_TOKENS.map((p) => p[0]).join(',') : ''));
+async function resolveLoose(state) {   // try each token without a page id on the pages we know from Pancake orders
+  if (!LOOSE_TOKENS.length) return;
+  const ids = [...new Set(Object.values((state.sync || {}).pageIds || {}).concat(['961069703756542']))];
+  for (const tok of LOOSE_TOKENS.splice(0)) {
+    let hit = '';
+    for (const id of ids) { if (PAGE_TOKENS.some((p) => p[0] === id)) continue; try { const r = await fetch(CHAT_API + id + '/conversations?page_access_token=' + encodeURIComponent(tok) + '&page_number=1'); const j = await r.json().catch(() => null); if (r.ok && j && j.success !== false && (j.conversations || j.data)) { hit = id; break; } } catch (_) {} }
+    if (hit) { PAGE_TOKENS.push([hit, tok]); console.log('[chat] token matched page', hit); } else console.warn('[chat] a token did not open any known page (' + ids.length + ' tried)');
+  }
+}
 const CHAT_API = 'https://pages.fm/api/public_api/v1/pages/';
 let chatLogged = false;
 const tsOf = (v) => { if (!v) return ''; const t = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(/Z|[+-]\d\d:?\d\d$/.test(v) ? v : v + 'Z'); return isNaN(t) ? '' : new Date(t).toISOString(); };
@@ -311,6 +325,7 @@ async function chatGet(url) { const r = await fetch(url); const j = await r.json
 async function chatPull(state, opts) {
   opts = opts || {};
   const sync = state.sync.chat = state.sync.chat || {};
+  await resolveLoose(state);
   if (!PAGE_TOKENS.length) { sync.lastError = 'ยังไม่ได้ตั้งค่า PANCAKE_PAGE_TOKENS'; return { pages: 0 }; }
   const chats = state.chats = state.chats || {};
   const until = Math.floor(Date.now() / 1000), since = until - (opts.days || 2) * 86400;
@@ -367,4 +382,4 @@ async function chatPull(state, opts) {
   if (errors.length) console.warn('[chat]', errors.slice(0, 3).join(' ; '));
   return { pages: PAGE_TOKENS.length, convs, msgs, errors: errors.length };
 }
-module.exports = { chatPull, chatPages: () => PAGE_TOKENS.map((x) => x[0]), pancakeQualityRows, pancakeShipSync, detectPlatform, fixPlatforms, evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
+module.exports = { chatPull, chatPages: () => PAGE_TOKENS.map((x) => x[0]).concat(LOOSE_TOKENS.map(() => '?')), pancakeQualityRows, pancakeShipSync, detectPlatform, fixPlatforms, evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
