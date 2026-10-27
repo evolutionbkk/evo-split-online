@@ -323,7 +323,10 @@ async function resolveLoose(state) {   // try each token without a page id on th
 const CHAT_API = 'https://pages.fm/api/public_api/v1/pages/';
 let chatLogged = false;
 const tsOf = (v) => { if (!v) return ''; const t = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(/Z|[+-]\d\d:?\d\d$/.test(v) ? v : v + 'Z'); return isNaN(t) ? '' : new Date(t).toISOString(); };
-const plain = (h) => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+// strings safe for Postgres JSON: no NUL, no half emoji (surrogate cut by a slice)
+const clean = (v) => String(v == null ? '' : v).replace(/\u0000/g, '').replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+const cut = (v, n) => clean(Array.from(String(v || '')).slice(0, n).join(''));
+const plain = (h) => clean(String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim());
 async function chatGet(url) { const r = await fetch(url); const j = await r.json().catch(() => null); if (!r.ok || !j) throw new Error('Pancake chat HTTP ' + r.status); if (j.success === false) throw new Error(j.message || 'Pancake chat error'); return j; }
 async function chatPull(state, opts) {
   opts = opts || {};
@@ -345,10 +348,10 @@ async function chatPull(state, opts) {
           const lsb = cv.last_sent_by || {};
           const prev = chats[id] || {};
           const upd = tsOf(cv.updated_at) || prev.updatedAt || '';
-          chats[id] = Object.assign(prev, { id, pageId, type: cv.type || prev.type || '', custId: String(cust.id || prev.custId || ''), name: cust.name || prev.name || '',
+          chats[id] = Object.assign(prev, { id, pageId, type: cv.type || prev.type || '', custId: String(cust.id || prev.custId || ''), name: clean(cust.name || prev.name || ''),
             phone: ((cv.recent_phone_numbers || [])[0] || {}).phone_number || prev.phone || '', insertedAt: tsOf(cv.inserted_at) || prev.insertedAt || '', updatedAt: upd,
-            lastBy: lsb.admin_name || (lsb.email ? lsb.email : '') || prev.lastBy || '', lastById: lsb.admin_id || prev.lastById || '', lastFromPage: lsb.admin_id ? true : (lsb.id ? String(lsb.id) === String(pageId) : prev.lastFromPage),
-            assignee: ((cv.current_assign_users || [])[0] || {}).name || prev.assignee || '', tags: cv.tags || prev.tags || [], snippet: plain(cv.snippet || prev.snippet || '').slice(0, 200), seen: cv.seen });
+            lastBy: clean(lsb.admin_name) || (lsb.email ? lsb.email : '') || prev.lastBy || '', lastById: lsb.admin_id || prev.lastById || '', lastFromPage: lsb.admin_id ? true : (lsb.id ? String(lsb.id) === String(pageId) : prev.lastFromPage),
+            assignee: clean(((cv.current_assign_users || [])[0] || {}).name) || prev.assignee || '', tags: cv.tags || prev.tags || [], snippet: cut(plain(cv.snippet || prev.snippet || ''), 200), seen: cv.seen });
           convs++;
           // messages only for conversations that changed since we last read them
           if ((opts.msgBudget || 120) > msgs && (!prev.msgAt || (upd && upd > prev.msgAt))) {
@@ -356,7 +359,7 @@ async function chatPull(state, opts) {
               const mj = await chatGet(CHAT_API + pageId + '/conversations/' + encodeURIComponent(id) + '/messages?page_access_token=' + encodeURIComponent(token) + '&customer_id=' + encodeURIComponent(chats[id].custId));
               const ms = mj.messages || mj.data || [];
               if (!chatLogged && ms[0]) { console.log('[chat] message keys', Object.keys(ms[0]).join(','), '| from', JSON.stringify(ms[0].from || null).slice(0, 160)); chatLogged = true; }
-              const rows = ms.map((m) => { const fromId = String((m.from || {}).id || ''); const page = fromId === String(pageId) || !!m.admin_id || !!(m.from || {}).admin_id; return { at: tsOf(m.inserted_at), page, by: (m.from || {}).admin_name || m.admin_name || '', text: plain(m.message || m.original_message || '').slice(0, 300) }; }).filter((m) => m.at).sort((a, b) => a.at.localeCompare(b.at));
+              const rows = ms.map((m) => { const fromId = String((m.from || {}).id || ''); const page = fromId === String(pageId) || !!m.admin_id || !!(m.from || {}).admin_id; return { at: tsOf(m.inserted_at), page, by: clean((m.from || {}).admin_name || m.admin_name || ''), text: cut(plain(m.message || m.original_message || ''), 300) }; }).filter((m) => m.at).sort((a, b) => a.at.localeCompare(b.at));
               const c = chats[id];
               c.msgs = rows.slice(-30); c.msgAt = upd || new Date().toISOString();
               // reply days (a page message on that day = the customer was answered that day) and first response time
