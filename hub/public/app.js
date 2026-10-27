@@ -51,6 +51,7 @@
     left: '<path d="M15 5l-7 7 7 7"/>', right: '<path d="M9 5l7 7-7 7"/>', down: '<path d="M6 9l6 6 6-6"/>',
     play: '<path d="M7 4l13 8-13 8z"/>', stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
     send: '<path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4z"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/>',
     alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
   };
   const ico = (n, cls) => '<svg class="ico ' + (cls || '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (IC[n] || '') + '</svg>';
@@ -639,7 +640,7 @@
         tile('เฉลี่ยต่อออเดอร์', B(d.cnt.admin ? d.rev.admin / d.cnt.admin : 0), 'ยอด Admin') + tile('รายชื่อที่แจกให้ Telesales', N(dist), 'แจกอัตโนมัติ 50:50') +
         tile('แอดมินที่มียอด', N(d.admins.filter((a) => a.revenue > 0).length), 'จาก ' + N(d.admins.length) + ' คน') + '</div>';
       const splitCard = card('send', 'สัดส่วนรายชื่อวันนี้', 'แจกให้ Telesales อัตโนมัติ 50:50', splitBar(todaySplit()), '<button class="btn sm" data-go="approvals">ดูรายชื่อที่ถูกแจก</button>');
-      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? adminKpiCards(st, from, to, label) + qualityCard(st, from, to, label) + repeatPageCard(st) + adminSales(st, from, to, label) : '') + foot;
+      return head + at + '<div class="grid g-main">' + adminCard + '<div class="grid" style="align-content:start">' + splitCard + '</div></div>' + (fullView() ? adminKpiCards(st, from, to, label) + chatCard(st, from, to, label) + qualityCard(st, from, to, label) + repeatPageCard(st) + adminSales(st, from, to, label) : '') + foot;
     }
     const ct = '<div class="tiles">' + tile('ยอดขายรวม (Telesales + Admin)', B(two), 'เดือนนี้ ' + B(d.monthRev) + ' : ' + monthPct + '% ของเป้า ' + B(d.monthTarget), 'hero', monthPct) +
       tile('<i style="background:var(--c-tele)"></i>Telesales', B(d.rev.tele), N(d.cnt.tele) + ' ออเดอร์ : ' + (two ? Math.round(d.rev.tele / two * 100) : 0) + '% ของยอดรวม') +
@@ -770,6 +771,47 @@
       (list.length ? xBar('q-' + key, key === 'page' ? 'เพจ' : 'คน') + '<div class="tbl-wrap"><table class="tbl q-tbl"><thead><tr><th class="ck"></th><th>' + (key === 'page' ? 'เพจ' : 'แอดมิน') + '</th><th class="n">ออเดอร์</th><th class="n">ยกเลิก</th><th class="n">ตีกลับ</th><th class="n hide-sm">ส่งสำเร็จ</th><th class="n hide-sm">มูลค่าที่เสียไป</th></tr></thead><tbody>' +
         pageRows.map((g) => '<tr><td class="ck">' + xCk('q-' + key, g.name) + '</td><td>' + (key === 'page' ? pageLink(st, g.name) : '<b class="one">' + esc(g.name) + '</b>') + '</td><td class="n"><b>' + N(g.n) + '</b></td>' + cell(g.cancel, g.cr, all.cr, g.n) + cell(g.back, g.rr, all.rr, g.sent) + '<td class="n hide-sm">' + N(g.done) + '</td><td class="n hide-sm">' + (g.lost ? B(g.lost) : '<span class="faint">-</span>') + '</td></tr>').join('') + '</tbody></table></div>' + pager : '<div class="empty">ไม่มีออเดอร์ในช่วงนี้</div>') +
       '<div class="small muted" style="margin-top:10px">ยกเลิก = ออเดอร์ที่ถูกยกเลิก ÷ ออเดอร์ทั้งหมด : ตีกลับ = พัสดุตีกลับ ÷ พัสดุที่ส่งออกไปแล้ว : <b style="color:var(--bad)">สีแดง</b> = สูงกว่าค่าเฉลี่ยทั้งทีมชัดเจน</div></section>');
+  }
+  // ---- admin chat analysis (Pancake chats) ----
+  const CR = {};
+  function chatData(st, from, to) {
+    if (DEMO) return H.chatReport(st, from, to);
+    const k = from + '|' + to, hit = CR[k];
+    if (hit && (hit.list || hit.error) && hit.at > Date.now() - 3 * 60000) return hit;
+    if (!hit || !hit.loading) { CR[k] = Object.assign(hit || {}, { loading: true }); fetch('/api/report/chats?from=' + from + '&to=' + to, { credentials: 'same-origin' }).then((r) => r.json().then((j) => (r.ok ? j : { error: j.error || 'โหลดไม่สำเร็จ' }))).catch((e) => ({ error: e.message })).then((x) => { CR[k] = Object.assign(x, { at: Date.now() }); if (S.page === 'ovadmin') render(); }); }
+    return hit && (hit.list || hit.error) ? hit : null;
+  }
+  const frTxt = (s) => (s == null ? '-' : s < 60 ? s + ' วิ' : s < 3600 ? Math.round(s / 60) + ' นาที' : (s / 3600).toFixed(1) + ' ชม.');
+  function chatCard(st, from, to, label) {
+    const r = chatData(st, from, to);
+    const headH = '<div class="card-h"><span class="card-ico">' + ico('chat') + '</span><div class="ttl"><h2>วิเคราะห์การตอบแชทแอดมิน</h2><small>' + label + ' : แชทจาก Pancake เทียบกับออเดอร์ที่ปิดได้</small></div>' +
+      '<div class="seg"><button class="' + (ui.chBy !== 'list' ? 'on' : '') + '" data-act="ch-by" data-v="admin">รายแอดมิน</button><button class="' + (ui.chBy === 'list' ? 'on' : '') + '" data-act="ch-by" data-v="list">รายแชท</button></div></div>';
+    if (!r) return '<section class="card ch-card">' + headH + '<div class="empty">กำลังดึงแชทจาก Pancake…</div></section>';
+    if (r.error) return '<section class="card ch-card">' + headH + '<div class="empty">ดึงแชทไม่ได้ : ' + esc(r.error) + '</div></section>';
+    const sy = r.sync || {};
+    if (!r.list.length) return '<section class="card ch-card">' + headH + '<div class="empty">' + (r.pages === 0 ? 'ยังไม่ได้เชื่อม token ของเพจใน Pancake' : sy.lastError ? 'ดึงแชทไม่ได้ : ' + esc(sy.lastError) : sy.lastRun ? 'ไม่มีแชทในช่วงนี้' : 'กำลังดึงแชทครั้งแรก รอสักครู่…') + '</div></section>';
+    const P = (v) => (v * 100).toFixed(1) + '%', t = r.team;
+    const sum = '<div class="as-sum"><div><small>แชททั้งหมด</small><b>' + N(t.chats) + '</b></div><div><small>ตอบแล้ว</small><b>' + N(t.replied) + '</b></div><div><small>ปิดการขายได้</small><b class="q-ok">' + N(t.closed) + ' <em>' + P(t.rate) + '</em></b></div><div><small>ยอดจากแชท</small><b>' + B(t.revenue) + '</b></div><div><small>ตอบครั้งแรกเฉลี่ย</small><b>' + frTxt(t.avgFr) + '</b></div><div><small>ลูกค้ายังรอคำตอบ</small><b class="' + (t.waiting ? 'q-bad' : 'q-ok') + '">' + N(t.waiting) + '</b></div></div>';
+    const chips = (arr, max) => arr.slice(0, max).map(([w, n]) => '<span class="ch-chip">' + esc(w) + ' <b>' + N(n) + '</b></span>').join('');
+    const lostH = r.lost.length ? '<div class="ch-why"><small>สาเหตุที่ยังปิดไม่ได้ (ทั้งทีม)</small><div>' + chips(r.lost, 8) + '</div></div>' : '';
+    let body;
+    if (ui.chBy === 'list') {
+      const f = ui.chF || 'open', rows = r.rows.filter((x) => (f === 'all' ? true : f === 'closed' ? x.closed : f === 'wait' ? x.waiting && !x.closed : !x.closed));
+      const [pr, pager] = pg10('ch-list-' + f, rows, 'แชท');
+      const fb = (v, l) => '<button class="' + (f === v ? 'on' : '') + '" data-act="ch-f" data-v="' + v + '">' + l + '</button>';
+      body = '<div class="seg ch-f">' + fb('open', 'ยังปิดไม่ได้') + fb('wait', 'ลูกค้ารอคำตอบ') + fb('closed', 'ปิดได้') + fb('all', 'ทั้งหมด') + '</div>' +
+        (pr.length ? '<div class="ch-rows">' + pr.map((x) => '<a class="ch-row' + (x.closed ? ' ok' : x.waiting ? ' wait' : '') + '" href="https://pancake.vn/' + encodeURIComponent(x.pageId) + '?c_id=' + encodeURIComponent(x.id) + '" target="_blank" rel="noopener">' +
+          '<div class="ch-l"><b class="one">' + esc(x.name) + '</b><small>' + esc(x.admin) + ' · ' + (x.at ? H.thDate(x.at) + ' ' + H.thTime(x.at) : '') + ' · ตอบครั้งแรก ' + frTxt(x.firstRespSec) + '</small>' + (x.last ? '<em class="one">“' + esc(x.last.slice(0, 120)) + '”</em>' : '') + '</div>' +
+          '<div class="ch-r">' + (x.closed ? '<span class="ch-st ok">ปิดได้ ' + B(x.total) + '</span>' : '<span class="ch-st">' + (x.waiting ? 'รอคำตอบ' : 'ยังไม่ปิด') + '</span>') + '<div class="ch-tags">' + x.why.map((w) => '<span>' + esc(w) + '</span>').join('') + '</div></div></a>').join('') + '</div>' + pager : '<div class="empty">ไม่มีแชทในกลุ่มนี้</div>');
+    } else {
+      const [pr, pager] = pg10('ch-adm', r.list, 'คน');
+      body = '<div class="ch-adm">' + pr.map((m) => '<div class="ch-a"><div class="ch-a-h"><b class="one">' + esc(m.name) + '</b><span class="ch-rate">ปิดได้ <b>' + P(m.rate) + '</b></span></div>' +
+        '<div class="q-bar"><i style="width:' + Math.min(100, m.rate * 100) + '%"></i></div>' +
+        '<div class="ch-a-n"><span>แชท <b>' + N(m.chats) + '</b></span><span>ตอบ <b>' + N(m.replied) + '</b></span><span>ปิดได้ <b>' + N(m.closed) + '</b></span><span>ยอด <b>' + B(m.revenue) + '</b></span><span>ตอบครั้งแรก <b>' + frTxt(m.avgFr) + '</b></span>' + (m.waiting ? '<span class="bad">รอคำตอบ <b>' + N(m.waiting) + '</b></span>' : '') + '</div>' +
+        (m.lost.length ? '<div class="ch-a-w"><small>ปิดไม่ได้เพราะ</small>' + chips(m.lost, 4) + '</div>' : '') + '</div>').join('') + '</div>' + pager;
+    }
+    return '<section class="card ch-card">' + headH + sum + lostH + body +
+      '<div class="small muted" style="margin-top:10px">ปิดได้ = แชทที่มีออเดอร์ตามมา (เชื่อมด้วยรหัสแชทหรือเบอร์โทร) : สาเหตุวิเคราะห์จากข้อความลูกค้าเบื้องต้น : กดที่แชทเพื่อเปิดใน Pancake' + (sy.lastRun ? ' : อัปเดตล่าสุด ' + H.thTime(sy.lastRun) : '') + '</div></section>';
   }
   // FB page name → link to the page (id learned from Pancake orders; otherwise a Facebook page search)
   function pageLink(st, name) {
@@ -2106,6 +2148,8 @@
         '<div class="small muted" style="margin:6px 0 12px">เป้า ' + ((st.settings.targets || {}).adminRepliesDay || 50) + ' คนต่อวันต่อคน : บันทึกซ้ำวันเดิมจะแทนที่ค่าเดิม</div><button class="btn primary">' + ico('check') + ' บันทึก</button></form>');
     },
     'q-by': (el) => { ui.qBy = el.dataset.v; render(); },
+    'ch-by': (el) => { ui.chBy = el.dataset.v; render(); },
+    'ch-f': (el) => { ui.chF = el.dataset.v; render(); },
     'help-open': (el) => { ui.helpOpen = ui.helpOpen === el.dataset.v ? '' : el.dataset.v; render(); },
     'pg': (el) => { ui.pg = ui.pg || {}; ui.pg[el.dataset.k] = Number(el.dataset.v); render(); },
     'ap-page': (el) => { ui.apPage = Number(el.dataset.v); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },

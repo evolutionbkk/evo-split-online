@@ -149,6 +149,22 @@
         const s2 = age >= 3 ? (r() < .07 ? ['back', 'ตีกลับแล้ว'] : r() < .05 ? ['cancel', 'ยกเลิก'] : ST[0]) : age >= 1 ? ST[1] : ST[2], car = o.platform === 'shopee' ? 'Shopee Xpress' : o.platform === 'lazada' ? 'LEX TH' : o.platform === 'tiktok' ? 'J&T Express' : pick(CAR);
         o.ship = { code: s2[0], label: s2[1], carrier: car, tracking: s2[0] === 'pack' && r() < .5 ? '' : 'TH' + Math.floor(1e11 + r() * 9e11) + 'A', link: s2[0] === 'pack' ? '' : 'https://pke.gg/demo', at: at(H.addDays(T, -Math.max(0, age - 2)), 10 + Math.floor(r() * 6)) };
       } }
+    // ---- 5c) Pancake chats (the real system reads them with the page tokens)
+    { st.chats = {}; const ADM = ['ไลลา', 'นุช', 'แซน', 'พี่โม'];
+      const ASK = ['ราคาเท่าไหร่คะ', 'มีโปรไหมคะ', 'ขอคิดดูก่อนนะคะ', 'ใช้แล้วได้ผลจริงไหม', 'ส่งกี่วันคะ', 'เดี๋ยวขอปรึกษาแฟนก่อน', 'สนใจค่ะ สั่ง 2 กล่อง', 'เก็บเงินปลายทางได้ไหม', 'แพ้ง่ายใช้ได้ไหมคะ', 'โอเคค่ะ เอาเลย'];
+      const REP = ['สวัสดีค่ะ ยินดีให้ข้อมูลค่ะ', 'ตอนนี้มีโปรซื้อ 2 แถม 1 ค่ะ', 'มี อย. ปลอดภัยค่ะ', 'ส่งฟรี 1-2 วันถึงค่ะ', 'รบกวนขอชื่อที่อยู่ค่ะ'];
+      const won = st.customers.filter((c) => c.channel === 'fb' && (c.orders || []).length).slice(0, 26);
+      let i = 0;
+      const mk = (cust, closed) => { const id = 'demo_cv' + (++i), d = H.addDays(T, -Math.floor(r() * 6)), t0 = at(d, 9 + Math.floor(r() * 9), Math.floor(r() * 60)), adm = pick(ADM), fr = r() < .6 ? 30 + Math.floor(r() * 300) : 600 + Math.floor(r() * 6000);
+        const msgs = [{ at: t0, page: false, text: pick(ASK) }, { at: new Date(Date.parse(t0) + fr * 1000).toISOString(), page: true, by: adm, text: pick(REP) }];
+        if (closed) msgs.push({ at: new Date(Date.parse(t0) + (fr + 400) * 1000).toISOString(), page: false, text: 'โอเคค่ะ เอาเลย' }, { at: new Date(Date.parse(t0) + (fr + 600) * 1000).toISOString(), page: true, by: adm, text: 'ตอนนี้มีโปรแถมฟรีค่ะ รบกวนขอที่อยู่ค่ะ' });
+        else if (r() < .35) msgs.push({ at: new Date(Date.parse(t0) + (fr + 900) * 1000).toISOString(), page: false, text: pick(ASK.slice(0, 6)) });
+        const last = msgs[msgs.length - 1];
+        st.chats[id] = { id, pageId: '961069703756542', name: cust ? cust.name : person(), phone: cust ? cust.phone : '', insertedAt: t0, updatedAt: last.at, lastBy: adm, lastFromPage: last.page, msgs, firstRespSec: fr, waiting: !last.page, replyDays: { [d]: 1 }, snippet: last.text };
+        if (cust && closed) { cust.orders[0].convId = id; } };
+      for (const c of won) mk(c, true);
+      for (let k = 0; k < 44; k++) mk(null, false);
+      st.sync.chat = { lastRun: at(T, 11, 10), pages: 1, total: i }; }
     // ---- 6) announcements
     st.announcements = [
       { id: 'an1', title: 'โปรเดือน ต.ค. : ซื้อ Anti-Aging 2 กล่อง แถม Serum 1 ขวด', body: 'ใช้ได้ทั้ง FB และ Telesales ถึง 31 ต.ค. 2569', at: at(H.addDays(T, -3), 9), by: 'at' },
@@ -156,6 +172,7 @@
       { id: 'an3', title: 'ประชุมทีมขายประจำสัปดาห์ วันจันทร์ 09:30 น.', body: '', at: at(T, 8), by: 'mo' },
     ];
     st.sync = {
+      chat: (st.sync || {}).chat,
       pancake: { lastRun: at(T, 11, 2), lastAdded: 2, lastError: null, mode: 'demo' },
       bigseller: { lastRun: at(T, 9, 40), lastAdded: 4, lastOrders: 5 },
       onecall: { lastRun: at(T, 11, 0), lastAdded: 23 },

@@ -595,6 +595,7 @@
     const { c, isNew } = upsertCustomer(st, { name: p.name, phone, address: p.address, page: p.page, channel: 'fb', platform: p.source === 'pancake' ? 'pancake' : 'manual', closer, closerName }, actor);
     const total = money(p.total) || itemsTotal(items);
     const order = pushOrder(c, { date: p.date ? new Date(p.date).toISOString() : nowIso(), items, total, status: p.status || 'paid', source: p.source === 'pancake' ? 'pancake' : 'admin', by: closer || '', extId: p.extId || '', note: p.note });
+    if (order && p.convId) order.convId = String(p.convId);
     if (!order) return { duplicate: true };
     const returning = !isNew && !!c.owner;
     // returning customer keeps the telesales who already owns them; new customers go 50:50
@@ -912,9 +913,70 @@
   }
 
   // ---------------------------------------------------------------- views
+  // ---- admin chat analysis (Pancake conversations ↔ orders) ----
+  const CHAT_WHY_LOST = [
+    [/แพง|ราคา|ลดได้|ส่วนลด|โปร(?!ไฟล์)|ถูกกว่า|เท่าไหร่|เท่าไร/, 'ติดเรื่องราคา / ถามโปร'],
+    [/ขอคิด|คิดก่อน|ไว้ก่อน|ยังไม่|ไว้ทีหลัง|เดี๋ยวมา|ไว้ค่อย|ตัดสินใจ/, 'ขอคิดดูก่อน'],
+    [/ปรึกษา|ถามแฟน|ถามสามี|ถามแม่|ถามลูก/, 'ต้องปรึกษาคนอื่น'],
+    [/ได้ผล|จริงไหม|จริงมั้ย|ปลอดภัย|อย\.?|ผลข้างเคียง|แพ้|รีวิว|กลัว/, 'ยังไม่มั่นใจในสินค้า'],
+    [/ส่งกี่วัน|ค่าส่ง|ปลายทาง|เก็บเงินปลายทาง|cod/i, 'ถามเรื่องการจัดส่ง'],
+  ];
+  function chatReport(st, from, to) {
+    const chats = Object.values(st.chats || {});
+    const conv2order = {}, phone2order = {};
+    for (const c of st.customers || []) for (const o of c.orders || []) {
+      if (o.status === 'cancelled') continue;
+      if (o.convId) conv2order[o.convId] = o;
+      const ph = normPhone(c.phone || ''); if (ph && (!phone2order[ph] || (o.date || '') > (phone2order[ph].date || ''))) phone2order[ph] = o;
+    }
+    const people = {}, rows = [];
+    const get = (n) => (people[n] = people[n] || { name: n, chats: 0, replied: 0, closed: 0, revenue: 0, waiting: 0, frSum: 0, frN: 0, slow: 0, lost: {} });
+    for (const c of chats) {
+      const days = Object.keys(c.replyDays || {});
+      const active = [dayKey(c.insertedAt), dayKey(c.updatedAt)].concat(days).some((d) => d && d >= from && d <= to);
+      if (!active) continue;
+      const who = aliasCloser(st, c.lastBy || c.assignee || '') || 'ยังไม่มีแอดมินตอบ';
+      if (isNonAdminCloser(st, who)) continue;
+      const m = get(who); m.chats++;
+      const replied = days.some((d) => d >= from && d <= to) || !!c.lastFromPage;
+      if (replied) m.replied++;
+      let o = conv2order[c.id];
+      if (!o && c.phone) { const x = phone2order[normPhone(c.phone)]; if (x && (x.date || '') >= (c.insertedAt || '').slice(0, 10)) o = x; }
+      const closed = !!o;
+      if (closed) { m.closed++; m.revenue += o.total || 0; }
+      if (c.firstRespSec != null) { m.frSum += c.firstRespSec; m.frN++; if (c.firstRespSec > 3600) m.slow++; }
+      // why it closed / did not close — first pass from the messages themselves
+      const msgs = c.msgs || [], custText = msgs.filter((x) => !x.page).map((x) => x.text).join(' ');
+      const why = [];
+      if (closed) {
+        if (c.firstRespSec != null && c.firstRespSec <= 300) why.push('ตอบเร็วภายใน 5 นาที');
+        if (msgs.filter((x) => x.page).length >= 3) why.push('แอดมินดูแลต่อเนื่อง');
+        if (/ส่วนลด|โปร|แถม|ฟรี/.test(msgs.filter((x) => x.page).map((x) => x.text).join(' '))) why.push('เสนอโปร / ของแถม');
+        if (!why.length) why.push('ลูกค้าพร้อมซื้อ');
+      } else {
+        if (c.waiting) why.push('ลูกค้ายังรอคำตอบ');
+        else if (msgs.length && msgs[msgs.length - 1].page) why.push('ลูกค้าเงียบหลังแอดมินตอบ');
+        if (c.firstRespSec != null && c.firstRespSec > 3600) why.push('ตอบช้าเกิน 1 ชั่วโมง');
+        for (const [re, label] of CHAT_WHY_LOST) if (re.test(custText)) why.push(label);
+        if (!replied) why.push('ยังไม่มีการตอบ');
+        if (!why.length) why.push('ยังไม่มีข้อมูลพอ');
+        for (const w of why) m.lost[w] = (m.lost[w] || 0) + 1;
+      }
+      if (c.waiting && !closed) m.waiting++;
+      const lastCust = [...msgs].reverse().find((x) => !x.page);
+      rows.push({ id: c.id, pageId: c.pageId, name: c.name || 'ลูกค้า', admin: who, closed, total: closed ? o.total || 0 : 0, at: c.updatedAt || c.insertedAt, firstRespSec: c.firstRespSec, waiting: !!c.waiting, why, last: (lastCust || {}).text || c.snippet || '' });
+    }
+    const list = Object.values(people).map((m) => Object.assign(m, { rate: m.chats ? m.closed / m.chats : 0, avgFr: m.frN ? Math.round(m.frSum / m.frN) : null, lost: Object.entries(m.lost).sort((a, b) => b[1] - a[1]) })).sort((a, b) => b.chats - a.chats);
+    const team = list.reduce((t, m) => { for (const k of ['chats', 'replied', 'closed', 'revenue', 'waiting', 'frSum', 'frN', 'slow']) t[k] += m[k]; return t; }, { chats: 0, replied: 0, closed: 0, revenue: 0, waiting: 0, frSum: 0, frN: 0, slow: 0 });
+    team.rate = team.chats ? team.closed / team.chats : 0; team.avgFr = team.frN ? Math.round(team.frSum / team.frN) : null;
+    const lostAll = {}; for (const r of rows) if (!r.closed) for (const w of r.why) lostAll[w] = (lostAll[w] || 0) + 1;
+    rows.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+    return { list, team, lost: Object.entries(lostAll).sort((a, b) => b[1] - a[1]), rows, sync: (st.sync || {}).chat || null };
+  }
+
   function visibleState(st, actor) {
-    if (isBoss(actor)) return st;
-    const out = { ...st };
+    if (isBoss(actor)) { const { chats, ...rest } = st; return rest; }   // chats are large: served through /api/report/chats
+    const out = { ...st }; delete out.chats;
     if (actor.role === 'tele') {
       out.customers = st.customers.filter((c) => c.owner === actor.id);
       out.appointments = st.appointments.filter((a) => a.owner === actor.id);
@@ -1023,7 +1085,7 @@
     for (const r of p.rows || []) {
       const admin = clip(r.admin, 60), count = Math.max(0, Math.round(Number(r.count) || 0)); if (!admin || r.count === '' || r.count == null) continue;
       const ex = st.adminReplies.find((x) => x.date === date && x.admin === admin);
-      if (ex) { ex.count = count; ex.by = actor.id; ex.at = nowIso(); } else st.adminReplies.push({ id: uid('rp'), date, admin, count, by: actor.id, at: nowIso() });
+      if (ex) { ex.count = count; ex.by = actor.id; ex.at = nowIso(); delete ex.auto; } else st.adminReplies.push({ id: uid('rp'), date, admin, count, by: actor.id, at: nowIso() });
       n++;
     }
     log(st, actor, 'บันทึกจำนวนการตอบแอดมิน ' + date + ' : ' + n + ' คน');
@@ -1183,7 +1245,7 @@
   return {
     sheetToContacts,
     TZ, ROLES, RESULTS, LOST_REASONS, DNC_REASONS, STATUS, ROUNDS, PLATFORMS, DEFAULT_USERS, DEFAULT_SETTINGS, DEFAULT_PRODUCTS, PERM,
-    uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
+    chatReport, uid, nowIso, dayKey, today, addDays, daysBetween, thDate, thTime, baht, num, dur, hms, normPhone, fmtPhone, TH_DOW, TH_MON,
     emptyState, normalize, apply, adminKpi, aliasCloser, applyCloserAliases, isNonAdminCloser, applyNonAdmin, autoDistribute, autoLogOnecall, can, isBoss, userById, userName, teles, admins, findCustomer, byPhone, customerTotal, isStale,
     visibleState, teleKpi, adminBoard, dashboard, parseTable, nextTele, planNext, ROUND_NEXT,
   };

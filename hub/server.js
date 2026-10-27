@@ -130,6 +130,17 @@ app.get('/api/report/quality', auth, async (req, res) => {
   try { const rows = await I.pancakeQualityRows(from); res.json({ rows: rows.filter((r) => { const d = H.dayKey(r.at); return d >= from && d <= to; }).filter((r) => !H.isNonAdminCloser(state, r.admin)).map((r) => Object.assign({}, r, { admin: H.aliasCloser(state, r.admin) })) }); }
   catch (e) { res.status(502).json({ error: e.message }); }
 });
+// admin chat analysis from Pancake conversations (executives only)
+app.get('/api/report/chats', auth, (req, res) => {
+  if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+  const day = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? String(x) : H.today());
+  const r = H.chatReport(state, day(req.query.from), day(req.query.to));
+  res.json(Object.assign(r, { rows: r.rows.slice(0, 500), pages: I.chatPages().length }));
+});
+app.post('/api/report/chats/sync', auth, async (req, res) => {
+  if (!H.isBoss(req.actor)) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+  try { const r = await mutate((st) => I.chatPull(st, { days: 3 })); res.json(r); } catch (e) { res.status(502).json({ error: e.message }); }
+});
 app.post('/api/action', auth, async (req, res) => {
   const { type, payload } = req.body || {};
   if (type === 'resetDemo') return res.status(400).json({ error: 'ใช้ได้เฉพาะโหมดตัวอย่าง' });
@@ -273,6 +284,10 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
   state = await store.save(state);
   app.listen(PORT, () => console.log('Evolution Hub Commerce on :' + PORT, '· customers', state.customers.length));
   const loop = (fn, min) => setInterval(() => mutate(fn).catch((e) => console.warn(e.message)), min * 60000);
+  if (I.chatPages().length) {   // Pancake chats every 10 minutes (first run: last 14 days)
+    setTimeout(() => mutate((st) => I.chatPull(st, { days: 14, pages: 20, msgBudget: 400 })).then((r) => console.log('[chat] first pull', JSON.stringify(r))).catch((e) => console.warn('[chat]', e.message)), 30000);
+    loop((st) => I.chatPull(st, { days: 2 }), 10);
+  }
   if (I.status().pancake) { setTimeout(() => mutate((st) => I.pancakeShipSync(st, 15)).then((r) => console.log('[boot] Pancake shipping status', JSON.stringify(r))).catch((e) => console.warn('[ship]', e.message)), 20000);
     loop((st) => I.pancakePull(st), PANCAKE_EVERY_MIN); setTimeout(() => mutate((st) => I.pancakePull(st)).catch(() => {}), 5000); }
   if (I.status().onecall) { loop((st) => I.onecallPull(st, 2), ONECALL_EVERY_MIN); setTimeout(() => mutate((st) => I.onecallPull(st, 2)).catch(() => {}), 8000); }

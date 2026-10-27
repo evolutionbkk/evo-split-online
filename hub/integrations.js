@@ -39,6 +39,7 @@ function pancakeToClose(o) {
     date: pcTime(o.inserted_at),
     closerName: nm(o.assigning_seller) || nm(o.creator) || nm(o.marketer) || 'Pancake',
     source: 'pancake',
+    convId: o.conversation_id || '',
   };
 }
 // Pancake order status → shipping state shown to telesales
@@ -59,6 +60,7 @@ function applyShipping(state, raws) {
   let n = 0;
   for (const r of raws) {
     const o = idx.get('pc:' + (r.id || r.system_id)); if (!o) continue;
+    if (r.conversation_id && !o.convId) { o.convId = String(r.conversation_id); n += 0; }
     const sh = pcShip(r), old = o.ship || {};
     if (old.code !== sh.code || old.tracking !== sh.tracking || old.label !== sh.label) { o.ship = sh; n++; }
   }
@@ -298,4 +300,71 @@ async function evoPull(state, getLegacy) {
   return res;
 }
 
-module.exports = { pancakeQualityRows, pancakeShipSync, detectPlatform, fixPlatforms, evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
+// ------------------------------------------------------------------ Pancake chat (Public API, page access tokens)
+// PANCAKE_PAGE_TOKENS = "pageId=token,pageId=token"
+const PAGE_TOKENS = String(process.env.PANCAKE_PAGE_TOKENS || '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean).map((x) => { const i = x.indexOf('='); return i > 0 ? [x.slice(0, i).trim(), x.slice(i + 1).trim()] : null; }).filter(Boolean);
+const CHAT_API = 'https://pages.fm/api/public_api/v1/pages/';
+let chatLogged = false;
+const tsOf = (v) => { if (!v) return ''; const t = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(/Z|[+-]\d\d:?\d\d$/.test(v) ? v : v + 'Z'); return isNaN(t) ? '' : new Date(t).toISOString(); };
+const plain = (h) => String(h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+async function chatGet(url) { const r = await fetch(url); const j = await r.json().catch(() => null); if (!r.ok || !j) throw new Error('Pancake chat HTTP ' + r.status); if (j.success === false) throw new Error(j.message || 'Pancake chat error'); return j; }
+async function chatPull(state, opts) {
+  opts = opts || {};
+  const sync = state.sync.chat = state.sync.chat || {};
+  if (!PAGE_TOKENS.length) { sync.lastError = 'ยังไม่ได้ตั้งค่า PANCAKE_PAGE_TOKENS'; return { pages: 0 }; }
+  const chats = state.chats = state.chats || {};
+  const until = Math.floor(Date.now() / 1000), since = until - (opts.days || 2) * 86400;
+  let convs = 0, msgs = 0, errors = [];
+  for (const [pageId, token] of PAGE_TOKENS) {
+    try {
+      for (let pn = 1; pn <= (opts.pages || 6); pn++) {
+        const j = await chatGet(CHAT_API + pageId + '/conversations?page_access_token=' + encodeURIComponent(token) + '&since=' + since + '&until=' + until + '&page_number=' + pn + '&order_by=updated_at');
+        const list = j.conversations || j.data || [];
+        if (!chatLogged && list[0]) { console.log('[chat] conversation keys', Object.keys(list[0]).join(','), '| sample last_sent_by', JSON.stringify(list[0].last_sent_by || null).slice(0, 200)); }
+        for (const cv of list) {
+          const id = String(cv.id || ''); if (!id) continue;
+          const cust = (cv.customers && cv.customers[0]) || cv.from || {};
+          const lsb = cv.last_sent_by || {};
+          const prev = chats[id] || {};
+          const upd = tsOf(cv.updated_at) || prev.updatedAt || '';
+          chats[id] = Object.assign(prev, { id, pageId, type: cv.type || prev.type || '', custId: String(cust.id || prev.custId || ''), name: cust.name || prev.name || '',
+            phone: ((cv.recent_phone_numbers || [])[0] || {}).phone_number || prev.phone || '', insertedAt: tsOf(cv.inserted_at) || prev.insertedAt || '', updatedAt: upd,
+            lastBy: lsb.admin_name || (lsb.email ? lsb.email : '') || prev.lastBy || '', lastById: lsb.admin_id || prev.lastById || '', lastFromPage: lsb.admin_id ? true : (lsb.id ? String(lsb.id) === String(pageId) : prev.lastFromPage),
+            assignee: ((cv.current_assign_users || [])[0] || {}).name || prev.assignee || '', tags: cv.tags || prev.tags || [], snippet: plain(cv.snippet || prev.snippet || '').slice(0, 200), seen: cv.seen });
+          convs++;
+          // messages only for conversations that changed since we last read them
+          if ((opts.msgBudget || 120) > msgs && (!prev.msgAt || (upd && upd > prev.msgAt))) {
+            try {
+              const mj = await chatGet(CHAT_API + pageId + '/conversations/' + encodeURIComponent(id) + '/messages?page_access_token=' + encodeURIComponent(token) + '&customer_id=' + encodeURIComponent(chats[id].custId));
+              const ms = mj.messages || mj.data || [];
+              if (!chatLogged && ms[0]) { console.log('[chat] message keys', Object.keys(ms[0]).join(','), '| from', JSON.stringify(ms[0].from || null).slice(0, 160)); chatLogged = true; }
+              const rows = ms.map((m) => { const fromId = String((m.from || {}).id || ''); const page = fromId === String(pageId) || !!m.admin_id || !!(m.from || {}).admin_id; return { at: tsOf(m.inserted_at), page, by: (m.from || {}).admin_name || m.admin_name || '', text: plain(m.message || m.original_message || '').slice(0, 300) }; }).filter((m) => m.at).sort((a, b) => a.at.localeCompare(b.at));
+              const c = chats[id];
+              c.msgs = rows.slice(-30); c.msgAt = upd || new Date().toISOString();
+              // reply days (a page message on that day = the customer was answered that day) and first response time
+              c.replyDays = c.replyDays || {};
+              for (const m of rows) if (m.page) c.replyDays[H.dayKey(m.at)] = 1;
+              let firstResp = null; for (let i = 0; i < rows.length; i++) if (!rows[i].page) { const nx = rows.slice(i + 1).find((m) => m.page); if (nx) { firstResp = Math.round((Date.parse(nx.at) - Date.parse(rows[i].at)) / 1000); } break; }
+              if (firstResp != null) c.firstRespSec = firstResp;
+              c.waiting = rows.length > 0 && !rows[rows.length - 1].page;
+              msgs++;
+            } catch (e) { errors.push(pageId + ' msg ' + e.message); }
+          }
+        }
+        if (list.length < 20) break;
+      }
+    } catch (e) { errors.push(pageId + ' ' + e.message); }
+  }
+  // keep 45 days
+  const cut = new Date(Date.now() - 45 * 86400000).toISOString();
+  for (const [k, v] of Object.entries(chats)) if ((v.updatedAt || v.insertedAt || '') < cut) delete chats[k];
+  // answered customers per admin per day → admin KPI "จำนวนการตอบ" (automatic rows, manual rows stay as they are)
+  const map = {};
+  for (const c of Object.values(chats)) { const who = H.aliasCloser(state, c.lastBy || c.assignee || ''); if (!who) continue; for (const d of Object.keys(c.replyDays || {})) { const k = d + '|' + who; map[k] = (map[k] || 0) + 1; } }
+  state.adminReplies = (state.adminReplies || []).filter((r) => !r.auto);
+  for (const [k, n] of Object.entries(map)) { const [date, admin] = k.split('|'); if (!state.adminReplies.some((r) => r.date === date && r.admin === admin)) state.adminReplies.push({ id: 'rpa' + date + admin, date, admin, count: n, auto: true, at: new Date().toISOString() }); }
+  Object.assign(sync, { lastRun: new Date().toISOString(), pages: PAGE_TOKENS.length, lastConvs: convs, lastMsgs: msgs, total: Object.keys(chats).length, lastError: errors.length ? errors.slice(0, 3).join(' ; ') : null });
+  if (errors.length) console.warn('[chat]', errors.slice(0, 3).join(' ; '));
+  return { pages: PAGE_TOKENS.length, convs, msgs, errors: errors.length };
+}
+module.exports = { chatPull, chatPages: () => PAGE_TOKENS.map((x) => x[0]), pancakeQualityRows, pancakeShipSync, detectPlatform, fixPlatforms, evoPull, pancakePull, pancakeToClose, onecallPull, importLegacy, status: () => ({ pancake: !!PANCAKE_API_KEY, onecall: !!(OC_USER && OC_PASS) || !!oc.token }) };
