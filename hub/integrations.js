@@ -321,6 +321,7 @@ async function resolveLoose(state) {   // try each token without a page id on th
   }
 }
 const CHAT_API = 'https://pages.fm/api/public_api/v1/pages/';
+const SYS_SENDER = /^(botcake|pos|pancake|bot|chatbot|system)$/i;   // automatic senders, not people
 let chatLogged = false, chatPageLogged = false;
 const tsOf = (v) => { if (!v) return ''; const t = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(/Z|[+-]\d\d:?\d\d$/.test(v) ? v : v + 'Z'); return isNaN(t) ? '' : new Date(t).toISOString(); };
 // strings safe for Postgres JSON: no NUL, no half emoji (surrogate cut by a slice)
@@ -350,7 +351,7 @@ async function chatPull(state, opts) {
           const upd = tsOf(cv.updated_at) || prev.updatedAt || '';
           chats[id] = Object.assign(prev, { id, pageId, type: cv.type || prev.type || '', custId: String(cust.id || prev.custId || ''), name: clean(cust.name || prev.name || ''),
             phone: ((cv.recent_phone_numbers || [])[0] || {}).phone_number || prev.phone || '', insertedAt: tsOf(cv.inserted_at) || prev.insertedAt || '', updatedAt: upd,
-            lastBy: clean(lsb.admin_name) || prev.lastBy || '', lastFromPage: lsb.id ? String(lsb.id) === String(pageId) : prev.lastFromPage,
+            lastBy: (!SYS_SENDER.test(clean(lsb.admin_name)) && clean(lsb.admin_name)) || prev.lastBy || (cv.current_assign_users || []).map((u) => clean(u.name)).find((n) => n && !SYS_SENDER.test(n)) || '', bot: SYS_SENDER.test(clean(lsb.admin_name)) || prev.bot || false, lastFromPage: lsb.id ? String(lsb.id) === String(pageId) : prev.lastFromPage,
             assignee: clean(((cv.current_assign_users || [])[0] || {}).name) || prev.assignee || '', tags: cv.tags || prev.tags || [], snippet: cut(plain(cv.snippet || prev.snippet || ''), 200), seen: cv.seen });
           convs++;
           // messages only for conversations that changed since we last read them

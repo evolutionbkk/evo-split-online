@@ -935,7 +935,8 @@
       const days = Object.keys(c.replyDays || {});
       const active = [dayKey(c.insertedAt), dayKey(c.updatedAt)].concat(days).some((d) => d && d >= from && d <= to);
       if (!active) continue;
-      const who = aliasCloser(st, c.lastBy || c.assignee || '') || 'ยังไม่มีแอดมินตอบ';
+      const raw = /^(botcake|pos|pancake|bot|chatbot|system)$/i.test(c.lastBy || '') ? (/^(botcake|pos|pancake|bot|chatbot|system)$/i.test(c.assignee || '') ? '' : c.assignee) : (c.lastBy || c.assignee || '');
+      const who = aliasCloser(st, raw || '') || (c.bot ? 'บอทตอบ (ยังไม่มีแอดมิน)' : 'ยังไม่มีแอดมินตอบ');
       if (isNonAdminCloser(st, who)) continue;
       const m = get(who); m.chats++;
       const replied = days.some((d) => d >= from && d <= to) || !!c.lastFromPage;
