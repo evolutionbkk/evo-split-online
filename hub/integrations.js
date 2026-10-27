@@ -312,8 +312,11 @@ async function resolveLoose(state) {   // try each token without a page id on th
   if (!LOOSE_TOKENS.length) return;
   const ids = [...new Set(Object.values((state.sync || {}).pageIds || {}).concat(['961069703756542']))];
   for (const tok of LOOSE_TOKENS.splice(0)) {
-    let hit = '';
-    for (const id of ids) { if (PAGE_TOKENS.some((p) => p[0] === id)) continue; try { const r = await fetch(CHAT_API + id + '/conversations?page_access_token=' + encodeURIComponent(tok) + '&page_number=1'); const j = await r.json().catch(() => null); if (r.ok && j && j.success !== false && (j.conversations || j.data)) { hit = id; break; } } catch (_) {} }
+    let hit = '', tries = 0;
+    const known = Object.entries((state.sync || {}).pageIds || {}); console.log('[chat] known pages', known.map(([n, i]) => i + ' ' + n.slice(0, 25)).join(' | '));
+    for (const id of ids) { if (PAGE_TOKENS.some((p) => p[0] === id)) continue; try { const now = Math.floor(Date.now() / 1000); const r = await fetch(CHAT_API + id + '/conversations?page_access_token=' + encodeURIComponent(tok) + '&since=' + (now - 7 * 86400) + '&until=' + now + '&page_number=1'); const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (_) {}
+        if (r.ok && j && j.success !== false && (j.conversations || j.data)) { hit = id; break; }
+        if (tries++ < 3 || id === '961069703756542') console.warn('[chat] try page ' + id + ' → HTTP ' + r.status + ' ' + txt.replace(tok, '***').slice(0, 220)); } catch (e) { console.warn('[chat] try page ' + id + ' failed', e.message); } }
     if (hit) { PAGE_TOKENS.push([hit, tok]); console.log('[chat] token matched page', hit); } else console.warn('[chat] a token did not open any known page (' + ids.length + ' tried)');
   }
 }
