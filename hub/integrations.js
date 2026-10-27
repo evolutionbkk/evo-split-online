@@ -321,7 +321,7 @@ async function resolveLoose(state) {   // try each token without a page id on th
   }
 }
 const CHAT_API = 'https://pages.fm/api/public_api/v1/pages/';
-let chatLogged = false;
+let chatLogged = false, chatPageLogged = false;
 const tsOf = (v) => { if (!v) return ''; const t = typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(/Z|[+-]\d\d:?\d\d$/.test(v) ? v : v + 'Z'); return isNaN(t) ? '' : new Date(t).toISOString(); };
 // strings safe for Postgres JSON: no NUL, no half emoji (surrogate cut by a slice)
 const clean = (v) => String(v == null ? '' : v).replace(/\u0000/g, '').replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
@@ -360,6 +360,7 @@ async function chatPull(state, opts) {
               const ms = mj.messages || mj.data || [];
               if (!chatLogged && ms[0]) { console.log('[chat] message keys', Object.keys(ms[0]).join(','), '| from', JSON.stringify(ms[0].from || null).slice(0, 160)); chatLogged = true; }
               const rows = ms.map((m) => { const fromId = String((m.from || {}).id || ''); const page = fromId === String(pageId) || !!m.admin_id || !!(m.from || {}).admin_id; return { at: tsOf(m.inserted_at), page, by: clean((m.from || {}).admin_name || m.admin_name || ''), text: cut(plain(m.message || m.original_message || ''), 300) }; }).filter((m) => m.at).sort((a, b) => a.at.localeCompare(b.at));
+              if (!chatPageLogged) { const pm = ms.find((m) => String((m.from || {}).id || '') === String(pageId)); if (pm) { chatPageLogged = true; console.log('[chat] page message from', JSON.stringify(Object.assign({}, pm.from, { email: undefined })).slice(0, 220)); } }
               const c = chats[id];
               c.msgs = rows.slice(-30); c.msgAt = upd || new Date().toISOString();
               // reply days (a page message on that day = the customer was answered that day) and first response time
