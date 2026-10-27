@@ -285,7 +285,7 @@ app.get('/api/export/customers.csv', auth, (req, res) => {
   app.listen(PORT, () => console.log('Evolution Hub Commerce on :' + PORT, '· customers', state.customers.length));
   const loop = (fn, min) => setInterval(() => mutate(fn).catch((e) => console.warn(e.message)), min * 60000);
   if (I.chatPages().length) {   // Pancake chats every 10 minutes (first run: last 14 days)
-    setTimeout(() => mutate((st) => I.chatPull(st, { days: 14, pages: 20, msgBudget: 400 })).then((r) => console.log('[chat] first pull', JSON.stringify(r))).catch((e) => console.warn('[chat]', e.message)), 30000);
+    setTimeout(() => mutate((st) => I.chatPull(st, { days: 14, pages: 20, msgBudget: 400 })).then((r) => { console.log('[chat] first pull', JSON.stringify(r)); const rep = H.chatReport(state, H.addDays(H.today(), -6), H.today()); console.log('[chat] 7-day report team', JSON.stringify(Object.assign({}, rep.team, { frSum: undefined })), '| admins', rep.list.slice(0, 10).map((m) => m.name + ' ' + m.chats + '/' + m.closed).join(', '), '| why', rep.lost.slice(0, 6).map((x) => x[0] + ' ' + x[1]).join(', ')); }).catch((e) => console.warn('[chat]', e.message)), 30000);
     loop((st) => I.chatPull(st, { days: 2 }), 10);
   }
   if (I.status().pancake) { setTimeout(() => mutate((st) => I.pancakeShipSync(st, 15)).then((r) => console.log('[boot] Pancake shipping status', JSON.stringify(r))).catch((e) => console.warn('[ship]', e.message)), 20000);
