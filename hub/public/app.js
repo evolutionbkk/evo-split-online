@@ -782,10 +782,74 @@
     return hit && (hit.list || hit.error) ? hit : null;
   }
   const frTxt = (s) => (s == null ? '-' : s < 60 ? s + ' วิ' : s < 3600 ? Math.round(s / 60) + ' นาที' : (s / 3600).toFixed(1) + ' ชม.');
+  // detailed chat report for executives: one workbook, several sheets
+  async function chatReportXlsx(from, to, label) {
+    const st = S.full || V(); let r = DEMO ? H.chatReport(st, from, to) : await fetch('/api/report/chats?from=' + from + '&to=' + to, { credentials: 'same-origin' }).then((x) => x.json());
+    if (!r || r.error || !r.list) return toast('โหลดข้อมูลแชทไม่สำเร็จ' + (r && r.error ? ' : ' + r.error : ''));
+    const X = await loadXlsx(), t = r.team, P = (v) => +(v * 100).toFixed(1), M = (s) => (s == null ? '' : +(s / 60).toFixed(1));
+    const pageName = {}; for (const [n, id] of Object.entries((st.sync || {}).pageIds || {})) pageName[id] = n;
+    const link = (x) => 'https://pancake.vn/' + encodeURIComponent(x.pageId) + '?c_id=' + encodeURIComponent(x.id);
+    const when = (x) => (x.at ? H.thDate(x.at) + ' ' + H.thTime(x.at) : '');
+    const people = r.list.filter((m) => !/^(ยังไม่มีแอดมินตอบ|บอทตอบ)/.test(m.name));
+    const best = people.filter((m) => m.chats >= 5).sort((a, b) => b.rate - a.rate)[0];
+    const most = people.slice().sort((a, b) => b.closed - a.closed)[0];
+    const fast = people.filter((m) => m.avgFr != null && m.chats >= 5).sort((a, b) => a.avgFr - b.avgFr)[0];
+    const slow = people.filter((m) => m.avgFr != null && m.chats >= 5).sort((a, b) => b.avgFr - a.avgFr)[0];
+    const low = people.filter((m) => m.chats >= 10).sort((a, b) => a.rate - b.rate)[0];
+    const open = t.chats - t.closed, lost = r.lost;
+    const insights = [];
+    if (most) insights.push('ปิดการขายได้มากที่สุด : ' + most.name + ' ' + most.closed + ' ออเดอร์ ยอด ' + B(most.revenue));
+    if (best) insights.push('อัตราปิดสูงที่สุด : ' + best.name + ' ' + P(best.rate) + '% (' + best.closed + ' จาก ' + best.chats + ' แชท)');
+    if (low && low !== best) insights.push('อัตราปิดต่ำที่สุด : ' + low.name + ' ' + P(low.rate) + '% (' + low.closed + ' จาก ' + low.chats + ' แชท) ควรดูบทสนทนาประกอบ');
+    if (fast) insights.push('ตอบครั้งแรกเร็วที่สุด : ' + fast.name + ' เฉลี่ย ' + frTxt(fast.avgFr));
+    if (slow && slow !== fast) insights.push('ตอบครั้งแรกช้าที่สุด : ' + slow.name + ' เฉลี่ย ' + frTxt(slow.avgFr));
+    if (lost[0]) insights.push('สาเหตุหลักที่ปิดไม่ได้ : ' + lost[0][0] + ' ' + lost[0][1] + ' แชท (' + (open ? P(lost[0][1] / open) : 0) + '% ของแชทที่ยังปิดไม่ได้)');
+    if (lost[1]) insights.push('สาเหตุรองลงมา : ' + lost[1][0] + ' ' + lost[1][1] + ' แชท' + (lost[2] ? ' และ ' + lost[2][0] + ' ' + lost[2][1] + ' แชท' : ''));
+    if (t.waiting) insights.push('ลูกค้ายังรอคำตอบอยู่ ' + t.waiting + ' คน (ดูชีท "ลูกค้ารอคำตอบ")');
+    const sumRows = [
+      ['รายงานวิเคราะห์การตอบแชทแอดมิน : Evolution Hub Commerce'],
+      ['ช่วงเวลา', label + ' (' + H.thDate(from) + ' ถึง ' + H.thDate(to) + ')'],
+      ['ออกรายงานเมื่อ', H.thDate(new Date().toISOString()) + ' ' + H.thTime(new Date().toISOString())],
+      ['ข้อมูลจาก', 'แชทใน Pancake ' + (r.pages || 1) + ' เพจ เทียบกับออเดอร์ที่ปิดได้ในระบบ'],
+      [],
+      ['ภาพรวมทั้งทีม', 'ค่า'],
+      ['แชททั้งหมด', t.chats], ['ตอบแล้ว', t.replied], ['ปิดการขายได้ (แชท)', t.closed], ['อัตราปิดการขาย (%)', P(t.rate)],
+      ['ยอดขายจากแชท (บาท)', t.revenue], ['ยอดเฉลี่ยต่อออเดอร์ (บาท)', t.closed ? Math.round(t.revenue / t.closed) : 0],
+      ['ตอบครั้งแรกเฉลี่ย (นาที)', M(t.avgFr)], ['แชทที่ตอบช้าเกิน 1 ชั่วโมง', t.slow], ['ลูกค้ายังรอคำตอบ', t.waiting], ['แชทที่ยังปิดไม่ได้', open],
+      [],
+      ['ประเด็นสำคัญสำหรับผู้บริหาร'],
+    ].concat(insights.map((x, i) => [(i + 1) + '.', x])).concat([[],
+      ['สาเหตุที่ยังปิดไม่ได้ (ทั้งทีม)', 'จำนวนแชท', '% ของแชทที่ยังปิดไม่ได้']], lost.map(([w, n]) => [w, n, open ? P(n / open) : 0]), [[],
+      ['หมายเหตุ'], ['ปิดได้ = แชทที่มีออเดอร์ตามมา (จับคู่ด้วยรหัสแชทของ Pancake หรือเบอร์โทร)'], ['สาเหตุวิเคราะห์จากข้อความของลูกค้าเบื้องต้น แชทหนึ่งอาจมีมากกว่า 1 สาเหตุ'], ['บอท Botcake และข้อความยืนยันออเดอร์ POS ไม่นับเป็นแอดมิน']]);
+    const reasonsAll = lost.map(([w]) => w);
+    const admRows = [['อันดับ', 'แอดมิน', 'แชททั้งหมด', 'ตอบแล้ว', 'ปิดได้', 'อัตราปิด (%)', 'ยอดขาย (บาท)', 'ยอดเฉลี่ย/ออเดอร์', 'ตอบครั้งแรกเฉลี่ย (นาที)', 'ตอบช้าเกิน 1 ชม.', 'ลูกค้ารอคำตอบ', 'สาเหตุหลักที่ปิดไม่ได้']]
+      .concat(r.list.slice().sort((a, b) => b.closed - a.closed || b.rate - a.rate).map((m, i) => [i + 1, m.name, m.chats, m.replied, m.closed, P(m.rate), m.revenue, m.closed ? Math.round(m.revenue / m.closed) : 0, M(m.avgFr), m.slow, m.waiting, m.lost.slice(0, 3).map(([w, n]) => w + ' (' + n + ')').join(', ')]))
+      .concat([[], ['', 'รวมทั้งทีม', t.chats, t.replied, t.closed, P(t.rate), t.revenue, t.closed ? Math.round(t.revenue / t.closed) : 0, M(t.avgFr), t.slow, t.waiting, '']]);
+    const whyRows = [['แอดมิน'].concat(reasonsAll, ['รวมแชทที่ยังปิดไม่ได้'])].concat(r.list.map((m) => { const mp = Object.fromEntries(m.lost); return [m.name].concat(reasonsAll.map((w) => mp[w] || 0), [m.chats - m.closed]); }));
+    const rowOf = (x) => [when(x), pageName[x.pageId] || x.pageId, x.name, x.admin, x.closed ? 'ปิดได้' : x.waiting ? 'ลูกค้ารอคำตอบ' : 'ยังปิดไม่ได้', x.total || '', M(x.firstRespSec), x.why.join(', '), x.last || '', link(x)];
+    const head = ['วันเวลาแชทล่าสุด', 'เพจ', 'ลูกค้า', 'แอดมิน', 'สถานะ', 'ยอด (บาท)', 'ตอบครั้งแรก (นาที)', 'เหตุผล / ข้อสังเกต', 'ข้อความล่าสุดของลูกค้า', 'เปิดแชทใน Pancake'];
+    const sheet = (aoa, widths, linkCol) => { const ws = X.utils.aoa_to_sheet(aoa); ws['!cols'] = widths.map((w) => ({ wch: w }));
+      if (linkCol != null) for (let i = 1; i < aoa.length; i++) { const ref = X.utils.encode_cell({ r: i, c: linkCol }), c = ws[ref]; if (c && c.v) { c.l = { Target: String(c.v) }; c.v = 'เปิดแชท'; } }
+      return ws; };
+    const wb = X.utils.book_new();
+    const s1 = sheet(sumRows, [44, 70, 24]); s1['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+    X.utils.book_append_sheet(wb, s1, 'สรุปผู้บริหาร');
+    X.utils.book_append_sheet(wb, sheet(admRows, [8, 24, 12, 10, 10, 12, 14, 16, 20, 16, 14, 60]), 'รายแอดมิน');
+    X.utils.book_append_sheet(wb, sheet(whyRows, [24].concat(reasonsAll.map((w) => Math.max(12, w.length + 2)), [22])), 'สาเหตุแยกตามแอดมิน');
+    const list = (f) => [head].concat(r.rows.filter(f).map(rowOf));
+    const W = [20, 30, 24, 20, 14, 12, 16, 48, 60, 14];
+    X.utils.book_append_sheet(wb, sheet(list((x) => x.closed), W, 9), 'แชทที่ปิดได้');
+    X.utils.book_append_sheet(wb, sheet(list((x) => !x.closed && !x.waiting), W, 9), 'แชทที่ยังปิดไม่ได้');
+    X.utils.book_append_sheet(wb, sheet(list((x) => x.waiting && !x.closed), W, 9), 'ลูกค้ารอคำตอบ');
+    const buf = X.write(wb, { bookType: 'xlsx', type: 'array' });
+    const el = document.createElement('a'); el.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); el.download = 'EvolutionHub-chat-report-' + from + (to !== from ? '_' + to : '') + '.xlsx';
+    document.body.appendChild(el); el.click(); setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 1500);
+    toast('ดาวน์โหลดรายงานแชทแล้ว');
+  }
   function chatCard(st, from, to, label) {
     const r = chatData(st, from, to);
     const headH = '<div class="card-h"><span class="card-ico">' + ico('chat') + '</span><div class="ttl"><h2>วิเคราะห์การตอบแชทแอดมิน</h2><small>' + label + ' : แชทจาก Pancake เทียบกับออเดอร์ที่ปิดได้</small></div>' +
-      '<div class="seg"><button class="' + (ui.chBy !== 'list' ? 'on' : '') + '" data-act="ch-by" data-v="admin">รายแอดมิน</button><button class="' + (ui.chBy === 'list' ? 'on' : '') + '" data-act="ch-by" data-v="list">รายแชท</button></div></div>';
+      '<button class="btn sm ch-xl" data-act="ch-report" data-from="' + from + '" data-to="' + to + '" data-label="' + esc(label) + '">' + ico('download') + ' รายงาน Excel</button><div class="seg"><button class="' + (ui.chBy !== 'list' ? 'on' : '') + '" data-act="ch-by" data-v="admin">รายแอดมิน</button><button class="' + (ui.chBy === 'list' ? 'on' : '') + '" data-act="ch-by" data-v="list">รายแชท</button></div></div>';
     if (!r) return '<section class="card ch-card">' + headH + '<div class="empty">กำลังดึงแชทจาก Pancake…</div></section>';
     if (r.error) return '<section class="card ch-card">' + headH + '<div class="empty">ดึงแชทไม่ได้ : ' + esc(r.error) + '</div></section>';
     const sy = r.sync || {};
@@ -2149,6 +2213,7 @@
     },
     'q-by': (el) => { ui.qBy = el.dataset.v; render(); },
     'ch-by': (el) => { ui.chBy = el.dataset.v; render(); },
+    'ch-report': (el) => { chatReportXlsx(el.dataset.from, el.dataset.to, el.dataset.label).catch((e) => toast('สร้างรายงานไม่สำเร็จ : ' + e.message)); },
     'ch-f': (el) => { ui.chF = el.dataset.v; render(); },
     'help-open': (el) => { ui.helpOpen = ui.helpOpen === el.dataset.v ? '' : el.dataset.v; render(); },
     'pg': (el) => { ui.pg = ui.pg || {}; ui.pg[el.dataset.k] = Number(el.dataset.v); render(); },
